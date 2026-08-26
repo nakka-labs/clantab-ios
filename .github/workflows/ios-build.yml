@@ -1,0 +1,45 @@
+name: iOS App Build Check
+
+# Verifies App/ actually compiles, using a macOS GitHub Actions runner - the
+# only way to build Swift/SwiftUI for iOS, since there's no macOS available in
+# local development for this repo (see App/README.md). Builds for the iOS
+# Simulator only: no code signing needed, no device required, just "does it
+# compile."
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "App/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "App/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: cd App && xcodegen generate
+
+      - name: Show generated schemes (debugging aid)
+        run: cd App && xcodebuild -list -project Squarely.xcodeproj
+
+      - name: Build for iOS Simulator
+        run: |
+          cd App
+          xcodebuild build \
+            -project Squarely.xcodeproj \
+            -scheme Squarely \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
