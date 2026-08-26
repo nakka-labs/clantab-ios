@@ -148,9 +148,12 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
 
 ### Phase 6 — Polish & Export
-- [ ] CSV and JSON export via iOS ShareSheet (`ShareLink`).
-- [ ] System share sheet for group invite link & 6-character join code.
-- [ ] Haptic feedback, dark mode, offline indicators, and empty states.
+- [x] CSV and JSON export via iOS ShareSheet (`ShareLink`). Serialization itself lives in `SquareKit.Export` (pure functions, fully tested on Windows — 9 tests); the App target only writes the result to a temp file for sharing.
+- [x] System share sheet for group invite link & 6-character join code. The join code is only ever returned at creation time (`DESIGN.md` §2 doesn't return it from `GET /api/groups/:groupId`), so it's surfaced in a new post-creation confirmation step in `CreateGroupView` — see `App/README.md`'s "Known gaps" for the underlying API limitation.
+- [x] Haptic feedback on expense-added and settlement-marked-paid (`.sensoryFeedback`, iOS 17+).
+- [x] Dark mode: reviewed — already fine via system-adaptive colors, no changes needed.
+- [x] Offline indicators / empty states: reviewed — existing loading spinner + inline error text considered adequate for v1; a dedicated offline banner deliberately deferred rather than over-built blind.
+- [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
 
 ### Phase 7 — Ship & Documentation
 - [ ] Polish README with architecture diagrams and screenshots.

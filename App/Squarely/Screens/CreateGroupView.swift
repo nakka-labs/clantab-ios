@@ -7,6 +7,17 @@ struct CreateGroupView: View {
     let onCreated: (String) -> Void
     let onCancel: () -> Void
 
+    /// `CreateGroupResponse` is the *only* place the 6-character join code is
+    /// ever available — `GET /api/groups/:groupId` (`DESIGN.md` §2) doesn't
+    /// return it, so unlike the capability link, it can't be re-shared later
+    /// from Group Home. This stage exists specifically to surface it before
+    /// that one chance is gone.
+    private enum Stage {
+        case form
+        case created(CreateGroupResponse)
+    }
+
+    @State private var stage: Stage = .form
     @State private var groupName = ""
     @State private var currency = "INR"
     @State private var displayName = ""
@@ -16,6 +27,25 @@ struct CreateGroupView: View {
     private let currencies = ["INR", "USD", "EUR", "GBP", "AUD", "CAD"]
 
     var body: some View {
+        Group {
+            switch stage {
+            case .form:
+                form
+            case .created(let response):
+                createdConfirmation(response)
+            }
+        }
+        .navigationTitle(stage.isForm ? "New Group" : "Share Your Group")
+        .toolbar {
+            if stage.isForm {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+            }
+        }
+    }
+
+    private var form: some View {
         Form {
             Section("Group") {
                 TextField("Group name", text: $groupName)
@@ -46,10 +76,25 @@ struct CreateGroupView: View {
                 .disabled(!canSubmit || isSubmitting)
             }
         }
-        .navigationTitle("New Group")
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel", action: onCancel)
+    }
+
+    private func createdConfirmation(_ response: CreateGroupResponse) -> some View {
+        let shareURL = AppConfig.groupShareURL(groupId: response.groupId)
+        return Form {
+            Section("Join Code") {
+                Text(response.joinCode)
+                    .font(.system(.largeTitle, design: .monospaced, weight: .bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                ShareLink("Share Code", item: response.joinCode)
+            }
+            Section("Or Share the Link") {
+                ShareLink("Share Invite Link", item: shareURL)
+            }
+            Section {
+                Button("Continue") {
+                    onCreated(response.groupId)
+                }
             }
         }
     }
@@ -72,9 +117,16 @@ struct CreateGroupView: View {
                 GroupIdentity(memberId: response.member.id, displayName: response.member.displayName),
                 forGroup: response.groupId
             )
-            onCreated(response.groupId)
+            stage = .created(response)
         } catch {
             errorMessage = friendlyMessage(for: error)
         }
+    }
+}
+
+extension CreateGroupView.Stage {
+    var isForm: Bool {
+        if case .form = self { return true }
+        return false
     }
 }

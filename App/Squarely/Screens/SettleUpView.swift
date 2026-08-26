@@ -14,6 +14,7 @@ struct SettleUpView: View {
     let groupId: String
     let client: SquarelyClient
     let viewModel: GroupViewModel
+    let onSettled: () -> Void
     let onDone: () -> Void
 
     @State private var pendingRowId: String?
@@ -102,6 +103,7 @@ struct SettleUpView: View {
                     amountMinor: settlement.amountMinor
                 )
             )
+            onSettled()
             await viewModel.refetch()
         } catch {
             errorMessage = friendlyMessage(for: error)

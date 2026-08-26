@@ -6,6 +6,8 @@ struct GroupHomeView: View {
     @State private var viewModel: GroupViewModel
     @State private var isPresentingAddExpense = false
     @State private var isPresentingSettleUp = false
+    @State private var expenseAddedTrigger = 0
+    @State private var settlementMarkedTrigger = 0
 
     init(groupId: String, client: SquarelyClient, identityStore: IdentityStoring) {
         self.client = client
@@ -70,7 +72,8 @@ struct GroupHomeView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                shareMenu
                 Button {
                     isPresentingAddExpense = true
                 } label: {
@@ -89,6 +92,7 @@ struct GroupHomeView: View {
                     client: client,
                     onSaved: {
                         isPresentingAddExpense = false
+                        expenseAddedTrigger += 1
                         Task { await viewModel.refetch() }
                     },
                     onCancel: { isPresentingAddExpense = false }
@@ -101,8 +105,38 @@ struct GroupHomeView: View {
                     groupId: viewModel.groupId,
                     client: client,
                     viewModel: viewModel,
+                    onSettled: { settlementMarkedTrigger += 1 },
                     onDone: { isPresentingSettleUp = false }
                 )
+            }
+        }
+        .sensoryFeedback(.success, trigger: expenseAddedTrigger)
+        .sensoryFeedback(.success, trigger: settlementMarkedTrigger)
+    }
+
+    @ViewBuilder
+    private var shareMenu: some View {
+        if let state = viewModel.state {
+            Menu {
+                ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: viewModel.groupId))
+
+                let filenameBase = ExportFile.sanitizedFilename(state.group.name)
+                let csv = Export.csv(members: state.members, expenses: state.expenses, settlements: state.settlements)
+                if let csvURL = ExportFile.write(csv, filename: "\(filenameBase)-export.csv") {
+                    ShareLink("Export CSV", item: csvURL)
+                }
+
+                if let jsonData = try? Export.json(
+                    groupName: state.group.name,
+                    currency: state.group.currency,
+                    members: state.members,
+                    expenses: state.expenses,
+                    settlements: state.settlements
+                ), let jsonURL = ExportFile.write(jsonData, filename: "\(filenameBase)-export.json") {
+                    ShareLink("Export JSON", item: jsonURL)
+                }
+            } label: {
+                Label("Share & Export", systemImage: "square.and.arrow.up")
             }
         }
     }

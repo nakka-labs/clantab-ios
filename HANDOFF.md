@@ -89,47 +89,73 @@
 ```text
 Read App/README.md.
 
-Before starting Phase 6, verify the App/ target actually builds - Phases 3, 4,
-and 5 were all scaffolded on Windows with no Xcode available, so none of it
-has been compiled yet.
+Before starting Phase 7, verify the App/ target actually builds - Phases 3
+through 6 were all scaffolded on Windows with no Xcode available, so none of
+it has been compiled yet.
 
 1. brew install xcodegen (if needed), then `cd App && xcodegen generate`.
 2. Open Squarely.xcodeproj, select an iOS 17+ Simulator, and build.
 3. Fix whatever Xcode's compiler flags - likely candidates: Picker/ForEach tag
    inference (currency picker, split-type segmented picker), @Observable +
    @State wiring across GroupHomeView/SettleUpView sharing one view model, the
-   switch-over-SplitType inside AddExpenseView's Form, SwiftUI availability on
-   the chosen deployment target.
+   switch-over-SplitType inside AddExpenseView's Form, the Stage enum switch
+   in CreateGroupView, ToolbarItemGroup + Menu + ShareLink composition in
+   GroupHomeView's toolbar, SwiftUI availability on the chosen deployment
+   target.
 4. Run it. Since there's no backend yet (AppConfig.apiBaseURL is a
    placeholder), Create/Join will fail at the network call - that's expected.
    Confirm the UI itself renders and navigates correctly up to that point,
-   including opening both the Add Expense and Settle Up sheets from Group Home.
-5. Keep `swift test --package-path SquareKit` green throughout.
+   including opening the Add Expense and Settle Up sheets and the Share &
+   Export menu from Group Home.
+5. Keep `swift test --package-path SquareKit` green throughout (46 tests).
 
-Report what broke and what you fixed before moving on to Phase 6.
+Report what broke and what you fixed before moving on to Phase 7.
 ```
 
-## Phase 6 Prompt (Copy-Paste for After App/ Is Verified)
+## Phase 6 Checklist — Completed, Build UNVERIFIED (same caveat as Phases 3-5)
+- [x] `SquareKit/Export/Export.swift`: CSV and JSON ledger export as pure
+  functions - `Export.csv` (money via integer-math decimal strings, RFC 4180
+  escaping, sorted oldest-first) and `Export.json` (a complete pretty-printed
+  snapshot). Genuinely testable, so it got 9 real tests
+  (`Tests/SquareKitTests/ExportTests.swift`) - 46 tests total, all passing.
+- [x] `Components/ExportFile.swift` (App): writes `Export`'s output to a temp
+  file so `ShareLink(item: url)` shares it as a real named `.csv`/`.json` file.
+- [x] `GroupHomeView`'s new "Share & Export" toolbar menu: invite link, CSV,
+  and JSON, all via `ShareLink`.
+- [x] `CreateGroupView` gained a post-creation confirmation stage — the *only*
+  place the 6-character join code is available (`DESIGN.md` §2's
+  `GET /api/groups/:groupId` doesn't return it) — with `ShareLink` for both
+  the code and the capability link.
+- [x] Haptic feedback (`.sensoryFeedback(.success, trigger:)`, iOS 17+) on
+  expense-added and settlement-marked-paid, wired through `SettleUpView`'s new
+  `onSettled` callback.
+- [x] Dark mode and offline/empty states: reviewed, no changes needed - see
+  `App/README.md`'s "Known gaps" for the reasoning on each.
+- Built on top of Phases 3-5's still-unverified `App/` code, same explicit
+  choice as before - all four will be verified together in one Xcode session.
+
+---
+
+## Phase 7 Prompt (Copy-Paste for After App/ Is Verified)
 
 ```text
 Read PLAN.md, DESIGN.md, and AGENTS.md.
 
-We are starting Phase 6: Polish & Export.
+We are starting Phase 7: Ship & Documentation - the last phase in PLAN.md's
+roadmap.
 
-Implement in the App/ target:
-1. CSV and JSON export of a group's expenses/settlements via `ShareLink`
-   (iOS's native share sheet) - per PLAN.md's Export screen and non-goal of
-   no third-party dependencies. Keep the serialization logic (building the
-   CSV/JSON string from a GroupStateResponse) in a small, independently
-   testable function rather than inline in the view.
-2. A system share sheet for the group's invite link & 6-character join code
-   (also via ShareLink), from GroupHomeView.
-3. Haptic feedback on key actions (expense added, settlement marked paid).
-4. Dark mode support - verify it, since SwiftUI is dark-mode-aware by default,
-   but check contrast on BalanceHeroView's green/red text.
-5. Offline/error states and empty states - GroupHomeView already has basic
-   error text; review whether it needs a proper offline indicator given
-   DESIGN.md §9's note that this app always has a network round trip.
+1. Polish README.md with an architecture diagram (mermaid is fine) and
+   screenshots once the App/ Verification pass has produced a running build to
+   screenshot.
+2. Review AGENTS.md/PLAN.md/DESIGN.md/HANDOFF.md for drift against what
+   actually got built across Phases 1-6, and correct anything stale.
+3. Tag a release (e.g. `v0.1.0`) once the App/ Verification prompt has been
+   run and the build actually works end-to-end against a real backend - note
+   that the Cloudflare Worker backend itself (DESIGN.md's whole API surface)
+   hasn't been built yet in this repo. Decide whether "Ship" for v0.1.0 means
+   shipping the iOS app against a real deployed Worker, or whether the Worker
+   is a separate, not-yet-started piece of work - PLAN.md doesn't currently
+   have a phase for building it.
 
 Keep `swift test --package-path SquareKit` green throughout.
 ```

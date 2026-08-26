@@ -28,13 +28,15 @@ squarely-ios/
 │   │                    # the debt simplification engine, validation, and network client.
 │   ├── Sources/SquareKit/
 │   │   ├── Model/       # Group, Member, Expense, ExpenseSplit, Settlement, Balance
-│   │   ├── Logic/       # Balances.swift, Simplify.swift
-│   │   └── Network/     # Async/await HTTP sync client
+│   │   ├── Logic/       # Balances.swift, Simplify.swift, Validation.swift
+│   │   ├── Storage/     # IdentityStore (local per-group identity)
+│   │   ├── Network/     # Async/await HTTP sync client
+│   │   └── Export/      # CSV/JSON ledger export (pure functions)
 │   └── Tests/SquareKitTests/
 │
 └── App/                 # Native SwiftUI application shell (iOS 17+) — see App/README.md
     └── Squarely/
-        ├── Screens/     # StartView, CreateGroup, JoinGroup, GroupHome, (AddExpense/SettleUp/Export to come)
+        ├── Screens/     # StartView, CreateGroup, JoinGroup, GroupHome, AddExpense, SettleUp
         ├── ViewModels/  # GroupViewModel — fetch-on-load/refetch, no optimistic UI
         └── Components/  # Reusable UI components, money formatting, error messages
 ```
