@@ -15,6 +15,11 @@ struct CreateGroupView: View {
     private enum Stage {
         case form
         case created(CreateGroupResponse)
+
+        var isForm: Bool {
+            if case .form = self { return true }
+            return false
+        }
     }
 
     @State private var stage: Stage = .form
@@ -121,12 +126,5 @@ struct CreateGroupView: View {
         } catch {
             errorMessage = friendlyMessage(for: error)
         }
-    }
-}
-
-extension CreateGroupView.Stage {
-    var isForm: Bool {
-        if case .form = self { return true }
-        return false
     }
 }
