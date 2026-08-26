@@ -138,8 +138,9 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [ ] **Unverified**: scaffolded on Windows with no Xcode available to compile it. First real build/run in Xcode is still outstanding — see `App/README.md` "Known gaps".
 
 ### Phase 4 — Add Expense Flow
-- [ ] `AddExpenseView`: custom keypad / numeric input, payer picker, equal vs. exact split UI with automatic remainder resolution.
-- [ ] Wire to group client and refresh state.
+- [x] `AddExpenseView`: amount entry, payer picker, description, equal vs. exact split UI with automatic remainder resolution (via `Validation.equalSplit`).
+- [x] Wire to group client and refresh state (toolbar button on `GroupHomeView` → sheet → `addExpense` → `refetch()`, no optimistic UI).
+- [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
 
 ### Phase 5 — Settle Up Flow
 - [ ] `SettleUpView`: render simplified transaction cards.

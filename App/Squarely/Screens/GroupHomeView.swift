@@ -2,9 +2,12 @@ import SwiftUI
 import SquareKit
 
 struct GroupHomeView: View {
+    private let client: SquarelyClient
     @State private var viewModel: GroupViewModel
+    @State private var isPresentingAddExpense = false
 
     init(groupId: String, client: SquarelyClient, identityStore: IdentityStoring) {
+        self.client = client
         _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, identityStore: identityStore))
     }
 
@@ -53,6 +56,32 @@ struct GroupHomeView: View {
         .overlay {
             if viewModel.isLoading && viewModel.state == nil {
                 ProgressView()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    isPresentingAddExpense = true
+                } label: {
+                    Label("Add Expense", systemImage: "plus")
+                }
+                .disabled(viewModel.state == nil)
+            }
+        }
+        .sheet(isPresented: $isPresentingAddExpense) {
+            NavigationStack {
+                AddExpenseView(
+                    groupId: viewModel.groupId,
+                    members: viewModel.state?.members ?? [],
+                    currency: currency,
+                    currentMemberId: viewModel.myIdentity?.memberId,
+                    client: client,
+                    onSaved: {
+                        isPresentingAddExpense = false
+                        Task { await viewModel.refetch() }
+                    },
+                    onCancel: { isPresentingAddExpense = false }
+                )
             }
         }
     }

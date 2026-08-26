@@ -44,46 +44,69 @@
 - SquareKit's own test suite is untouched and still green (37/37,
   `swift test --package-path SquareKit`).
 
+## Phase 4 Checklist — Completed, Build UNVERIFIED (same caveat as Phase 3)
+- [x] `Screens/AddExpenseView.swift`: amount entry (parsed to integer minor
+  units via `MoneyFormat.minorUnits(from:)` — string/integer math, no
+  `Double`), payer picker, description, equal-vs-exact split UI. The equal
+  split delegates to `Validation.equalSplit` (remainder to the payer) rather
+  than reimplementing division; the exact split shows a live "unassigned /
+  over the total" indicator and reuses `Validation.validateSplitsSum` as a
+  client-side check before the request is even sent (DESIGN.md §6).
+- [x] Wired into `GroupHomeView` via a toolbar `+` button → sheet →
+  `client.addExpense` → `viewModel.refetch()` — no optimistic UI, same pattern
+  as the rest of Group Home.
+- [x] Client-generates the idempotency `id` (`UUID().uuidString`) per
+  `DESIGN.md` §2.
+- [x] `Components/ClientErrorMessage.swift` extended to translate
+  `ValidationError` cases too, not just `SquarelyClientError`.
+- Built on top of Phase 3's still-unverified App/ code, by explicit choice —
+  both will be verified together in one Xcode session rather than pausing
+  mid-stream. SquareKit's own suite remains untouched and green (37/37).
+
 ---
 
-## Phase 3 Verification Prompt (Run This First, on macOS)
+## App/ Verification Prompt (Run This First, on macOS — Covers Phases 3 + 4)
 
 ```text
 Read App/README.md.
 
-Before starting Phase 4, verify Phase 3 actually builds - it was scaffolded on
-Windows with no Xcode available, so it has not been compiled yet.
+Before starting Phase 5, verify the App/ target actually builds - Phases 3 and
+4 were both scaffolded on Windows with no Xcode available, so none of it has
+been compiled yet.
 
 1. brew install xcodegen (if needed), then `cd App && xcodegen generate`.
 2. Open Squarely.xcodeproj, select an iOS 17+ Simulator, and build.
 3. Fix whatever Xcode's compiler flags - likely candidates: Picker/ForEach tag
-   inference, @Observable + @State wiring in GroupHomeView, SwiftUI availability
-   on the chosen deployment target.
-4. Run it. Since there's no backend yet (AppConfig.apiBaseURL is a placeholder),
-   Create/Join will fail at the network call - that's expected. Confirm the UI
-   itself renders and navigates correctly up to that point.
+   inference (both the currency picker and the split-type segmented picker),
+   @Observable + @State wiring in GroupHomeView, the switch-over-SplitType
+   inside AddExpenseView's Form, SwiftUI availability on the chosen deployment
+   target.
+4. Run it. Since there's no backend yet (AppConfig.apiBaseURL is a
+   placeholder), Create/Join will fail at the network call - that's expected.
+   Confirm the UI itself renders and navigates correctly up to that point,
+   including opening the Add Expense sheet from Group Home.
 5. Keep `swift test --package-path SquareKit` green throughout.
 
-Report what broke and what you fixed before moving on to Phase 4.
+Report what broke and what you fixed before moving on to Phase 5.
 ```
 
-## Phase 4 Prompt (Copy-Paste for After Phase 3 Is Verified)
+## Phase 5 Prompt (Copy-Paste for After App/ Is Verified)
 
 ```text
 Read PLAN.md, DESIGN.md, and AGENTS.md.
 
-We are starting Phase 4: Add Expense Flow.
+We are starting Phase 5: Settle Up Flow.
 
 Implement in the App/ target:
-1. `AddExpenseView`: amount entry (integer minor units, no floating point per
-   AGENTS.md), payer picker, description, equal-vs-exact split UI. For an equal
-   split, use SquareKit's `Validation.equalSplit` (remainder to the payer) rather
-   than reimplementing division client-side.
-2. Wire it into GroupHomeView (a toolbar button or similar), call
-   SquarelyClient.addExpense, then GroupViewModel.refetch() - no optimistic UI,
-   consistent with Phase 3's GroupHomeView and DESIGN.md §7.
-3. Client-generate the idempotency `id` (UUID string) per DESIGN.md §2 so a
-   retried POST after a timeout doesn't create a duplicate expense.
+1. `SettleUpView`: render `GroupStateResponse.simplifiedSettlements` (already
+   computed server-side, per DESIGN.md §2 - do not recompute simplification
+   client-side) as minimal transaction cards ("You owe X ₹500", "Y owes you
+   ₹300"), each with a 1-tap "Mark as Paid" action.
+2. "Mark as Paid" calls SquarelyClient.addSettlement with a client-generated
+   idempotency `id` (per DESIGN.md §2, same pattern as Phase 4's addExpense),
+   then GroupViewModel.refetch() - no optimistic UI.
+3. Wire a way into SettleUpView from GroupHomeView (toolbar button or a row in
+   the existing balance section).
 
 Keep `swift test --package-path SquareKit` green throughout.
 ```

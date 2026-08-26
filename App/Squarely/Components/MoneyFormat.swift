@@ -14,4 +14,31 @@ enum MoneyFormat {
         formatter.currencyCode = currency
         return formatter.string(from: NSNumber(value: major)) ?? "\(currency) \(major)"
     }
+
+    /// Parses a decimal amount typed by the user (e.g. "12", "12.5", "12.34")
+    /// into integer minor units — via string/integer math, not `Double`, so a
+    /// typed amount never picks up floating-point drift on the way in. Returns
+    /// `nil` for anything that isn't a plain non-negative number with at most
+    /// 2 fractional digits.
+    static func minorUnits(from input: String) -> Int64? {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+
+        let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 1 || parts.count == 2 else { return nil }
+
+        let wholeDigits = parts[0].isEmpty ? "0" : String(parts[0])
+        guard wholeDigits.allSatisfy(\.isNumber), let wholePart = Int64(wholeDigits) else { return nil }
+
+        var fractionalMinor: Int64 = 0
+        if parts.count == 2 {
+            var fractionalDigits = String(parts[1])
+            guard fractionalDigits.count <= 2, fractionalDigits.allSatisfy(\.isNumber) else { return nil }
+            while fractionalDigits.count < 2 { fractionalDigits.append("0") }
+            guard let value = Int64(fractionalDigits) else { return nil }
+            fractionalMinor = value
+        }
+
+        return wholePart * 100 + fractionalMinor
+    }
 }
