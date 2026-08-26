@@ -68,28 +68,7 @@ struct AddExpenseView: View {
                 }
                 .pickerStyle(.segmented)
 
-                switch splitType {
-                case .equal:
-                    ForEach(members) { member in
-                        Toggle(member.displayName, isOn: includedBinding(for: member.id))
-                    }
-                case .exact:
-                    ForEach(members) { member in
-                        HStack {
-                            Text(member.displayName)
-                            Spacer()
-                            TextField("0.00", text: exactAmountBinding(for: member.id))
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 80)
-                        }
-                    }
-                    if let amountMinor {
-                        Text(remainingLabel(amountMinor - exactSplitsTotal))
-                            .font(.footnote)
-                            .foregroundStyle(amountMinor == exactSplitsTotal ? .secondary : .red)
-                    }
-                }
+                splitDetail
             }
 
             if let errorMessage {
@@ -116,6 +95,42 @@ struct AddExpenseView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel", action: onCancel)
             }
+        }
+    }
+
+    /// Broken out of `body` on its own: a `switch` mixed directly into a
+    /// `Section`'s content closure alongside a `Picker` was tripping up
+    /// overload resolution for `Section` itself (it was matching SwiftUI's
+    /// `Table`-oriented initializer instead of the plain one). Giving the
+    /// type checker a named, independently-inferred boundary here fixes it.
+    @ViewBuilder
+    private var splitDetail: some View {
+        switch splitType {
+        case .equal:
+            ForEach(members) { member in
+                Toggle(member.displayName, isOn: includedBinding(for: member.id))
+            }
+        case .exact:
+            exactSplitRows
+        }
+    }
+
+    @ViewBuilder
+    private var exactSplitRows: some View {
+        ForEach(members) { member in
+            HStack {
+                Text(member.displayName)
+                Spacer()
+                TextField("0.00", text: exactAmountBinding(for: member.id))
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 80)
+            }
+        }
+        if let amountMinor {
+            Text(remainingLabel(amountMinor - exactSplitsTotal))
+                .font(.footnote)
+                .foregroundStyle(amountMinor == exactSplitsTotal ? .secondary : .red)
         }
     }
 
