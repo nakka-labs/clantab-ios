@@ -5,6 +5,7 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 ## Commands
 - `swift test --package-path SquareKit` or `make test` — run fast unit tests (Windows, macOS, Linux)
 - `swift build --package-path SquareKit` — build the core package
+- `App/` (the SwiftUI shell) requires Xcode on macOS — it cannot be built or tested on Windows/Linux. See `App/README.md` for setup (`xcodegen generate`) and its current verification status before assuming it builds.
 
 ## Architecture Rules
 - **Pure Core Logic in `SquareKit`**: `Balances.swift` and `Simplify.swift` are pure functions. No I/O, no network calls, no UI dependencies. If a test needs a mock or a running network server to test business math, move the impure logic elsewhere.

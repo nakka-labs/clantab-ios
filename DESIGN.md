@@ -151,11 +151,11 @@ What this does **not** give you, and what v1 doesn't need: cross-group transacti
 ### Create a group, then someone joins via the link
 ```mermaid
 sequenceDiagram
-    participant A as Creator (browser)
+    participant A as Creator (iOS app)
     participant W as Worker
     participant R as RegistryDO
     participant G as GroupDO (new)
-    participant B as Friend (browser)
+    participant B as Friend (iOS app)
 
     A->>W: POST /api/groups {name, currency, creatorDisplayName}
     W->>G: idFromName(new groupId) -> init
@@ -177,7 +177,7 @@ sequenceDiagram
 ### Someone joins by typed code instead of a link
 ```mermaid
 sequenceDiagram
-    participant B as Friend (browser)
+    participant B as Friend (iOS app)
     participant W as Worker
     participant R as RegistryDO
     participant G as GroupDO
@@ -193,7 +193,7 @@ sequenceDiagram
 ### Add an expense
 ```mermaid
 sequenceDiagram
-    participant U as Any member (browser)
+    participant U as Any member (iOS app)
     participant W as Worker
     participant G as GroupDO
 
@@ -225,7 +225,9 @@ The UI should prevent invalid input, but the DO validates independently — neve
 
 ## 7. Client-side state management
 
-One custom hook, `useGroup(groupId)`, wrapping `fetch` — **no React Query, SWR, or similar**, consistent with the zero-third-party-dependency rule in `PLAN.md`/`AGENTS.md`. It exposes `{ data, loading, error, refetch }`. Every mutation (`addExpense`, `settleUp`, `joinGroup`) is a plain async function that POSTs, then calls `refetch()` on success — no optimistic UI in v1 (optimistic updates add real complexity for a low-frequency app where a half-second round trip is a non-issue). `identity.ts` reads/writes `localStorage["squarely:" + groupId]` to remember `{ memberId, displayName }` per device per group.
+*(This section originally sketched a hypothetical web client; the client actually built in this repo is the native iOS app in `App/`, described below — no web client exists here.)*
+
+`SquareKit.SquarelyClient` is a plain async/await HTTP client — **no third-party networking library**, consistent with the zero-third-party-dependency rule in `AGENTS.md`. The app's `GroupViewModel` (`App/Squarely/ViewModels/GroupViewModel.swift`) wraps it and exposes `{ state, isLoading, errorMessage }` plus `load()`/`refetch()`. Every mutation (`addExpense`, `addSettlement`, `joinGroup`) is a plain async call that POSTs, then the caller invokes `refetch()` on success — no optimistic UI in v1 (optimistic updates add real complexity for a low-frequency app where a half-second round trip is a non-issue). `SquareKit.UserDefaultsIdentityStore` reads/writes `UserDefaults` under the key `"squarely:" + groupId` to remember `{ memberId, displayName }` per device per group — the iOS equivalent of a web client's `localStorage`-backed `identity.ts`.
 
 ---
 
@@ -263,6 +265,15 @@ One custom hook, `useGroup(groupId)`, wrapping `fetch` — **no React Query, SWR
 
 ## 12. Deliberately deferred (not forgotten)
 
+- **`GET /api/groups/:groupId` doesn't return `joinCode`** (§2's `group` field is
+  `{ name, currency, createdAt }` only). Discovered while building the iOS
+  client (Phase 6): this means the join code can only ever be shown once,
+  right after creation — nobody who joins later, or reopens the app after
+  restart, can look it up again. Not fixed here since it's a backend contract
+  change, not a client workaround — the iOS app instead surfaces it in a
+  one-time post-creation confirmation step. Worth deciding when the Worker is
+  built: return it from this endpoint too (low-entropy already, no new
+  exposure) or keep this limitation intentionally.
 - WebSocket live updates (upgrade path exists — same DO, add a WebSocket handler alongside the HTTP one — but not built until Phase 6+ per `PLAN.md`, and only if usage shows people actually have the app open simultaneously)
 - Optimistic UI updates on mutation
 - Multi-currency, recurring expenses, percentage/shares splitting, receipt OCR — all explicitly out of scope per `PLAN.md` §1, listed here again only so nobody mistakes their absence in this doc for an oversight

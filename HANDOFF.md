@@ -159,3 +159,34 @@ roadmap.
 
 Keep `swift test --package-path SquareKit` green throughout.
 ```
+
+## Phase 7 Status — Docs Reviewed, Screenshots + Tag Deliberately Blocked
+
+Decided this session (both explicit calls, not defaults to revisit lightly):
+- **Backend is a separate, later effort** — out of scope for this roadmap.
+  Continue developing/testing the iOS app against `AppConfig.apiBaseURL`'s
+  placeholder until a real Worker exists elsewhere.
+- **No release tag yet** — tagging implies something that works; nothing in
+  `App/` has ever been compiled. Revisit once App/ Verification passes.
+
+What got done:
+- [x] Drift review across `AGENTS.md`/`DESIGN.md`/`README.md` against what
+  Phases 1-6 actually built. Found and fixed real drift: `DESIGN.md` §5's
+  sequence diagrams and §7 described a hypothetical web client (React
+  `useGroup`, `identity.ts`/`localStorage`) that was never built in this
+  repo — corrected to describe the actual `GroupViewModel` /
+  `UserDefaultsIdentityStore`. Recorded the join-code API gap (found in
+  Phase 6) in `DESIGN.md` §12 for whoever eventually builds the backend.
+  `AGENTS.md` now flags `App/`'s macOS/Xcode requirement in its Commands
+  section.
+- [ ] Screenshots and a mermaid architecture diagram in `README.md`: **not
+  done**. Screenshots specifically need a build that runs; mermaid diagrams
+  don't, but weren't added this pass either.
+- [ ] Release tag: **not done**, by design (see above).
+
+**The actual next step is still the App/ Verification Prompt above** — run it
+on macOS. Once App/ genuinely builds and runs in Simulator, come back to
+finish Phase 7: screenshots, and then decide whether a `v0.1.0` tag makes
+sense (it can reasonably describe "the iOS app works standalone against a
+placeholder backend" without waiting on the Worker, given that's now
+explicitly a separate effort).

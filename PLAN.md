@@ -156,5 +156,8 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
 
 ### Phase 7 — Ship & Documentation
-- [ ] Polish README with architecture diagrams and screenshots.
-- [ ] Tag release.
+- [x] Reviewed `AGENTS.md`/`DESIGN.md`/`README.md` for drift against what actually got built in Phases 1-6, and corrected what had drifted:
+  `DESIGN.md` §5's sequence diagrams and §7 described a hypothetical web client (React `useGroup` hook, `identity.ts`/`localStorage`) that was never built — corrected to describe the actual iOS client (`GroupViewModel`, `UserDefaultsIdentityStore`). Also recorded the join-code API gap (found in Phase 6) in `DESIGN.md` §12 for whoever eventually builds the backend. `AGENTS.md` now notes `App/` needs macOS/Xcode.
+- [ ] Screenshots: **blocked** — need a build that actually runs, which needs the App/ Verification pass on macOS (Phases 3-6 have never been compiled). Architecture diagrams (mermaid, no rendering needed) could be added without that; not done yet.
+- [ ] Tag a release: **deliberately not done**. Tagging implies something that works; nothing in `App/` has been compiled or run yet, and per this decision there's also no backend for it to talk to. Revisit once App/ Verification passes on macOS.
+- **Backend scope decision (this session):** the Cloudflare Worker backend `DESIGN.md` specifies is explicitly **out of scope for this roadmap**, treated as a separate, later effort. This repo's Phase 1-7 track is iOS-app-only, developed and tested against `AppConfig.apiBaseURL`'s placeholder until a real Worker exists elsewhere.
