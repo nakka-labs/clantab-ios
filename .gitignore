@@ -1,0 +1,23 @@
+# Swift / SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode / Apple
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+.DS_Store
+
+# Cloudflare / Node
+node_modules/
+.wrangler/
+dist/
+
+# OS / Editor
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
