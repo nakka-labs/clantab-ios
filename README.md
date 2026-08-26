@@ -32,9 +32,11 @@ squarely-ios/
 │   │   └── Network/     # Async/await HTTP sync client
 │   └── Tests/SquareKitTests/
 │
-└── App/                 # Native SwiftUI application shell (iOS 17+)
-    ├── Screens/         # CreateGroup, JoinGroup, GroupHome, AddExpense, SettleUp, Export
-    └── Components/      # Reusable UI components & themes
+└── App/                 # Native SwiftUI application shell (iOS 17+) — see App/README.md
+    └── Squarely/
+        ├── Screens/     # StartView, CreateGroup, JoinGroup, GroupHome, (AddExpense/SettleUp/Export to come)
+        ├── ViewModels/  # GroupViewModel — fetch-on-load/refetch, no optimistic UI
+        └── Components/  # Reusable UI components, money formatting, error messages
 ```
 
 ### Windows & macOS First-Class Development

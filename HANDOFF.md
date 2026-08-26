@@ -20,33 +20,70 @@
 - [x] `Tests/SquareKitTests/`: 12 new tests (`SquarelyClientTests`, `IdentityStoreTests`) covering request/response shape, structured vs. bare error handling, idempotency-id encoding, and full `GroupStateResponse` decoding — 37 tests total, all passing via `swift test --package-path SquareKit`
 - Verified on this machine that both `URLSession` (real network round-trip) and `UserDefaults` (suite-backed roundtrip) work correctly under SwiftPM on the Windows Swift 6.3.3 toolchain before committing to this design.
 
+## Phase 3 Checklist — Completed, Build UNVERIFIED (needs macOS/Xcode)
+- [x] `App/project.yml`: XcodeGen config (chosen over a hand-authored `.xcodeproj`,
+  which can't be safely written blind on Windows — a plain YAML file can).
+  `App/README.md` has setup steps (`brew install xcodegen && xcodegen generate`).
+- [x] `SquarelyApp.swift` / `AppRoute.swift` / `RootView.swift`: entry point and
+  navigation state (start / createGroup / joinGroup / group), incl. `onOpenURL`
+  handling for both `squarely://g/:groupId` (dev scheme, testable now) and the
+  real `https://<host>/g/:groupId` shape (Universal Links entitlement still
+  needed once there's a production domain).
+- [x] `Screens/CreateGroupView.swift`, `JoinGroupView.swift`: wired to
+  `SquarelyClient` + `IdentityStore`.
+- [x] `Screens/GroupHomeView.swift` + `ViewModels/GroupViewModel.swift`: balance
+  hero, member list, merged expense/settlement activity feed. Fetch-on-load,
+  pull-to-refresh, no optimistic UI, per `DESIGN.md` §7.
+- [x] `Components/`: `BalanceHeroView`, `MemberBalanceRow`, `ActivityRow`,
+  `MoneyFormat`, `ClientErrorMessage`.
+- [ ] **Not yet verified**: no Xcode/macOS was available this session, so none of
+  this has actually been compiled. Treat the first `xcodegen generate` + build
+  in Xcode as real verification, not a formality — see `App/README.md`'s "Known
+  gaps" for the specific things most likely to need a fix (Picker tagging,
+  `@State`/`@Observable` wiring, deep link parsing).
+- SquareKit's own test suite is untouched and still green (37/37,
+  `swift test --package-path SquareKit`).
+
 ---
 
-## Phase 3 Prompt (Copy-Paste for Next Session)
+## Phase 3 Verification Prompt (Run This First, on macOS)
+
+```text
+Read App/README.md.
+
+Before starting Phase 4, verify Phase 3 actually builds - it was scaffolded on
+Windows with no Xcode available, so it has not been compiled yet.
+
+1. brew install xcodegen (if needed), then `cd App && xcodegen generate`.
+2. Open Squarely.xcodeproj, select an iOS 17+ Simulator, and build.
+3. Fix whatever Xcode's compiler flags - likely candidates: Picker/ForEach tag
+   inference, @Observable + @State wiring in GroupHomeView, SwiftUI availability
+   on the chosen deployment target.
+4. Run it. Since there's no backend yet (AppConfig.apiBaseURL is a placeholder),
+   Create/Join will fail at the network call - that's expected. Confirm the UI
+   itself renders and navigates correctly up to that point.
+5. Keep `swift test --package-path SquareKit` green throughout.
+
+Report what broke and what you fixed before moving on to Phase 4.
+```
+
+## Phase 4 Prompt (Copy-Paste for After Phase 3 Is Verified)
 
 ```text
 Read PLAN.md, DESIGN.md, and AGENTS.md.
 
-We are starting Phase 3: SwiftUI App Shell & Group Home.
+We are starting Phase 4: Add Expense Flow.
 
-This is the first phase that touches the `App/` target (iOS 17+, SwiftUI) rather
-than pure SquareKit logic - it can only be built and run from Xcode on macOS, not
-verified on Windows. Keep all business logic in SquareKit; App/ should be thin.
+Implement in the App/ target:
+1. `AddExpenseView`: amount entry (integer minor units, no floating point per
+   AGENTS.md), payer picker, description, equal-vs-exact split UI. For an equal
+   split, use SquareKit's `Validation.equalSplit` (remainder to the payer) rather
+   than reimplementing division client-side.
+2. Wire it into GroupHomeView (a toolbar button or similar), call
+   SquarelyClient.addExpense, then GroupViewModel.refetch() - no optimistic UI,
+   consistent with Phase 3's GroupHomeView and DESIGN.md §7.
+3. Client-generate the idempotency `id` (UUID string) per DESIGN.md §2 so a
+   retried POST after a timeout doesn't create a duplicate expense.
 
-Implement:
-1. `App/` Xcode project (or Tuist/XcodeGen config, whichever keeps zero third-party
-   dependencies per AGENTS.md) wired to depend on the local `SquareKit` package.
-2. App entry point and root navigation state (create vs. join vs. active group).
-3. `CreateGroupView`: name, currency picker, creator display name -> calls
-   SquarelyClient.createGroup, persists identity via IdentityStore.
-4. `JoinGroupView`: 6-character code entry (resolves via SquarelyClient.resolveJoinCode)
-   and deep-link handling for the capability URL (/g/:groupId) -> joinGroup, persists
-   identity.
-5. `GroupHomeView`: balance hero card, per-member net list, activity feed - driven by
-   a `GroupViewModel`/`useGroup`-equivalent that fetches on load and refetches after
-   every mutation (DESIGN.md §7 sync model - no optimistic UI, no WebSocket in v1).
-
-Since this can't be verified with `swift test` alone, describe what manual
-verification in Xcode/Simulator would look like, and keep SquareKit's test suite
-green throughout (`swift test --package-path SquareKit`).
+Keep `swift test --package-path SquareKit` green throughout.
 ```

@@ -131,10 +131,11 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] Integration tests for API serialization/deserialization (12 tests, incl. error envelope, idempotency-id encoding, and full group-state decoding).
 
 ### Phase 3 — SwiftUI App Shell & Group Home
-- [ ] App entry point and navigation state.
-- [ ] `CreateGroupView`: name, currency, creator display name.
-- [ ] `JoinGroupView`: 6-character code resolver & deep link handling.
-- [ ] `GroupHomeView`: balance summary hero, member net list, activity feed.
+- [x] App entry point and navigation state (`SquarelyApp`, `AppRoute`, `RootView`).
+- [x] `CreateGroupView`: name, currency, creator display name.
+- [x] `JoinGroupView`: 6-character code resolver & deep link handling (`squarely://g/:groupId` dev scheme; Universal Links deferred to a later phase pending a production domain).
+- [x] `GroupHomeView`: balance summary hero, member net list, activity feed — backed by `GroupViewModel` (fetch-on-load/refetch, no optimistic UI).
+- [ ] **Unverified**: scaffolded on Windows with no Xcode available to compile it. First real build/run in Xcode is still outstanding — see `App/README.md` "Known gaps".
 
 ### Phase 4 — Add Expense Flow
 - [ ] `AddExpenseView`: custom keypad / numeric input, payer picker, equal vs. exact split UI with automatic remainder resolution.

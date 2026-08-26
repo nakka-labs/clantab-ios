@@ -1,0 +1,52 @@
+# XcodeGen project definition — generates Squarely.xcodeproj from this file.
+#
+# Why XcodeGen instead of a hand-authored/checked-in .xcodeproj: this file is
+# scaffolded on Windows, where there is no Xcode to generate or validate a real
+# project file. A plain-text, hand-writable YAML config is safe to author blind;
+# a raw .pbxproj is not — a single malformed entry makes it unopenable, with no
+# way to catch that outside Xcode. `Squarely.xcodeproj` is itself gitignored
+# (see .gitignore's Xcode section) and regenerated from this file.
+#
+# Setup (macOS, one-time): `brew install xcodegen`
+# Generate + open:         `cd App && xcodegen generate && open Squarely.xcodeproj`
+
+name: Squarely
+options:
+  bundleIdPrefix: com.squarely
+  deploymentTarget:
+    iOS: "17.0"
+
+packages:
+  SquareKit:
+    path: ../SquareKit
+
+targets:
+  Squarely:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Squarely
+    dependencies:
+      - package: SquareKit
+        product: SquareKit
+    info:
+      path: Squarely/Info.plist
+      properties:
+        CFBundleDisplayName: Squarely
+        UILaunchScreen: {}
+        # Development-only deep link scheme, testable in Simulator without a real
+        # domain: `xcrun simctl openurl booted "squarely://g/<groupId>"`. Universal
+        # Links (`https://<host>/g/:groupId`, DESIGN.md's actual share link) need
+        # an Associated Domains entitlement + apple-app-site-association file once
+        # a production domain exists — deliberately deferred, not forgotten.
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [squarely]
+            CFBundleURLName: com.squarely.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.squarely.app
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
