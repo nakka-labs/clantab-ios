@@ -6,27 +6,39 @@
 - [x] `SquareKit` SwiftPM package scaffolded with passing baseline tests on Windows
 - [x] Initial commit pushed to `main`
 
+## Phase 1 Checklist — Completed
+- [x] `Model/`: `Group`, `Member`, `Expense`, `ExpenseSplit`, `SplitType`, `Settlement`, `Balance`, `SimplifiedSettlement`
+- [x] `Logic/Balances.swift`: pure derivation of net balances from expenses & settlements
+- [x] `Logic/Simplify.swift`: greedy debt-simplification, deterministic tie-breaking by `memberId`
+- [x] `Logic/Validation.swift`: split-sum validation, member/amount checks, deterministic remainder allocation
+- [x] `Tests/SquareKitTests/`: 25 tests incl. triangle collapse, single-payer, 100÷3 remainder, zero-balance/settled, idempotency, and seeded fuzz (200 iterations each in `Simplify`/`Validation`) — all passing via `swift test --package-path SquareKit`
+
 ---
 
-## Phase 1 Prompt (Copy-Paste for Next Session)
+## Phase 2 Prompt (Copy-Paste for Next Session)
 
 ```text
-Read PLAN.md and AGENTS.md. 
+Read PLAN.md, DESIGN.md, and AGENTS.md.
 
-We are starting Phase 1: Pure Logic (Domain Models, Balances & Debt Simplification).
+We are starting Phase 2: Storage & Network API Client.
 
 Implement the following in `SquareKit`:
-1. `SquareKit/Sources/SquareKit/Model/` - Group, Member, Expense, ExpenseSplit, Settlement, Balance, SimplifiedSettlement.
-2. `SquareKit/Sources/SquareKit/Logic/Balances.swift` - Pure function deriving net balances from expenses & settlements in integer minor units.
-3. `SquareKit/Sources/SquareKit/Logic/Simplify.swift` - Greedy debt-simplification algorithm collapsing debts to at most N-1 transactions.
-4. `SquareKit/Sources/SquareKit/Logic/Validation.swift` - Split sum validation and deterministic remainder distribution.
-5. `SquareKit/Tests/SquareKitTests/` - Exhaustive test suite covering:
-   - Triangle settlement collapse
-   - Single-payer scenarios
-   - Rounding remainder allocation (e.g. 100 split 3 ways)
-   - Zero-balance / already-settled state
-   - Idempotency
-   - Random balance fuzz testing
+1. `SquareKit/Sources/SquareKit/Storage/IdentityStore.swift` - local persistence of
+   { groupId: memberId, displayName } per DESIGN.md §7 (identity.ts equivalent).
+   Protocol-based so it can be backed by UserDefaults in the app and an in-memory
+   fake in tests - no direct UserDefaults dependency inside SquareKit's pure layer.
+2. `SquareKit/Sources/SquareKit/Network/SquarelyClient.swift` - async/await HTTP
+   client implementing the API contract in DESIGN.md §2 exactly:
+   - POST /api/groups
+   - GET  /api/groups/resolve/:joinCode
+   - POST /api/groups/:groupId/members
+   - GET  /api/groups/:groupId
+   - POST /api/groups/:groupId/expenses (client-generated idempotency id)
+   - POST /api/groups/:groupId/settlements (client-generated idempotency id)
+   Model the error envelope ({ error: { code, message } }) as a typed Swift error.
+3. `SquareKit/Tests/SquareKitTests/` - integration-style tests for request encoding,
+   response decoding, and error envelope handling using URLProtocol stubbing (no
+   real network calls, no third-party dependencies per AGENTS.md).
 
 Verify all tests pass with `swift test --package-path SquareKit`.
 ```

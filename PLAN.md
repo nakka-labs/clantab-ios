@@ -119,11 +119,11 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] Verify `swift test` runs cleanly on Windows.
 
 ### Phase 1 — Pure Logic: Domain Models, Balances & Debt Simplification
-- [ ] Implement `Model/` (`Group`, `Member`, `Expense`, `Settlement`, `Balance`, `SimplifiedSettlement`).
-- [ ] Implement `Logic/Balances.swift` (pure balance derivation from expenses & settlements).
-- [ ] Implement `Logic/Simplify.swift` (greedy $N-1$ debt-simplification algorithm).
-- [ ] Implement `Logic/Validation.swift` (split summation & deterministic remainder allocation).
-- [ ] Full unit & fuzz test suite in `SquareKitTests/`.
+- [x] Implement `Model/` (`Group`, `Member`, `Expense`, `Settlement`, `Balance`, `SimplifiedSettlement`).
+- [x] Implement `Logic/Balances.swift` (pure balance derivation from expenses & settlements).
+- [x] Implement `Logic/Simplify.swift` (greedy $N-1$ debt-simplification algorithm).
+- [x] Implement `Logic/Validation.swift` (split summation & deterministic remainder allocation).
+- [x] Full unit & fuzz test suite in `SquareKitTests/` (25 tests, incl. 400 seeded fuzz iterations).
 
 ### Phase 2 — Storage & Network API Client
 - [ ] Implement `Storage/IdentityStore.swift` (local persistence for `[groupId: memberId]`).
