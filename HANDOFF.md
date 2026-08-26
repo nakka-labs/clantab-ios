@@ -84,35 +84,65 @@
 
 ---
 
-## App/ Verification Prompt (Run This First, on macOS — Covers Phases 3-5)
+## App/ CI Build Check — Passing (`.github/workflows/ios-build.yml`)
+
+No Mac was ever available in this development environment (see "how to
+test/verify" discussion), so a GitHub Actions macOS runner does the one thing
+that genuinely requires Xcode: compiling. It runs `xcodegen generate` +
+`xcodebuild -destination 'generic/platform=iOS Simulator'` on every push
+touching `App/**` — no code signing needed, since Simulator builds don't
+require it. Check status: `gh run list --workflow=ios-build.yml`.
+
+**This closed the loop on Phases 3-6's biggest open risk.** It found and fixed
+three real build errors on the very first run:
+1. `CreateGroupView`: a `private` nested `Stage` enum extended from a
+   same-file `extension CreateGroupView.Stage { }` — Swift's `private` grants
+   access to extensions of the *enclosing* declaration, not extensions of the
+   private nested type itself. Fixed by moving the computed property inside
+   `Stage`'s own body.
+2. `AddExpenseView`: a `switch` mixed directly into a `Section`'s content
+   closure alongside a `Picker` made the compiler pick SwiftUI's *Table*-
+   oriented `Section` overload instead of the plain one ("generic parameter
+   'V' could not be inferred"). Fixed by extracting the switch into its own
+   `@ViewBuilder` computed property (`splitDetail`), giving the type checker a
+   smaller, independent boundary — the standard fix for this class of SwiftUI
+   type-checking failure.
+3. `AddExpenseView`: a ternary `amountMinor == exactSplitsTotal ? .secondary
+   : .red` failed to unify — `.secondary` is `HierarchicalShapeStyle`, `.red`
+   only exists on `Color`. Fixed by naming both branches `Color.secondary` /
+   `Color.red` explicitly.
+
+**What CI still doesn't prove**: the app has never actually run. Compiling
+says nothing about whether navigation, sheet presentation, form validation, or
+deep links behave correctly at runtime — that needs an interactive Simulator
+or device session, which still needs either macOS access or a signed
+CI-built IPA (see the "how to test without a Mac" discussion for the tradeoffs
+of each). The prompt below is for whenever that access exists.
+
+## App/ Runtime Verification Prompt (Needs an Interactive Simulator/Device Session)
 
 ```text
-Read App/README.md.
+Read App/README.md and the "App/ CI Build Check" section of HANDOFF.md - the
+build itself is already verified by CI, so this is specifically about runtime
+behavior, which nothing has exercised yet.
 
-Before starting Phase 7, verify the App/ target actually builds - Phases 3
-through 6 were all scaffolded on Windows with no Xcode available, so none of
-it has been compiled yet.
+1. cd App && xcodegen generate, open Squarely.xcodeproj, run on an iOS 17+
+   Simulator (or a device, if signing is set up).
+2. Since there's no backend yet (AppConfig.apiBaseURL is a placeholder),
+   Create/Join will fail at the network call - that's expected. Confirm the
+   UI itself renders and navigates correctly up to that point: the Start
+   screen, Create/Join forms, and opening the Add Expense, Settle Up, and
+   Share & Export sheets from Group Home (Group Home itself won't have real
+   data without a backend, but the sheets should still present).
+3. If anything crashes or misbehaves at runtime (not a compile error - CI
+   already covers those), fix it and push; CI will re-verify the compile.
+4. Keep `swift test --package-path SquareKit` green throughout (46 tests).
 
-1. brew install xcodegen (if needed), then `cd App && xcodegen generate`.
-2. Open Squarely.xcodeproj, select an iOS 17+ Simulator, and build.
-3. Fix whatever Xcode's compiler flags - likely candidates: Picker/ForEach tag
-   inference (currency picker, split-type segmented picker), @Observable +
-   @State wiring across GroupHomeView/SettleUpView sharing one view model, the
-   switch-over-SplitType inside AddExpenseView's Form, the Stage enum switch
-   in CreateGroupView, ToolbarItemGroup + Menu + ShareLink composition in
-   GroupHomeView's toolbar, SwiftUI availability on the chosen deployment
-   target.
-4. Run it. Since there's no backend yet (AppConfig.apiBaseURL is a
-   placeholder), Create/Join will fail at the network call - that's expected.
-   Confirm the UI itself renders and navigates correctly up to that point,
-   including opening the Add Expense and Settle Up sheets and the Share &
-   Export menu from Group Home.
-5. Keep `swift test --package-path SquareKit` green throughout (46 tests).
-
-Report what broke and what you fixed before moving on to Phase 7.
+Report what you found before moving on to Phase 7's remaining items
+(screenshots, then deciding on a release tag).
 ```
 
-## Phase 6 Checklist — Completed, Build UNVERIFIED (same caveat as Phases 3-5)
+## Phase 6 Checklist — Completed, Compiles (CI-verified), Not Yet Run
 - [x] `SquareKit/Export/Export.swift`: CSV and JSON ledger export as pure
   functions - `Export.csv` (money via integer-math decimal strings, RFC 4180
   escaping, sorted oldest-first) and `Export.json` (a complete pretty-printed
@@ -131,8 +161,9 @@ Report what broke and what you fixed before moving on to Phase 7.
   `onSettled` callback.
 - [x] Dark mode and offline/empty states: reviewed, no changes needed - see
   `App/README.md`'s "Known gaps" for the reasoning on each.
-- Built on top of Phases 3-5's still-unverified `App/` code, same explicit
-  choice as before - all four will be verified together in one Xcode session.
+- Built on top of Phases 3-5's `App/` code; all of it (Phases 3-6) now
+  compiles cleanly per the CI check above. Still not run in a real Simulator
+  session - see the Runtime Verification prompt.
 
 ---
 
@@ -166,8 +197,10 @@ Decided this session (both explicit calls, not defaults to revisit lightly):
 - **Backend is a separate, later effort** — out of scope for this roadmap.
   Continue developing/testing the iOS app against `AppConfig.apiBaseURL`'s
   placeholder until a real Worker exists elsewhere.
-- **No release tag yet** — tagging implies something that works; nothing in
-  `App/` has ever been compiled. Revisit once App/ Verification passes.
+- **No release tag yet** — tagging implies something that works. `App/` now
+  compiles (CI-verified, after this session's fixes), but nobody has actually
+  run it — that's a meaningfully different bar than "tagged and shippable."
+  Revisit once the Runtime Verification prompt has actually been run.
 
 What got done:
 - [x] Drift review across `AGENTS.md`/`DESIGN.md`/`README.md` against what
@@ -184,9 +217,11 @@ What got done:
   don't, but weren't added this pass either.
 - [ ] Release tag: **not done**, by design (see above).
 
-**The actual next step is still the App/ Verification Prompt above** — run it
-on macOS. Once App/ genuinely builds and runs in Simulator, come back to
-finish Phase 7: screenshots, and then decide whether a `v0.1.0` tag makes
-sense (it can reasonably describe "the iOS app works standalone against a
-placeholder backend" without waiting on the Worker, given that's now
-explicitly a separate effort).
+**Update, same session:** the App/ CI Build Check above now passes — `App/`
+compiles cleanly, after fixing three real errors it caught. That was the
+biggest open risk from Phases 3-6, and it's closed. What's left before
+finishing Phase 7 is strictly smaller: an actual interactive run (the Runtime
+Verification prompt above), then screenshots, then deciding whether a
+`v0.1.0` tag makes sense (it can reasonably describe "the iOS app works
+standalone against a placeholder backend" without waiting on the Worker,
+given that's now explicitly a separate effort).

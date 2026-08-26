@@ -41,11 +41,24 @@ All domain logic (models, balances, debt simplification, validation, network
 client, identity storage) lives in `SquareKit`, referenced as a local Swift
 package. This target should stay thin — views and view models only.
 
-## Known gaps (flagged honestly, not verified against a real Xcode build)
+## Build status
 
-- Never built. Written and reasoned through carefully, but there was no Xcode
-  on hand to compile it — treat the first `xcodegen generate` + build in Xcode
-  as the real verification step, not a formality. This now spans Phases 3-6.
+**Compiles**, verified by `.github/workflows/ios-build.yml` (a macOS GitHub
+Actions runner building `xcodebuild ... -destination 'generic/platform=iOS
+Simulator'` — no code signing needed). Three real build errors were found and
+fixed this way: a `private` nested-type access error in `CreateGroupView`, a
+`Section` overload-resolution failure in `AddExpenseView` caused by a `switch`
+mixed into its content closure, and a ternary `ShapeStyle` type mismatch
+(`.secondary` vs `.red`).
+
+**Not yet verified**: nobody has run this in Simulator or on a device. CI only
+proves it *compiles* — it says nothing about whether the app actually behaves
+correctly (navigation, sheet presentation, form validation, deep links). That
+still needs a real run, which needs either macOS access or a signed build on
+a physical device — see `HANDOFF.md` for the reasoning.
+
+## Known gaps
+
 - No app icon / accent color asset catalog yet.
 - Universal Links need an Associated Domains entitlement + hosted
   apple-app-site-association once there's a production domain; only the

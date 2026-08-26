@@ -135,17 +135,17 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] `CreateGroupView`: name, currency, creator display name.
 - [x] `JoinGroupView`: 6-character code resolver & deep link handling (`squarely://g/:groupId` dev scheme; Universal Links deferred to a later phase pending a production domain).
 - [x] `GroupHomeView`: balance summary hero, member net list, activity feed — backed by `GroupViewModel` (fetch-on-load/refetch, no optimistic UI).
-- [ ] **Unverified**: scaffolded on Windows with no Xcode available to compile it. First real build/run in Xcode is still outstanding — see `App/README.md` "Known gaps".
+- [x] **Compiles**: verified via `.github/workflows/ios-build.yml` (macOS GitHub Actions runner, iOS Simulator destination, no signing needed). Three real build errors found and fixed in the process. **Not yet run** in Simulator or on a device — CI proves compilation only, not runtime behavior. See `App/README.md`.
 
 ### Phase 4 — Add Expense Flow
 - [x] `AddExpenseView`: amount entry, payer picker, description, equal vs. exact split UI with automatic remainder resolution (via `Validation.equalSplit`).
 - [x] Wire to group client and refresh state (toolbar button on `GroupHomeView` → sheet → `addExpense` → `refetch()`, no optimistic UI).
-- [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
+- [x] **Compiles** along with the rest of `App/` (CI-verified) — **not yet run**. See Phase 3's note and `App/README.md`.
 
 ### Phase 5 — Settle Up Flow
 - [x] `SettleUpView`: render simplified transaction cards from the server-computed `simplifiedSettlements` (never recomputed client-side).
 - [x] 1-tap "Mark Paid" recording a settlement (`addSettlement` → `refetch()`, no optimistic UI).
-- [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
+- [x] **Compiles** along with the rest of `App/` (CI-verified) — **not yet run**. See Phase 3's note and `App/README.md`.
 
 ### Phase 6 — Polish & Export
 - [x] CSV and JSON export via iOS ShareSheet (`ShareLink`). Serialization itself lives in `SquareKit.Export` (pure functions, fully tested on Windows — 9 tests); the App target only writes the result to a temp file for sharing.
@@ -153,7 +153,7 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] Haptic feedback on expense-added and settlement-marked-paid (`.sensoryFeedback`, iOS 17+).
 - [x] Dark mode: reviewed — already fine via system-adaptive colors, no changes needed.
 - [x] Offline indicators / empty states: reviewed — existing loading spinner + inline error text considered adequate for v1; a dedicated offline banner deliberately deferred rather than over-built blind.
-- [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
+- [x] **Compiles** along with the rest of `App/` (CI-verified) — **not yet run**. See Phase 3's note and `App/README.md`.
 
 ### Phase 7 — Ship & Documentation
 - [x] Reviewed `AGENTS.md`/`DESIGN.md`/`README.md` for drift against what actually got built in Phases 1-6, and corrected what had drifted:
