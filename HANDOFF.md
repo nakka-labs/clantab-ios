@@ -13,32 +13,40 @@
 - [x] `Logic/Validation.swift`: split-sum validation, member/amount checks, deterministic remainder allocation
 - [x] `Tests/SquareKitTests/`: 25 tests incl. triangle collapse, single-payer, 100÷3 remainder, zero-balance/settled, idempotency, and seeded fuzz (200 iterations each in `Simplify`/`Validation`) — all passing via `swift test --package-path SquareKit`
 
+## Phase 2 Checklist — Completed
+- [x] `Storage/IdentityStore.swift`: `GroupIdentity`, `IdentityStoring` protocol, `UserDefaultsIdentityStore` (namespaced `"squarely:<groupId>"`), `InMemoryIdentityStore` for tests/previews
+- [x] `Network/SquarelyTransport.swift`: `SquarelyTransport` protocol + `URLSessionTransport` default — request encoding/decoding is tested against a fake conforming to this protocol rather than stubbing `URLProtocol` (simpler, fully portable, no reliance on platform URL-loading internals)
+- [x] `Network/SquarelyClientError.swift`, `SquarelyWireTypes.swift`, `SquarelyClient.swift`: full API contract from `DESIGN.md` §2 — `createGroup`, `resolveJoinCode`, `joinGroup`, `fetchGroupState`, `addExpense`, `addSettlement` — as an `actor`, decoding the `{ error: { code, message } }` envelope into `SquarelyClientError.server`, a bare 404 into `.notFound`. `id?` fields are encoded via a custom `encode(to:)` that omits the key entirely when nil, matching the wire contract exactly.
+- [x] `Tests/SquareKitTests/`: 12 new tests (`SquarelyClientTests`, `IdentityStoreTests`) covering request/response shape, structured vs. bare error handling, idempotency-id encoding, and full `GroupStateResponse` decoding — 37 tests total, all passing via `swift test --package-path SquareKit`
+- Verified on this machine that both `URLSession` (real network round-trip) and `UserDefaults` (suite-backed roundtrip) work correctly under SwiftPM on the Windows Swift 6.3.3 toolchain before committing to this design.
+
 ---
 
-## Phase 2 Prompt (Copy-Paste for Next Session)
+## Phase 3 Prompt (Copy-Paste for Next Session)
 
 ```text
 Read PLAN.md, DESIGN.md, and AGENTS.md.
 
-We are starting Phase 2: Storage & Network API Client.
+We are starting Phase 3: SwiftUI App Shell & Group Home.
 
-Implement the following in `SquareKit`:
-1. `SquareKit/Sources/SquareKit/Storage/IdentityStore.swift` - local persistence of
-   { groupId: memberId, displayName } per DESIGN.md §7 (identity.ts equivalent).
-   Protocol-based so it can be backed by UserDefaults in the app and an in-memory
-   fake in tests - no direct UserDefaults dependency inside SquareKit's pure layer.
-2. `SquareKit/Sources/SquareKit/Network/SquarelyClient.swift` - async/await HTTP
-   client implementing the API contract in DESIGN.md §2 exactly:
-   - POST /api/groups
-   - GET  /api/groups/resolve/:joinCode
-   - POST /api/groups/:groupId/members
-   - GET  /api/groups/:groupId
-   - POST /api/groups/:groupId/expenses (client-generated idempotency id)
-   - POST /api/groups/:groupId/settlements (client-generated idempotency id)
-   Model the error envelope ({ error: { code, message } }) as a typed Swift error.
-3. `SquareKit/Tests/SquareKitTests/` - integration-style tests for request encoding,
-   response decoding, and error envelope handling using URLProtocol stubbing (no
-   real network calls, no third-party dependencies per AGENTS.md).
+This is the first phase that touches the `App/` target (iOS 17+, SwiftUI) rather
+than pure SquareKit logic - it can only be built and run from Xcode on macOS, not
+verified on Windows. Keep all business logic in SquareKit; App/ should be thin.
 
-Verify all tests pass with `swift test --package-path SquareKit`.
+Implement:
+1. `App/` Xcode project (or Tuist/XcodeGen config, whichever keeps zero third-party
+   dependencies per AGENTS.md) wired to depend on the local `SquareKit` package.
+2. App entry point and root navigation state (create vs. join vs. active group).
+3. `CreateGroupView`: name, currency picker, creator display name -> calls
+   SquarelyClient.createGroup, persists identity via IdentityStore.
+4. `JoinGroupView`: 6-character code entry (resolves via SquarelyClient.resolveJoinCode)
+   and deep-link handling for the capability URL (/g/:groupId) -> joinGroup, persists
+   identity.
+5. `GroupHomeView`: balance hero card, per-member net list, activity feed - driven by
+   a `GroupViewModel`/`useGroup`-equivalent that fetches on load and refetches after
+   every mutation (DESIGN.md §7 sync model - no optimistic UI, no WebSocket in v1).
+
+Since this can't be verified with `swift test` alone, describe what manual
+verification in Xcode/Simulator would look like, and keep SquareKit's test suite
+green throughout (`swift test --package-path SquareKit`).
 ```

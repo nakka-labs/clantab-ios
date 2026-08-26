@@ -126,9 +126,9 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] Full unit & fuzz test suite in `SquareKitTests/` (25 tests, incl. 400 seeded fuzz iterations).
 
 ### Phase 2 — Storage & Network API Client
-- [ ] Implement `Storage/IdentityStore.swift` (local persistence for `[groupId: memberId]`).
-- [ ] Implement `Network/SquarelyClient.swift` (async/await HTTP client interfacing with group endpoints).
-- [ ] Integration tests for API serialization/deserialization.
+- [x] Implement `Storage/IdentityStore.swift` (local persistence for `[groupId: memberId]`).
+- [x] Implement `Network/SquarelyClient.swift` (async/await HTTP client interfacing with group endpoints).
+- [x] Integration tests for API serialization/deserialization (12 tests, incl. error envelope, idempotency-id encoding, and full group-state decoding).
 
 ### Phase 3 — SwiftUI App Shell & Group Home
 - [ ] App entry point and navigation state.

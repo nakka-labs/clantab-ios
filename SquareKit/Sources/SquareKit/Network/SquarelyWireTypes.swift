@@ -1,0 +1,170 @@
+import Foundation
+
+// Wire request/response DTOs for the API contract in `DESIGN.md` §2. Model types
+// (`Member`, `Expense`, `Settlement`, `Balance`, `SimplifiedSettlement`) are reused
+// directly wherever the wire shape matches them exactly.
+
+/// The subset of `Group` fields the server returns alongside other resources —
+/// `id`/`joinCode` are carried separately (e.g. in `CreateGroupResponse`) or are
+/// already known by the caller (e.g. in `GroupStateResponse`, keyed by URL).
+public struct GroupSummary: Codable, Sendable, Equatable {
+    public let name: String
+    public let currency: String
+    public let createdAt: Date
+
+    public init(name: String, currency: String, createdAt: Date) {
+        self.name = name
+        self.currency = currency
+        self.createdAt = createdAt
+    }
+}
+
+/// The server's structured error body: `{ "error": { "code", "message" } }`.
+struct ErrorEnvelope: Decodable {
+    struct Body: Decodable {
+        let code: String
+        let message: String
+    }
+    let error: Body
+}
+
+// MARK: - POST /api/groups
+
+public struct CreateGroupRequest: Encodable, Sendable {
+    public let name: String
+    public let currency: String
+    public let creatorDisplayName: String
+
+    public init(name: String, currency: String, creatorDisplayName: String) {
+        self.name = name
+        self.currency = currency
+        self.creatorDisplayName = creatorDisplayName
+    }
+}
+
+public struct CreateGroupResponse: Decodable, Sendable {
+    public let groupId: String
+    public let joinCode: String
+    public let member: Member
+    public let group: GroupSummary
+}
+
+// MARK: - GET /api/groups/resolve/:joinCode
+
+public struct ResolveJoinCodeResponse: Decodable, Sendable {
+    public let groupId: String
+}
+
+// MARK: - POST /api/groups/:groupId/members
+
+public struct JoinGroupRequest: Encodable, Sendable {
+    public let displayName: String
+
+    public init(displayName: String) {
+        self.displayName = displayName
+    }
+}
+
+public struct JoinGroupResponse: Decodable, Sendable {
+    public let member: Member
+}
+
+// MARK: - GET /api/groups/:groupId
+
+public struct GroupStateResponse: Decodable, Sendable {
+    public let group: GroupSummary
+    public let members: [Member]
+    public let expenses: [Expense]
+    public let settlements: [Settlement]
+    public let balances: [Balance]
+    public let simplifiedSettlements: [SimplifiedSettlement]
+}
+
+// MARK: - POST /api/groups/:groupId/expenses
+
+public struct AddExpenseRequest: Sendable {
+    /// Optional client-generated id (`DESIGN.md` §2): a retried POST with the same
+    /// id is treated as an idempotent no-op replay rather than a duplicate.
+    public let id: String?
+    public let payerId: String
+    public let amountMinor: Int64
+    public let description: String
+    public let date: Date
+    public let splitType: SplitType
+    public let splits: [ExpenseSplit]
+
+    public init(
+        id: String? = nil,
+        payerId: String,
+        amountMinor: Int64,
+        description: String,
+        date: Date,
+        splitType: SplitType,
+        splits: [ExpenseSplit]
+    ) {
+        self.id = id
+        self.payerId = payerId
+        self.amountMinor = amountMinor
+        self.description = description
+        self.date = date
+        self.splitType = splitType
+        self.splits = splits
+    }
+}
+
+extension AddExpenseRequest: Encodable {
+    private enum CodingKeys: String, CodingKey {
+        case id, payerId, amountMinor, description, date, splitType, splits
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        // `id` is genuinely optional on the wire (DESIGN.md: `id?: string`) — omit
+        // the key entirely rather than encoding an explicit `null`.
+        try container.encodeIfPresent(id, forKey: .id)
+        try container.encode(payerId, forKey: .payerId)
+        try container.encode(amountMinor, forKey: .amountMinor)
+        try container.encode(description, forKey: .description)
+        try container.encode(date, forKey: .date)
+        try container.encode(splitType, forKey: .splitType)
+        try container.encode(splits, forKey: .splits)
+    }
+}
+
+public struct AddExpenseResponse: Decodable, Sendable {
+    public let expense: Expense
+}
+
+// MARK: - POST /api/groups/:groupId/settlements
+
+public struct AddSettlementRequest: Sendable {
+    public let id: String?
+    public let fromId: String
+    public let toId: String
+    public let amountMinor: Int64
+
+    public init(id: String? = nil, fromId: String, toId: String, amountMinor: Int64) {
+        self.id = id
+        self.fromId = fromId
+        self.toId = toId
+        self.amountMinor = amountMinor
+    }
+}
+
+extension AddSettlementRequest: Encodable {
+    private enum CodingKeys: String, CodingKey {
+        case id, fromId, toId, amountMinor
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(id, forKey: .id)
+        try container.encode(fromId, forKey: .fromId)
+        try container.encode(toId, forKey: .toId)
+        try container.encode(amountMinor, forKey: .amountMinor)
+    }
+}
+
+public struct AddSettlementResponse: Decodable, Sendable {
+    public let settlement: Settlement
+}
