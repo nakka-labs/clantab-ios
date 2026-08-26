@@ -130,7 +130,7 @@ struct AddExpenseView: View {
         if let amountMinor {
             Text(remainingLabel(amountMinor - exactSplitsTotal))
                 .font(.footnote)
-                .foregroundStyle(amountMinor == exactSplitsTotal ? .secondary : .red)
+                .foregroundStyle(amountMinor == exactSplitsTotal ? Color.secondary : Color.red)
         }
     }
 
