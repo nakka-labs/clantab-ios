@@ -5,6 +5,7 @@ struct GroupHomeView: View {
     private let client: SquarelyClient
     @State private var viewModel: GroupViewModel
     @State private var isPresentingAddExpense = false
+    @State private var isPresentingSettleUp = false
 
     init(groupId: String, client: SquarelyClient, identityStore: IdentityStoring) {
         self.client = client
@@ -19,6 +20,16 @@ struct GroupHomeView: View {
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
+            }
+
+            if let settlements = viewModel.state?.simplifiedSettlements, !settlements.isEmpty {
+                Section {
+                    Button {
+                        isPresentingSettleUp = true
+                    } label: {
+                        Label("Settle Up", systemImage: "checkmark.circle")
+                    }
+                }
             }
 
             if let state = viewModel.state {
@@ -81,6 +92,16 @@ struct GroupHomeView: View {
                         Task { await viewModel.refetch() }
                     },
                     onCancel: { isPresentingAddExpense = false }
+                )
+            }
+        }
+        .sheet(isPresented: $isPresentingSettleUp) {
+            NavigationStack {
+                SettleUpView(
+                    groupId: viewModel.groupId,
+                    client: client,
+                    viewModel: viewModel,
+                    onDone: { isPresentingSettleUp = false }
                 )
             }
         }

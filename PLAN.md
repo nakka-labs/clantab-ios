@@ -143,8 +143,9 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
 
 ### Phase 5 — Settle Up Flow
-- [ ] `SettleUpView`: render simplified transaction cards.
-- [ ] 1-tap "Mark Paid" recording a settlement.
+- [x] `SettleUpView`: render simplified transaction cards from the server-computed `simplifiedSettlements` (never recomputed client-side).
+- [x] 1-tap "Mark Paid" recording a settlement (`addSettlement` → `refetch()`, no optimistic UI).
+- [ ] **Unverified** along with the rest of `App/` — see Phase 3's note and `App/README.md`.
 
 ### Phase 6 — Polish & Export
 - [ ] CSV and JSON export via iOS ShareSheet (`ShareLink`).

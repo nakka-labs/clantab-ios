@@ -65,48 +65,71 @@
 
 ---
 
-## App/ Verification Prompt (Run This First, on macOS — Covers Phases 3 + 4)
+## Phase 5 Checklist — Completed, Build UNVERIFIED (same caveat as Phases 3-4)
+- [x] `Screens/SettleUpView.swift`: renders `GroupStateResponse.simplifiedSettlements`
+  (server-computed per `DESIGN.md` §2 — never recomputed client-side) as
+  minimal "X pays Y — ₹amount" cards, each with a 1-tap "Mark as Paid".
+  Takes the *same* `GroupViewModel` instance `GroupHomeView` holds (not a
+  static snapshot), so marking one paid → `refetch()` naturally refreshes
+  this list with the server's newly recomputed plan.
+- [x] "Mark as Paid" calls `client.addSettlement` with a client-generated
+  idempotency `id` (`UUID().uuidString`, same pattern as Phase 4), then
+  `viewModel.refetch()` — no optimistic UI.
+- [x] Wired into `GroupHomeView`: a "Settle Up" row appears right under the
+  balance hero, only when `simplifiedSettlements` is non-empty, opening
+  `SettleUpView` as a sheet.
+- Built on top of Phases 3-4's still-unverified `App/` code, by the same
+  explicit choice as Phase 4 — all three will be verified together in one
+  Xcode session. SquareKit's own suite remains untouched and green (37/37).
+
+---
+
+## App/ Verification Prompt (Run This First, on macOS — Covers Phases 3-5)
 
 ```text
 Read App/README.md.
 
-Before starting Phase 5, verify the App/ target actually builds - Phases 3 and
-4 were both scaffolded on Windows with no Xcode available, so none of it has
-been compiled yet.
+Before starting Phase 6, verify the App/ target actually builds - Phases 3, 4,
+and 5 were all scaffolded on Windows with no Xcode available, so none of it
+has been compiled yet.
 
 1. brew install xcodegen (if needed), then `cd App && xcodegen generate`.
 2. Open Squarely.xcodeproj, select an iOS 17+ Simulator, and build.
 3. Fix whatever Xcode's compiler flags - likely candidates: Picker/ForEach tag
-   inference (both the currency picker and the split-type segmented picker),
-   @Observable + @State wiring in GroupHomeView, the switch-over-SplitType
-   inside AddExpenseView's Form, SwiftUI availability on the chosen deployment
-   target.
+   inference (currency picker, split-type segmented picker), @Observable +
+   @State wiring across GroupHomeView/SettleUpView sharing one view model, the
+   switch-over-SplitType inside AddExpenseView's Form, SwiftUI availability on
+   the chosen deployment target.
 4. Run it. Since there's no backend yet (AppConfig.apiBaseURL is a
    placeholder), Create/Join will fail at the network call - that's expected.
    Confirm the UI itself renders and navigates correctly up to that point,
-   including opening the Add Expense sheet from Group Home.
+   including opening both the Add Expense and Settle Up sheets from Group Home.
 5. Keep `swift test --package-path SquareKit` green throughout.
 
-Report what broke and what you fixed before moving on to Phase 5.
+Report what broke and what you fixed before moving on to Phase 6.
 ```
 
-## Phase 5 Prompt (Copy-Paste for After App/ Is Verified)
+## Phase 6 Prompt (Copy-Paste for After App/ Is Verified)
 
 ```text
 Read PLAN.md, DESIGN.md, and AGENTS.md.
 
-We are starting Phase 5: Settle Up Flow.
+We are starting Phase 6: Polish & Export.
 
 Implement in the App/ target:
-1. `SettleUpView`: render `GroupStateResponse.simplifiedSettlements` (already
-   computed server-side, per DESIGN.md §2 - do not recompute simplification
-   client-side) as minimal transaction cards ("You owe X ₹500", "Y owes you
-   ₹300"), each with a 1-tap "Mark as Paid" action.
-2. "Mark as Paid" calls SquarelyClient.addSettlement with a client-generated
-   idempotency `id` (per DESIGN.md §2, same pattern as Phase 4's addExpense),
-   then GroupViewModel.refetch() - no optimistic UI.
-3. Wire a way into SettleUpView from GroupHomeView (toolbar button or a row in
-   the existing balance section).
+1. CSV and JSON export of a group's expenses/settlements via `ShareLink`
+   (iOS's native share sheet) - per PLAN.md's Export screen and non-goal of
+   no third-party dependencies. Keep the serialization logic (building the
+   CSV/JSON string from a GroupStateResponse) in a small, independently
+   testable function rather than inline in the view.
+2. A system share sheet for the group's invite link & 6-character join code
+   (also via ShareLink), from GroupHomeView.
+3. Haptic feedback on key actions (expense added, settlement marked paid).
+4. Dark mode support - verify it, since SwiftUI is dark-mode-aware by default,
+   but check contrast on BalanceHeroView's green/red text.
+5. Offline/error states and empty states - GroupHomeView already has basic
+   error text; review whether it needs a proper offline indicator given
+   DESIGN.md §9's note that this app always has a network round trip.
 
 Keep `swift test --package-path SquareKit` green throughout.
 ```
