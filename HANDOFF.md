@@ -14,9 +14,11 @@ an architecture diagram.
 end-to-end against the deployed URL. `AppConfig.apiBaseURL` points at it.
 **Repo tagged `v0.2.0`** ("iOS app + backend, working end to end").
 
-Left, all unstarted: a real landing page + Universal Links (needs a production
-domain), shipping the iOS app (icon + device + TestFlight), WebSocket live
-updates. See `BACKEND_PLAN.md`'s tail.
+**Next up:** `SHIP_PLAN.md` — the plan for getting Squarely into people's
+hands: a custom domain + Universal Links (Track 1), TestFlight / App Store
+readiness (icon, privacy manifest, metadata — Track 2), operational hardening
+(Track 3), and WebSocket live updates later (Track 4). The long poles need
+you: buy a domain, register the App ID, create the App Store Connect record.
 
 The balance/simplify logic now lives in two languages kept in lockstep by
 `test-fixtures/balances/` (run by both `swift test` and `npm --prefix worker
