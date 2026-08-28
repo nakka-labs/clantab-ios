@@ -62,12 +62,16 @@ struct SettleUpView: View {
 
     private func settlementRow(_ settlement: SimplifiedSettlement) -> some View {
         let rowId = "\(settlement.fromId)->\(settlement.toId)"
+        let payer = name(for: settlement.fromId)
+        let payee = name(for: settlement.toId)
+        let amount = MoneyFormat.string(minorUnits: settlement.amountMinor, currency: currency)
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(name(for: settlement.fromId)) pays \(name(for: settlement.toId))")
-                Text(MoneyFormat.string(minorUnits: settlement.amountMinor, currency: currency))
+                Text("\(payer) pays \(payee)")
+                Text(amount)
                     .font(.headline)
             }
+            .accessibilityElement(children: .combine)
             Spacer()
             Button {
                 Task { await markPaid(settlement, rowId: rowId) }
@@ -80,6 +84,7 @@ struct SettleUpView: View {
             }
             .buttonStyle(.bordered)
             .disabled(pendingRowId != nil)
+            .accessibilityLabel("Mark \(payer)'s \(amount) payment to \(payee) as paid")
         }
         .padding(.vertical, 4)
     }

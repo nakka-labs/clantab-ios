@@ -1,0 +1,37 @@
+name: Deploy Worker
+
+# Deploys worker/ to Cloudflare on a version tag (v*). Runs the full test suite
+# first — a red suite blocks the deploy. Manual runs allowed via the Actions tab.
+#
+# Requires a repo secret CLOUDFLARE_API_TOKEN:
+#   Cloudflare dashboard → My Profile → API Tokens → Create Token
+#   → "Edit Cloudflare Workers" template → scope it to this account.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Deploy
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

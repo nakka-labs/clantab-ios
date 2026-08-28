@@ -18,5 +18,16 @@ struct MemberBalanceRow: View {
                     .foregroundStyle(netMinor > 0 ? .green : .red)
             }
         }
+        // The green/red colour is the only thing distinguishing "is owed" from
+        // "owes" visually — spell it out for VoiceOver.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var accessibilityDescription: String {
+        let amount = MoneyFormat.string(minorUnits: abs(netMinor), currency: currency)
+        if netMinor == 0 { return "\(member.displayName), settled up" }
+        if netMinor > 0 { return "\(member.displayName) is owed \(amount)" }
+        return "\(member.displayName) owes \(amount)"
     }
 }

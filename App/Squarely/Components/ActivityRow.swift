@@ -65,5 +65,10 @@ struct ActivityRow: View {
             Spacer()
             Text(MoneyFormat.string(minorUnits: item.amountMinor, currency: currency))
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(item.title), \(MoneyFormat.string(minorUnits: item.amountMinor, currency: currency))"
+        )
+        .accessibilityValue(item.date.formatted(date: .abbreviated, time: .omitted))
     }
 }

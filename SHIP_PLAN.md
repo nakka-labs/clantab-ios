@@ -158,39 +158,44 @@ tappable link. Depends on §0.1 (a domain).
 
 **Goal:** a build you can put on TestFlight, then submit.
 
-1. **App icon + accent colour** — `Assets.xcassets` with `AppIcon` (1024px
-   master, Xcode generates the rest on modern targets) and an `AccentColor`.
-   This is design work — a simple wordmark/monogram ("📐" is the current
-   stand-in). `project.yml` needs `ASSETCATALOG_COMPILER_APPICON_NAME` /
-   `_GLOBAL_ACCENT_COLOR_NAME` (or Xcode defaults once the catalog exists).
-2. **Privacy manifest** — `PrivacyInfo.xcprivacy` in the app target. Squarely
-   collects only a device-local display name and makes network calls; declare
-   `NSPrivacyCollectedDataTypes` accordingly (likely *none* leave the device as
-   "linked to identity" — the display name is user-chosen, not an identifier)
-   and the required-reason APIs it uses (`UserDefaults` → `CA92.1`). Apple
-   rejects builds without this.
-3. **Launch screen / polish pass** — `UILaunchScreen: {}` is currently empty;
-   a minimal branded launch screen. Dark-mode spot check on a device.
-   Accessibility: Dynamic Type, VoiceOver labels on the balance hero and
-   activity rows.
-4. **App Store metadata** — description, keywords, support URL, privacy policy
-   URL (required — even for "no accounts", you need a page stating what the
-   capability link means and that settlements are trust-based), screenshots
-   (6.7"/6.9" + 6.1"), the "no login / capability URL" model explained for the
-   reviewer in the review notes.
-5. **Review-risk review** — the capability-link security model, "no accounts",
-   and trust-based settlement are all fine but unusual; pre-empt reviewer
-   questions in the notes. Confirm nothing trips 3.1.1 (no in-app purchase
-   surface) or 5.1.1 (data collection) unexpectedly.
-6. **CI**: add a `Deploy Worker` GitHub Action on `v*` tags
-   (`CLOUDFLARE_API_TOKEN` secret, `wrangler deploy`), so backend releases are
-   reproducible. Optionally an Xcode Cloud / fastlane lane for TestFlight
-   uploads.
-7. **Bump `MARKETING_VERSION`** and `CURRENT_PROJECT_VERSION` per build.
+1. ✅ **App icon + accent colour** — `App/Squarely/Assets.xcassets` with a
+   placeholder `AppIcon` (flat blue, white "=") and a blue `AccentColor`,
+   wired via `ASSETCATALOG_COMPILER_*` in `project.yml`. Ships fine on
+   TestFlight; **swap for real design before the App Store.**
+2. ✅ **Privacy manifest** — `App/Squarely/PrivacyInfo.xcprivacy`: no tracking;
+   "Name" (the display name) + "Other Data Types" (ledger content) both linked
+   / not-for-tracking / App Functionality; `UserDefaults` → `CA92.1`. Judgement
+   calls are commented in the file — revisit if App Review pushes back.
+3. **Launch screen / polish pass** — **not done.** `UILaunchScreen: {}` is
+   plain system background (HIG-compliant, no flash, but unbranded); a
+   storyboard launch screen with the wordmark is a nice-to-have. Still to do:
+   a dark-mode spot check on a device.
+   ✅ Accessibility: VoiceOver labels + `.accessibilityElement` on the balance
+   hero, member rows, activity rows, and settle-up cards (the green/red colour
+   was the only owed-vs-owe cue); balance hero now uses a Dynamic-Type font
+   instead of a fixed 40pt.
+4. ✅ **App Store metadata** — drafted in `docs/appstore/metadata.md`
+   (name, subtitle, description, keywords, the App Privacy answers, and
+   **review notes** walking a reviewer through the no-login model). Paste into
+   App Store Connect. Screenshots still to reshoot cleanly for the store.
+5. **Review-risk review** — covered in the metadata's review notes: capability
+   link, no accounts, trust-based settlement, no IAP, no analytics/ads. Nothing
+   should trip 3.1.1 or 5.1.1.
+6. ✅ **Deploy CI** — `.github/workflows/worker-deploy.yml`: on a `v*` tag,
+   `npm ci` → typecheck → test → `wrangler deploy`. **You add the
+   `CLOUDFLARE_API_TOKEN` repo secret** (Cloudflare → My Profile → API Tokens →
+   "Edit Cloudflare Workers" template). An Xcode Cloud / fastlane lane for
+   TestFlight uploads is optional.
+7. **Bump `MARKETING_VERSION`** (now `0.2.0`) and `CURRENT_PROJECT_VERSION` per
+   build.
+8. ✅ **Privacy policy** — written at `docs/privacy-policy.md`. **You host it**
+   (GitHub Pages from `/docs` is the quick path) and put the URL in App Store
+   Connect + update the metadata file.
 
-**Needs you:** the icon (or a brief for it), the Apple app record, the privacy
-policy page, App Store screenshots/copy, and the TestFlight upload itself
-(Xcode → Archive → Distribute, or fastlane with an App Store Connect API key).
+**Still needs you:** the Apple App ID + App Store Connect record, a real app
+icon (eventually), hosting the privacy policy, App Store screenshots, the
+`CLOUDFLARE_API_TOKEN` secret, and the TestFlight upload (Xcode → Archive →
+Distribute, or fastlane with an App Store Connect API key).
 
 ---
 

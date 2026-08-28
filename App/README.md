@@ -74,7 +74,12 @@ no SwiftUI runtime warnings, no crashes. Full write-up and findings in
 
 ## Known gaps
 
-- No app icon / accent color asset catalog yet.
+- Placeholder app icon (`Assets.xcassets/AppIcon` — a flat "=" mark) + a blue
+  `AccentColor`. Fine for TestFlight; swap for real design before the App Store.
+- No custom launch screen (`UILaunchScreen: {}` → plain system background —
+  HIG-compliant, no flash, but unbranded). `SHIP_PLAN.md` Track 2.
+- `DEVELOPMENT_TEAM` isn't set in `project.yml` — add your Team ID there or pick
+  it in Xcode's Signing tab for device builds.
 - Universal Links need an Associated Domains entitlement + hosted
   apple-app-site-association once there's a production domain; only the
   `squarely://g/:groupId` dev scheme is wired for now.

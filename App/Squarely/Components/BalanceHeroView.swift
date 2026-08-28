@@ -13,12 +13,17 @@ struct BalanceHeroView: View {
                 .foregroundStyle(.secondary)
             if balance.netMinor != 0 {
                 Text(MoneyFormat.string(minorUnits: abs(balance.netMinor), currency: currency))
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
                     .foregroundStyle(balance.netMinor > 0 ? .green : .red)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
+        // The green/red colour is decorative — the headline text carries the
+        // owed-vs-owe meaning, so combining reads correctly for VoiceOver.
+        .accessibilityElement(children: .combine)
     }
 
     private var headline: String {
