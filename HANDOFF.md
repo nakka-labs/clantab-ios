@@ -1,5 +1,38 @@
 # Squarely iOS — Handoff Guide
 
+## ⏸ Session Paused (2026-08-28) — Resume on macOS with Xcode + Apple Developer Program Enrolled
+
+Everything below is pushed to `main` at `e8a50ed` — nothing local, nothing
+uncommitted. This whole session ran on Windows (no Mac available), so
+everything through Phase 7 was built and CI-verified blind; **nothing has
+ever actually run**. That's the very next thing to do.
+
+**Start here, in order:**
+
+1. Read `App/README.md` (build status) and this file's "App/ Runtime
+   Verification Prompt" section below in full before touching anything.
+2. `cd App && xcodegen generate && open Squarely.xcodeproj`.
+3. In Signing & Capabilities, select your now-enrolled Developer Program
+   Team. This is new since last session — it unlocks real device signing and
+   TestFlight (not just the 7-day free personal-team signing `App/README.md`
+   was written assuming), and makes Universal Links (`https://<host>/g/:groupId`)
+   viable later if a production domain gets configured. None of that is set up
+   yet — this just removes the blocker.
+4. Build for Simulator first. It should just work — `.github/workflows/ios-build.yml`
+   already verified this compiles (after fixing 3 real errors found there:
+   see the "App/ CI Build Check" section below). If Xcode finds something CI
+   didn't (CI doesn't catch everything — e.g. asset catalog issues, entitlement
+   problems), fix it and push; CI re-verifies on every push to `App/**`.
+5. Run the **App/ Runtime Verification Prompt** below — nothing interactive
+   has been tested. `AppConfig.apiBaseURL` is still a placeholder, so
+   Create/Join will fail at the network call; that's expected (the backend
+   is explicitly a separate, later effort — see Phase 7 Status below).
+6. Once that passes: finish Phase 7's remaining items (screenshots, a
+   mermaid architecture diagram, then decide on a `v0.1.0` tag) — see the
+   "Phase 7 Status" section below for exactly what's open.
+7. There is no Phase 8 defined anywhere — `PLAN.md`'s roadmap stops at
+   Phase 7. Decide what's next only after Phase 7 actually finishes.
+
 ## Phase 0 Checklist — Completed
 - [x] Private GitHub repository created (`indra-nakka/squarely-ios`)
 - [x] Root configs in place (`.gitignore`, `LICENSE`, `Makefile`, `AGENTS.md`, `README.md`, `PLAN.md`, `HANDOFF.md`, `.github/workflows/test.yml`)

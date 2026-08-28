@@ -1,7 +1,8 @@
 # Squarely (App target)
 
 The SwiftUI iOS app shell. Scaffolded on Windows (no Xcode available there), so
-this needs a first real build pass on macOS — see "Known gaps" below.
+this needs a first real interactive run on macOS — see "Build status" below;
+it compiles (CI-verified) but has never actually been run.
 
 ## Setup (macOS)
 
@@ -15,9 +16,16 @@ open Squarely.xcodeproj
 `Squarely.xcodeproj` is generated from `project.yml` and is gitignored — never
 edit it directly; edit `project.yml` and regenerate instead.
 
+In Xcode's Signing & Capabilities tab, select your Apple Developer Program
+Team. `project.yml` doesn't hardcode a `DEVELOPMENT_TEAM` (no team ID was
+known at scaffolding time), so Xcode will prompt for one on first open —
+with an enrolled Team this enables real device installs and TestFlight, not
+just the 7-day free personal-team signing.
+
 Before running, set a real backend URL in `Squarely/AppConfig.swift`
 (`apiBaseURL` currently points at a placeholder). Use `http://localhost:8787/`
-for local `wrangler dev` testing per `DESIGN.md` §11 once the Worker exists.
+for local `wrangler dev` testing per `DESIGN.md` §11 once the Worker exists
+(the Worker itself is a separate, later effort — not built in this repo yet).
 
 ## Structure
 
@@ -53,9 +61,9 @@ mixed into its content closure, and a ternary `ShapeStyle` type mismatch
 
 **Not yet verified**: nobody has run this in Simulator or on a device. CI only
 proves it *compiles* — it says nothing about whether the app actually behaves
-correctly (navigation, sheet presentation, form validation, deep links). That
-still needs a real run, which needs either macOS access or a signed build on
-a physical device — see `HANDOFF.md` for the reasoning.
+correctly (navigation, sheet presentation, form validation, deep links). See
+`HANDOFF.md`'s "App/ Runtime Verification Prompt" — that's the very next
+thing to do once this is opened in Xcode.
 
 ## Known gaps
 
