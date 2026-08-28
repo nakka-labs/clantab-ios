@@ -17,6 +17,11 @@ final class GroupViewModel {
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
+    /// Set when the server says this group doesn't exist (a 404 on its
+    /// capability URL) — the pointer to it is stale and Group Home can never
+    /// load. `RootView` watches this to bounce back to the start screen.
+    private(set) var groupUnavailable = false
+
     init(groupId: String, client: SquarelyClient, identityStore: IdentityStoring) {
         self.groupId = groupId
         self.client = client
@@ -46,7 +51,24 @@ final class GroupViewModel {
             state = try await client.fetchGroupState(groupId: groupId)
         } catch {
             errorMessage = friendlyMessage(for: error)
+            if Self.isGroupNotFound(error) {
+                groupUnavailable = true
+            }
         }
         isLoading = false
+    }
+
+    /// A 404 for the group itself (`DESIGN.md` §2) — either a bare 404
+    /// (`SquarelyClientError.notFound`) or the structured `GROUP_NOT_FOUND`
+    /// envelope — as opposed to any other network or decoding failure.
+    nonisolated static func isGroupNotFound(_ error: Error) -> Bool {
+        switch error as? SquarelyClientError {
+        case .notFound:
+            return true
+        case .server(let code, _):
+            return code == "GROUP_NOT_FOUND"
+        default:
+            return false
+        }
     }
 }

@@ -1,10 +1,9 @@
 name: iOS App Build Check
 
-# Verifies App/ actually compiles, using a macOS GitHub Actions runner - the
-# only way to build Swift/SwiftUI for iOS, since there's no macOS available in
-# local development for this repo (see App/README.md). Builds for the iOS
-# Simulator only: no code signing needed, no device required, just "does it
-# compile."
+# Verifies App/ compiles and its unit tests pass, using a macOS GitHub Actions
+# runner - the only way to build Swift/SwiftUI for iOS, since there's no macOS
+# available in local development for this repo (see App/README.md). Simulator
+# only: no code signing needed, no device required.
 
 on:
   push:
@@ -42,4 +41,21 @@ jobs:
             -scheme Squarely \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Run App unit tests (SquarelyTests)
+        run: |
+          cd App
+          # Pick whatever iPhone simulator the runner actually has, so this
+          # doesn't break when GitHub bumps the default device name.
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -E 'iPhone' \
+            | grep -Eo '[0-9A-Fa-f-]{36}' | head -1)
+          echo "Using simulator $DEVICE_ID"
+          xcodebuild test \
+            -project Squarely.xcodeproj \
+            -scheme Squarely \
+            -configuration Debug \
+            -only-testing:SquarelyTests \
+            -destination "id=$DEVICE_ID" \
             CODE_SIGNING_ALLOWED=NO

@@ -1,12 +1,14 @@
 # Squarely iOS — Handoff Guide
 
-## ▶ Status (2026-08-28) — App/ Runs; Phase 7 Docs + Tag Still Open
+## ▶ Status (2026-08-28) — App/ Runs; Only the `v0.1.0` Tag Is Left in Phase 7
 
 Phases 0-6 are built, CI-compile-verified, and — as of 2026-08-28 — **the
-app has now actually been run** end-to-end on an iOS Simulator (see "App/
-Runtime Verification — Done" below). `README.md` now has screenshots and a
-mermaid architecture diagram. **What's left in Phase 7 is just the `v0.1.0`
-tag decision** (plus the two runtime-pass findings — see below).
+app has been run** end-to-end on an iOS Simulator (see "App/ Runtime
+Verification — Done" below). `README.md` has screenshots and a mermaid
+architecture diagram. Both runtime-pass findings are handled: the
+resume-into-deleted-group dead end is **fixed** (see below), and the
+deep-link parsing now has unit tests (`SquarelyTests`, also run in CI).
+**The only open Phase 7 item is the `v0.1.0` tag decision.**
 
 **Repo moved**: the repo now lives at `nakka-labs/squarely-ios` (was
 `indra-nakka/squarely-ios` — see Phase 0's checklist below for that original
@@ -25,10 +27,7 @@ GitHub repo description are already updated; a fresh clone should use
    None of that is set up yet; this just removes the blocker.
 3. Decide on the `v0.1.0` tag — the last open Phase 7 item. See "Phase 7
    Status" below.
-4. Consider the two findings from the runtime pass (below): the resume-into-
-   deleted-group dead end, and whether the deep-link in-app routing wants a
-   unit test.
-5. There is no Phase 8 — `PLAN.md`'s roadmap stops at Phase 7. Decide what's
+4. There is no Phase 8 — `PLAN.md`'s roadmap stops at Phase 7. Decide what's
    next only after Phase 7 finishes.
 
 ## Phase 0 Checklist — Completed
@@ -114,14 +113,14 @@ GitHub repo description are already updated; a fresh clone should use
 
 ---
 
-## App/ CI Build Check — Passing (`.github/workflows/ios-build.yml`)
+## App/ CI Build + Test Check — Passing (`.github/workflows/ios-build.yml`)
 
-No Mac was ever available in this development environment (see "how to
-test/verify" discussion), so a GitHub Actions macOS runner does the one thing
-that genuinely requires Xcode: compiling. It runs `xcodegen generate` +
-`xcodebuild -destination 'generic/platform=iOS Simulator'` on every push
-touching `App/**` — no code signing needed, since Simulator builds don't
-require it. Check status: `gh run list --workflow=ios-build.yml`.
+Originally no Mac was available here, so a GitHub Actions macOS runner does
+the parts that need Xcode. On every push touching `App/**` it runs
+`xcodegen generate`, then `xcodebuild build -destination 'generic/platform=iOS
+Simulator'`, then `xcodebuild test -only-testing:SquarelyTests` on whatever
+iPhone simulator the runner has — no code signing needed. Check status:
+`gh run list --workflow=ios-build.yml`.
 
 **This closed the loop on Phases 3-6's biggest open risk.** It found and fixed
 three real build errors on the very first run:
@@ -189,18 +188,25 @@ for Phase 7 rather than committing the raw set.
    wasn't ignored. Added `App/Squarely/Info.plist` to `.gitignore` — the one
    uncommitted change. `App/README.md`'s "never edit it directly" note about
    the `.xcodeproj` applies to this file too.
-2. **Resume-into-deleted-group dead end (UX, pre-existing, not fixed).** If
-   the last group no longer exists server-side, the app resumes into it on
-   launch showing only a small "Group not found." row and the `+` button.
-   There is **no "leave group" / "switch group" affordance anywhere**, so the
-   user is stuck. Phase 7 decision: add a "leave group" action, or on a
-   `notFound` at resume-time fall back to Start.
-3. **Deep link — partially verified.** `squarely://g/<id>` is registered and
-   the OS routes it to the app (the "Open in Squarely?" confirm dialog
-   appeared), but the in-app routing result wasn't visually confirmed (no
-   reliable Simulator tap tool here for the SpringBoard dialog).
-   `RootView.extractGroupId` / `handleDeepLink` are pure — good candidates
-   for App-target unit tests.
+2. **Resume-into-deleted-group dead end (UX, pre-existing) — FIXED
+   2026-08-28.** If `lastGroupId` pointed at a group that no longer exists
+   server-side, the app resumed into it and showed only a small "Group not
+   found." row with no way back. Now `GroupViewModel` sets `groupUnavailable`
+   when `fetchGroupState` returns a 404 (bare `notFound` or a structured
+   `GROUP_NOT_FOUND`), and `RootView.leaveGroup` clears `lastGroupId` and
+   routes back to Start. Only a definitive 404 triggers this — transient
+   connection errors leave the user on Group Home with the retry affordances,
+   by design. Covered by `SquarelyTests/GroupViewModelTests` and confirmed at
+   runtime (restart the mock empty → same groupId 404s → app lands on Start).
+   Note this only handles a *deleted* group; there is still no "leave"/"switch"
+   action for a group that still exists (v1's single-active-group model).
+3. **Deep link — parsing now unit-tested.** `squarely://g/<id>` is registered
+   and the OS routes it to the app (the "Open in Squarely?" confirm dialog
+   appeared in the runtime pass; the in-app result wasn't visually confirmed —
+   no reliable Simulator tap tool for the SpringBoard dialog here). The pure
+   pieces are now covered: `RootView.extractGroupId` and the extracted
+   `RootView.resolveDeepLink(_:hasIdentity:)` have 11 tests in
+   `SquarelyTests/RootViewDeepLinkTests`.
 
 ## Phase 6 Checklist — Completed; compiles (CI) and run-verified 2026-08-28
 - [x] `SquareKit/Export/Export.swift`: CSV and JSON ledger export as pure
@@ -273,14 +279,17 @@ What got done:
 - [x] **App/ Runtime Verification pass (2026-08-28)** — the app has now been
   run end-to-end on an iOS 26.5 Simulator; every Phase 3-6 screen and flow
   exercised and asserted, no runtime warnings or crashes. Full details +
-  findings in "App/ Runtime Verification — Done" above. One fix landed
-  (`.gitignore` for the generated `App/Squarely/Info.plist`); one UX finding
-  left open (resume-into-deleted-group dead end).
+  findings in "App/ Runtime Verification — Done" above.
 - [x] Screenshots + a mermaid architecture diagram in `README.md` (2026-08-28).
   Five curated screenshots committed under `docs/screenshots/` (resized to
   360px wide) with a `## Screenshots` table; a `flowchart` diagram under
   `## Architecture Overview` shows the SquareKit-core / App-shell /
   out-of-scope-Worker split.
+- [x] Acted on both runtime-pass findings (2026-08-28): fixed the
+  resume-into-deleted-group dead end (`GroupViewModel.groupUnavailable` +
+  `RootView.leaveGroup`), and added the first `App/` unit-test target
+  (`SquarelyTests`, 17 tests) for deep-link parsing and group-not-found
+  detection — now also run by `ios-build.yml`.
 - [ ] Release tag: **not done**. `App/` now both compiles and runs standalone
   against a mock backend, so `v0.1.0` could reasonably mean "the iOS app
   works standalone" without waiting on the Worker — that's the call to make.

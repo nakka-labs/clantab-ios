@@ -3,14 +3,21 @@ import SquareKit
 
 struct GroupHomeView: View {
     private let client: SquarelyClient
+    private let onGroupUnavailable: () -> Void
     @State private var viewModel: GroupViewModel
     @State private var isPresentingAddExpense = false
     @State private var isPresentingSettleUp = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
 
-    init(groupId: String, client: SquarelyClient, identityStore: IdentityStoring) {
+    init(
+        groupId: String,
+        client: SquarelyClient,
+        identityStore: IdentityStoring,
+        onGroupUnavailable: @escaping () -> Void = {}
+    ) {
         self.client = client
+        self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, identityStore: identityStore))
     }
 
@@ -66,6 +73,9 @@ struct GroupHomeView: View {
         .navigationTitle(viewModel.state?.group.name ?? "Group")
         .refreshable { await viewModel.refetch() }
         .task { await viewModel.load() }
+        .onChange(of: viewModel.groupUnavailable) { _, unavailable in
+            if unavailable { onGroupUnavailable() }
+        }
         .overlay {
             if viewModel.isLoading && viewModel.state == nil {
                 ProgressView()

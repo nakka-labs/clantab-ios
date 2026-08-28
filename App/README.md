@@ -41,6 +41,10 @@ Squarely/
 ├── ViewModels/             # GroupViewModel — fetch-on-load/refetch, no optimistic UI
 └── Components/             # BalanceHeroView, MemberBalanceRow, ActivityRow, MoneyFormat,
                             # ClientErrorMessage, ExportFile (temp-file writer for ShareLink)
+
+../SquarelyTests/           # App unit tests (XCTest): deep-link parsing (RootView),
+                            # group-not-found detection (GroupViewModel). Run via the
+                            # `Squarely` scheme; also run in CI (ios-build.yml).
 ```
 
 CSV/JSON serialization itself lives in `SquareKit.Export` (pure functions, tested
@@ -83,11 +87,12 @@ no SwiftUI runtime warnings, no crashes. Full write-up and findings in
   confirmation step); it can't be recovered later from Group Home. If that
   turns out to matter, it needs a `DESIGN.md` change (return it from the
   group-state endpoint too), not a client-side workaround.
-- No "leave group" / "switch group" affordance. `RootView` resumes into the
-  last group on launch; if that group no longer exists server-side, Group
-  Home shows only a small "Group not found." row and the `+` button with no
-  way back to Start. Found in the 2026-08-28 runtime pass — needs either a
-  "leave group" action or a `notFound`-at-resume fallback to Start.
+- No "leave group" / "switch group" affordance for a group that still exists —
+  `RootView`'s v1 model is a single active group, replaced by joining/opening
+  another. (A group that has been *deleted* server-side is handled: Group Home
+  detects the 404 and `RootView` falls back to the Start screen — see
+  `GroupViewModel.groupUnavailable` / `RootView.leaveGroup`, covered by
+  `SquarelyTests`.)
 - Dark mode: reviewed, not changed. `BalanceHeroView`'s green/red and the rest
   of the UI all use system-adaptive colors (`.green`, `.red`, `.secondary`),
   which already adjust for dark mode automatically — nothing needed fixing.

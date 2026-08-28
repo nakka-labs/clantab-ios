@@ -40,7 +40,12 @@ struct RootView: View {
                 onCancel: { route = .start }
             )
         case .group(let groupId):
-            GroupHomeView(groupId: groupId, client: client, identityStore: identityStore)
+            GroupHomeView(
+                groupId: groupId,
+                client: client,
+                identityStore: identityStore,
+                onGroupUnavailable: { leaveGroup(groupId) }
+            )
         }
     }
 
@@ -54,17 +59,39 @@ struct RootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        guard let groupId = Self.extractGroupId(from: url) else { return }
-        if identityStore.identity(forGroup: groupId) != nil {
-            enterGroup(groupId)
-        } else {
-            route = .joinGroup(groupId: groupId)
+        switch Self.resolveDeepLink(url, hasIdentity: { identityStore.identity(forGroup: $0) != nil }) {
+        case .openGroup(let groupId): enterGroup(groupId)
+        case .joinGroup(let groupId): route = .joinGroup(groupId: groupId)
+        case nil: break
         }
     }
 
     private func enterGroup(_ groupId: String) {
         lastGroupId = groupId
         route = .group(groupId: groupId)
+    }
+
+    /// The group behind `lastGroupId` no longer exists (its capability URL now
+    /// 404s). Drop the remembered pointer and return to the start screen rather
+    /// than leaving the user stuck on a Group Home that can never load. The local
+    /// identity is left in place — harmless, and still valid if that same group
+    /// turns out to be reachable again later.
+    private func leaveGroup(_ groupId: String) {
+        if lastGroupId == groupId { lastGroupId = "" }
+        route = .start
+    }
+
+    /// Where a `/g/:groupId` link should land: straight into the group if this
+    /// device already has an identity for it, otherwise the join flow. Pure so
+    /// it can be tested without a hosting view.
+    enum DeepLinkResolution: Equatable {
+        case openGroup(String)
+        case joinGroup(String)
+    }
+
+    static func resolveDeepLink(_ url: URL, hasIdentity: (String) -> Bool) -> DeepLinkResolution? {
+        guard let groupId = extractGroupId(from: url) else { return nil }
+        return hasIdentity(groupId) ? .openGroup(groupId) : .joinGroup(groupId)
     }
 
     /// Recognizes both a real capability link (`https://<host>/g/:groupId`, per
