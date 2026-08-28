@@ -89,7 +89,7 @@ struct RootView: View {
         case joinGroup(String)
     }
 
-    static func resolveDeepLink(_ url: URL, hasIdentity: (String) -> Bool) -> DeepLinkResolution? {
+    nonisolated static func resolveDeepLink(_ url: URL, hasIdentity: (String) -> Bool) -> DeepLinkResolution? {
         guard let groupId = extractGroupId(from: url) else { return nil }
         return hasIdentity(groupId) ? .openGroup(groupId) : .joinGroup(groupId)
     }
@@ -97,7 +97,7 @@ struct RootView: View {
     /// Recognizes both a real capability link (`https://<host>/g/:groupId`, per
     /// `DESIGN.md` §1) and the `squarely://g/:groupId` scheme registered in
     /// `project.yml` for Simulator testing before a production domain exists.
-    static func extractGroupId(from url: URL) -> String? {
+    nonisolated static func extractGroupId(from url: URL) -> String? {
         if url.scheme == "squarely", url.host == "g" {
             return url.pathComponents.dropFirst().first
         }
