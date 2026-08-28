@@ -1,43 +1,37 @@
 # Squarely iOS — Handoff Guide
 
-## ⏸ Session Paused (2026-08-28) — Resume on macOS with Xcode + Apple Developer Program Enrolled
+## ▶ Status (2026-08-28) — App/ Runs; Phase 7 Docs + Tag Still Open
 
-Everything below is pushed to `main` at `a416f6b` — nothing local, nothing
-uncommitted. This whole session ran on Windows (no Mac available), so
-everything through Phase 7 was built and CI-verified blind; **nothing has
-ever actually run**. That's the very next thing to do.
+Phases 0-6 are built, CI-compile-verified, and — as of 2026-08-28 — **the
+app has now actually been run** end-to-end on an iOS Simulator (see "App/
+Runtime Verification — Done" below). What's left is Phase 7 documentation
+(README screenshots, a mermaid architecture diagram) and the `v0.1.0` tag
+decision. Nothing is uncommitted except a one-line `.gitignore` addition
+from the verification pass (`App/Squarely/Info.plist`, xcodegen-generated).
 
 **Repo moved**: the repo now lives at `nakka-labs/squarely-ios` (was
 `indra-nakka/squarely-ios` — see Phase 0's checklist below for that original
-name, still accurate as history). `origin` has already been updated to the
-new URL in this local clone; if resuming from a fresh clone, use
+name, still accurate as history). `origin` in this local clone and the
+GitHub repo description are already updated; a fresh clone should use
 `https://github.com/nakka-labs/squarely-ios.git`.
 
 **Start here, in order:**
 
-1. Read `App/README.md` (build status) and this file's "App/ Runtime
-   Verification Prompt" section below in full before touching anything.
-2. `cd App && xcodegen generate && open Squarely.xcodeproj`.
-3. In Signing & Capabilities, select your now-enrolled Developer Program
-   Team. This is new since last session — it unlocks real device signing and
-   TestFlight (not just the 7-day free personal-team signing `App/README.md`
-   was written assuming), and makes Universal Links (`https://<host>/g/:groupId`)
-   viable later if a production domain gets configured. None of that is set up
-   yet — this just removes the blocker.
-4. Build for Simulator first. It should just work — `.github/workflows/ios-build.yml`
-   already verified this compiles (after fixing 3 real errors found there:
-   see the "App/ CI Build Check" section below). If Xcode finds something CI
-   didn't (CI doesn't catch everything — e.g. asset catalog issues, entitlement
-   problems), fix it and push; CI re-verifies on every push to `App/**`.
-5. Run the **App/ Runtime Verification Prompt** below — nothing interactive
-   has been tested. `AppConfig.apiBaseURL` is still a placeholder, so
-   Create/Join will fail at the network call; that's expected (the backend
-   is explicitly a separate, later effort — see Phase 7 Status below).
-6. Once that passes: finish Phase 7's remaining items (screenshots, a
-   mermaid architecture diagram, then decide on a `v0.1.0` tag) — see the
-   "Phase 7 Status" section below for exactly what's open.
-7. There is no Phase 8 defined anywhere — `PLAN.md`'s roadmap stops at
-   Phase 7. Decide what's next only after Phase 7 actually finishes.
+1. `cd App && xcodegen generate && open Squarely.xcodeproj` (the
+   `.xcodeproj` and `Squarely/Info.plist` are both gitignored — regenerate,
+   never edit).
+2. In Signing & Capabilities, select your enrolled Developer Program Team —
+   unlocks real device signing + TestFlight (not just 7-day personal-team
+   signing) and makes Universal Links viable later with a production domain.
+   None of that is set up yet; this just removes the blocker.
+3. Phase 7 leftovers: add screenshots + a mermaid architecture diagram to
+   `README.md` (a running build to screenshot now exists), then decide on a
+   `v0.1.0` tag. See "Phase 7 Status" below.
+4. Consider the two findings from the runtime pass (below): the resume-into-
+   deleted-group dead end, and whether the deep-link in-app routing wants a
+   unit test.
+5. There is no Phase 8 — `PLAN.md`'s roadmap stops at Phase 7. Decide what's
+   next only after Phase 7 finishes.
 
 ## Phase 0 Checklist — Completed
 - [x] Private GitHub repository created (`indra-nakka/squarely-ios`)
@@ -59,7 +53,7 @@ new URL in this local clone; if resuming from a fresh clone, use
 - [x] `Tests/SquareKitTests/`: 12 new tests (`SquarelyClientTests`, `IdentityStoreTests`) covering request/response shape, structured vs. bare error handling, idempotency-id encoding, and full `GroupStateResponse` decoding — 37 tests total, all passing via `swift test --package-path SquareKit`
 - Verified on this machine that both `URLSession` (real network round-trip) and `UserDefaults` (suite-backed roundtrip) work correctly under SwiftPM on the Windows Swift 6.3.3 toolchain before committing to this design.
 
-## Phase 3 Checklist — Completed, Build UNVERIFIED (needs macOS/Xcode)
+## Phase 3 Checklist — Completed; compiles (CI) and run-verified 2026-08-28 (see "App/ Runtime Verification — Done")
 - [x] `App/project.yml`: XcodeGen config (chosen over a hand-authored `.xcodeproj`,
   which can't be safely written blind on Windows — a plain YAML file can).
   `App/README.md` has setup steps (`brew install xcodegen && xcodegen generate`).
@@ -75,15 +69,14 @@ new URL in this local clone; if resuming from a fresh clone, use
   pull-to-refresh, no optimistic UI, per `DESIGN.md` §7.
 - [x] `Components/`: `BalanceHeroView`, `MemberBalanceRow`, `ActivityRow`,
   `MoneyFormat`, `ClientErrorMessage`.
-- [ ] **Not yet verified**: no Xcode/macOS was available this session, so none of
-  this has actually been compiled. Treat the first `xcodegen generate` + build
-  in Xcode as real verification, not a formality — see `App/README.md`'s "Known
-  gaps" for the specific things most likely to need a fix (Picker tagging,
-  `@State`/`@Observable` wiring, deep link parsing).
+- [x] Compiled (CI) and run-verified 2026-08-28 — the "specific things most
+  likely to need a fix" flagged when this was written blind (Picker tagging,
+  `@State`/`@Observable` wiring, deep-link parsing) all work at runtime. See
+  "App/ Runtime Verification — Done".
 - SquareKit's own test suite is untouched and still green (37/37,
   `swift test --package-path SquareKit`).
 
-## Phase 4 Checklist — Completed, Build UNVERIFIED (same caveat as Phase 3)
+## Phase 4 Checklist — Completed; compiles (CI) and run-verified 2026-08-28
 - [x] `Screens/AddExpenseView.swift`: amount entry (parsed to integer minor
   units via `MoneyFormat.minorUnits(from:)` — string/integer math, no
   `Double`), payer picker, description, equal-vs-exact split UI. The equal
@@ -98,13 +91,13 @@ new URL in this local clone; if resuming from a fresh clone, use
   `DESIGN.md` §2.
 - [x] `Components/ClientErrorMessage.swift` extended to translate
   `ValidationError` cases too, not just `SquarelyClientError`.
-- Built on top of Phase 3's still-unverified App/ code, by explicit choice —
-  both will be verified together in one Xcode session rather than pausing
+- Built on top of Phase 3's then-unverified App/ code by explicit choice —
+  all verified together in the 2026-08-28 Xcode session rather than pausing
   mid-stream. SquareKit's own suite remains untouched and green (37/37).
 
 ---
 
-## Phase 5 Checklist — Completed, Build UNVERIFIED (same caveat as Phases 3-4)
+## Phase 5 Checklist — Completed; compiles (CI) and run-verified 2026-08-28
 - [x] `Screens/SettleUpView.swift`: renders `GroupStateResponse.simplifiedSettlements`
   (server-computed per `DESIGN.md` §2 — never recomputed client-side) as
   minimal "X pays Y — ₹amount" cards, each with a 1-tap "Mark as Paid".
@@ -117,9 +110,9 @@ new URL in this local clone; if resuming from a fresh clone, use
 - [x] Wired into `GroupHomeView`: a "Settle Up" row appears right under the
   balance hero, only when `simplifiedSettlements` is non-empty, opening
   `SettleUpView` as a sheet.
-- Built on top of Phases 3-4's still-unverified `App/` code, by the same
-  explicit choice as Phase 4 — all three will be verified together in one
-  Xcode session. SquareKit's own suite remains untouched and green (37/37).
+- Built on top of Phases 3-4's then-unverified `App/` code, by the same
+  explicit choice as Phase 4 — all verified together in the 2026-08-28 Xcode
+  session. SquareKit's own suite remains untouched and green (37/37).
 
 ---
 
@@ -151,37 +144,67 @@ three real build errors on the very first run:
    only exists on `Color`. Fixed by naming both branches `Color.secondary` /
    `Color.red` explicitly.
 
-**What CI still doesn't prove**: the app has never actually run. Compiling
-says nothing about whether navigation, sheet presentation, form validation, or
-deep links behave correctly at runtime — that needs an interactive Simulator
-or device session, which still needs either macOS access or a signed
-CI-built IPA (see the "how to test without a Mac" discussion for the tradeoffs
-of each). The prompt below is for whenever that access exists.
+**What CI doesn't prove** (and what the runtime pass below now covers):
+navigation, sheet presentation, form validation, and deep-link behaviour at
+runtime — none of which compilation says anything about.
 
-## App/ Runtime Verification Prompt (Needs an Interactive Simulator/Device Session)
+## App/ Runtime Verification — Done (2026-08-28)
 
-```text
-Read App/README.md and the "App/ CI Build Check" section of HANDOFF.md - the
-build itself is already verified by CI, so this is specifically about runtime
-behavior, which nothing has exercised yet.
+First interactive run of `App/`, on an **iOS 26.5 Simulator (Xcode 26.6,
+iPhone 17 Pro)**, driven end-to-end by a temporary XCUITest (added, run,
+then removed — not in the repo) with assertions + screenshots at each step.
+Because the Worker backend is out of scope, the app was pointed at a
+**local in-memory mock of the `DESIGN.md` §2 API** (a throwaway script that
+ports `SquareKit/Logic`'s balance + greedy-simplify so Group Home rendered
+real numbers). Two temporary local changes for the run — `AppConfig.apiBaseURL`
+→ `http://localhost:8787/` and an `NSAllowsLocalNetworking` ATS exception —
+were **both reverted**.
 
-1. cd App && xcodegen generate, open Squarely.xcodeproj, run on an iOS 17+
-   Simulator (or a device, if signing is set up).
-2. Since there's no backend yet (AppConfig.apiBaseURL is a placeholder),
-   Create/Join will fail at the network call - that's expected. Confirm the
-   UI itself renders and navigates correctly up to that point: the Start
-   screen, Create/Join forms, and opening the Add Expense, Settle Up, and
-   Share & Export sheets from Group Home (Group Home itself won't have real
-   data without a backend, but the sheets should still present).
-3. If anything crashes or misbehaves at runtime (not a compile error - CI
-   already covers those), fix it and push; CI will re-verify the compile.
-4. Keep `swift test --package-path SquareKit` green throughout (46 tests).
+**Verified working at runtime (all asserted, all pass):**
+- Start screen; Create Group form (text entry, currency picker, `canSubmit`
+  gating, submission); post-create confirmation (join code shown once,
+  Share Code / Share Invite Link).
+- Group Home: balance hero (green/red), member balances, merged activity
+  feed, nav title, **resume-into-group on relaunch**, pull-to-refresh.
+- Add Expense sheet: amount parsing, payer picker, equal split, submit →
+  `refetch()` → feed updates.
+- Settle Up sheet: server `simplifiedSettlements` rendered, "Mark as Paid" →
+  `addSettlement` → list recomputes and the settled row drops out.
+- Share & Export menu: invite link + Export CSV + Export JSON (`ShareLink`).
+- Join by code: resolve + graceful "That group or code couldn't be found."
+  on an unknown code.
+- `.sensoryFeedback` haptics fire (Simulator logs the expected
+  no-haptics-device error — confirms the call path).
+- **No SwiftUI runtime warnings** (no AttributeGraph cycles, no "publishing
+  changes from within view updates", no constraint errors), no crashes.
+  Console is clean apart from standard Simulator keyboard/haptic noise.
 
-Report what you found before moving on to Phase 7's remaining items
-(screenshots, then deciding on a release tag).
-```
+`swift test --package-path SquareKit` stayed green (46/46) throughout.
 
-## Phase 6 Checklist — Completed, Compiles (CI-verified), Not Yet Run
+Screenshots (15) were saved outside the repo at
+`../squarely-runtime-verification-shots/` — curate a few into `README.md`
+for Phase 7 rather than committing the raw set.
+
+**Findings:**
+1. **`.gitignore` gap (fixed).** `xcodegen generate` writes
+   `App/Squarely/Info.plist` from `project.yml`'s `info` block, but it
+   wasn't ignored. Added `App/Squarely/Info.plist` to `.gitignore` — the one
+   uncommitted change. `App/README.md`'s "never edit it directly" note about
+   the `.xcodeproj` applies to this file too.
+2. **Resume-into-deleted-group dead end (UX, pre-existing, not fixed).** If
+   the last group no longer exists server-side, the app resumes into it on
+   launch showing only a small "Group not found." row and the `+` button.
+   There is **no "leave group" / "switch group" affordance anywhere**, so the
+   user is stuck. Phase 7 decision: add a "leave group" action, or on a
+   `notFound` at resume-time fall back to Start.
+3. **Deep link — partially verified.** `squarely://g/<id>` is registered and
+   the OS routes it to the app (the "Open in Squarely?" confirm dialog
+   appeared), but the in-app routing result wasn't visually confirmed (no
+   reliable Simulator tap tool here for the SpringBoard dialog).
+   `RootView.extractGroupId` / `handleDeepLink` are pure — good candidates
+   for App-target unit tests.
+
+## Phase 6 Checklist — Completed; compiles (CI) and run-verified 2026-08-28
 - [x] `SquareKit/Export/Export.swift`: CSV and JSON ledger export as pure
   functions - `Export.csv` (money via integer-math decimal strings, RFC 4180
   escaping, sorted oldest-first) and `Export.json` (a complete pretty-printed
@@ -200,9 +223,9 @@ Report what you found before moving on to Phase 7's remaining items
   `onSettled` callback.
 - [x] Dark mode and offline/empty states: reviewed, no changes needed - see
   `App/README.md`'s "Known gaps" for the reasoning on each.
-- Built on top of Phases 3-5's `App/` code; all of it (Phases 3-6) now
-  compiles cleanly per the CI check above. Still not run in a real Simulator
-  session - see the Runtime Verification prompt.
+- Built on top of Phases 3-5's `App/` code; all of it (Phases 3-6) compiles
+  cleanly per the CI check above and was run-verified end-to-end on
+  2026-08-28 — see "App/ Runtime Verification — Done".
 
 ---
 
@@ -230,16 +253,12 @@ roadmap.
 Keep `swift test --package-path SquareKit` green throughout.
 ```
 
-## Phase 7 Status — Docs Reviewed, Screenshots + Tag Deliberately Blocked
+## Phase 7 Status — Docs Reviewed + App/ Run-Verified; Screenshots, Diagram, Tag Still Open
 
-Decided this session (both explicit calls, not defaults to revisit lightly):
+Standing decisions (explicit calls, not defaults to revisit lightly):
 - **Backend is a separate, later effort** — out of scope for this roadmap.
   Continue developing/testing the iOS app against `AppConfig.apiBaseURL`'s
-  placeholder until a real Worker exists elsewhere.
-- **No release tag yet** — tagging implies something that works. `App/` now
-  compiles (CI-verified, after this session's fixes), but nobody has actually
-  run it — that's a meaningfully different bar than "tagged and shippable."
-  Revisit once the Runtime Verification prompt has actually been run.
+  placeholder (or a local mock) until a real Worker exists elsewhere.
 
 What got done:
 - [x] Drift review across `AGENTS.md`/`DESIGN.md`/`README.md` against what
@@ -251,16 +270,17 @@ What got done:
   Phase 6) in `DESIGN.md` §12 for whoever eventually builds the backend.
   `AGENTS.md` now flags `App/`'s macOS/Xcode requirement in its Commands
   section.
-- [ ] Screenshots and a mermaid architecture diagram in `README.md`: **not
-  done**. Screenshots specifically need a build that runs; mermaid diagrams
-  don't, but weren't added this pass either.
-- [ ] Release tag: **not done**, by design (see above).
-
-**Update, same session:** the App/ CI Build Check above now passes — `App/`
-compiles cleanly, after fixing three real errors it caught. That was the
-biggest open risk from Phases 3-6, and it's closed. What's left before
-finishing Phase 7 is strictly smaller: an actual interactive run (the Runtime
-Verification prompt above), then screenshots, then deciding whether a
-`v0.1.0` tag makes sense (it can reasonably describe "the iOS app works
-standalone against a placeholder backend" without waiting on the Worker,
-given that's now explicitly a separate effort).
+- [x] **App/ CI Build Check** passes — `App/` compiles cleanly (after fixing
+  three real errors it caught).
+- [x] **App/ Runtime Verification pass (2026-08-28)** — the app has now been
+  run end-to-end on an iOS 26.5 Simulator; every Phase 3-6 screen and flow
+  exercised and asserted, no runtime warnings or crashes. Full details +
+  findings in "App/ Runtime Verification — Done" above. One fix landed
+  (`.gitignore` for the generated `App/Squarely/Info.plist`); one UX finding
+  left open (resume-into-deleted-group dead end).
+- [ ] Screenshots + a mermaid architecture diagram in `README.md`: **not
+  done**. Both are now unblocked (a running build exists). Screenshots from
+  the verification pass are at `../squarely-runtime-verification-shots/`.
+- [ ] Release tag: **not done**. `App/` now both compiles and runs standalone
+  against a mock backend, so `v0.1.0` could reasonably mean "the iOS app
+  works standalone" without waiting on the Worker — that's the call to make.

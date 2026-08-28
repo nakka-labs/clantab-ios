@@ -135,17 +135,18 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] `CreateGroupView`: name, currency, creator display name.
 - [x] `JoinGroupView`: 6-character code resolver & deep link handling (`squarely://g/:groupId` dev scheme; Universal Links deferred to a later phase pending a production domain).
 - [x] `GroupHomeView`: balance summary hero, member net list, activity feed — backed by `GroupViewModel` (fetch-on-load/refetch, no optimistic UI).
-- [x] **Compiles**: verified via `.github/workflows/ios-build.yml` (macOS GitHub Actions runner, iOS Simulator destination, no signing needed). Three real build errors found and fixed in the process. **Not yet run** in Simulator or on a device — CI proves compilation only, not runtime behavior. See `App/README.md`.
+- [x] **Compiles**: verified via `.github/workflows/ios-build.yml` (macOS GitHub Actions runner, iOS Simulator destination, no signing needed). Three real build errors found and fixed in the process.
+- [x] **Run & verified** (2026-08-28, first interactive run — see HANDOFF.md "App/ Runtime Verification — Done"): Start screen, Create form + validation, post-create confirmation, Group Home (balance hero, member balances, activity feed), resume-on-relaunch, and pull-to-refresh all exercised on an iOS 26.5 Simulator against a local mock API. No SwiftUI runtime warnings or crashes.
 
 ### Phase 4 — Add Expense Flow
 - [x] `AddExpenseView`: amount entry, payer picker, description, equal vs. exact split UI with automatic remainder resolution (via `Validation.equalSplit`).
 - [x] Wire to group client and refresh state (toolbar button on `GroupHomeView` → sheet → `addExpense` → `refetch()`, no optimistic UI).
-- [x] **Compiles** along with the rest of `App/` (CI-verified) — **not yet run**. See Phase 3's note and `App/README.md`.
+- [x] **Compiles** (CI-verified) and **run & verified** 2026-08-28: amount parsing, payer picker, equal split, submit → refetch → activity feed updates. See HANDOFF.md.
 
 ### Phase 5 — Settle Up Flow
 - [x] `SettleUpView`: render simplified transaction cards from the server-computed `simplifiedSettlements` (never recomputed client-side).
 - [x] 1-tap "Mark Paid" recording a settlement (`addSettlement` → `refetch()`, no optimistic UI).
-- [x] **Compiles** along with the rest of `App/` (CI-verified) — **not yet run**. See Phase 3's note and `App/README.md`.
+- [x] **Compiles** (CI-verified) and **run & verified** 2026-08-28: server-computed plan rendered, "Mark as Paid" → `addSettlement` → list recomputes and the settled row drops out. See HANDOFF.md.
 
 ### Phase 6 — Polish & Export
 - [x] CSV and JSON export via iOS ShareSheet (`ShareLink`). Serialization itself lives in `SquareKit.Export` (pure functions, fully tested on Windows — 9 tests); the App target only writes the result to a temp file for sharing.
@@ -153,11 +154,12 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] Haptic feedback on expense-added and settlement-marked-paid (`.sensoryFeedback`, iOS 17+).
 - [x] Dark mode: reviewed — already fine via system-adaptive colors, no changes needed.
 - [x] Offline indicators / empty states: reviewed — existing loading spinner + inline error text considered adequate for v1; a dedicated offline banner deliberately deferred rather than over-built blind.
-- [x] **Compiles** along with the rest of `App/` (CI-verified) — **not yet run**. See Phase 3's note and `App/README.md`.
+- [x] **Compiles** (CI-verified) and **run & verified** 2026-08-28: Share & Export menu (invite link, CSV, JSON via `ShareLink`), post-create join-code confirmation, and `.sensoryFeedback` haptics all exercised. See HANDOFF.md.
 
 ### Phase 7 — Ship & Documentation
 - [x] Reviewed `AGENTS.md`/`DESIGN.md`/`README.md` for drift against what actually got built in Phases 1-6, and corrected what had drifted:
   `DESIGN.md` §5's sequence diagrams and §7 described a hypothetical web client (React `useGroup` hook, `identity.ts`/`localStorage`) that was never built — corrected to describe the actual iOS client (`GroupViewModel`, `UserDefaultsIdentityStore`). Also recorded the join-code API gap (found in Phase 6) in `DESIGN.md` §12 for whoever eventually builds the backend. `AGENTS.md` now notes `App/` needs macOS/Xcode.
-- [ ] Screenshots: **blocked** — need a build that actually runs, which needs the App/ Verification pass on macOS (Phases 3-6 have never been compiled). Architecture diagrams (mermaid, no rendering needed) could be added without that; not done yet.
-- [ ] Tag a release: **deliberately not done**. Tagging implies something that works; nothing in `App/` has been compiled or run yet, and per this decision there's also no backend for it to talk to. Revisit once App/ Verification passes on macOS.
-- **Backend scope decision (this session):** the Cloudflare Worker backend `DESIGN.md` specifies is explicitly **out of scope for this roadmap**, treated as a separate, later effort. This repo's Phase 1-7 track is iOS-app-only, developed and tested against `AppConfig.apiBaseURL`'s placeholder until a real Worker exists elsewhere.
+- [x] **App/ Runtime Verification pass** (2026-08-28) — first interactive run of `App/`, on an iOS 26.5 Simulator (Xcode 26.6) driven end-to-end by an XCUITest against a local mock of the API. Every screen and flow from Phases 3-6 exercised and asserted; no SwiftUI runtime warnings or crashes. Details, screenshots location, and findings in HANDOFF.md's "App/ Runtime Verification — Done" section. Two findings: a `.gitignore` gap for the xcodegen-generated `App/Squarely/Info.plist` (fixed), and a pre-existing UX dead end when resuming into a group that no longer exists server-side (no "leave group" affordance anywhere — open Phase 7 decision).
+- [ ] Screenshots: **now unblocked** (running build exists) — not yet added to `README.md`. Mermaid architecture diagram also still to add.
+- [ ] Tag a release: still open. `App/` now both compiles and runs standalone against a mock backend; the remaining judgement is whether `v0.1.0` can describe "iOS app works standalone" without waiting on a real Worker (which is explicitly a separate effort — see below).
+- **Backend scope decision:** the Cloudflare Worker backend `DESIGN.md` specifies is explicitly **out of scope for this roadmap**, treated as a separate, later effort. This repo's Phase 1-7 track is iOS-app-only, developed and tested against `AppConfig.apiBaseURL`'s placeholder (or a local mock) until a real Worker exists elsewhere.

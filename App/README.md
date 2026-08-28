@@ -1,8 +1,8 @@
 # Squarely (App target)
 
-The SwiftUI iOS app shell. Scaffolded on Windows (no Xcode available there), so
-this needs a first real interactive run on macOS — see "Build status" below;
-it compiles (CI-verified) but has never actually been run.
+The SwiftUI iOS app shell. Scaffolded on Windows (no Xcode available there);
+compiles (CI-verified) and, as of 2026-08-28, run-verified end-to-end on an
+iOS Simulator — see "Build status" below.
 
 ## Setup (macOS)
 
@@ -13,8 +13,9 @@ xcodegen generate
 open Squarely.xcodeproj
 ```
 
-`Squarely.xcodeproj` is generated from `project.yml` and is gitignored — never
-edit it directly; edit `project.yml` and regenerate instead.
+`Squarely.xcodeproj` and `Squarely/Info.plist` are both generated from
+`project.yml` and gitignored — never edit them directly; edit `project.yml`
+and regenerate instead.
 
 In Xcode's Signing & Capabilities tab, select your Apple Developer Program
 Team. `project.yml` doesn't hardcode a `DEVELOPMENT_TEAM` (no team ID was
@@ -59,11 +60,13 @@ fixed this way: a `private` nested-type access error in `CreateGroupView`, a
 mixed into its content closure, and a ternary `ShapeStyle` type mismatch
 (`.secondary` vs `.red`).
 
-**Not yet verified**: nobody has run this in Simulator or on a device. CI only
-proves it *compiles* — it says nothing about whether the app actually behaves
-correctly (navigation, sheet presentation, form validation, deep links). See
-`HANDOFF.md`'s "App/ Runtime Verification Prompt" — that's the very next
-thing to do once this is opened in Xcode.
+**Run-verified** (2026-08-28): first interactive run, end-to-end on an iOS
+26.5 Simulator (Xcode 26.6), driven by a temporary XCUITest against a local
+mock of the API. Every Phase 3-6 screen and flow — Start, Create, Group
+Home, Add Expense, Settle Up, Share & Export, Join-by-code, deep-link scheme
+registration, resume-on-relaunch, pull-to-refresh — exercised and asserted;
+no SwiftUI runtime warnings, no crashes. Full write-up and findings in
+`HANDOFF.md`'s "App/ Runtime Verification — Done" section.
 
 ## Known gaps
 
@@ -80,6 +83,11 @@ thing to do once this is opened in Xcode.
   confirmation step); it can't be recovered later from Group Home. If that
   turns out to matter, it needs a `DESIGN.md` change (return it from the
   group-state endpoint too), not a client-side workaround.
+- No "leave group" / "switch group" affordance. `RootView` resumes into the
+  last group on launch; if that group no longer exists server-side, Group
+  Home shows only a small "Group not found." row and the `+` button with no
+  way back to Start. Found in the 2026-08-28 runtime pass — needs either a
+  "leave group" action or a `notFound`-at-resume fallback to Start.
 - Dark mode: reviewed, not changed. `BalanceHeroView`'s green/red and the rest
   of the UI all use system-adaptive colors (`.green`, `.red`, `.secondary`),
   which already adjust for dark mode automatically — nothing needed fixing.
