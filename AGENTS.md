@@ -3,10 +3,15 @@
 Open-source, no-login expense splitter for small groups. Native iOS application powered by a pure Swift core package (`SquareKit`). No accounts, no payments, no ads.
 
 ## Commands
-- `swift test --package-path SquareKit` or `make test` — run fast unit tests (Windows, macOS, Linux)
+- `make check` — run everything relevant (SquareKit + worker + iOS build/tests). Same as what the `pre-push` hook runs; `make hooks` installs it.
+- `swift test --package-path SquareKit` or `make test` — the pure Swift core (Windows, macOS, Linux)
 - `swift build --package-path SquareKit` — build the core package
-- `App/` (the SwiftUI shell) requires Xcode on macOS — it cannot be built or tested on Windows/Linux. See `App/README.md` for setup (`xcodegen generate`) and its current verification status before assuming it builds.
-- `worker/` (Cloudflare Worker backend, in progress — see `BACKEND_PLAN.md`): `npm --prefix worker ci`, then `npm --prefix worker test` and `npm --prefix worker run typecheck`. Node only; no Cloudflare account needed for the current layer.
+- `App/` (the SwiftUI shell) requires Xcode on macOS. `cd App && xcodegen generate`, then the `Squarely` scheme. See `App/README.md`.
+- `worker/` (Cloudflare Worker backend — `BACKEND_PLAN.md`): `npm --prefix worker ci`, then `make worker-test` / `worker-typecheck` / `worker-dev`. `make worker-deploy` needs `wrangler login`.
+
+## CI
+- `.github/workflows/`: `test.yml` (SquareKit, Linux) and `worker.yml` (Worker, Linux) run on push — cheap, within the free tier. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret).
+- **The iOS build is NOT in cloud CI** — macOS Actions minutes bill 10×. It runs in the `pre-push` hook on the dev's Mac. Don't re-add a macOS workflow without a reason.
 
 ## Backend (`worker/`)
 - **Same rules as `SquareKit`**: integer minor units only, derived balances, zero runtime dependencies (dev deps like `vitest`/`typescript` are fine). Hand-rolled router (`URLPattern`) over a framework.

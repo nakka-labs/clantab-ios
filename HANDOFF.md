@@ -131,17 +131,27 @@ GitHub repo description are already updated; a fresh clone should use
 
 ---
 
-## App/ CI Build + Test Check — Passing (`.github/workflows/ios-build.yml`)
+## App/ Build + Test Check — local pre-push hook
 
-Originally no Mac was available here, so a GitHub Actions macOS runner does
-the parts that need Xcode. On every push touching `App/**` it runs
-`xcodegen generate`, then `xcodebuild build -destination 'generic/platform=iOS
-Simulator'`, then `xcodebuild test -only-testing:SquarelyTests` on whatever
-iPhone simulator the runner has — no code signing needed. Check status:
-`gh run list --workflow=ios-build.yml`.
+Originally a GitHub Actions **macOS** runner (`ios-build.yml`) did the iOS
+build, because development was on Windows. Now that there's a Mac, that
+moved local — macOS Actions minutes bill at 10× and drained the account's
+free pool. **`make hooks`** points `core.hooksPath` at `.githooks/`; the
+`pre-push` hook then runs, before every push, the checks relevant to what's
+being pushed:
 
-**This closed the loop on Phases 3-6's biggest open risk.** It found and fixed
-three real build errors on the very first run:
+- `swift test --package-path SquareKit` (if `SquareKit/` or `test-fixtures/`)
+- `worker` typecheck + tests (if `worker/` or `test-fixtures/`)
+- `xcodegen generate` + `xcodebuild test` for the `Squarely` scheme, which
+  builds the app and runs `SquarelyTests` (if `App/` or `SquareKit/`)
+
+`make check` runs all of it unconditionally. Bypass with `SKIP_CHECKS=1` or
+`SKIP_APP_CHECK=1`. The two remaining cloud workflows — `test.yml`
+(SquareKit) and `worker.yml` (Worker) — are Linux-only and stay well within
+the free tier; `worker-deploy.yml` runs on `v*` tags.
+
+**The `ios-build.yml` era closed Phases 3-6's biggest open risk.** It found
+and fixed three real build errors on its first run:
 1. `CreateGroupView`: a `private` nested `Stage` enum extended from a
    same-file `extension CreateGroupView.Stage { }` — Swift's `private` grants
    access to extensions of the *enclosing* declaration, not extensions of the

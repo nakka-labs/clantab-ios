@@ -1,8 +1,8 @@
 # Squarely (App target)
 
-The SwiftUI iOS app shell. Scaffolded on Windows (no Xcode available there);
-compiles (CI-verified) and, as of 2026-08-28, run-verified end-to-end on an
-iOS Simulator — see "Build status" below.
+The SwiftUI iOS app shell. Builds and its `SquarelyTests` unit tests pass via
+the local pre-push hook (`make hooks`); run-verified end-to-end against the
+deployed Worker — see "Build status" below.
 
 ## Setup (macOS)
 
@@ -44,7 +44,7 @@ Squarely/
 
 ../SquarelyTests/           # App unit tests (XCTest): deep-link parsing (RootView),
                             # group-not-found detection (GroupViewModel). Run via the
-                            # `Squarely` scheme; also run in CI (ios-build.yml).
+                            # `Squarely` scheme (and by the pre-push hook).
 ```
 
 CSV/JSON serialization itself lives in `SquareKit.Export` (pure functions, tested
@@ -56,13 +56,13 @@ package. This target should stay thin — views and view models only.
 
 ## Build status
 
-**Compiles**, verified by `.github/workflows/ios-build.yml` (a macOS GitHub
-Actions runner building `xcodebuild ... -destination 'generic/platform=iOS
-Simulator'` — no code signing needed). Three real build errors were found and
-fixed this way: a `private` nested-type access error in `CreateGroupView`, a
-`Section` overload-resolution failure in `AddExpenseView` caused by a `switch`
-mixed into its content closure, and a ternary `ShapeStyle` type mismatch
-(`.secondary` vs `.red`).
+**Compiles + `SquarelyTests` pass** via `make check` / the `pre-push` hook
+(`xcodebuild test` for the `Squarely` scheme). This started life as a macOS
+GitHub Actions job (`ios-build.yml`, since removed — see `HANDOFF.md`) back
+when development was on Windows; it caught three real build errors on its
+first run: a `private` nested-type access error in `CreateGroupView`, a
+`Section` overload-resolution failure in `AddExpenseView`, and a ternary
+`ShapeStyle` type mismatch.
 
 **Run-verified** (2026-08-28): first interactive run, end-to-end on an iOS
 26.5 Simulator (Xcode 26.6), driven by a temporary XCUITest against a local

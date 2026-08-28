@@ -201,6 +201,14 @@ Distribute, or fastlane with an App Store Connect API key).
 
 ## Track 3 — Operational hardening (do alongside Track 2, before real users)
 
+0. ✅ **CI cost** — the metered macOS `ios-build.yml` is gone; the iOS build +
+   `SquarelyTests` moved to a local `pre-push` hook (`make hooks` / `make
+   check`, `.githooks/pre-push`). Cloud CI is now Linux-only (`test.yml`,
+   `worker.yml`) plus tag-triggered `worker-deploy.yml` — all within the free
+   tier. A self-hosted macOS runner could bring PR checks back later, unmetered.
+   **Until the account's Actions minutes reset (or a spending limit is set),
+   even the Linux workflows fail** — the free pool is shared and macOS drained
+   it. `make check` locally is the source of truth meanwhile.
 1. **Observability** — the Worker already has `observability.enabled`. Set up a
    Logpush or a dashboard alert for 5xx rate and DO errors. The
    `cloudflare-observability` MCP can tail logs during incidents.

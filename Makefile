@@ -1,9 +1,18 @@
-.PHONY: all test clean worker-dev worker-test worker-typecheck worker-deploy
+.PHONY: all test check hooks clean worker-dev worker-test worker-typecheck worker-deploy
 
 all: test
 
 test:
 	swift test --package-path SquareKit
+
+# Enable the pre-push hook (SquareKit + worker + iOS build/tests, run locally).
+hooks:
+	git config core.hooksPath .githooks
+	@echo "pre-push hook enabled. Bypass with SKIP_CHECKS=1 or SKIP_APP_CHECK=1."
+
+# Run every pre-push check now, unconditionally.
+check:
+	./.githooks/pre-push < /dev/null
 
 # --- Cloudflare Worker backend (worker/), see BACKEND_PLAN.md ---------------
 worker-dev:

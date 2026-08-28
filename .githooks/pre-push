@@ -1,0 +1,94 @@
+#!/bin/sh
+#
+# Squarely pre-push checks. Replaces the metered macOS GitHub Actions runner —
+# the iOS build + unit tests run here, on your Mac, for free.
+#
+# Enable once per clone:   make hooks   (sets core.hooksPath to .githooks)
+# Run the same checks manually:   make check
+#
+# Bypass:
+#   SKIP_CHECKS=1 git push        skip everything
+#   SKIP_APP_CHECK=1 git push     skip only the iOS build (e.g. no Xcode handy)
+
+set -e
+
+if [ -n "$SKIP_CHECKS" ]; then
+  echo "pre-push: SKIP_CHECKS set — skipping all checks"
+  exit 0
+fi
+
+repo=$(git rev-parse --show-toplevel)
+cd "$repo"
+
+# Determine the commit range being pushed, so a docs-only push stays instant.
+# Empty range (new branch, or invoked by `make check`) => run every check.
+range=""
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    range=""
+  else
+    range="${remote_sha}..${local_sha}"
+  fi
+done
+
+touches() {
+  [ -z "$range" ] && return 0
+  git diff --name-only "$range" 2>/dev/null | grep -qE "$1"
+}
+
+log=$(mktemp -t squarely-prepush)
+step() {
+  desc="$1"; shift
+  printf 'pre-push: %s ... ' "$desc"
+  if "$@" >"$log" 2>&1; then
+    echo "ok"
+  else
+    echo "FAILED"
+    echo "----------------------------------------------------------------" >&2
+    tail -40 "$log" >&2
+    echo "----------------------------------------------------------------" >&2
+    echo "pre-push FAILED at: $desc" >&2
+    rm -f "$log"
+    exit 1
+  fi
+}
+
+# --- SquareKit — pure Swift, fast --------------------------------------------
+if touches '^(SquareKit/|test-fixtures/)'; then
+  step "swift test --package-path SquareKit" \
+    swift test --package-path SquareKit
+fi
+
+# --- Worker — Node, fast ----------------------------------------------------
+if touches '^(worker/|test-fixtures/)'; then
+  step "worker typecheck" sh -c 'npm --prefix worker run typecheck'
+  step "worker test" sh -c 'npm --prefix worker test'
+fi
+
+# --- iOS app — build + SquarelyTests (needs Xcode + a Simulator) -----------
+if [ -n "$SKIP_APP_CHECK" ]; then
+  echo "pre-push: SKIP_APP_CHECK set — skipping the iOS build"
+elif touches '^(App/|SquareKit/)'; then
+  if ! command -v xcodegen >/dev/null 2>&1; then
+    echo "pre-push FAILED: xcodegen not found. Install it (brew install xcodegen)" >&2
+    echo "or push with SKIP_APP_CHECK=1 if you can't verify the iOS build here." >&2
+    rm -f "$log"; exit 1
+  fi
+  sim=$(xcrun simctl list devices available 2>/dev/null \
+        | grep -E 'iPhone' | grep -Eo '[0-9A-Fa-f-]{36}' | head -1)
+  if [ -z "$sim" ]; then
+    echo "pre-push FAILED: no iOS Simulator available (open Xcode once, or SKIP_APP_CHECK=1)" >&2
+    rm -f "$log"; exit 1
+  fi
+  step "xcodegen generate" sh -c 'cd App && xcodegen generate'
+  step "iOS build + SquarelyTests" \
+    xcodebuild test \
+      -project App/Squarely.xcodeproj -scheme Squarely \
+      -destination "id=$sim" \
+      -derivedDataPath "$repo/App/.build-hook" \
+      -quiet CODE_SIGNING_ALLOWED=NO
+fi
+
+rm -f "$log"
+echo "pre-push: all checks passed"
