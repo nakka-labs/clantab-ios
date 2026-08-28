@@ -1,20 +1,24 @@
 # Squarely iOS — Handoff Guide
 
-## ▶ Status (2026-08-28) — Phase 7 Complete; `v0.1.0` Tagged
+## ▶ Status (2026-08-28) — iOS `v0.1.0` Tagged; Backend §1-§5 Built
 
-Phases 0-7 are done for the iOS-app-only track. The app compiles (CI), has
-been run end-to-end on an iOS Simulator (see "App/ Runtime Verification —
-Done" below), has `SquarelyTests` + SquareKit's suite (63 tests total, all
-in CI), and `README.md` has screenshots + a mermaid architecture diagram.
-Both runtime-pass findings were fixed. **`v0.1.0` is tagged** at the commit
-that finished Phase 7.
+**iOS track**: Phases 0-7 done, **`v0.1.0` tagged**. The app compiles (CI),
+ran end-to-end on an iOS Simulator (see "App/ Runtime Verification — Done"),
+has `SquarelyTests` + SquareKit's suite, and `README.md` has screenshots +
+an architecture diagram.
 
-`PLAN.md`'s roadmap ends at Phase 7 — see its "Phase 7 complete" section for
-the unstarted next tracks (the backend, shipping for real, Universal Links).
-The biggest one: **the Cloudflare Worker backend does not exist in this repo**
-— `AppConfig.apiBaseURL` is a placeholder and everything has only ever run
-against a local mock. It's planned in **`BACKEND_PLAN.md`** (start with its
-§2: port the balance/simplify logic + shared golden fixtures).
+**Backend track** (`worker/`, tracked in `BACKEND_PLAN.md`): §1-§5 done — the
+Cloudflare Worker + RegistryDO + GroupDO implement `DESIGN.md` §2's full API,
+tested via `@cloudflare/vitest-pool-workers` (52 worker tests) and
+smoke-tested against `wrangler dev`. Not done: **§7** (point
+`AppConfig.apiBaseURL` at `wrangler dev` and re-run the iOS runtime
+verification against the real backend) and **§8 deploy** (needs a Cloudflare
+account + `wrangler login`). `AppConfig.apiBaseURL` is still a placeholder.
+
+The balance/simplify logic now lives in two languages kept in lockstep by
+`test-fixtures/balances/` (run by both `swift test` and `npm --prefix worker
+test`). The `joinCode` contract change is in: `GET /api/groups/:groupId`
+returns it, iOS `GroupSummary` carries it, Group Home re-shares it.
 
 **Repo moved**: the repo now lives at `nakka-labs/squarely-ios` (was
 `indra-nakka/squarely-ios` — see Phase 0's checklist below for that original
@@ -24,15 +28,19 @@ GitHub repo description are already updated; a fresh clone should use
 
 **If picking this up:**
 
-1. `cd App && xcodegen generate && open Squarely.xcodeproj` (the
-   `.xcodeproj` and `Squarely/Info.plist` are both gitignored — regenerate,
-   never edit). `swift test --package-path SquareKit` for the core suite.
-2. In Signing & Capabilities, select your enrolled Developer Program Team —
-   unlocks real device signing + TestFlight (not just 7-day personal-team
-   signing) and makes Universal Links viable later with a production domain.
-3. Phase 7 is done. Pick a next track from `PLAN.md`'s "Phase 7 complete"
-   section — most likely building the backend, since nothing works
-   end-to-end without it.
+1. Core suite: `swift test --package-path SquareKit`. App: `cd App &&
+   xcodegen generate && open Squarely.xcodeproj` (`.xcodeproj` +
+   `Squarely/Info.plist` gitignored — regenerate, never edit). Backend:
+   `make worker-test` / `make worker-dev` (Node; `npm --prefix worker ci` first).
+2. **Next backend step is §7**: `make worker-dev` (serves on `:8787`), set
+   `App/Squarely/AppConfig.swift`'s `apiBaseURL` to `http://localhost:8787/`,
+   and re-run the "App/ Runtime Verification" flow — this time against the
+   real DO-backed Worker instead of a mock.
+3. **§8 deploy needs you**: a Cloudflare account + `npx --prefix worker
+   wrangler login`, then `make worker-deploy`, then point `apiBaseURL` at the
+   deployed URL and re-verify. See `BACKEND_PLAN.md` §8.
+4. For TestFlight: Signing & Capabilities → your enrolled Developer Program
+   Team; add an app icon; run on a device.
 
 ## Phase 0 Checklist — Completed
 - [x] Private GitHub repository created (`indra-nakka/squarely-ios`)
