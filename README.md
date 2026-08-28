@@ -45,7 +45,7 @@ flowchart TB
         screens --> vm
     end
 
-    subgraph kit["SquareKit - pure SwiftPM package, no Apple-framework deps in core"]
+    subgraph kit["SquareKit - pure Swift core (no Apple frameworks)"]
         model["Model: Group, Member, Expense, Settlement, Balance"]
         logic["Logic: Balances, Simplify, Validation"]
         client["Network: SquarelyClient, async-await, no 3rd-party HTTP"]
@@ -56,21 +56,19 @@ flowchart TB
     vm --> client
     vm --> store
     screens --> export
-    screens -.->|"client-side pre-check"| logic
-    client -->|"HTTPS, fetch-on-load / refetch-after-write"| worker
+    screens -.->|"pre-check"| logic
+    client -->|HTTPS| worker
 
     subgraph backend["worker/ - Cloudflare Worker + Durable Objects (deployed)"]
         worker["Worker router, /api/*"]
-        groupdo["GroupDO, SQLite - authoritative balances + simplify run here"]
+        groupdo["GroupDO, SQLite - authoritative balances + simplify"]
         registrydo["RegistryDO: joinCode to groupId, rate-limited"]
         worker --> groupdo
         worker --> registrydo
     end
-
-    logic -.->|"ported to worker/src/lib, kept identical by test-fixtures/"| groupdo
 ```
 
-Balances and the simplified settle-up plan are **always computed server-side** and never recomputed on the client. The `Balances` / `Simplify` / `Validation` logic exists in two languages — Swift (`SquareKit/Sources/SquareKit/Logic/`) and TypeScript (`worker/src/lib/`) — kept byte-identical by the shared golden vectors in `test-fixtures/balances/`, which **both** test suites run (a divergence turns one side's CI red). `AppConfig.apiBaseURL` points at the deployed Worker.
+`GroupDO` recomputes balances and the simplified settle-up plan on every read — **always server-side**, never on the client. That `Balances` / `Simplify` / `Validation` logic lives in two languages, Swift (`SquareKit/Sources/SquareKit/Logic/`) and TypeScript (`worker/src/lib/`), kept byte-identical by the shared golden vectors in `test-fixtures/balances/` that **both** test suites run — a divergence turns one side's CI red. `AppConfig.apiBaseURL` points at the deployed Worker.
 
 ### Repository layout
 
