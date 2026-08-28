@@ -41,7 +41,6 @@ flowchart TB
     end
 
     subgraph kit["SquareKit - pure SwiftPM package, no Apple-framework deps in core"]
-        direction LR
         model["Model: Group, Member, Expense, Settlement, Balance"]
         logic["Logic: Balances, Simplify, Validation"]
         client["Network: SquarelyClient, async-await, no 3rd-party HTTP"]
