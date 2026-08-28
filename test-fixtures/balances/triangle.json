@@ -1,0 +1,59 @@
+{
+  "name": "three cross-paying expenses collapse to a minimal plan",
+  "members": [
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" },
+    { "id": "c", "displayName": "Cal" }
+  ],
+  "expenses": [
+    {
+      "id": "e1",
+      "payerId": "a",
+      "amountMinor": 1200,
+      "description": "Taxi",
+      "date": "2026-01-01T09:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "a", "amountMinor": 400 },
+        { "memberId": "b", "amountMinor": 400 },
+        { "memberId": "c", "amountMinor": 400 }
+      ]
+    },
+    {
+      "id": "e2",
+      "payerId": "b",
+      "amountMinor": 900,
+      "description": "Lunch",
+      "date": "2026-01-01T13:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "a", "amountMinor": 300 },
+        { "memberId": "b", "amountMinor": 300 },
+        { "memberId": "c", "amountMinor": 300 }
+      ]
+    },
+    {
+      "id": "e3",
+      "payerId": "c",
+      "amountMinor": 300,
+      "description": "Snacks",
+      "date": "2026-01-01T16:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "a", "amountMinor": 100 },
+        { "memberId": "b", "amountMinor": 100 },
+        { "memberId": "c", "amountMinor": 100 }
+      ]
+    }
+  ],
+  "settlements": [],
+  "expectedBalances": [
+    { "memberId": "a", "netMinor": 400 },
+    { "memberId": "b", "netMinor": 100 },
+    { "memberId": "c", "netMinor": -500 }
+  ],
+  "expectedSimplified": [
+    { "fromId": "c", "toId": "a", "amountMinor": 400 },
+    { "fromId": "c", "toId": "b", "amountMinor": 100 }
+  ]
+}

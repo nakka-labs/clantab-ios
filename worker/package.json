@@ -1,0 +1,17 @@
+{
+  "name": "squarely-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker + Durable Objects backend for Squarely (see BACKEND_PLAN.md).",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "~5.9",
+    "vitest": "^4.1.11"
+  }
+}

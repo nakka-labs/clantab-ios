@@ -1,5 +1,9 @@
 name: SquareKit Tests
 
+# Runs on every push/PR (no path filter): the suite includes GoldenParityTests,
+# which reads test-fixtures/ — the same vectors the Worker's logic tests use, so
+# a fixture change must exercise this job too.
+
 on:
   push:
     branches: [ main ]

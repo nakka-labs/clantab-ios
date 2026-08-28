@@ -1,0 +1,33 @@
+{
+  "name": "expense fully cleared by two settlements leaves nobody owing",
+  "members": [
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" },
+    { "id": "c", "displayName": "Cal" }
+  ],
+  "expenses": [
+    {
+      "id": "e1",
+      "payerId": "a",
+      "amountMinor": 300,
+      "description": "Coffee round",
+      "date": "2026-02-01T10:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "a", "amountMinor": 100 },
+        { "memberId": "b", "amountMinor": 100 },
+        { "memberId": "c", "amountMinor": 100 }
+      ]
+    }
+  ],
+  "settlements": [
+    { "id": "s1", "fromId": "b", "toId": "a", "amountMinor": 100, "date": "2026-02-02T10:00:00Z" },
+    { "id": "s2", "fromId": "c", "toId": "a", "amountMinor": 100, "date": "2026-02-02T11:00:00Z" }
+  ],
+  "expectedBalances": [
+    { "memberId": "a", "netMinor": 0 },
+    { "memberId": "b", "netMinor": 0 },
+    { "memberId": "c", "netMinor": 0 }
+  ],
+  "expectedSimplified": []
+}

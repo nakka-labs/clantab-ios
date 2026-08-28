@@ -1,0 +1,29 @@
+{
+  "name": "exact (unequal) two-way split",
+  "members": [
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" }
+  ],
+  "expenses": [
+    {
+      "id": "e1",
+      "payerId": "a",
+      "amountMinor": 1000,
+      "description": "Groceries (Ben took more)",
+      "date": "2026-04-01T18:00:00Z",
+      "splitType": "exact",
+      "splits": [
+        { "memberId": "a", "amountMinor": 400 },
+        { "memberId": "b", "amountMinor": 600 }
+      ]
+    }
+  ],
+  "settlements": [],
+  "expectedBalances": [
+    { "memberId": "a", "netMinor": 600 },
+    { "memberId": "b", "netMinor": -600 }
+  ],
+  "expectedSimplified": [
+    { "fromId": "b", "toId": "a", "amountMinor": 600 }
+  ]
+}

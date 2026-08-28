@@ -12,6 +12,22 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
 
 ---
 
+## Progress
+
+- **§1 scaffold** — partial: `worker/` with `package.json` / `tsconfig.json` /
+  `vitest.config.ts`, the `src/lib/` structure, `.github/workflows/worker.yml`
+  (Node type-check + test), and an `AGENTS.md` "Backend" section. Still to do:
+  `wrangler.jsonc` + DO bindings + `Makefile` targets (they need the Worker
+  entry, which lands in §5).
+- **§2 pure logic + parity** — ✅ done. `balances.ts` / `simplify.ts` /
+  `validation.ts` / `ids.ts` ported; 7 shared vectors in
+  `test-fixtures/balances/` run by **both** `worker/test/logic.test.ts` (Vitest,
+  + idempotency + a 500-iteration seeded fuzz) and
+  `SquareKitTests/GoldenParityTests.swift` (SquareKit is now 47 tests).
+- **§3 onward** — not started.
+
+---
+
 ## 0. Decisions to lock before starting
 
 ### 0.1 Monorepo — add `worker/` to this repo (recommended)

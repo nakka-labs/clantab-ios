@@ -6,6 +6,12 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 - `swift test --package-path SquareKit` or `make test` — run fast unit tests (Windows, macOS, Linux)
 - `swift build --package-path SquareKit` — build the core package
 - `App/` (the SwiftUI shell) requires Xcode on macOS — it cannot be built or tested on Windows/Linux. See `App/README.md` for setup (`xcodegen generate`) and its current verification status before assuming it builds.
+- `worker/` (Cloudflare Worker backend, in progress — see `BACKEND_PLAN.md`): `npm --prefix worker ci`, then `npm --prefix worker test` and `npm --prefix worker run typecheck`. Node only; no Cloudflare account needed for the current layer.
+
+## Backend (`worker/`)
+- **Same rules as `SquareKit`**: integer minor units only, derived balances, zero runtime dependencies (dev deps like `vitest`/`typescript` are fine). Hand-rolled router over a framework.
+- **Logic mirrors `SquareKit`, kept honest by fixtures**: `worker/src/lib/balances.ts` / `simplify.ts` / `validation.ts` are ports of the Swift `Logic/` files. Both implementations run the shared vectors in `test-fixtures/balances/` (`worker/test/logic.test.ts` and `SquareKitTests/GoldenParityTests.swift`) — change one language and the other's CI fails until it matches.
+- `DESIGN.md` is the wire/storage/security contract. Local dev: `wrangler dev` on `:8787` (once the Worker entry exists).
 
 ## Architecture Rules
 - **Pure Core Logic in `SquareKit`**: `Balances.swift` and `Simplify.swift` are pure functions. No I/O, no network calls, no UI dependencies. If a test needs a mock or a running network server to test business math, move the impure logic elsewhere.
@@ -26,4 +32,4 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 ## Conventions
 - Swift 6 language standard, strict concurrency checking.
 - Commit format: `feat|fix|test|chore|docs(scope): description`
-- Every modification to `Balances.swift` or `Simplify.swift` must be accompanied by unit tests.
+- Every modification to `Balances.swift`/`Simplify.swift` (or their `worker/src/lib/` ports) must be accompanied by unit tests, and the two languages must agree on `test-fixtures/balances/`.

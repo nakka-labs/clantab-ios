@@ -1,0 +1,55 @@
+{
+  "name": "five members, one equal-split and one exact-split expense",
+  "members": [
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" },
+    { "id": "c", "displayName": "Cal" },
+    { "id": "d", "displayName": "Dee" },
+    { "id": "e", "displayName": "Eli" }
+  ],
+  "expenses": [
+    {
+      "id": "e1",
+      "payerId": "a",
+      "amountMinor": 5000,
+      "description": "Cabin (everyone)",
+      "date": "2026-05-01T15:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "a", "amountMinor": 1000 },
+        { "memberId": "b", "amountMinor": 1000 },
+        { "memberId": "c", "amountMinor": 1000 },
+        { "memberId": "d", "amountMinor": 1000 },
+        { "memberId": "e", "amountMinor": 1000 }
+      ]
+    },
+    {
+      "id": "e2",
+      "payerId": "b",
+      "amountMinor": 2000,
+      "description": "Groceries (not Ana)",
+      "date": "2026-05-01T17:00:00Z",
+      "splitType": "exact",
+      "splits": [
+        { "memberId": "b", "amountMinor": 500 },
+        { "memberId": "c", "amountMinor": 500 },
+        { "memberId": "d", "amountMinor": 500 },
+        { "memberId": "e", "amountMinor": 500 }
+      ]
+    }
+  ],
+  "settlements": [],
+  "expectedBalances": [
+    { "memberId": "a", "netMinor": 4000 },
+    { "memberId": "b", "netMinor": 500 },
+    { "memberId": "c", "netMinor": -1500 },
+    { "memberId": "d", "netMinor": -1500 },
+    { "memberId": "e", "netMinor": -1500 }
+  ],
+  "expectedSimplified": [
+    { "fromId": "c", "toId": "a", "amountMinor": 1500 },
+    { "fromId": "d", "toId": "a", "amountMinor": 1500 },
+    { "fromId": "e", "toId": "a", "amountMinor": 1000 },
+    { "fromId": "e", "toId": "b", "amountMinor": 500 }
+  ]
+}

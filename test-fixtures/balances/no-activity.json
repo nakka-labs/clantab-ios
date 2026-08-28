@@ -1,0 +1,16 @@
+{
+  "name": "a group with members but no expenses or settlements",
+  "members": [
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" },
+    { "id": "c", "displayName": "Cal" }
+  ],
+  "expenses": [],
+  "settlements": [],
+  "expectedBalances": [
+    { "memberId": "a", "netMinor": 0 },
+    { "memberId": "b", "netMinor": 0 },
+    { "memberId": "c", "netMinor": 0 }
+  ],
+  "expectedSimplified": []
+}

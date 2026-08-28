@@ -1,0 +1,44 @@
+name: Worker Check
+
+# Type-checks and tests the Cloudflare Worker backend (see BACKEND_PLAN.md).
+# Pure Node — no Cloudflare account or wrangler needed for this layer. The
+# `test-fixtures/` path is included because the Worker's logic tests consume the
+# same golden vectors as SquareKit (test-fixtures/README.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "test-fixtures/**"
+      - ".github/workflows/worker.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "test-fixtures/**"
+      - ".github/workflows/worker.yml"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test

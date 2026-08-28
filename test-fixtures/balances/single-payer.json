@@ -1,0 +1,33 @@
+{
+  "name": "single payer fronts an equal-split dinner for the group",
+  "members": [
+    { "id": "p", "displayName": "Payer" },
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" }
+  ],
+  "expenses": [
+    {
+      "id": "e1",
+      "payerId": "p",
+      "amountMinor": 3000,
+      "description": "Dinner",
+      "date": "2026-01-01T19:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "p", "amountMinor": 1000 },
+        { "memberId": "a", "amountMinor": 1000 },
+        { "memberId": "b", "amountMinor": 1000 }
+      ]
+    }
+  ],
+  "settlements": [],
+  "expectedBalances": [
+    { "memberId": "p", "netMinor": 2000 },
+    { "memberId": "a", "netMinor": -1000 },
+    { "memberId": "b", "netMinor": -1000 }
+  ],
+  "expectedSimplified": [
+    { "fromId": "a", "toId": "p", "amountMinor": 1000 },
+    { "fromId": "b", "toId": "p", "amountMinor": 1000 }
+  ]
+}

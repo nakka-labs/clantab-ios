@@ -1,0 +1,33 @@
+{
+  "name": "1.00 split three ways: remainder goes to the payer, ledger stays exact",
+  "members": [
+    { "id": "p", "displayName": "Payer" },
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" }
+  ],
+  "expenses": [
+    {
+      "id": "e1",
+      "payerId": "p",
+      "amountMinor": 100,
+      "description": "Vending machine",
+      "date": "2026-03-01T12:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "p", "amountMinor": 34 },
+        { "memberId": "a", "amountMinor": 33 },
+        { "memberId": "b", "amountMinor": 33 }
+      ]
+    }
+  ],
+  "settlements": [],
+  "expectedBalances": [
+    { "memberId": "p", "netMinor": 66 },
+    { "memberId": "a", "netMinor": -33 },
+    { "memberId": "b", "netMinor": -33 }
+  ],
+  "expectedSimplified": [
+    { "fromId": "a", "toId": "p", "amountMinor": 33 },
+    { "fromId": "b", "toId": "p", "amountMinor": 33 }
+  ]
+}
