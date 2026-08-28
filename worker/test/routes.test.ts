@@ -306,4 +306,19 @@ describe("routing", () => {
     const { status } = await get("/api/groups"); // POST-only
     expect(status).toBe(405);
   });
+
+  it("serves a noindex capability page at /g/:groupId with an app deep link", async () => {
+    const res = await SELF.fetch(`${BASE}/g/somegroup`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("X-Robots-Tag")).toBe("noindex");
+    const body = await res.text();
+    expect(body).toContain('<meta name="robots" content="noindex">');
+    expect(body).toContain("squarely://g/somegroup");
+  });
+
+  it("serves a plain page at /", async () => {
+    const res = await SELF.fetch(`${BASE}/`);
+    expect(res.status).toBe(200);
+  });
 });

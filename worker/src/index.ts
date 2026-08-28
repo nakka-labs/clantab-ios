@@ -43,6 +43,8 @@ const ROUTES: Route[] = [
   route("GET", "/api/groups/:groupId", handleGetState),
   route("POST", "/api/groups/:groupId/expenses", handleAddExpense),
   route("POST", "/api/groups/:groupId/settlements", handleAddSettlement),
+  route("GET", "/g/:groupId", handleCapabilityPage),
+  route("GET", "/", handleRoot),
 ];
 
 function route(method: string, pathname: string, handler: Handler): Route {
@@ -158,6 +160,55 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
   };
   const result = await group.addExpense(req);
   return result.ok ? json(201, result.value) : json(400, { error: result.error });
+}
+
+/**
+ * The human-facing capability link (`DESIGN.md` §1/§8). A stub for now: a
+ * noindex page pointing at the app. A richer landing page + Universal Links
+ * (`apple-app-site-association`) come with a production domain — `BACKEND_PLAN.md`
+ * §6. Deliberately reveals nothing about the group.
+ */
+function handleCapabilityPage(_request: Request, _env: Env, params: Params): Promise<Response> {
+  const groupId = params.groupId ?? "";
+  const deepLink = `squarely://g/${encodeURIComponent(groupId)}`;
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Open in Squarely</title>
+<style>
+  body { font: 16px/1.5 -apple-system, system-ui, sans-serif; margin: 0; display: grid; place-items: center; min-height: 100vh; text-align: center; color: #1c1c1e; background: #f2f2f7; }
+  main { padding: 2rem; max-width: 22rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  p { color: #636366; }
+  a.btn { display: inline-block; margin-top: 1rem; padding: .75rem 1.5rem; border-radius: 999px; background: #0a84ff; color: #fff; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Squarely 📐</h1>
+  <p>You've been invited to a shared expense group. Open this link on a device with the Squarely app installed.</p>
+  <a class="btn" href="${deepLink}">Open in Squarely</a>
+</main>
+</body>
+</html>`;
+  return Promise.resolve(
+    new Response(html, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex" },
+    }),
+  );
+}
+
+function handleRoot(): Promise<Response> {
+  return Promise.resolve(
+    new Response("Squarely API. See https://github.com/nakka-labs/squarely-ios\n", {
+      status: 200,
+      headers: { "content-type": "text/plain; charset=utf-8", "X-Robots-Tag": "noindex" },
+    }),
+  );
 }
 
 async function handleAddSettlement(request: Request, env: Env, params: Params): Promise<Response> {

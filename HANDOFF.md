@@ -7,14 +7,13 @@ ran end-to-end on an iOS Simulator (see "App/ Runtime Verification — Done"),
 has `SquarelyTests` + SquareKit's suite, and `README.md` has screenshots +
 an architecture diagram.
 
-**Backend track** (`worker/`, tracked in `BACKEND_PLAN.md`): **§1-§7 done** —
+**Backend track** (`worker/`, tracked in `BACKEND_PLAN.md`): **§1-§8 done** —
 the Cloudflare Worker + RegistryDO + GroupDO implement `DESIGN.md` §2's full
-API (52 worker tests via `@cloudflare/vitest-pool-workers`), and the **iOS
-app has been re-verified end-to-end against it** running on `wrangler dev`
-(create → members → server-computed balances → settle-up → the new
-re-shareable join code). **Only §8 deploy is left** — needs a Cloudflare
-account + `wrangler login`. `AppConfig.apiBaseURL` is still the placeholder
-until then.
+API (54 worker tests), and it's **deployed and live at
+`https://squarely.nakka-labs.workers.dev`**. `AppConfig.apiBaseURL` points at
+it (its first real value). The iOS app was verified end-to-end against the
+Worker on `wrangler dev`; re-verification against the deployed URL is the
+last loose end, then a `v0.2.0` tag.
 
 The balance/simplify logic now lives in two languages kept in lockstep by
 `test-fixtures/balances/` (run by both `swift test` and `npm --prefix worker

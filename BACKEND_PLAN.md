@@ -41,8 +41,10 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
 - **Tests**: `npm --prefix worker test` → 52 (logic 10 + validation 13 +
   registry 4 + group 6 + routes 20 via `@cloudflare/vitest-pool-workers`).
   `swift test` → 47.
-- **§6 `/g/:groupId` page** — not started (deliberately deferred; needs a
-  domain for Universal Links anyway).
+- **§6 `/g/:groupId` page** — minimal stub shipped: a noindex HTML page with an
+  "Open in Squarely" deep link (`src/index.ts` `handleCapabilityPage`). A real
+  landing page + `apple-app-site-association` / Universal Links still need a
+  production domain.
 - **§7 re-verify the iOS app against the real backend** — ✅ done (2026-08-28).
   Ran the full app flow (temp `AppConfig.apiBaseURL` → `http://localhost:8787/`)
   against `wrangler dev` end-to-end: create group → join code shown → (test
@@ -51,7 +53,16 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
   member balances → Settle Up shows the server's simplified plan → Mark as
   Paid → recompute → Group Home's Share menu offers "Share Join Code (VYC5AU)".
   All temp changes reverted. Screenshots in the session scratchpad.
-- **§8 deploy** — blocked on a Cloudflare account + `wrangler login`.
+- **§8 deploy** — ✅ done (2026-08-28). Live at
+  **`https://squarely.nakka-labs.workers.dev`** (`wrangler deploy`; `v1`
+  migration created `RegistryDO` + `GroupDO`). `AppConfig.apiBaseURL` points at
+  it. Production smoke test green (create → members → server-computed balances →
+  simplified plan → resolve → bare-404). iOS re-verification against production:
+  pending.
+  - *Note:* the zone's default Cloudflare browser-integrity check returns
+    `error code: 1010` to bare non-browser user agents (curl/urllib without a
+    UA). Native `URLSession` sends a real UA and is unaffected; a future web
+    client would need this revisited.
 
 ---
 
