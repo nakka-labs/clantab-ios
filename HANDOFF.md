@@ -4,10 +4,9 @@
 
 Phases 0-6 are built, CI-compile-verified, and — as of 2026-08-28 — **the
 app has now actually been run** end-to-end on an iOS Simulator (see "App/
-Runtime Verification — Done" below). What's left is Phase 7 documentation
-(README screenshots, a mermaid architecture diagram) and the `v0.1.0` tag
-decision. Nothing is uncommitted except a one-line `.gitignore` addition
-from the verification pass (`App/Squarely/Info.plist`, xcodegen-generated).
+Runtime Verification — Done" below). `README.md` now has screenshots and a
+mermaid architecture diagram. **What's left in Phase 7 is just the `v0.1.0`
+tag decision** (plus the two runtime-pass findings — see below).
 
 **Repo moved**: the repo now lives at `nakka-labs/squarely-ios` (was
 `indra-nakka/squarely-ios` — see Phase 0's checklist below for that original
@@ -24,9 +23,8 @@ GitHub repo description are already updated; a fresh clone should use
    unlocks real device signing + TestFlight (not just 7-day personal-team
    signing) and makes Universal Links viable later with a production domain.
    None of that is set up yet; this just removes the blocker.
-3. Phase 7 leftovers: add screenshots + a mermaid architecture diagram to
-   `README.md` (a running build to screenshot now exists), then decide on a
-   `v0.1.0` tag. See "Phase 7 Status" below.
+3. Decide on the `v0.1.0` tag — the last open Phase 7 item. See "Phase 7
+   Status" below.
 4. Consider the two findings from the runtime pass (below): the resume-into-
    deleted-group dead end, and whether the deep-link in-app routing wants a
    unit test.
@@ -253,7 +251,7 @@ roadmap.
 Keep `swift test --package-path SquareKit` green throughout.
 ```
 
-## Phase 7 Status — Docs Reviewed + App/ Run-Verified; Screenshots, Diagram, Tag Still Open
+## Phase 7 Status — Docs Reviewed, App/ Run-Verified, README Illustrated; Only the Tag Is Left
 
 Standing decisions (explicit calls, not defaults to revisit lightly):
 - **Backend is a separate, later effort** — out of scope for this roadmap.
@@ -278,9 +276,11 @@ What got done:
   findings in "App/ Runtime Verification — Done" above. One fix landed
   (`.gitignore` for the generated `App/Squarely/Info.plist`); one UX finding
   left open (resume-into-deleted-group dead end).
-- [ ] Screenshots + a mermaid architecture diagram in `README.md`: **not
-  done**. Both are now unblocked (a running build exists). Screenshots from
-  the verification pass are at `../squarely-runtime-verification-shots/`.
+- [x] Screenshots + a mermaid architecture diagram in `README.md` (2026-08-28).
+  Five curated screenshots committed under `docs/screenshots/` (resized to
+  360px wide) with a `## Screenshots` table; a `flowchart` diagram under
+  `## Architecture Overview` shows the SquareKit-core / App-shell /
+  out-of-scope-Worker split.
 - [ ] Release tag: **not done**. `App/` now both compiles and runs standalone
   against a mock backend, so `v0.1.0` could reasonably mean "the iOS app
   works standalone" without waiting on the Worker — that's the call to make.

@@ -18,9 +18,57 @@ Squarely is a clean, private, and frictionless way for 5–10 friends to share e
 
 ---
 
+## Screenshots
+
+| Start | Share your group | Group Home | Add Expense | Settle Up |
+|:---:|:---:|:---:|:---:|:---:|
+| ![Start screen](docs/screenshots/start.png) | ![Share your group with a 6-character code or link](docs/screenshots/share-group.png) | ![Group Home: balance hero, member balances, activity feed](docs/screenshots/group-home.png) | ![Add Expense: amount, payer, equal or exact split](docs/screenshots/add-expense.png) | ![Settle Up: minimal simplified transactions](docs/screenshots/settle-up.png) |
+
+<sub>Captured on an iOS 26 Simulator against a local mock of the API (2026-08-28 runtime verification pass).</sub>
+
+---
+
 ## Architecture Overview
 
-Squarely is structured into two clean layers:
+Squarely is one **pure Swift core** (`SquareKit`) wrapped in a **thin SwiftUI shell** (`App/`). All the money math lives in the core; the shell only presents it. The sync model is deliberately simple — fetch-on-load, refetch-after-write, no optimistic UI, no WebSocket (`DESIGN.md` §7).
+
+```mermaid
+flowchart TB
+    subgraph app["App/ - SwiftUI shell, iOS 17+"]
+        screens["Screens: Start, Create, Join, GroupHome, AddExpense, SettleUp"]
+        vm["GroupViewModel: state / isLoading / errorMessage, load, refetch"]
+        screens --> vm
+    end
+
+    subgraph kit["SquareKit - pure SwiftPM package, no Apple-framework deps in core"]
+        direction LR
+        model["Model: Group, Member, Expense, Settlement, Balance"]
+        logic["Logic: Balances, Simplify, Validation"]
+        client["Network: SquarelyClient, async-await, no 3rd-party HTTP"]
+        store["Storage: UserDefaultsIdentityStore, on-device per group"]
+        export["Export: CSV / JSON, pure functions"]
+    end
+
+    vm --> client
+    vm --> store
+    screens --> export
+    screens -.->|"client-side pre-check"| logic
+    client -->|"HTTPS, fetch-on-load / refetch-after-write"| worker
+
+    subgraph backend["Cloudflare Worker + Durable Objects - separate effort, not built in this repo"]
+        worker["Worker router, /api/*"]
+        groupdo["GroupDO, SQLite - authoritative balances + simplify run here"]
+        registrydo["RegistryDO: joinCode to groupId"]
+        worker --> groupdo
+        worker --> registrydo
+    end
+
+    logic -.->|"same logic, ported into the Worker"| groupdo
+```
+
+Balances and the simplified settle-up plan are **always computed server-side** and never recomputed on the client — the same `Balances` / `Simplify` code is intended to be ported into the Worker so that logic exists in exactly one conceptual place. Until a real Worker exists, `AppConfig.apiBaseURL` points at a placeholder and the app is exercised against a local mock (see `App/README.md`).
+
+### Repository layout
 
 ```
 squarely-ios/
@@ -43,7 +91,7 @@ squarely-ios/
 
 ### Windows & macOS First-Class Development
 
-Because `SquareKit` is a pure SwiftPM package with zero Apple-framework dependencies in its core logic, **all domain math and unit tests can be developed and verified natively on Windows** (using the official Swift 6 toolchain) as well as macOS and Linux.
+Because `SquareKit` is a pure SwiftPM package with zero Apple-framework dependencies in its core logic, **all domain math and unit tests can be developed and verified natively on Windows** (using the official Swift 6 toolchain) as well as macOS and Linux. The `App/` shell needs Xcode on macOS — it has been build- and run-verified on an iOS Simulator (see `App/README.md`).
 
 ---
 
