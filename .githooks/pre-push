@@ -34,7 +34,8 @@ done
 
 touches() {
   [ -z "$range" ] && return 0
-  git diff --name-only "$range" 2>/dev/null | grep -qE "$1"
+  # Doc-only changes never trigger a build.
+  git diff --name-only "$range" 2>/dev/null | grep -vE '(^|/)(README|.*\.(md|txt))$|(^|/)docs/' | grep -qE "$1"
 }
 
 log=$(mktemp -t squarely-prepush)
