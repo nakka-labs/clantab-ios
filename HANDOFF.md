@@ -2,10 +2,16 @@
 
 ## ⏸ Session Paused (2026-08-28) — Resume on macOS with Xcode + Apple Developer Program Enrolled
 
-Everything below is pushed to `main` at `e8a50ed` — nothing local, nothing
+Everything below is pushed to `main` at `a416f6b` — nothing local, nothing
 uncommitted. This whole session ran on Windows (no Mac available), so
 everything through Phase 7 was built and CI-verified blind; **nothing has
 ever actually run**. That's the very next thing to do.
+
+**Repo moved**: the repo now lives at `nakka-labs/squarely-ios` (was
+`indra-nakka/squarely-ios` — see Phase 0's checklist below for that original
+name, still accurate as history). `origin` has already been updated to the
+new URL in this local clone; if resuming from a fresh clone, use
+`https://github.com/nakka-labs/squarely-ios.git`.
 
 **Start here, in order:**
 
