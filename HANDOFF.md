@@ -7,13 +7,14 @@ ran end-to-end on an iOS Simulator (see "App/ Runtime Verification — Done"),
 has `SquarelyTests` + SquareKit's suite, and `README.md` has screenshots +
 an architecture diagram.
 
-**Backend track** (`worker/`, tracked in `BACKEND_PLAN.md`): §1-§5 done — the
-Cloudflare Worker + RegistryDO + GroupDO implement `DESIGN.md` §2's full API,
-tested via `@cloudflare/vitest-pool-workers` (52 worker tests) and
-smoke-tested against `wrangler dev`. Not done: **§7** (point
-`AppConfig.apiBaseURL` at `wrangler dev` and re-run the iOS runtime
-verification against the real backend) and **§8 deploy** (needs a Cloudflare
-account + `wrangler login`). `AppConfig.apiBaseURL` is still a placeholder.
+**Backend track** (`worker/`, tracked in `BACKEND_PLAN.md`): **§1-§7 done** —
+the Cloudflare Worker + RegistryDO + GroupDO implement `DESIGN.md` §2's full
+API (52 worker tests via `@cloudflare/vitest-pool-workers`), and the **iOS
+app has been re-verified end-to-end against it** running on `wrangler dev`
+(create → members → server-computed balances → settle-up → the new
+re-shareable join code). **Only §8 deploy is left** — needs a Cloudflare
+account + `wrangler login`. `AppConfig.apiBaseURL` is still the placeholder
+until then.
 
 The balance/simplify logic now lives in two languages kept in lockstep by
 `test-fixtures/balances/` (run by both `swift test` and `npm --prefix worker
@@ -32,13 +33,12 @@ GitHub repo description are already updated; a fresh clone should use
    xcodegen generate && open Squarely.xcodeproj` (`.xcodeproj` +
    `Squarely/Info.plist` gitignored — regenerate, never edit). Backend:
    `make worker-test` / `make worker-dev` (Node; `npm --prefix worker ci` first).
-2. **Next backend step is §7**: `make worker-dev` (serves on `:8787`), set
-   `App/Squarely/AppConfig.swift`'s `apiBaseURL` to `http://localhost:8787/`,
-   and re-run the "App/ Runtime Verification" flow — this time against the
-   real DO-backed Worker instead of a mock.
-3. **§8 deploy needs you**: a Cloudflare account + `npx --prefix worker
-   wrangler login`, then `make worker-deploy`, then point `apiBaseURL` at the
-   deployed URL and re-verify. See `BACKEND_PLAN.md` §8.
+2. **§8 deploy needs you**: a Cloudflare account, then `npx --prefix worker
+   wrangler login`, `make worker-deploy`, point `App/Squarely/AppConfig.swift`'s
+   `apiBaseURL` at the deployed URL (its first real value), and re-run the iOS
+   verification against production. See `BACKEND_PLAN.md` §8.
+3. To develop against the backend locally in the meantime: `make worker-dev`
+   (serves `:8787`) + temporarily set `apiBaseURL` to `http://localhost:8787/`.
 4. For TestFlight: Signing & Capabilities → your enrolled Developer Program
    Team; add an app icon; run on a device.
 

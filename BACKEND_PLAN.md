@@ -43,9 +43,14 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
   `swift test` → 47.
 - **§6 `/g/:groupId` page** — not started (deliberately deferred; needs a
   domain for Universal Links anyway).
-- **§7 integration / re-verify iOS against a real backend** — not started
-  (needs pointing `AppConfig.apiBaseURL` at `wrangler dev` and re-running the
-  runtime-verification flow).
+- **§7 re-verify the iOS app against the real backend** — ✅ done (2026-08-28).
+  Ran the full app flow (temp `AppConfig.apiBaseURL` → `http://localhost:8787/`)
+  against `wrangler dev` end-to-end: create group → join code shown → (test
+  adds 2 members via its own HTTP calls) → app picks them up on refresh → add
+  a ₹3000 equal-split expense → **server-computed** "You are owed ₹2000" and
+  member balances → Settle Up shows the server's simplified plan → Mark as
+  Paid → recompute → Group Home's Share menu offers "Share Join Code (VYC5AU)".
+  All temp changes reverted. Screenshots in the session scratchpad.
 - **§8 deploy** — blocked on a Cloudflare account + `wrangler login`.
 
 ---
