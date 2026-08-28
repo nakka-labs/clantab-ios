@@ -1,14 +1,19 @@
 # Squarely iOS — Handoff Guide
 
-## ▶ Status (2026-08-28) — App/ Runs; Only the `v0.1.0` Tag Is Left in Phase 7
+## ▶ Status (2026-08-28) — Phase 7 Complete; `v0.1.0` Tagged
 
-Phases 0-6 are built, CI-compile-verified, and — as of 2026-08-28 — **the
-app has been run** end-to-end on an iOS Simulator (see "App/ Runtime
-Verification — Done" below). `README.md` has screenshots and a mermaid
-architecture diagram. Both runtime-pass findings are handled: the
-resume-into-deleted-group dead end is **fixed** (see below), and the
-deep-link parsing now has unit tests (`SquarelyTests`, also run in CI).
-**The only open Phase 7 item is the `v0.1.0` tag decision.**
+Phases 0-7 are done for the iOS-app-only track. The app compiles (CI), has
+been run end-to-end on an iOS Simulator (see "App/ Runtime Verification —
+Done" below), has `SquarelyTests` + SquareKit's suite (63 tests total, all
+in CI), and `README.md` has screenshots + a mermaid architecture diagram.
+Both runtime-pass findings were fixed. **`v0.1.0` is tagged** at the commit
+that finished Phase 7.
+
+`PLAN.md`'s roadmap ends at Phase 7 — see its "Phase 7 complete" section for
+the unstarted next tracks (the backend, shipping for real, Universal Links).
+The biggest one: **the Cloudflare Worker backend does not exist in this repo**
+— `AppConfig.apiBaseURL` is a placeholder and everything has only ever run
+against a local mock.
 
 **Repo moved**: the repo now lives at `nakka-labs/squarely-ios` (was
 `indra-nakka/squarely-ios` — see Phase 0's checklist below for that original
@@ -16,19 +21,17 @@ name, still accurate as history). `origin` in this local clone and the
 GitHub repo description are already updated; a fresh clone should use
 `https://github.com/nakka-labs/squarely-ios.git`.
 
-**Start here, in order:**
+**If picking this up:**
 
 1. `cd App && xcodegen generate && open Squarely.xcodeproj` (the
    `.xcodeproj` and `Squarely/Info.plist` are both gitignored — regenerate,
-   never edit).
+   never edit). `swift test --package-path SquareKit` for the core suite.
 2. In Signing & Capabilities, select your enrolled Developer Program Team —
    unlocks real device signing + TestFlight (not just 7-day personal-team
    signing) and makes Universal Links viable later with a production domain.
-   None of that is set up yet; this just removes the blocker.
-3. Decide on the `v0.1.0` tag — the last open Phase 7 item. See "Phase 7
-   Status" below.
-4. There is no Phase 8 — `PLAN.md`'s roadmap stops at Phase 7. Decide what's
-   next only after Phase 7 finishes.
+3. Phase 7 is done. Pick a next track from `PLAN.md`'s "Phase 7 complete"
+   section — most likely building the backend, since nothing works
+   end-to-end without it.
 
 ## Phase 0 Checklist — Completed
 - [x] Private GitHub repository created (`indra-nakka/squarely-ios`)

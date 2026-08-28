@@ -162,5 +162,26 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] **App/ Runtime Verification pass** (2026-08-28) — first interactive run of `App/`, on an iOS 26.5 Simulator (Xcode 26.6) driven end-to-end by an XCUITest against a local mock of the API. Every screen and flow from Phases 3-6 exercised and asserted; no SwiftUI runtime warnings or crashes. Details, screenshots location, and findings in HANDOFF.md's "App/ Runtime Verification — Done" section. Two findings: a `.gitignore` gap for the xcodegen-generated `App/Squarely/Info.plist`, and a pre-existing UX dead end when resuming into a group that no longer exists server-side — both since handled (next item).
 - [x] Screenshots + mermaid architecture diagram added to `README.md` (2026-08-28) — 5 screenshots from the runtime pass (`docs/screenshots/`) and a `flowchart` showing the SquareKit core / App shell / out-of-scope Worker split.
 - [x] Acted on the runtime-pass findings (2026-08-28): the resume-into-deleted-group dead end is fixed — Group Home now detects the group's 404 (`GroupViewModel.groupUnavailable`) and `RootView` falls back to the Start screen. Added a first `SquarelyTests` unit-test target (17 tests) covering deep-link parsing (`RootView.extractGroupId` / `resolveDeepLink`) and group-not-found detection; `ios-build.yml` now runs it in CI.
-- [ ] Tag a release: still open. `App/` now both compiles and runs standalone against a mock backend; the remaining judgement is whether `v0.1.0` can describe "iOS app works standalone" without waiting on a real Worker (which is explicitly a separate effort — see below).
+- [x] Tagged **`v0.1.0`** (2026-08-28) — the iOS-app-only milestone: SquareKit
+  pure core (46 tests) + the SwiftUI app, compiled and run-verified end-to-end
+  against a mock of the API, with README screenshots + architecture diagram.
+  Explicitly **not** in scope for this tag: the Cloudflare Worker backend
+  (separate effort — `AppConfig.apiBaseURL` is still a placeholder), a
+  physical-device / TestFlight run, and an app icon.
 - **Backend scope decision:** the Cloudflare Worker backend `DESIGN.md` specifies is explicitly **out of scope for this roadmap**, treated as a separate, later effort. This repo's Phase 1-7 track is iOS-app-only, developed and tested against `AppConfig.apiBaseURL`'s placeholder (or a local mock) until a real Worker exists elsewhere.
+
+---
+
+## Phase 7 complete (2026-08-28)
+
+`PLAN.md`'s roadmap ends here. `v0.1.0` is tagged. The obvious next tracks,
+none of them started or scoped:
+
+- **The backend** — build the Cloudflare Worker + Durable Objects from
+  `DESIGN.md` (its whole API surface), deploy it, point `AppConfig.apiBaseURL`
+  at it, and re-run the app against the real thing.
+- **Ship the app for real** — app icon + accent colour asset catalog, a
+  physical-device run, then TestFlight (the Developer Program enrolment is now
+  in place).
+- **Universal Links** — Associated Domains entitlement + hosted
+  `apple-app-site-association`, once there's a production domain.
