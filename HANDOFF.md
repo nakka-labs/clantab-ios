@@ -13,7 +13,8 @@ that finished Phase 7.
 the unstarted next tracks (the backend, shipping for real, Universal Links).
 The biggest one: **the Cloudflare Worker backend does not exist in this repo**
 — `AppConfig.apiBaseURL` is a placeholder and everything has only ever run
-against a local mock.
+against a local mock. It's planned in **`BACKEND_PLAN.md`** (start with its
+§2: port the balance/simplify logic + shared golden fixtures).
 
 **Repo moved**: the repo now lives at `nakka-labs/squarely-ios` (was
 `indra-nakka/squarely-ios` — see Phase 0's checklist below for that original

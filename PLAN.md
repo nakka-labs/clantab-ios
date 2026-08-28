@@ -175,11 +175,12 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 ## Phase 7 complete (2026-08-28)
 
 `PLAN.md`'s roadmap ends here. `v0.1.0` is tagged. The obvious next tracks,
-none of them started or scoped:
+none of them started:
 
 - **The backend** — build the Cloudflare Worker + Durable Objects from
   `DESIGN.md` (its whole API surface), deploy it, point `AppConfig.apiBaseURL`
-  at it, and re-run the app against the real thing.
+  at it, and re-run the app against the real thing. **Planned in
+  `BACKEND_PLAN.md`** (phased, keyed to `DESIGN.md`).
 - **Ship the app for real** — app icon + accent colour asset catalog, a
   physical-device run, then TestFlight (the Developer Program enrolment is now
   in place).
