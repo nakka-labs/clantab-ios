@@ -55,7 +55,7 @@ Errors:   404 GROUP_NOT_FOUND
 The single "give me everything" endpoint. Called on load and after every mutation — this is the entire sync model (§ per `PLAN.md` §0: fetch-on-load/refetch, no WebSocket in v1). Balances and the simplified settle-up list are computed **server-side**, inside the DO, so that logic exists in exactly one place (`worker/lib/balances.ts` and `simplify.ts`) and the client never reimplements it.
 ```
 Response: 200 {
-  group: { name, currency, createdAt },
+  group: { name, currency, createdAt, joinCode },
   members: [{ id, displayName }],
   expenses: [{ id, payerId, amountMinor, description, date, splitType, splits: [...] }],
   settlements: [{ id, fromId, toId, amountMinor, date }],
@@ -265,15 +265,15 @@ The UI should prevent invalid input, but the DO validates independently — neve
 
 ## 12. Deliberately deferred (not forgotten)
 
-- **`GET /api/groups/:groupId` doesn't return `joinCode`** (§2's `group` field is
-  `{ name, currency, createdAt }` only). Discovered while building the iOS
-  client (Phase 6): this means the join code can only ever be shown once,
-  right after creation — nobody who joins later, or reopens the app after
-  restart, can look it up again. Not fixed here since it's a backend contract
-  change, not a client workaround — the iOS app instead surfaces it in a
-  one-time post-creation confirmation step. Worth deciding when the Worker is
-  built: return it from this endpoint too (low-entropy already, no new
-  exposure) or keep this limitation intentionally.
+- ~~**`GET /api/groups/:groupId` doesn't return `joinCode`**~~ — **decided
+  (2026-08-28): it now does.** §2's `group` object is
+  `{ name, currency, createdAt, joinCode }`. Originally the code was only
+  shown once, right after creation (the iOS app surfaced it in a post-creation
+  confirmation step); anyone joining later or reopening the app couldn't look
+  it up. The code is already low-entropy and Registry-resolvable, so returning
+  it from the state endpoint adds no new exposure and lets Group Home re-share
+  it. The Worker was built with this from the start; the iOS `GroupSummary`
+  carries the field.
 - WebSocket live updates (upgrade path exists — same DO, add a WebSocket handler alongside the HTTP one — but not built until Phase 6+ per `PLAN.md`, and only if usage shows people actually have the app open simultaneously)
 - Optimistic UI updates on mutation
 - Multi-currency, recurring expenses, percentage/shares splitting, receipt OCR — all explicitly out of scope per `PLAN.md` §1, listed here again only so nobody mistakes their absence in this doc for an oversight

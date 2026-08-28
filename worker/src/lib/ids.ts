@@ -30,3 +30,16 @@ export function newGroupId(): string {
 export function newJoinCode(): string {
   return randomString(JOIN_CODE_ALPHABET, 6);
 }
+
+/** Server-assigned member id. Not user-facing; just needs to be unique per group. */
+export function newMemberId(): string {
+  return randomString(GROUP_ID_ALPHABET, 12);
+}
+
+/**
+ * Server-assigned id for an expense or settlement when the client didn't supply
+ * one. Client-supplied ids (for idempotent retries, `DESIGN.md` §2) are UUIDs.
+ */
+export function newRecordId(): string {
+  return randomString(GROUP_ID_ALPHABET, 16);
+}

@@ -81,12 +81,10 @@ no SwiftUI runtime warnings, no crashes. Full write-up and findings in
 - `MoneyFormat` assumes 2 decimal minor units for every currency (true for
   INR/USD/EUR/GBP, not for e.g. JPY) — fine for the currencies in the v1
   picker, worth revisiting if more are added.
-- The 6-character join code is only ever returned by `POST /api/groups`
-  (`DESIGN.md` §2) — `GET /api/groups/:groupId` doesn't include it. So it can
-  only be shown/shared once, right after creation (`CreateGroupView`'s
-  confirmation step); it can't be recovered later from Group Home. If that
-  turns out to matter, it needs a `DESIGN.md` change (return it from the
-  group-state endpoint too), not a client-side workaround.
+- The 6-character join code is surfaced both at creation (`CreateGroupView`'s
+  confirmation step) and, since the `DESIGN.md` §2/§12 contract change, from
+  Group Home's Share & Export menu (`GroupSummary.joinCode` is now returned by
+  `GET /api/groups/:groupId`).
 - No "leave group" / "switch group" affordance for a group that still exists —
   `RootView`'s v1 model is a single active group, replaced by joining/opening
   another. (A group that has been *deleted* server-side is handled: Group Home

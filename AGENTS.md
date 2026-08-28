@@ -9,9 +9,11 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 - `worker/` (Cloudflare Worker backend, in progress — see `BACKEND_PLAN.md`): `npm --prefix worker ci`, then `npm --prefix worker test` and `npm --prefix worker run typecheck`. Node only; no Cloudflare account needed for the current layer.
 
 ## Backend (`worker/`)
-- **Same rules as `SquareKit`**: integer minor units only, derived balances, zero runtime dependencies (dev deps like `vitest`/`typescript` are fine). Hand-rolled router over a framework.
+- **Same rules as `SquareKit`**: integer minor units only, derived balances, zero runtime dependencies (dev deps like `vitest`/`typescript` are fine). Hand-rolled router (`URLPattern`) over a framework.
 - **Logic mirrors `SquareKit`, kept honest by fixtures**: `worker/src/lib/balances.ts` / `simplify.ts` / `validation.ts` are ports of the Swift `Logic/` files. Both implementations run the shared vectors in `test-fixtures/balances/` (`worker/test/logic.test.ts` and `SquareKitTests/GoldenParityTests.swift`) — change one language and the other's CI fails until it matches.
-- `DESIGN.md` is the wire/storage/security contract. Local dev: `wrangler dev` on `:8787` (once the Worker entry exists).
+- **Durable Object methods return `Result` / discriminated unions for expected failures, not `throw`** — a thrown error loses its prototype across the RPC boundary, so `instanceof` checks in the router break. Only genuinely-exceptional cases throw (→ 500).
+- **Ordering**: `Date.now()` is not monotonic enough within a DO (rapid RPC calls collide on the same ms). Order by `created_at ASC, rowid ASC`.
+- `DESIGN.md` is the wire/storage/security contract. `make worker-dev` runs `wrangler dev` on `:8787`. `make worker-test` / `worker-typecheck`. Deploy (`make worker-deploy`) needs `wrangler login` first.
 
 ## Architecture Rules
 - **Pure Core Logic in `SquareKit`**: `Balances.swift` and `Simplify.swift` are pure functions. No I/O, no network calls, no UI dependencies. If a test needs a mock or a running network server to test business math, move the impure logic elsewhere.

@@ -22,7 +22,7 @@ struct SquarelyClientTests {
             "groupId": "g123",
             "joinCode": "K7M9P2",
             "member": ["id": "m1", "displayName": "Alice"],
-            "group": ["name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z"],
+            "group": ["name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2"],
         ])
         let transport = FakeTransport(statusCode: 201, body: responseBody)
         let client = SquarelyClient(baseURL: baseURL, transport: transport)
@@ -168,7 +168,7 @@ struct SquarelyClientTests {
     @Test("fetchGroupState decodes the full group snapshot, including nested balances")
     func testFetchGroupStateDecodesFullSnapshot() async throws {
         let responseBody = jsonData([
-            "group": ["name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z"],
+            "group": ["name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2"],
             "members": [
                 ["id": "m1", "displayName": "Alice"],
                 ["id": "m2", "displayName": "Bob"],
@@ -202,6 +202,7 @@ struct SquarelyClientTests {
         let state = try await client.fetchGroupState(groupId: "g1")
 
         #expect(state.group.name == "Goa Trip")
+        #expect(state.group.joinCode == "K7M9P2")
         #expect(state.members.count == 2)
         #expect(state.expenses.first?.splits.count == 2)
         #expect(state.balances == [

@@ -4,18 +4,22 @@ import Foundation
 // (`Member`, `Expense`, `Settlement`, `Balance`, `SimplifiedSettlement`) are reused
 // directly wherever the wire shape matches them exactly.
 
-/// The subset of `Group` fields the server returns alongside other resources —
-/// `id`/`joinCode` are carried separately (e.g. in `CreateGroupResponse`) or are
-/// already known by the caller (e.g. in `GroupStateResponse`, keyed by URL).
+/// The subset of `Group` fields the server returns alongside other resources.
+/// `id` is already known by the caller (the capability URL). `joinCode` is
+/// returned from both `POST /api/groups` and `GET /api/groups/:groupId`
+/// (`DESIGN.md` §2/§12) so Group Home can re-share it, not just the
+/// post-creation confirmation step.
 public struct GroupSummary: Codable, Sendable, Equatable {
     public let name: String
     public let currency: String
     public let createdAt: Date
+    public let joinCode: String
 
-    public init(name: String, currency: String, createdAt: Date) {
+    public init(name: String, currency: String, createdAt: Date, joinCode: String) {
         self.name = name
         self.currency = currency
         self.createdAt = createdAt
+        self.joinCode = joinCode
     }
 }
 

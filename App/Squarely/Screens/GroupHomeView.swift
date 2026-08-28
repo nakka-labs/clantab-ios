@@ -129,6 +129,7 @@ struct GroupHomeView: View {
         if let state = viewModel.state {
             Menu {
                 ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: viewModel.groupId))
+                ShareLink("Share Join Code (\(state.group.joinCode))", item: state.group.joinCode)
 
                 let filenameBase = ExportFile.sanitizedFilename(state.group.name)
                 let csv = Export.csv(members: state.members, expenses: state.expenses, settlements: state.settlements)

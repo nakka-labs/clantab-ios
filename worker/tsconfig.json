@@ -4,15 +4,16 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2023"],
-    "types": ["node"],
+    "types": ["@cloudflare/workers-types/experimental", "@cloudflare/vitest-pool-workers", "node"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "vitest.config.ts", "vitest.logic.config.ts", "vitest.workers.config.ts"]
 }

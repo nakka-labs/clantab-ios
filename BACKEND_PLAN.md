@@ -14,17 +14,39 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
 
 ## Progress
 
-- **§1 scaffold** — partial: `worker/` with `package.json` / `tsconfig.json` /
-  `vitest.config.ts`, the `src/lib/` structure, `.github/workflows/worker.yml`
-  (Node type-check + test), and an `AGENTS.md` "Backend" section. Still to do:
-  `wrangler.jsonc` + DO bindings + `Makefile` targets (they need the Worker
-  entry, which lands in §5).
-- **§2 pure logic + parity** — ✅ done. `balances.ts` / `simplify.ts` /
-  `validation.ts` / `ids.ts` ported; 7 shared vectors in
-  `test-fixtures/balances/` run by **both** `worker/test/logic.test.ts` (Vitest,
-  + idempotency + a 500-iteration seeded fuzz) and
-  `SquareKitTests/GoldenParityTests.swift` (SquareKit is now 47 tests).
-- **§3 onward** — not started.
+- **§0 decisions** — locked. Monorepo `worker/`; Workers + DO SQLite; zero
+  runtime deps; `number` money with integer guards. **§0.3: yes — `joinCode`
+  is now returned from `GET /api/groups/:groupId`** (`DESIGN.md` §2/§12
+  updated; iOS `GroupSummary` carries it; Group Home's Share menu re-shares it).
+- **§1 scaffold** — ✅ done. `worker/` with `wrangler.jsonc` (DO bindings +
+  `v1` sqlite migration), `tsconfig`, three vitest configs, `Makefile`
+  `worker-*` targets, `.github/workflows/worker.yml`, `AGENTS.md` Backend
+  section.
+- **§2 pure logic + parity** — ✅ done. 7 shared vectors run by both
+  `worker/test/logic.test.ts` and `SquareKitTests/GoldenParityTests.swift`.
+- **§3 RegistryDO** — ✅ done. `reserve` (collision-retry) + `resolve`
+  (case-insensitive, per-IP 20/min fixed-window limiter). `test/registry.test.ts`.
+- **§4 GroupDO** — ✅ done. Schema from §3 + `schema_version`; `initGroup` /
+  `addMember` / `getState` (server-computed balances + `simplify`) / `addExpense`
+  / `addSettlement` / `exists`. Idempotent writes; validation in the DO;
+  `INTEGER` money; `ORDER BY created_at, rowid` (a real bug: `Date.now()` ties
+  within a DO). DO methods return `Result`/discriminated unions rather than
+  throwing — a thrown error loses its prototype across the RPC boundary.
+  `test/group.test.ts`.
+- **§5 router** — ✅ done. `src/index.ts`: all six §2 routes (URLPattern),
+  `{error:{code,message}}` envelopes, bare 404 for unknown resolve,
+  `GROUP_NOT_FOUND` for group routes, `X-Robots-Tag: noindex` on `/api/*`,
+  strict body parsing (rejects unknown fields, §6), 404/405. `test/routes.test.ts`
+  (20 tests). Smoke-tested end-to-end against `wrangler dev` on `:8787`.
+- **Tests**: `npm --prefix worker test` → 52 (logic 10 + validation 13 +
+  registry 4 + group 6 + routes 20 via `@cloudflare/vitest-pool-workers`).
+  `swift test` → 47.
+- **§6 `/g/:groupId` page** — not started (deliberately deferred; needs a
+  domain for Universal Links anyway).
+- **§7 integration / re-verify iOS against a real backend** — not started
+  (needs pointing `AppConfig.apiBaseURL` at `wrangler dev` and re-running the
+  runtime-verification flow).
+- **§8 deploy** — blocked on a Cloudflare account + `wrangler login`.
 
 ---
 
