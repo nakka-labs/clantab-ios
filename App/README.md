@@ -17,23 +17,22 @@ open Squarely.xcodeproj
 `project.yml` and gitignored — never edit them directly; edit `project.yml`
 and regenerate instead.
 
-In Xcode's Signing & Capabilities tab, select your Apple Developer Program
-Team. `project.yml` doesn't hardcode a `DEVELOPMENT_TEAM` (no team ID was
-known at scaffolding time), so Xcode will prompt for one on first open —
-with an enrolled Team this enables real device installs and TestFlight, not
-just the 7-day free personal-team signing.
+Signing: `project.yml` doesn't hardcode a `DEVELOPMENT_TEAM`. For a Simulator
+build it doesn't matter; for a device build / TestFlight, either add
+`DEVELOPMENT_TEAM: <your Team ID>` to `project.yml`'s `settings.base` or pick
+your team in Xcode's Signing & Capabilities tab.
 
-Before running, set a real backend URL in `Squarely/AppConfig.swift`
-(`apiBaseURL` currently points at a placeholder). Use `http://localhost:8787/`
-for local `wrangler dev` testing per `DESIGN.md` §11 once the Worker exists
-(the Worker itself is a separate, later effort — not built in this repo yet).
+`AppConfig.apiBaseURL` points at the **deployed Worker**
+(`https://squarely.nakka-labs.workers.dev`). For local backend work, run
+`make worker-dev` (serves `:8787`) and temporarily swap `apiBaseURL` to
+`http://localhost:8787/`.
 
 ## Structure
 
 ```
 Squarely/
 ├── SquarelyApp.swift       # @main entry point
-├── AppConfig.swift         # apiBaseURL placeholder + groupShareURL(groupId:)
+├── AppConfig.swift         # apiBaseURL (deployed Worker) + groupShareURL(groupId:)
 ├── AppRoute.swift          # navigation state: start / createGroup / joinGroup / group
 ├── RootView.swift          # switches on AppRoute, handles onOpenURL deep links
 ├── Screens/                # StartView, CreateGroupView, JoinGroupView, GroupHomeView,
@@ -47,8 +46,8 @@ Squarely/
                             # `Squarely` scheme (and by the pre-push hook).
 ```
 
-CSV/JSON serialization itself lives in `SquareKit.Export` (pure functions, tested
-on Windows) — this target only writes the result to a temp file for `ShareLink`.
+CSV/JSON serialization itself lives in `SquareKit.Export` (pure functions,
+unit-tested) — this target only writes the result to a temp file for `ShareLink`.
 
 All domain logic (models, balances, debt simplification, validation, network
 client, identity storage) lives in `SquareKit`, referenced as a local Swift
@@ -80,9 +79,11 @@ no SwiftUI runtime warnings, no crashes. Full write-up and findings in
   HIG-compliant, no flash, but unbranded). `SHIP_PLAN.md` Track 2.
 - `DEVELOPMENT_TEAM` isn't set in `project.yml` — add your Team ID there or pick
   it in Xcode's Signing tab for device builds.
-- Universal Links need an Associated Domains entitlement + hosted
-  apple-app-site-association once there's a production domain; only the
-  `squarely://g/:groupId` dev scheme is wired for now.
+- Universal Links (tappable `https://…/g/:id` invites that open the app) need a
+  custom domain + Associated Domains entitlement + a hosted
+  `apple-app-site-association`. Only the `squarely://g/:groupId` dev scheme is
+  wired for now; invites otherwise work by 6-character code. See `SHIP_PLAN.md`
+  Track 1.
 - `MoneyFormat` assumes 2 decimal minor units for every currency (true for
   INR/USD/EUR/GBP, not for e.g. JPY) — fine for the currencies in the v1
   picker, worth revisiting if more are added.

@@ -9,7 +9,7 @@ An open-source, no-login expense splitter for small groups (trips, shared flats,
 Every member of a group (5–10 people) needs to see and edit a shared ledger. 
 
 - **Pure Swift Engine (`SquareKit`)**: All domain models, balance derivation, split validation, and the greedy debt-simplification algorithm are encapsulated in a standalone Swift package.
-- **Cross-Platform Testability**: `SquareKit` builds and executes tests in ~1s natively on Windows (Swift 6 toolchain) and macOS/Linux CI without requiring an iOS simulator or Xcode for pure logic.
+- **Pure-core testability**: `SquareKit` has no Apple-framework dependencies, so its full test suite builds and runs in ~1s on any Swift platform — no Simulator, no Xcode. The Linux CI (`.github/workflows/test.yml`) runs it on every push. (Early development was on Windows for exactly this reason.)
 - **Native SwiftUI Shell (`App/`)**: A fluid, modern iOS interface (iOS 17+) for managing groups, recording expenses, and viewing simplified settlements.
 - **Sync Model**: Fetch-on-load / refetch-after-write via a lightweight async/await API client connecting to the Cloudflare Worker DO backend (or local offline store).
 - **All Money as Integer Minor Units**: Stored and calculated as integers (cents/paise) to eliminate floating-point rounding errors.
@@ -168,7 +168,11 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
   Explicitly **not** in scope for this tag: the Cloudflare Worker backend
   (separate effort — `AppConfig.apiBaseURL` is still a placeholder), a
   physical-device / TestFlight run, and an app icon.
-- **Backend scope decision:** the Cloudflare Worker backend `DESIGN.md` specifies is explicitly **out of scope for this roadmap**, treated as a separate, later effort. This repo's Phase 1-7 track is iOS-app-only, developed and tested against `AppConfig.apiBaseURL`'s placeholder (or a local mock) until a real Worker exists elsewhere.
+- **Backend scope decision (superseded):** at the time, the Cloudflare Worker was
+  treated as out of scope for this roadmap — Phases 1-7 were iOS-app-only, tested
+  against a placeholder / local mock. **That decision was reversed afterwards:**
+  the Worker was built in `worker/` and deployed (`BACKEND_PLAN.md` §1-§8), and
+  `AppConfig.apiBaseURL` now points at it.
 
 ---
 

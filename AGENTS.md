@@ -4,7 +4,7 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 
 ## Commands
 - `make check` — run everything relevant (SquareKit + worker + iOS build/tests). Same as what the `pre-push` hook runs; `make hooks` installs it.
-- `swift test --package-path SquareKit` or `make test` — the pure Swift core (Windows, macOS, Linux)
+- `swift test --package-path SquareKit` or `make test` — the pure Swift core (no Apple frameworks; also runs on the Linux CI)
 - `swift build --package-path SquareKit` — build the core package
 - `App/` (the SwiftUI shell) requires Xcode on macOS. `cd App && xcodegen generate`, then the `Squarely` scheme. See `App/README.md`.
 - `worker/` (Cloudflare Worker backend — `BACKEND_PLAN.md`): `npm --prefix worker ci`, then `make worker-test` / `worker-typecheck` / `worker-dev`. `make worker-deploy` needs `wrangler login`.

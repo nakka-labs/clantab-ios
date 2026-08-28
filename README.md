@@ -24,13 +24,18 @@ Squarely is a clean, private, and frictionless way for 5–10 friends to share e
 |:---:|:---:|:---:|:---:|:---:|
 | ![Start screen](docs/screenshots/start.png) | ![Share your group with a 6-character code or link](docs/screenshots/share-group.png) | ![Group Home: balance hero, member balances, activity feed](docs/screenshots/group-home.png) | ![Add Expense: amount, payer, equal or exact split](docs/screenshots/add-expense.png) | ![Settle Up: minimal simplified transactions](docs/screenshots/settle-up.png) |
 
-<sub>Captured on an iOS 26 Simulator against a local mock of the API (2026-08-28 runtime verification pass).</sub>
+<sub>Captured on an iOS 26 Simulator during a runtime-verification run.</sub>
 
 ---
 
 ## Architecture Overview
 
-Squarely is one **pure Swift core** (`SquareKit`) wrapped in a **thin SwiftUI shell** (`App/`). All the money math lives in the core; the shell only presents it. The sync model is deliberately simple — fetch-on-load, refetch-after-write, no optimistic UI, no WebSocket (`DESIGN.md` §7).
+Squarely is a **pure Swift core** (`SquareKit`) behind a **thin SwiftUI shell**
+(`App/`), talking to a **Cloudflare Worker + Durable Objects** backend
+(`worker/`, deployed at `squarely.nakka-labs.workers.dev`). All the money math
+lives in the core; the shell only presents it; the backend recomputes balances
+authoritatively. The sync model is deliberately simple — fetch-on-load,
+refetch-after-write, no optimistic UI, no WebSocket (`DESIGN.md` §7).
 
 ```mermaid
 flowchart TB
@@ -54,59 +59,76 @@ flowchart TB
     screens -.->|"client-side pre-check"| logic
     client -->|"HTTPS, fetch-on-load / refetch-after-write"| worker
 
-    subgraph backend["Cloudflare Worker + Durable Objects - separate effort, not built in this repo"]
+    subgraph backend["worker/ - Cloudflare Worker + Durable Objects (deployed)"]
         worker["Worker router, /api/*"]
         groupdo["GroupDO, SQLite - authoritative balances + simplify run here"]
-        registrydo["RegistryDO: joinCode to groupId"]
+        registrydo["RegistryDO: joinCode to groupId, rate-limited"]
         worker --> groupdo
         worker --> registrydo
     end
 
-    logic -.->|"same logic, ported into the Worker"| groupdo
+    logic -.->|"ported to worker/src/lib, kept identical by test-fixtures/"| groupdo
 ```
 
-Balances and the simplified settle-up plan are **always computed server-side** and never recomputed on the client — the same `Balances` / `Simplify` code is intended to be ported into the Worker so that logic exists in exactly one conceptual place. Until a real Worker exists, `AppConfig.apiBaseURL` points at a placeholder and the app is exercised against a local mock (see `App/README.md`).
+Balances and the simplified settle-up plan are **always computed server-side** and never recomputed on the client. The `Balances` / `Simplify` / `Validation` logic exists in two languages — Swift (`SquareKit/Sources/SquareKit/Logic/`) and TypeScript (`worker/src/lib/`) — kept byte-identical by the shared golden vectors in `test-fixtures/balances/`, which **both** test suites run (a divergence turns one side's CI red). `AppConfig.apiBaseURL` points at the deployed Worker.
 
 ### Repository layout
 
 ```
 squarely-ios/
-├── SquareKit/           # Pure SwiftPM package containing domain models, balance math,
-│   │                    # the debt simplification engine, validation, and network client.
-│   ├── Sources/SquareKit/
-│   │   ├── Model/       # Group, Member, Expense, ExpenseSplit, Settlement, Balance
-│   │   ├── Logic/       # Balances.swift, Simplify.swift, Validation.swift
-│   │   ├── Storage/     # IdentityStore (local per-group identity)
-│   │   ├── Network/     # Async/await HTTP sync client
-│   │   └── Export/      # CSV/JSON ledger export (pure functions)
+├── SquareKit/           # Pure SwiftPM package: domain models, balance math, the
+│   │                    # debt-simplification engine, validation, network client, export.
+│   ├── Sources/SquareKit/{Model,Logic,Storage,Network,Export}/
 │   └── Tests/SquareKitTests/
 │
-└── App/                 # Native SwiftUI application shell (iOS 17+) — see App/README.md
-    └── Squarely/
-        ├── Screens/     # StartView, CreateGroup, JoinGroup, GroupHome, AddExpense, SettleUp
-        ├── ViewModels/  # GroupViewModel — fetch-on-load/refetch, no optimistic UI
-        └── Components/  # Reusable UI components, money formatting, error messages
+├── App/                 # Native SwiftUI shell (iOS 17+, XcodeGen) — see App/README.md
+│   ├── Squarely/         #   Screens · ViewModels · Components · Assets.xcassets · PrivacyInfo
+│   └── SquarelyTests/    #   deep-link parsing, group-not-found handling
+│
+├── worker/              # Cloudflare Worker + Durable Objects backend — see worker/README.md
+│   ├── src/             #   index.ts (router) · registry-do.ts · group-do.ts · lib/
+│   └── test/            #   pure logic + @cloudflare/vitest-pool-workers integration
+│
+├── test-fixtures/       # Language-neutral golden vectors run by SquareKit AND worker
+├── docs/                # privacy policy, App Store metadata, screenshots
+├── .githooks/pre-push   # local build/test gate (macOS Actions is metered) — `make hooks`
+├── DESIGN.md            # the wire / storage / security contract
+├── PLAN.md · BACKEND_PLAN.md · SHIP_PLAN.md   # roadmaps: app · backend · shipping
+└── HANDOFF.md           # running status log
 ```
 
-### Windows & macOS First-Class Development
+### Pure core, thin shell
 
-Because `SquareKit` is a pure SwiftPM package with zero Apple-framework dependencies in its core logic, **all domain math and unit tests can be developed and verified natively on Windows** (using the official Swift 6 toolchain) as well as macOS and Linux. The `App/` shell needs Xcode on macOS — it has been build- and run-verified on an iOS Simulator (see `App/README.md`).
+`SquareKit` has **zero Apple-framework dependencies in its core logic**, so the
+domain math and its full test suite build and run on any platform the Swift
+toolchain supports — the Linux CI (`.github/workflows/test.yml`) runs them on
+every push, no Simulator or Xcode involved. The `App/` shell is a thin SwiftUI
+layer that needs Xcode on macOS; it's build-verified and run-verified end to
+end against the deployed backend (see `App/README.md`).
+
+_(The project was originally developed on Windows against `SquareKit`'s pure
+core, with the iOS shell built blind and verified by CI — hence some of the
+history in `HANDOFF.md`. Development is on a Mac now.)_
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- [Swift 6+ Toolchain](https://www.swift.org/install/) (available via `winget install --id Swift.Toolchain` on Windows or Xcode on macOS).
+- **Core / backend**: [Swift 6+](https://www.swift.org/install/) and
+  [Node 20+](https://nodejs.org/) (for `worker/`).
+- **iOS app**: Xcode 16+ on macOS, plus `xcodegen` (`brew install xcodegen`).
 
 ### Running Tests
 ```bash
-# Run tests via Makefile
-make test
-
-# Or directly via SwiftPM
-swift test --package-path SquareKit
+make check                          # everything: SquareKit + worker + iOS build/tests
+make test                           # just the SquareKit suite
+swift test --package-path SquareKit # …directly
+make worker-test                    # the Cloudflare Worker suite
 ```
+
+`make hooks` installs a pre-push hook that runs the relevant checks before every
+push.
 
 ---
 

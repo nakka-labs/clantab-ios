@@ -1,14 +1,17 @@
 # Squarely Backend — Build Plan
 
-The iOS-app track (`PLAN.md` Phases 0-7) is done and tagged `v0.1.0`. Nothing
-works end-to-end yet because **the backend doesn't exist** — `AppConfig.apiBaseURL`
-is a placeholder and everything has only run against a local mock.
+> **Status: §1-§8 complete.** The Worker is built (`worker/`) and deployed at
+> `https://squarely.nakka-labs.workers.dev`; the iOS app runs against it end to
+> end. `DESIGN.md` §2's full API is implemented, with 54 tests. See the
+> "Progress" section for detail and "The backend is done and live" at the end
+> for what's left (a domain, Universal Links). What follows is the plan as
+> written before the build — kept as the record of decisions.
 
-This plan builds the Cloudflare Worker + Durable Objects backend that
+This plan built the Cloudflare Worker + Durable Objects backend that
 `DESIGN.md` specifies. `DESIGN.md` is the contract (API §2, storage §3,
 concurrency §4, flows §5, validation §6, security §8, non-functional §9,
 schema evolution §10, testing §11, deferred §12) — this plan is the
-*sequence* for implementing it, plus the decisions to lock first.
+*sequence* that was followed, plus the decisions locked first.
 
 ---
 

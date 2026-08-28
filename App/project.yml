@@ -1,14 +1,18 @@
-# XcodeGen project definition — generates Squarely.xcodeproj from this file.
+# XcodeGen project definition — the source of truth for Squarely.xcodeproj.
 #
-# Why XcodeGen instead of a hand-authored/checked-in .xcodeproj: this file is
-# scaffolded on Windows, where there is no Xcode to generate or validate a real
-# project file. A plain-text, hand-writable YAML config is safe to author blind;
-# a raw .pbxproj is not — a single malformed entry makes it unopenable, with no
-# way to catch that outside Xcode. `Squarely.xcodeproj` is itself gitignored
-# (see .gitignore's Xcode section) and regenerated from this file.
+# The generated `Squarely.xcodeproj` (and `Squarely/Info.plist`) are gitignored;
+# this YAML is what's version-controlled. Reviewable in diffs, no .pbxproj merge
+# conflicts, and every setting is explicit rather than buried in Xcode's UI.
+# (It originally also let the project be authored on Windows, where there's no
+# Xcode — that's no longer why it's here, but it's a nice property.)
 #
-# Setup (macOS, one-time): `brew install xcodegen`
-# Generate + open:         `cd App && xcodegen generate && open Squarely.xcodeproj`
+# If you'd rather check in a real .xcodeproj: `xcodegen generate`, remove the
+# ignore lines in ../.gitignore, drop xcodegen from the Makefile / pre-push hook,
+# commit the .xcodeproj, and delete this file.
+#
+# Setup (one-time): `brew install xcodegen`
+# Generate + open:  `cd App && xcodegen generate && open Squarely.xcodeproj`
+#                   (or just `make hooks` — `xcodegen generate` runs in the hook)
 
 name: Squarely
 options:

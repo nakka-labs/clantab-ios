@@ -2,10 +2,10 @@
 
 ## ▶ Status (2026-08-28) — App + Backend Live End-to-End; `v0.2.0` Tagged
 
-**iOS track**: Phases 0-7 done, **`v0.1.0` tagged**. The app compiles (CI),
-ran end-to-end on an iOS Simulator (see "App/ Runtime Verification — Done"),
-has `SquarelyTests` + SquareKit's suite, and `README.md` has screenshots +
-an architecture diagram.
+**iOS track**: Phases 0-7 done (`v0.1.0`). The app builds + passes
+`SquarelyTests` via `make check` / the pre-push hook, ran end-to-end on an iOS
+Simulator (see "App/ Runtime Verification — Done"), and `README.md` has
+screenshots + an architecture diagram.
 
 **Backend track** (`worker/`, tracked in `BACKEND_PLAN.md`): **complete
 (§1-§8)**. The Cloudflare Worker + RegistryDO + GroupDO implement `DESIGN.md`
@@ -35,18 +35,18 @@ GitHub repo description are already updated; a fresh clone should use
 
 **If picking this up:**
 
-1. Core suite: `swift test --package-path SquareKit`. App: `cd App &&
-   xcodegen generate && open Squarely.xcodeproj` (`.xcodeproj` +
-   `Squarely/Info.plist` gitignored — regenerate, never edit). Backend:
-   `make worker-test` / `make worker-dev` (Node; `npm --prefix worker ci` first).
-2. **§8 deploy needs you**: a Cloudflare account, then `npx --prefix worker
-   wrangler login`, `make worker-deploy`, point `App/Squarely/AppConfig.swift`'s
-   `apiBaseURL` at the deployed URL (its first real value), and re-run the iOS
-   verification against production. See `BACKEND_PLAN.md` §8.
-3. To develop against the backend locally in the meantime: `make worker-dev`
-   (serves `:8787`) + temporarily set `apiBaseURL` to `http://localhost:8787/`.
-4. For TestFlight: Signing & Capabilities → your enrolled Developer Program
-   Team; add an app icon; run on a device.
+1. **Enable the local checks**: `make hooks` (installs the pre-push hook), then
+   `make check` runs everything (SquareKit + worker + iOS build/tests). The
+   macOS Actions job is gone — see "App/ Build + Test Check" below.
+2. **Open the app**: `cd App && xcodegen generate && open Squarely.xcodeproj`
+   (the `.xcodeproj` + `Squarely/Info.plist` are gitignored — regenerate, never
+   edit). Backend: `make worker-dev` (serves `:8787`) or work against the
+   deployed `AppConfig.apiBaseURL`.
+3. **The current focus is `SHIP_PLAN.md`** — TestFlight readiness. Blockers are
+   yours: the Apple App ID + App Store Connect record, a real app icon,
+   hosting `docs/privacy-policy.md`, `CLOUDFLARE_API_TOKEN` repo secret, the
+   TestFlight upload. Everything code-side is drafted (icon placeholder,
+   `PrivacyInfo.xcprivacy`, `docs/appstore/metadata.md`, deploy CI).
 
 ## Phase 0 Checklist — Completed
 - [x] Private GitHub repository created (`indra-nakka/squarely-ios`)
@@ -287,10 +287,10 @@ Keep `swift test --package-path SquareKit` green throughout.
 
 ## Phase 7 Status — Docs Reviewed, App/ Run-Verified, README Illustrated; Only the Tag Is Left
 
-Standing decisions (explicit calls, not defaults to revisit lightly):
-- **Backend is a separate, later effort** — out of scope for this roadmap.
-  Continue developing/testing the iOS app against `AppConfig.apiBaseURL`'s
-  placeholder (or a local mock) until a real Worker exists elsewhere.
+Standing decision at the time (**since reversed**):
+- ~~Backend is a separate, later effort, out of scope for this roadmap~~ — the
+  Worker was built next (`worker/`, `BACKEND_PLAN.md`) and deployed;
+  `AppConfig.apiBaseURL` points at it.
 
 What got done:
 - [x] Drift review across `AGENTS.md`/`DESIGN.md`/`README.md` against what
