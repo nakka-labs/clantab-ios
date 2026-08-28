@@ -1,19 +1,22 @@
 # Squarely iOS — Handoff Guide
 
-## ▶ Status (2026-08-28) — iOS `v0.1.0` Tagged; Backend §1-§5 Built
+## ▶ Status (2026-08-28) — App + Backend Live End-to-End; `v0.2.0` Tagged
 
 **iOS track**: Phases 0-7 done, **`v0.1.0` tagged**. The app compiles (CI),
 ran end-to-end on an iOS Simulator (see "App/ Runtime Verification — Done"),
 has `SquarelyTests` + SquareKit's suite, and `README.md` has screenshots +
 an architecture diagram.
 
-**Backend track** (`worker/`, tracked in `BACKEND_PLAN.md`): **§1-§8 done** —
-the Cloudflare Worker + RegistryDO + GroupDO implement `DESIGN.md` §2's full
-API (54 worker tests), and it's **deployed and live at
-`https://squarely.nakka-labs.workers.dev`**. `AppConfig.apiBaseURL` points at
-it (its first real value). The iOS app was verified end-to-end against the
-Worker on `wrangler dev`; re-verification against the deployed URL is the
-last loose end, then a `v0.2.0` tag.
+**Backend track** (`worker/`, tracked in `BACKEND_PLAN.md`): **complete
+(§1-§8)**. The Cloudflare Worker + RegistryDO + GroupDO implement `DESIGN.md`
+§2's full API (54 worker tests), **deployed and live at
+`https://squarely.nakka-labs.workers.dev`**, and the iOS app is verified
+end-to-end against the deployed URL. `AppConfig.apiBaseURL` points at it.
+**Repo tagged `v0.2.0`** ("iOS app + backend, working end to end").
+
+Left, all unstarted: a real landing page + Universal Links (needs a production
+domain), shipping the iOS app (icon + device + TestFlight), WebSocket live
+updates. See `BACKEND_PLAN.md`'s tail.
 
 The balance/simplify logic now lives in two languages kept in lockstep by
 `test-fixtures/balances/` (run by both `swift test` and `npm --prefix worker

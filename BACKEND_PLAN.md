@@ -54,15 +54,32 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
   Paid → recompute → Group Home's Share menu offers "Share Join Code (VYC5AU)".
   All temp changes reverted. Screenshots in the session scratchpad.
 - **§8 deploy** — ✅ done (2026-08-28). Live at
-  **`https://squarely.nakka-labs.workers.dev`** (`wrangler deploy`; `v1`
+  **`https://squarely.nakka-labs.workers.dev`** (`make worker-deploy`; the `v1`
   migration created `RegistryDO` + `GroupDO`). `AppConfig.apiBaseURL` points at
-  it. Production smoke test green (create → members → server-computed balances →
-  simplified plan → resolve → bare-404). iOS re-verification against production:
-  pending.
+  it. Production smoke test green, **and the iOS app was re-verified end-to-end
+  against the deployed URL** (create → members → ₹3000 expense → server-computed
+  "You are owed ₹2000" → Settle Up plan → Mark as Paid → recompute → re-shareable
+  join code). Repo tagged `v0.2.0`.
   - *Note:* the zone's default Cloudflare browser-integrity check returns
     `error code: 1010` to bare non-browser user agents (curl/urllib without a
     UA). Native `URLSession` sends a real UA and is unaffected; a future web
     client would need this revisited.
+
+---
+
+## The backend is done and live
+
+`BACKEND_PLAN.md`'s track (§1-§8) is complete. Remaining, all unstarted:
+
+- **A real landing page + Universal Links** — needs a production domain (own it,
+  put it on Cloudflare, `wrangler` custom domain), then a proper `/g/:groupId`
+  page + `/.well-known/apple-app-site-association`, and the iOS Associated
+  Domains entitlement. `https://<domain>/g/:groupId` links then open the app
+  directly (`RootView.extractGroupId` already parses them).
+- **Ship the iOS app** — app icon + accent-colour asset catalog, a device run,
+  TestFlight.
+- **WebSocket live updates** — only if usage shows people have the app open
+  simultaneously (`DESIGN.md` §12).
 
 ---
 
