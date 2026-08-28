@@ -5,31 +5,84 @@ deployed the Worker (§1-§8 → `v0.2.0`). The app and backend now work end to 
 against `https://squarely.nakka-labs.workers.dev`.
 
 **What's still missing before anyone else can use it:**
-- The share link is `squarely.nakka-labs.workers.dev/g/:id` — an ugly URL that
-  only opens a stub page, not the app (no Universal Links).
-- The app has no icon, no privacy manifest, no App Store / TestFlight presence —
-  it can't be installed by anyone but you, from Xcode.
-- Production has no monitoring, no deploy automation, and one known edge issue
-  (the Cloudflare `1010` browser-integrity block for non-browser clients).
+- **App Store / TestFlight presence** (Track 2) — the app has no icon, no
+  privacy manifest, and no App Store Connect record, so nobody but you can
+  install it. *This* is the real blocker to real users.
+- **Tappable invite links** (Track 1) — sharing works today via the
+  6-character join code typed into the app; a link that opens the app on tap
+  needs a custom domain + Universal Links.
+- **Operational** (Track 3) — no monitoring, no deploy automation, one known
+  edge issue (the Cloudflare `1010` block for non-browser clients).
 
-This plan covers getting past all of that. Four tracks; the first two are the
-critical path to real users.
+The app + backend are functionally complete and deployed. Four tracks below;
+**Track 2 is the critical path** (Track 1 is a UX upgrade you can add before or
+after launch).
 
 ---
 
 ## 0. Decisions to lock first
 
-### 0.1 Domain — **needs you** (costs money, ~$10/yr)
+### 0.1 Domain — **needs you** (~$10-15/yr)
 
-Universal Links, a shareable link, and a real landing page all need a domain you
-control on Cloudflare. Options:
+**A custom domain is required for exactly one thing: tappable invite links
+that open the app (Universal Links).** Nothing else needs it.
 
-- **Buy `squarely.app`** (or `.com`, `getsquarely.com`, …) via Cloudflare
-  Registrar (at-cost) or any registrar + point the nameservers at Cloudflare.
-- The Worker gets a custom-domain route; `AppConfig.apiBaseURL` moves to it.
+#### What works today with no domain (`squarely.nakka-labs.workers.dev`)
 
-Nothing in Track 1 can start until this exists. Everything else can proceed
-without it.
+- The entire API and every app flow — verified end to end against the
+  deployed Worker.
+- **Shipping to TestFlight and the App Store.** Apple does not care what URL
+  the backend uses; a `*.workers.dev` backend is fine for a released app.
+- The `squarely://g/:id` custom URL scheme (dev/simulator deep links).
+- **Joining a group by 6-character code** (`RFRAHM`, typed into the app's
+  "Join with a Code" screen) — this needs no link at all and is fully working.
+
+#### What you can't do without a domain
+
+- **Universal Links.** When a friend taps `https://…/g/ABC123` in
+  Messages/Mail, iOS should open the Squarely app directly. That needs:
+  1. a domain you control,
+  2. an `apple-app-site-association` (AASA) file served from it over HTTPS,
+  3. the app's `applinks:` entitlement naming that domain.
+  Apple treats `workers.dev` as shared infrastructure — Associated Domains
+  on a `*.workers.dev` host is unreliable at best and not something to ship
+  on. So without a real domain, the invite **link** doesn't open the app;
+  friends fall back to typing the 6-character code (which works fine).
+- A link that looks trustworthy. `squarely.nakka-labs.workers.dev/g/ABC123`
+  reads like a dev artifact / phishing link; `squarely.app/g/ABC123` doesn't.
+- A home for the privacy-policy page and any marketing page (these can also
+  live elsewhere, but a domain is the clean answer).
+
+#### One domain, apex, serves everything
+
+`DESIGN.md` §8 assumes same-origin. Simplest setup: **one domain, no
+subdomains.** The Worker serves, from `squarely.app`:
+
+| path | |
+|---|---|
+| `/api/*` | the API (`AppConfig.apiBaseURL = https://squarely.app/`) |
+| `/g/:groupId` | the invite landing page — this URL *is* the Universal Link |
+| `/.well-known/apple-app-site-association` | the AASA file |
+| `/` | a minimal marketing/pointer page |
+
+`AppConfig.groupShareURL(groupId:)` already produces `<apiBaseURL>/g/:id`, so
+once `apiBaseURL` is the real domain, the share link is automatically the
+Universal Link. No app-code change beyond the one URL constant + the
+entitlement.
+
+#### How to get one
+
+- **`squarely.app`** if available (`.app` is a real TLD, HTTPS-only, ~$14/yr)
+  — or `.com` (~$10), or a cheaper alt (`getsquarely.com`, `squarely.link`, …).
+- **Buy it directly from Cloudflare Registrar** (at-cost, no markup) if they
+  carry the TLD — then it's already on Cloudflare. Otherwise buy anywhere and
+  change the nameservers to Cloudflare (free, ~5 min).
+- Once it's an active Cloudflare zone, wiring it to the Worker is a two-line
+  `wrangler.jsonc` change + a redeploy — I do that part.
+
+**Decision:** buy a domain now if tappable invite links matter for launch; or
+ship v1 on `workers.dev` with code-only joining and add the domain later
+(the app's "Join with a Code" flow already covers this case).
 
 ### 0.2 Apple distribution — **needs you**
 
@@ -54,17 +107,19 @@ real users; skip until then.
 
 ### 0.4 `MARKETING_VERSION`
 
-`project.yml` still says `0.1.0`. Bump to `0.2.0` now, and treat it as the
-TestFlight/App Store version going forward (independent of git tags).
+Bumped to `0.2.0` (`project.yml`). Treat it as the TestFlight/App Store
+version going forward, independent of git tags.
 
 ---
 
 ## Track 1 — Custom domain + Universal Links
 
 **Goal:** `https://squarely.app/g/:groupId` links open the app directly (or the
-App Store if it's not installed), and the API lives at a real hostname.
+App Store if it's not installed), and the API moves to the same domain.
 
-Depends on §0.1.
+**This is optional for launch.** Without it, invites work by 6-character code
+(the app's "Join with a Code" flow, verified). With it, invites also work by
+tappable link. Depends on §0.1 (a domain).
 
 1. **Domain on Cloudflare** — add the zone, confirm DNS is active.
 2. **Worker custom domain** — `wrangler.jsonc` `routes` (or a Custom Domain in
@@ -185,20 +240,25 @@ Not on the critical path. Skip until the data says otherwise.
 ## Suggested order
 
 ```
-0. Lock decisions (§0) — domain purchase + Apple app record are the long poles
-│
-├─ Track 1 (domain + Universal Links)      ┐
-│    needs §0.1                            ├─ both feed a good first-run
-├─ Track 2 (icon, privacy, metadata, CI)   ┘   experience; do in parallel
-│    needs §0.2
-│
-├─ Track 3 (observability, edge, limits)   — alongside Track 2, finish before
-│                                             the first external tester
+0. Lock decisions (§0) — Apple app record is the long pole; domain is optional
+
+CRITICAL PATH ─────────────────────────────────────────────
+├─ Track 2 (icon, privacy manifest, metadata, deploy CI)   needs §0.2
+├─ Track 3 (observability, edge, limits)   alongside Track 2, done before
+│                                          the first external tester
 ▼
 TestFlight internal → external → App Store submission
-│
-└─ Track 4 (WebSockets) — post-launch, iff concurrent usage appears
+
+OPTIONAL / PARALLEL ───────────────────────────────────────
+├─ Track 1 (domain + Universal Links)   needs §0.1 (a domain); can land
+│                                       before OR after launch — until then,
+│                                       invites are by 6-char code
+└─ Track 4 (WebSockets)   post-launch, iff concurrent usage appears
 ```
+
+You can ship v1 on the `workers.dev` backend with code-only joining, then add
+the domain + Universal Links as a fast-follow. Or buy the domain up front and
+do both tracks together. Either is fine.
 
 Rough sizing: Track 1 ≈ 1 day of work once the domain exists · Track 2 ≈ 1-2
 days plus the icon/metadata/policy content (yours) · Track 3 ≈ half a day ·
@@ -206,11 +266,12 @@ Track 4 ≈ 1-2 days when it's time.
 
 ## What needs you (nothing else is blocked on me)
 
-| | |
-|---|---|
-| **Buy a domain**, put it on Cloudflare | Track 1 |
-| Register the App ID (+ Associated Domains capability), create the App Store Connect app | Track 1 & 2 |
-| App icon (or a one-line brief) | Track 2 |
-| Privacy policy page + App Store copy/screenshots | Track 2 |
-| Run `make worker-deploy` and the TestFlight upload | Track 1 & 2 |
-| Add `CLOUDFLARE_API_TOKEN` as a GitHub secret (for deploy CI) | Track 2.6 |
+| | | required for launch? |
+|---|---|---|
+| Register the App ID, create the App Store Connect app | Track 2 | **yes** |
+| App icon (or a one-line brief) | Track 2 | **yes** |
+| Privacy policy page + App Store copy/screenshots | Track 2 | **yes** |
+| Run the TestFlight upload (Xcode Archive → Distribute, or fastlane) | Track 2 | **yes** |
+| Add `CLOUDFLARE_API_TOKEN` as a GitHub secret (deploy CI) | Track 2.6 | optional |
+| **Buy a domain**, put it on Cloudflare | Track 1 | **no** — enables tappable links; add anytime |
+| Run `make worker-deploy` when the backend changes | Tracks 1 & 3 | as needed |
