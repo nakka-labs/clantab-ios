@@ -192,12 +192,15 @@ tappable link. Depends on §0.1 (a domain).
    TestFlight uploads is optional.
 7. **Bump `MARKETING_VERSION`** (now `0.2.0`) and `CURRENT_PROJECT_VERSION` per
    build.
-8. ✅ **Privacy policy** — written at `docs/privacy-policy.md`. **You host it**
-   (GitHub Pages from `/docs` is the quick path) and put the URL in App Store
-   Connect + update the metadata file.
+8. ✅ **Privacy policy** — written at `docs/privacy-policy.md`, and
+   `.github/workflows/pages.yml` publishes just that file to GitHub Pages on
+   every change. **You**: repo Settings → Pages → Source: "GitHub Actions"
+   (one-time), then run the workflow and paste
+   `https://nakka-labs.github.io/clantab-ios/` into App Store Connect +
+   `docs/appstore/metadata.md`.
 
 **Still needs you:** the Apple App ID + App Store Connect record, a real app
-icon (eventually), hosting the privacy policy, App Store screenshots, the
+icon (eventually), enabling GitHub Pages, App Store screenshots, the
 `CLOUDFLARE_API_TOKEN` secret, and the TestFlight upload (Xcode → Archive →
 Distribute, or fastlane with an App Store Connect API key).
 
