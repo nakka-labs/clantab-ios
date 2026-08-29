@@ -238,6 +238,12 @@ Distribute, or fastlane with an App Store Connect API key).
 
 ## Track 4 — WebSocket live updates (later; only if warranted)
 
+**Interim step done:** Group Home now runs a lightweight foreground poll
+(`GroupViewModel.autoRefetch()` every `pollInterval`, plus a refresh on app
+foreground) so a second device's changes show up on their own — no more
+manual pull-to-refresh during a shared session. `DESIGN.md` §7. WebSocket push
+below is still the real-time endgame.
+
 `DESIGN.md` §12 defers this until "usage shows people actually have the app open
 simultaneously." When that's true:
 

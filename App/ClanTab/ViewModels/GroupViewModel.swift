@@ -2,13 +2,18 @@ import Foundation
 import Observation
 import ClanTabKit
 
-/// Drives Group Home: fetch-on-load / refetch-after-write, the whole sync model
-/// per `DESIGN.md` §7 — no optimistic UI, no WebSocket in v1. Balances and the
-/// simplified settle-up list always come from the server's `GroupStateResponse`,
-/// never recomputed client-side, so there's exactly one source of truth.
+/// Drives Group Home: fetch-on-load / refetch-after-write per `DESIGN.md` §7 —
+/// no optimistic UI, no WebSocket in v1 — plus a lightweight foreground poll
+/// (`autoRefetch()`, driven by `GroupHomeView`) so a second device's changes
+/// show up without a manual pull-to-refresh. Balances and the simplified
+/// settle-up list always come from the server's `GroupStateResponse`, never
+/// recomputed client-side, so there's exactly one source of truth.
 @MainActor
 @Observable
 final class GroupViewModel {
+    /// How often `GroupHomeView` calls `autoRefetch()` while it's foregrounded.
+    static let pollInterval: Duration = .seconds(5)
+
     let groupId: String
     private let client: ClanTabClient
     private let identityStore: IdentityStoring
@@ -56,6 +61,25 @@ final class GroupViewModel {
             }
         }
         isLoading = false
+    }
+
+    /// Silent background refresh for the foreground poll and app-foreground
+    /// events. Unlike `refetch()` it never shows the loading spinner, and a
+    /// transient failure leaves the last good `state` and any existing
+    /// `errorMessage` untouched — only a definitive 404 still flips
+    /// `groupUnavailable` (so a deleted group is caught even without a manual
+    /// refresh). A successful poll clears a stale error banner.
+    func autoRefetch() async {
+        guard !isLoading else { return }
+        do {
+            state = try await client.fetchGroupState(groupId: groupId)
+            errorMessage = nil
+        } catch {
+            if Self.isGroupNotFound(error) {
+                errorMessage = friendlyMessage(for: error)
+                groupUnavailable = true
+            }
+        }
     }
 
     /// A 404 for the group itself (`DESIGN.md` §2) — either a bare 404

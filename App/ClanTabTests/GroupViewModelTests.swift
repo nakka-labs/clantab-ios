@@ -46,6 +46,32 @@ final class GroupViewModelTests: XCTestCase {
         XCTAssertFalse(vm.groupUnavailable)
         XCTAssertNotNil(vm.errorMessage)
     }
+
+    @MainActor
+    func testAutoRefetchFlagsGroupUnavailableOnNotFound() async {
+        let vm = GroupViewModel(
+            groupId: "dead-group",
+            client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: NotFoundTransport()),
+            identityStore: InMemoryIdentityStore()
+        )
+        await vm.autoRefetch()
+        XCTAssertTrue(vm.groupUnavailable)
+    }
+
+    /// Unlike `refetch()`, a background poll stays silent on a transient
+    /// failure — no error banner, and (in the real app) the last good state is
+    /// left on screen.
+    @MainActor
+    func testAutoRefetchStaysSilentOnTransientError() async {
+        let vm = GroupViewModel(
+            groupId: "g",
+            client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: ServerErrorTransport()),
+            identityStore: InMemoryIdentityStore()
+        )
+        await vm.autoRefetch()
+        XCTAssertFalse(vm.groupUnavailable)
+        XCTAssertNil(vm.errorMessage)
+    }
 }
 
 /// Always responds 404 with no body — the shape `GET /api/groups/:groupId`

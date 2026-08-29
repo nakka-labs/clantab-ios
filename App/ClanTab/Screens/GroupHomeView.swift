@@ -2,6 +2,7 @@ import SwiftUI
 import ClanTabKit
 
 struct GroupHomeView: View {
+    @Environment(\.scenePhase) private var scenePhase
     private let client: ClanTabClient
     private let onGroupUnavailable: () -> Void
     @State private var viewModel: GroupViewModel
@@ -72,7 +73,23 @@ struct GroupHomeView: View {
         }
         .navigationTitle(viewModel.state?.group.name ?? "Group")
         .refreshable { await viewModel.refetch() }
-        .task { await viewModel.load() }
+        .task {
+            await viewModel.load()
+            // Poll while Group Home is on screen so another device's expenses
+            // and settlements appear without a manual pull-to-refresh. `.task`
+            // is cancelled automatically when the view goes away; a suspended
+            // (backgrounded) app just stops ticking and the scenePhase handler
+            // below catches up on return.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: GroupViewModel.pollInterval)
+                await viewModel.autoRefetch()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await viewModel.autoRefetch() }
+            }
+        }
         .onChange(of: viewModel.groupUnavailable) { _, unavailable in
             if unavailable { onGroupUnavailable() }
         }
