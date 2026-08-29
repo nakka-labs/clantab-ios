@@ -1,25 +1,25 @@
-# Squarely — Privacy Policy
+# ClanTab — Privacy Policy
 
 _Last updated: 2026-08-28_
 
-Squarely is an expense-splitting app for small groups. It has **no accounts and
+ClanTab is an expense-splitting app for small groups. It has **no accounts and
 no login**. This policy explains what the app collects, why, and your choices.
 
-## What Squarely collects
+## What ClanTab collects
 
 When you create or join a group, and when you add expenses or settlements, the
-following is sent to Squarely's backend so everyone in the group sees the same
+following is sent to ClanTab's backend so everyone in the group sees the same
 ledger:
 
 - **The display name you type** for that group (e.g. "Ana"). You choose it; it is
-  not your Apple ID, email, or phone number, and Squarely never asks for those.
+  not your Apple ID, email, or phone number, and ClanTab never asks for those.
 - **The group's shared records**: expense amounts, descriptions, dates, who paid,
   how each expense is split, and settlement ("I paid you back") entries.
 
-That's all. Squarely does **not** collect:
+That's all. ClanTab does **not** collect:
 
 - Email addresses, phone numbers, or real names (unless you type one as a display name)
-- Passwords or payment credentials — Squarely never processes money
+- Passwords or payment credentials — ClanTab never processes money
 - Location, contacts, photos, or device identifiers
 - Any analytics, advertising, or tracking data. There are no third-party
   analytics or ad SDKs in the app.
@@ -36,7 +36,7 @@ post a group's link or code publicly.
 - **On your device**: your chosen display name and the last group you opened, in
   the app's local storage. Removing the app deletes this.
 - **On the backend**: group records are stored in Cloudflare Durable Objects
-  (Cloudflare Inc. is Squarely's infrastructure provider). Data is transmitted
+  (Cloudflare Inc. is ClanTab's infrastructure provider). Data is transmitted
   over HTTPS.
 
 ## Data retention and deletion
@@ -48,14 +48,14 @@ remove that group's records.
 
 ## Children
 
-Squarely is not directed at children under 13 and does not knowingly collect
+ClanTab is not directed at children under 13 and does not knowingly collect
 data from them.
 
 ## Third parties
 
 - **Cloudflare** — hosts the backend (a subprocessor). Cloudflare's privacy
   practices: https://www.cloudflare.com/privacypolicy/
-- Squarely does not sell or share your data with anyone else.
+- ClanTab does not sell or share your data with anyone else.
 
 ## Changes
 

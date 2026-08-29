@@ -1,6 +1,6 @@
-# XcodeGen project definition — the source of truth for Squarely.xcodeproj.
+# XcodeGen project definition — the source of truth for ClanTab.xcodeproj.
 #
-# The generated `Squarely.xcodeproj` (and `Squarely/Info.plist`) are gitignored;
+# The generated `ClanTab.xcodeproj` (and `ClanTab/Info.plist`) are gitignored;
 # this YAML is what's version-controlled. Reviewable in diffs, no .pbxproj merge
 # conflicts, and every setting is explicit rather than buried in Xcode's UI.
 # (It originally also let the project be authored on Windows, where there's no
@@ -11,45 +11,45 @@
 # commit the .xcodeproj, and delete this file.
 #
 # Setup (one-time): `brew install xcodegen`
-# Generate + open:  `cd App && xcodegen generate && open Squarely.xcodeproj`
+# Generate + open:  `cd App && xcodegen generate && open ClanTab.xcodeproj`
 #                   (or just `make hooks` — `xcodegen generate` runs in the hook)
 
-name: Squarely
+name: ClanTab
 options:
-  bundleIdPrefix: com.squarely
+  bundleIdPrefix: com.clantab
   deploymentTarget:
     iOS: "17.0"
 
 packages:
-  SquareKit:
-    path: ../SquareKit
+  ClanTabKit:
+    path: ../ClanTabKit
 
 targets:
-  Squarely:
+  ClanTab:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: Squarely
+      - path: ClanTab
     dependencies:
-      - package: SquareKit
-        product: SquareKit
+      - package: ClanTabKit
+        product: ClanTabKit
     info:
-      path: Squarely/Info.plist
+      path: ClanTab/Info.plist
       properties:
-        CFBundleDisplayName: Squarely
+        CFBundleDisplayName: ClanTab
         UILaunchScreen: {}
         # Development-only deep link scheme, testable in Simulator without a real
-        # domain: `xcrun simctl openurl booted "squarely://g/<groupId>"`. Universal
+        # domain: `xcrun simctl openurl booted "clantab://g/<groupId>"`. Universal
         # Links (`https://<host>/g/:groupId`, DESIGN.md's actual share link) need
         # an Associated Domains entitlement + apple-app-site-association file once
         # a production domain exists — deliberately deferred, not forgotten.
         CFBundleURLTypes:
-          - CFBundleURLSchemes: [squarely]
-            CFBundleURLName: com.squarely.app
+          - CFBundleURLSchemes: [clantab]
+            CFBundleURLName: com.clantab.app
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.squarely.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.clantab.app
         MARKETING_VERSION: "0.2.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "6.0"
@@ -61,26 +61,26 @@ targets:
 
   # App-level unit tests (deep-link parsing, group-not-found handling). Pure
   # XCTest, no Simulator UI — runs anywhere, including `ios-build.yml`.
-  SquarelyTests:
+  ClanTabTests:
     type: bundle.unit-test
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: SquarelyTests
+      - path: ClanTabTests
     dependencies:
-      - target: Squarely
+      - target: ClanTab
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.squarely.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.clantab.app.tests
         SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: "YES"
 
 schemes:
-  Squarely:
+  ClanTab:
     build:
       targets:
-        Squarely: all
-        SquarelyTests: [test]
+        ClanTab: all
+        ClanTabTests: [test]
     test:
       targets:
-        - SquarelyTests
+        - ClanTabTests

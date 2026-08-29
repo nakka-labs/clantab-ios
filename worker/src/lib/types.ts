@@ -1,5 +1,5 @@
 // Domain types shared by the pure logic modules. These mirror
-// `SquareKit/Sources/SquareKit/Model/` and the wire contract in `DESIGN.md` §2.
+// `ClanTabKit/Sources/ClanTabKit/Model/` and the wire contract in `DESIGN.md` §2.
 // All money is integer minor units (paise/cents) — never floating point.
 
 export interface Member {

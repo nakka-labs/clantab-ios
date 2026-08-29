@@ -3,9 +3,9 @@
 all: test
 
 test:
-	swift test --package-path SquareKit
+	swift test --package-path ClanTabKit
 
-# Enable the pre-push hook (SquareKit + worker + iOS build/tests, run locally).
+# Enable the pre-push hook (ClanTabKit + worker + iOS build/tests, run locally).
 hooks:
 	git config core.hooksPath .githooks
 	@echo "pre-push hook enabled. Bypass with SKIP_CHECKS=1 or SKIP_APP_CHECK=1."
@@ -28,5 +28,5 @@ worker-deploy:
 	npm --prefix worker run deploy
 
 clean:
-	swift package --package-path SquareKit clean
-	rm -rf SquareKit/.build worker/node_modules
+	swift package --package-path ClanTabKit clean
+	rm -rf ClanTabKit/.build worker/node_modules

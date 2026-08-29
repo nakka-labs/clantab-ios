@@ -3,7 +3,7 @@ name: Worker Check
 # Type-checks and tests the Cloudflare Worker backend (see BACKEND_PLAN.md).
 # Pure Node — no Cloudflare account or wrangler needed for this layer. The
 # `test-fixtures/` path is included because the Worker's logic tests consume the
-# same golden vectors as SquareKit (test-fixtures/README.md).
+# same golden vectors as ClanTabKit (test-fixtures/README.md).
 
 on:
   push:

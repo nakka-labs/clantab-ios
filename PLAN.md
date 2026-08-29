@@ -1,4 +1,4 @@
-# Squarely (iOS) — Build Plan
+# ClanTab (iOS) — Build Plan
 
 An open-source, no-login expense splitter for small groups (trips, shared flats, recurring friend circles) on iOS. One link or 6-character code per group. No accounts, no payment processing, no ads.
 
@@ -8,8 +8,8 @@ An open-source, no-login expense splitter for small groups (trips, shared flats,
 
 Every member of a group (5–10 people) needs to see and edit a shared ledger. 
 
-- **Pure Swift Engine (`SquareKit`)**: All domain models, balance derivation, split validation, and the greedy debt-simplification algorithm are encapsulated in a standalone Swift package.
-- **Pure-core testability**: `SquareKit` has no Apple-framework dependencies, so its full test suite builds and runs in ~1s on any Swift platform — no Simulator, no Xcode. The Linux CI (`.github/workflows/test.yml`) runs it on every push. (Early development was on Windows for exactly this reason.)
+- **Pure Swift Engine (`ClanTabKit`)**: All domain models, balance derivation, split validation, and the greedy debt-simplification algorithm are encapsulated in a standalone Swift package.
+- **Pure-core testability**: `ClanTabKit` has no Apple-framework dependencies, so its full test suite builds and runs in ~1s on any Swift platform — no Simulator, no Xcode. The Linux CI (`.github/workflows/test.yml`) runs it on every push. (Early development was on Windows for exactly this reason.)
 - **Native SwiftUI Shell (`App/`)**: A fluid, modern iOS interface (iOS 17+) for managing groups, recording expenses, and viewing simplified settlements.
 - **Sync Model**: Fetch-on-load / refetch-after-write via a lightweight async/await API client connecting to the Cloudflare Worker DO backend (or local offline store).
 - **All Money as Integer Minor Units**: Stored and calculated as integers (cents/paise) to eliminate floating-point rounding errors.
@@ -113,9 +113,9 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 ## 3. Phased Roadmap
 
 ### Phase 0 — Scaffolding & Setup (Current)
-- [x] Create private GitHub repo `indra-nakka/squarely-ios`.
+- [x] Create private GitHub repo `indra-nakka/clantab-ios`.
 - [x] Root configuration: `.gitignore`, `LICENSE`, `Makefile`, `.github/workflows/test.yml`, `AGENTS.md`, `README.md`, `PLAN.md`, `HANDOFF.md`.
-- [x] Scaffold `SquareKit` SwiftPM package with skeleton targets.
+- [x] Scaffold `ClanTabKit` SwiftPM package with skeleton targets.
 - [x] Verify `swift test` runs cleanly on Windows.
 
 ### Phase 1 — Pure Logic: Domain Models, Balances & Debt Simplification
@@ -123,17 +123,17 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] Implement `Logic/Balances.swift` (pure balance derivation from expenses & settlements).
 - [x] Implement `Logic/Simplify.swift` (greedy $N-1$ debt-simplification algorithm).
 - [x] Implement `Logic/Validation.swift` (split summation & deterministic remainder allocation).
-- [x] Full unit & fuzz test suite in `SquareKitTests/` (25 tests, incl. 400 seeded fuzz iterations).
+- [x] Full unit & fuzz test suite in `ClanTabKitTests/` (25 tests, incl. 400 seeded fuzz iterations).
 
 ### Phase 2 — Storage & Network API Client
 - [x] Implement `Storage/IdentityStore.swift` (local persistence for `[groupId: memberId]`).
-- [x] Implement `Network/SquarelyClient.swift` (async/await HTTP client interfacing with group endpoints).
+- [x] Implement `Network/ClanTabClient.swift` (async/await HTTP client interfacing with group endpoints).
 - [x] Integration tests for API serialization/deserialization (12 tests, incl. error envelope, idempotency-id encoding, and full group-state decoding).
 
 ### Phase 3 — SwiftUI App Shell & Group Home
-- [x] App entry point and navigation state (`SquarelyApp`, `AppRoute`, `RootView`).
+- [x] App entry point and navigation state (`ClanTabApp`, `AppRoute`, `RootView`).
 - [x] `CreateGroupView`: name, currency, creator display name.
-- [x] `JoinGroupView`: 6-character code resolver & deep link handling (`squarely://g/:groupId` dev scheme; Universal Links deferred to a later phase pending a production domain).
+- [x] `JoinGroupView`: 6-character code resolver & deep link handling (`clantab://g/:groupId` dev scheme; Universal Links deferred to a later phase pending a production domain).
 - [x] `GroupHomeView`: balance summary hero, member net list, activity feed — backed by `GroupViewModel` (fetch-on-load/refetch, no optimistic UI).
 - [x] **Compiles**: verified via `.github/workflows/ios-build.yml` (macOS GitHub Actions runner, iOS Simulator destination, no signing needed). Three real build errors found and fixed in the process.
 - [x] **Run & verified** (2026-08-28, first interactive run — see HANDOFF.md "App/ Runtime Verification — Done"): Start screen, Create form + validation, post-create confirmation, Group Home (balance hero, member balances, activity feed), resume-on-relaunch, and pull-to-refresh all exercised on an iOS 26.5 Simulator against a local mock API. No SwiftUI runtime warnings or crashes.
@@ -149,7 +149,7 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 - [x] **Compiles** (CI-verified) and **run & verified** 2026-08-28: server-computed plan rendered, "Mark as Paid" → `addSettlement` → list recomputes and the settled row drops out. See HANDOFF.md.
 
 ### Phase 6 — Polish & Export
-- [x] CSV and JSON export via iOS ShareSheet (`ShareLink`). Serialization itself lives in `SquareKit.Export` (pure functions, fully tested on Windows — 9 tests); the App target only writes the result to a temp file for sharing.
+- [x] CSV and JSON export via iOS ShareSheet (`ShareLink`). Serialization itself lives in `ClanTabKit.Export` (pure functions, fully tested on Windows — 9 tests); the App target only writes the result to a temp file for sharing.
 - [x] System share sheet for group invite link & 6-character join code. The join code is only ever returned at creation time (`DESIGN.md` §2 doesn't return it from `GET /api/groups/:groupId`), so it's surfaced in a new post-creation confirmation step in `CreateGroupView` — see `App/README.md`'s "Known gaps" for the underlying API limitation.
 - [x] Haptic feedback on expense-added and settlement-marked-paid (`.sensoryFeedback`, iOS 17+).
 - [x] Dark mode: reviewed — already fine via system-adaptive colors, no changes needed.
@@ -159,10 +159,10 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 ### Phase 7 — Ship & Documentation
 - [x] Reviewed `AGENTS.md`/`DESIGN.md`/`README.md` for drift against what actually got built in Phases 1-6, and corrected what had drifted:
   `DESIGN.md` §5's sequence diagrams and §7 described a hypothetical web client (React `useGroup` hook, `identity.ts`/`localStorage`) that was never built — corrected to describe the actual iOS client (`GroupViewModel`, `UserDefaultsIdentityStore`). Also recorded the join-code API gap (found in Phase 6) in `DESIGN.md` §12 for whoever eventually builds the backend. `AGENTS.md` now notes `App/` needs macOS/Xcode.
-- [x] **App/ Runtime Verification pass** (2026-08-28) — first interactive run of `App/`, on an iOS 26.5 Simulator (Xcode 26.6) driven end-to-end by an XCUITest against a local mock of the API. Every screen and flow from Phases 3-6 exercised and asserted; no SwiftUI runtime warnings or crashes. Details, screenshots location, and findings in HANDOFF.md's "App/ Runtime Verification — Done" section. Two findings: a `.gitignore` gap for the xcodegen-generated `App/Squarely/Info.plist`, and a pre-existing UX dead end when resuming into a group that no longer exists server-side — both since handled (next item).
-- [x] Screenshots + mermaid architecture diagram added to `README.md` (2026-08-28) — 5 screenshots from the runtime pass (`docs/screenshots/`) and a `flowchart` showing the SquareKit core / App shell / out-of-scope Worker split.
-- [x] Acted on the runtime-pass findings (2026-08-28): the resume-into-deleted-group dead end is fixed — Group Home now detects the group's 404 (`GroupViewModel.groupUnavailable`) and `RootView` falls back to the Start screen. Added a first `SquarelyTests` unit-test target (17 tests) covering deep-link parsing (`RootView.extractGroupId` / `resolveDeepLink`) and group-not-found detection; `ios-build.yml` now runs it in CI.
-- [x] Tagged **`v0.1.0`** (2026-08-28) — the iOS-app-only milestone: SquareKit
+- [x] **App/ Runtime Verification pass** (2026-08-28) — first interactive run of `App/`, on an iOS 26.5 Simulator (Xcode 26.6) driven end-to-end by an XCUITest against a local mock of the API. Every screen and flow from Phases 3-6 exercised and asserted; no SwiftUI runtime warnings or crashes. Details, screenshots location, and findings in HANDOFF.md's "App/ Runtime Verification — Done" section. Two findings: a `.gitignore` gap for the xcodegen-generated `App/ClanTab/Info.plist`, and a pre-existing UX dead end when resuming into a group that no longer exists server-side — both since handled (next item).
+- [x] Screenshots + mermaid architecture diagram added to `README.md` (2026-08-28) — 5 screenshots from the runtime pass (`docs/screenshots/`) and a `flowchart` showing the ClanTabKit core / App shell / out-of-scope Worker split.
+- [x] Acted on the runtime-pass findings (2026-08-28): the resume-into-deleted-group dead end is fixed — Group Home now detects the group's 404 (`GroupViewModel.groupUnavailable`) and `RootView` falls back to the Start screen. Added a first `ClanTabTests` unit-test target (17 tests) covering deep-link parsing (`RootView.extractGroupId` / `resolveDeepLink`) and group-not-found detection; `ios-build.yml` now runs it in CI.
+- [x] Tagged **`v0.1.0`** (2026-08-28) — the iOS-app-only milestone: ClanTabKit
   pure core (46 tests) + the SwiftUI app, compiled and run-verified end-to-end
   against a mock of the API, with README screenshots + architecture diagram.
   Explicitly **not** in scope for this tag: the Cloudflare Worker backend

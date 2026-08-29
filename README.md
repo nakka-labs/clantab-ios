@@ -1,4 +1,4 @@
-# Squarely 📐 (iOS)
+# ClanTab 📐 (iOS)
 
 An open-source, no-login expense splitter for iOS. Built for small groups (trips, shared apartments, friend circles).
 
@@ -6,9 +6,9 @@ An open-source, no-login expense splitter for iOS. Built for small groups (trips
 
 ---
 
-## What is Squarely?
+## What is ClanTab?
 
-Squarely is a clean, private, and frictionless way for 5–10 friends to share expenses without creating accounts, downloading bloated fintech apps, or dealing with advertising.
+ClanTab is a clean, private, and frictionless way for 5–10 friends to share expenses without creating accounts, downloading bloated fintech apps, or dealing with advertising.
 
 - **No Sign-Up / No Password**: Create a group, pick your display name, and share the link or 6-character code.
 - **Exact Debt Simplification**: Collapses tangled pairwise IOUs down to the minimum possible number of settle-up transactions (at most $N-1$) using a greedy graph optimization algorithm.
@@ -30,9 +30,9 @@ Squarely is a clean, private, and frictionless way for 5–10 friends to share e
 
 ## Architecture Overview
 
-Squarely is a **pure Swift core** (`SquareKit`) behind a **thin SwiftUI shell**
+ClanTab is a **pure Swift core** (`ClanTabKit`) behind a **thin SwiftUI shell**
 (`App/`), talking to a **Cloudflare Worker + Durable Objects** backend
-(`worker/`, deployed at `squarely.nakka-labs.workers.dev`). All the money math
+(`worker/`, deployed at `clantab.nakka-labs.workers.dev`). All the money math
 lives in the core; the shell only presents it; the backend recomputes balances
 authoritatively. The sync model is deliberately simple — fetch-on-load,
 refetch-after-write, no optimistic UI, no WebSocket (`DESIGN.md` §7).
@@ -45,10 +45,10 @@ flowchart TB
         screens --> vm
     end
 
-    subgraph kit["SquareKit - pure Swift core (no Apple frameworks)"]
+    subgraph kit["ClanTabKit - pure Swift core (no Apple frameworks)"]
         model["Model: Group, Member, Expense, Settlement, Balance"]
         logic["Logic: Balances, Simplify, Validation"]
-        client["Network: SquarelyClient, async-await, no 3rd-party HTTP"]
+        client["Network: ClanTabClient, async-await, no 3rd-party HTTP"]
         store["Storage: UserDefaultsIdentityStore, on-device per group"]
         export["Export: CSV / JSON, pure functions"]
     end
@@ -68,26 +68,26 @@ flowchart TB
     end
 ```
 
-`GroupDO` recomputes balances and the simplified settle-up plan on every read — **always server-side**, never on the client. That `Balances` / `Simplify` / `Validation` logic lives in two languages, Swift (`SquareKit/Sources/SquareKit/Logic/`) and TypeScript (`worker/src/lib/`), kept byte-identical by the shared golden vectors in `test-fixtures/balances/` that **both** test suites run — a divergence turns one side's CI red. `AppConfig.apiBaseURL` points at the deployed Worker.
+`GroupDO` recomputes balances and the simplified settle-up plan on every read — **always server-side**, never on the client. That `Balances` / `Simplify` / `Validation` logic lives in two languages, Swift (`ClanTabKit/Sources/ClanTabKit/Logic/`) and TypeScript (`worker/src/lib/`), kept byte-identical by the shared golden vectors in `test-fixtures/balances/` that **both** test suites run — a divergence turns one side's CI red. `AppConfig.apiBaseURL` points at the deployed Worker.
 
 ### Repository layout
 
 ```
-squarely-ios/
-├── SquareKit/           # Pure SwiftPM package: domain models, balance math, the
+clantab-ios/
+├── ClanTabKit/           # Pure SwiftPM package: domain models, balance math, the
 │   │                    # debt-simplification engine, validation, network client, export.
-│   ├── Sources/SquareKit/{Model,Logic,Storage,Network,Export}/
-│   └── Tests/SquareKitTests/
+│   ├── Sources/ClanTabKit/{Model,Logic,Storage,Network,Export}/
+│   └── Tests/ClanTabKitTests/
 │
 ├── App/                 # Native SwiftUI shell (iOS 17+, XcodeGen) — see App/README.md
-│   ├── Squarely/         #   Screens · ViewModels · Components · Assets.xcassets · PrivacyInfo
-│   └── SquarelyTests/    #   deep-link parsing, group-not-found handling
+│   ├── ClanTab/         #   Screens · ViewModels · Components · Assets.xcassets · PrivacyInfo
+│   └── ClanTabTests/    #   deep-link parsing, group-not-found handling
 │
 ├── worker/              # Cloudflare Worker + Durable Objects backend — see worker/README.md
 │   ├── src/             #   index.ts (router) · registry-do.ts · group-do.ts · lib/
 │   └── test/            #   pure logic + @cloudflare/vitest-pool-workers integration
 │
-├── test-fixtures/       # Language-neutral golden vectors run by SquareKit AND worker
+├── test-fixtures/       # Language-neutral golden vectors run by ClanTabKit AND worker
 ├── docs/                # privacy policy, App Store metadata, screenshots
 ├── .githooks/pre-push   # local build/test gate (macOS Actions is metered) — `make hooks`
 ├── DESIGN.md            # the wire / storage / security contract
@@ -97,14 +97,14 @@ squarely-ios/
 
 ### Pure core, thin shell
 
-`SquareKit` has **zero Apple-framework dependencies in its core logic**, so the
+`ClanTabKit` has **zero Apple-framework dependencies in its core logic**, so the
 domain math and its full test suite build and run on any platform the Swift
 toolchain supports — the Linux CI (`.github/workflows/test.yml`) runs them on
 every push, no Simulator or Xcode involved. The `App/` shell is a thin SwiftUI
 layer that needs Xcode on macOS; it's build-verified and run-verified end to
 end against the deployed backend (see `App/README.md`).
 
-_(The project was originally developed on Windows against `SquareKit`'s pure
+_(The project was originally developed on Windows against `ClanTabKit`'s pure
 core, with the iOS shell built blind and verified by CI — hence some of the
 history in `HANDOFF.md`. Development is on a Mac now.)_
 
@@ -119,9 +119,9 @@ history in `HANDOFF.md`. Development is on a Mac now.)_
 
 ### Running Tests
 ```bash
-make check                          # everything: SquareKit + worker + iOS build/tests
-make test                           # just the SquareKit suite
-swift test --package-path SquareKit # …directly
+make check                          # everything: ClanTabKit + worker + iOS build/tests
+make test                           # just the ClanTabKit suite
+swift test --package-path ClanTabKit # …directly
 make worker-test                    # the Cloudflare Worker suite
 ```
 

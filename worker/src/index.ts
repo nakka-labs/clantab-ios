@@ -170,14 +170,14 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
  */
 function handleCapabilityPage(_request: Request, _env: Env, params: Params): Promise<Response> {
   const groupId = params.groupId ?? "";
-  const deepLink = `squarely://g/${encodeURIComponent(groupId)}`;
+  const deepLink = `clantab://g/${encodeURIComponent(groupId)}`;
   const html = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Open in Squarely</title>
+<title>Open in ClanTab</title>
 <style>
   body { font: 16px/1.5 -apple-system, system-ui, sans-serif; margin: 0; display: grid; place-items: center; min-height: 100vh; text-align: center; color: #1c1c1e; background: #f2f2f7; }
   main { padding: 2rem; max-width: 22rem; }
@@ -188,9 +188,9 @@ function handleCapabilityPage(_request: Request, _env: Env, params: Params): Pro
 </head>
 <body>
 <main>
-  <h1>Squarely 📐</h1>
-  <p>You've been invited to a shared expense group. Open this link on a device with the Squarely app installed.</p>
-  <a class="btn" href="${deepLink}">Open in Squarely</a>
+  <h1>ClanTab 🧾</h1>
+  <p>You've been invited to a shared expense group. Open this link on a device with the ClanTab app installed.</p>
+  <a class="btn" href="${deepLink}">Open in ClanTab</a>
 </main>
 </body>
 </html>`;
@@ -204,7 +204,7 @@ function handleCapabilityPage(_request: Request, _env: Env, params: Params): Pro
 
 function handleRoot(): Promise<Response> {
   return Promise.resolve(
-    new Response("Squarely API. See https://github.com/nakka-labs/squarely-ios\n", {
+    new Response("ClanTab API. See https://github.com/nakka-labs/clantab-ios\n", {
       status: 200,
       headers: { "content-type": "text/plain; charset=utf-8", "X-Robots-Tag": "noindex" },
     }),

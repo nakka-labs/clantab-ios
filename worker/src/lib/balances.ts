@@ -2,9 +2,9 @@ import type { Balance, Expense, Member, Settlement } from "./types.ts";
 
 /**
  * Pure derivation of member balances from a group's full event history — a port of
- * `SquareKit`'s `Balances.compute`, kept byte-identical by the shared golden
+ * `ClanTabKit`'s `Balances.compute`, kept byte-identical by the shared golden
  * fixtures in `test-fixtures/balances/` (run by both this suite and
- * `SquareKitTests`).
+ * `ClanTabKitTests`).
  *
  * For every expense the payer is credited the full `amountMinor` and every split
  * member (possibly including the payer) is debited their share. For every

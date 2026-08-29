@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Squarely pre-push checks. Replaces the metered macOS GitHub Actions runner —
+# ClanTab pre-push checks. Replaces the metered macOS GitHub Actions runner —
 # the iOS build + unit tests run here, on your Mac, for free.
 #
 # Enable once per clone:   make hooks   (sets core.hooksPath to .githooks)
@@ -38,7 +38,7 @@ touches() {
   git diff --name-only "$range" 2>/dev/null | grep -vE '(^|/)(README|.*\.(md|txt))$|(^|/)docs/' | grep -qE "$1"
 }
 
-log=$(mktemp -t squarely-prepush)
+log=$(mktemp -t clantab-prepush)
 step() {
   desc="$1"; shift
   printf 'pre-push: %s ... ' "$desc"
@@ -55,10 +55,10 @@ step() {
   fi
 }
 
-# --- SquareKit — pure Swift, fast --------------------------------------------
-if touches '^(SquareKit/|test-fixtures/)'; then
-  step "swift test --package-path SquareKit" \
-    swift test --package-path SquareKit
+# --- ClanTabKit — pure Swift, fast --------------------------------------------
+if touches '^(ClanTabKit/|test-fixtures/)'; then
+  step "swift test --package-path ClanTabKit" \
+    swift test --package-path ClanTabKit
 fi
 
 # --- Worker — Node, fast ----------------------------------------------------
@@ -67,10 +67,10 @@ if touches '^(worker/|test-fixtures/)'; then
   step "worker test" sh -c 'npm --prefix worker test'
 fi
 
-# --- iOS app — build + SquarelyTests (needs Xcode + a Simulator) -----------
+# --- iOS app — build + ClanTabTests (needs Xcode + a Simulator) -----------
 if [ -n "$SKIP_APP_CHECK" ]; then
   echo "pre-push: SKIP_APP_CHECK set — skipping the iOS build"
-elif touches '^(App/|SquareKit/)'; then
+elif touches '^(App/|ClanTabKit/)'; then
   if ! command -v xcodegen >/dev/null 2>&1; then
     echo "pre-push FAILED: xcodegen not found. Install it (brew install xcodegen)" >&2
     echo "or push with SKIP_APP_CHECK=1 if you can't verify the iOS build here." >&2
@@ -83,9 +83,9 @@ elif touches '^(App/|SquareKit/)'; then
     rm -f "$log"; exit 1
   fi
   step "xcodegen generate" sh -c 'cd App && xcodegen generate'
-  step "iOS build + SquarelyTests" \
+  step "iOS build + ClanTabTests" \
     xcodebuild test \
-      -project App/Squarely.xcodeproj -scheme Squarely \
+      -project App/ClanTab.xcodeproj -scheme ClanTab \
       -destination "id=$sim" \
       -derivedDataPath "$repo/App/.build-hook" \
       -quiet CODE_SIGNING_ALLOWED=NO

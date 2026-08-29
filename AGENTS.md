@@ -1,27 +1,27 @@
-# Squarely (iOS)
+# ClanTab (iOS)
 
-Open-source, no-login expense splitter for small groups. Native iOS application powered by a pure Swift core package (`SquareKit`). No accounts, no payments, no ads.
+Open-source, no-login expense splitter for small groups. Native iOS application powered by a pure Swift core package (`ClanTabKit`). No accounts, no payments, no ads.
 
 ## Commands
-- `make check` — run everything relevant (SquareKit + worker + iOS build/tests). Same as what the `pre-push` hook runs; `make hooks` installs it.
-- `swift test --package-path SquareKit` or `make test` — the pure Swift core (no Apple frameworks; also runs on the Linux CI)
-- `swift build --package-path SquareKit` — build the core package
-- `App/` (the SwiftUI shell) requires Xcode on macOS. `cd App && xcodegen generate`, then the `Squarely` scheme. See `App/README.md`.
+- `make check` — run everything relevant (ClanTabKit + worker + iOS build/tests). Same as what the `pre-push` hook runs; `make hooks` installs it.
+- `swift test --package-path ClanTabKit` or `make test` — the pure Swift core (no Apple frameworks; also runs on the Linux CI)
+- `swift build --package-path ClanTabKit` — build the core package
+- `App/` (the SwiftUI shell) requires Xcode on macOS. `cd App && xcodegen generate`, then the `ClanTab` scheme. See `App/README.md`.
 - `worker/` (Cloudflare Worker backend — `BACKEND_PLAN.md`): `npm --prefix worker ci`, then `make worker-test` / `worker-typecheck` / `worker-dev`. `make worker-deploy` needs `wrangler login`.
 
 ## CI
-- `.github/workflows/`: `test.yml` (SquareKit, Linux) and `worker.yml` (Worker, Linux) run on push — cheap, within the free tier. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret).
+- `.github/workflows/`: `test.yml` (ClanTabKit, Linux) and `worker.yml` (Worker, Linux) run on push — cheap, within the free tier. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret).
 - **The iOS build is NOT in cloud CI** — macOS Actions minutes bill 10×. It runs in the `pre-push` hook on the dev's Mac. Don't re-add a macOS workflow without a reason.
 
 ## Backend (`worker/`)
-- **Same rules as `SquareKit`**: integer minor units only, derived balances, zero runtime dependencies (dev deps like `vitest`/`typescript` are fine). Hand-rolled router (`URLPattern`) over a framework.
-- **Logic mirrors `SquareKit`, kept honest by fixtures**: `worker/src/lib/balances.ts` / `simplify.ts` / `validation.ts` are ports of the Swift `Logic/` files. Both implementations run the shared vectors in `test-fixtures/balances/` (`worker/test/logic.test.ts` and `SquareKitTests/GoldenParityTests.swift`) — change one language and the other's CI fails until it matches.
+- **Same rules as `ClanTabKit`**: integer minor units only, derived balances, zero runtime dependencies (dev deps like `vitest`/`typescript` are fine). Hand-rolled router (`URLPattern`) over a framework.
+- **Logic mirrors `ClanTabKit`, kept honest by fixtures**: `worker/src/lib/balances.ts` / `simplify.ts` / `validation.ts` are ports of the Swift `Logic/` files. Both implementations run the shared vectors in `test-fixtures/balances/` (`worker/test/logic.test.ts` and `ClanTabKitTests/GoldenParityTests.swift`) — change one language and the other's CI fails until it matches.
 - **Durable Object methods return `Result` / discriminated unions for expected failures, not `throw`** — a thrown error loses its prototype across the RPC boundary, so `instanceof` checks in the router break. Only genuinely-exceptional cases throw (→ 500).
 - **Ordering**: `Date.now()` is not monotonic enough within a DO (rapid RPC calls collide on the same ms). Order by `created_at ASC, rowid ASC`.
 - `DESIGN.md` is the wire/storage/security contract. `make worker-dev` runs `wrangler dev` on `:8787`. `make worker-test` / `worker-typecheck`. Deploy (`make worker-deploy`) needs `wrangler login` first.
 
 ## Architecture Rules
-- **Pure Core Logic in `SquareKit`**: `Balances.swift` and `Simplify.swift` are pure functions. No I/O, no network calls, no UI dependencies. If a test needs a mock or a running network server to test business math, move the impure logic elsewhere.
+- **Pure Core Logic in `ClanTabKit`**: `Balances.swift` and `Simplify.swift` are pure functions. No I/O, no network calls, no UI dependencies. If a test needs a mock or a running network server to test business math, move the impure logic elsewhere.
 - **Integer Minor Units**: All money amounts are stored and calculated in integer minor units (paise, cents, yen) as `Int` or `Int64`. Never use floating-point types (`Double`, `Float`) for monetary amounts or arithmetic. Convert to/from display units only at the UI formatting edge.
 - **Derived Balances**: Member balances are always derived on read from the collection of expenses and settlements; never cache or persist a mutable "balance" field.
 - **Zero-Login / Capability Links**: Each group is addressed by an unguessable capability identifier (`groupId`) and an optional 6-character human-friendly `joinCode`. User identity is stored locally on the device (per group).

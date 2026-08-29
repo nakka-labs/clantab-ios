@@ -314,7 +314,7 @@ describe("routing", () => {
     expect(res.headers.get("X-Robots-Tag")).toBe("noindex");
     const body = await res.text();
     expect(body).toContain('<meta name="robots" content="noindex">');
-    expect(body).toContain("squarely://g/somegroup");
+    expect(body).toContain("clantab://g/somegroup");
   });
 
   it("serves a plain page at /", async () => {

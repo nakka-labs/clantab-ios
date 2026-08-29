@@ -11,7 +11,7 @@ function sortDescending(items: Party[]): void {
 }
 
 /**
- * Greedy debt simplification — a port of `SquareKit`'s `Simplify.simplify`, kept
+ * Greedy debt simplification — a port of `ClanTabKit`'s `Simplify.simplify`, kept
  * byte-identical by the shared golden fixtures.
  *
  * Repeatedly matches the largest creditor with the largest debtor, settles the

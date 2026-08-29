@@ -1,5 +1,5 @@
 // Wire request/response DTOs — the API contract in `DESIGN.md` §2, mirroring the
-// iOS client's `SquareKit/Sources/SquareKit/Network/SquarelyWireTypes.swift`.
+// iOS client's `ClanTabKit/Sources/ClanTabKit/Network/ClanTabWireTypes.swift`.
 
 import type {
   Balance,

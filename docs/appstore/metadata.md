@@ -1,4 +1,4 @@
-# App Store Connect — Squarely metadata (draft)
+# App Store Connect — ClanTab metadata (draft)
 
 Paste these into App Store Connect. All are editable there; treat this as the
 source of truth so it's version-controlled.
@@ -6,8 +6,7 @@ source of truth so it's version-controlled.
 ---
 
 ## Name
-`Squarely`
-_(If taken, alternatives: "Squarely: Split Expenses", "Squarely — Fair Splits".)_
+`ClanTab`
 
 ## Subtitle (≤ 30 chars)
 `Split expenses, no login`
@@ -27,7 +26,7 @@ split trip and flatmate expenses down to the last paisa.`
 
 ## Description (≤ 4000 chars)
 ```
-Squarely splits shared expenses for small groups — trips, flatmates, friend
+ClanTab splits shared expenses for small groups — trips, flatmates, friend
 circles — without the friction.
 
 NO SIGN-UP
@@ -35,7 +34,7 @@ Create a group, pick a display name, and share a link or a 6-character code.
 That's it. No email, no password, no account to manage.
 
 SETTLE UP IN THE FEWEST PAYMENTS
-Squarely collapses everyone's tangled IOUs into the minimum number of
+ClanTab collapses everyone's tangled IOUs into the minimum number of
 "pay this person that much" transactions, so you settle up with one or two
 transfers instead of six.
 
@@ -48,7 +47,7 @@ Equal splits or exact amounts per person. The remainder from an uneven split is
 always assigned deterministically, so the totals match.
 
 TRUST-BASED, NOT A PAYMENT APP
-Marking a debt "paid" just records that you settled it outside the app. Squarely
+Marking a debt "paid" just records that you settled it outside the app. ClanTab
 never touches your money and never asks for card or bank details.
 
 YOUR DATA, EXPORTABLE
@@ -65,21 +64,21 @@ as a shared document link. Keep the link private to the people in your group.
 `split,expenses,bills,trip,roommate,flatmate,shared,settle up,ious,group,tab,splitwise`
 
 ## Support URL
-`https://github.com/nakka-labs/squarely-ios` _(until there's a real support page)_
+`https://github.com/nakka-labs/clantab-ios` _(until there's a real support page)_
 
 ## Marketing URL (optional)
 _leave blank for now_
 
 ## Privacy Policy URL (required)
 Host `docs/privacy-policy.md` somewhere public and put the URL here. Quickest:
-GitHub Pages for this repo → `https://nakka-labs.github.io/squarely-ios/privacy-policy`
+GitHub Pages for this repo → `https://nakka-labs.github.io/clantab-ios/privacy-policy`
 (enable Pages: repo Settings → Pages → deploy from `main` `/docs`).
 
 ---
 
 ## App Privacy (the questionnaire in App Store Connect)
 
-Answer to match `App/Squarely/PrivacyInfo.xcprivacy`:
+Answer to match `App/ClanTab/PrivacyInfo.xcprivacy`:
 
 | Question | Answer |
 |---|---|
@@ -93,7 +92,7 @@ Answer to match `App/Squarely/PrivacyInfo.xcprivacy`:
 
 ## Review notes (App Review — this app is unusual; pre-empt the questions)
 ```
-Squarely has NO login or account system by design. Access to a group is by
+ClanTab has NO login or account system by design. Access to a group is by
 capability link / 6-character join code (the same trust model as a shared
 document link) — this is intentional, not a missing feature.
 
@@ -105,10 +104,10 @@ TO TEST:
 4. Either device: "Add Expense" — enter an amount, description, choose equal or
    exact split, "Add Expense". Balances update for everyone.
 5. "Settle Up" shows the minimal set of payments. "Mark as Paid" records that a
-   payment happened OUTSIDE the app — Squarely never processes money and never
+   payment happened OUTSIDE the app — ClanTab never processes money and never
    collects payment credentials.
 
-BACKEND: a Cloudflare Worker at https://squarely.nakka-labs.workers.dev
+BACKEND: a Cloudflare Worker at https://clantab.nakka-labs.workers.dev
 (no auth; capability-URL access as described).
 
 No third-party analytics or advertising SDKs. No in-app purchases.

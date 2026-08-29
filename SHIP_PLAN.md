@@ -1,8 +1,8 @@
-# Squarely — Ship Plan (post-`v0.2.0`)
+# ClanTab — Ship Plan (post-`v0.2.0`)
 
 `PLAN.md` built the iOS app (Phases 0-7 → `v0.1.0`). `BACKEND_PLAN.md` built and
 deployed the Worker (§1-§8 → `v0.2.0`). The app and backend now work end to end
-against `https://squarely.nakka-labs.workers.dev`.
+against `https://clantab.nakka-labs.workers.dev`.
 
 **What's still missing before anyone else can use it:**
 - **App Store / TestFlight presence** (Track 2) — the app has no icon, no
@@ -22,25 +22,25 @@ after launch).
 
 ## 0. Decisions to lock first
 
-### 0.1 Domain — **needs you** (~$10-15/yr)
+### 0.1 Domain — **done** (`nakka.dev`, already owned)
 
 **A custom domain is required for exactly one thing: tappable invite links
 that open the app (Universal Links).** Nothing else needs it.
 
-#### What works today with no domain (`squarely.nakka-labs.workers.dev`)
+#### What works today with no domain (`clantab.nakka-labs.workers.dev`)
 
 - The entire API and every app flow — verified end to end against the
   deployed Worker.
 - **Shipping to TestFlight and the App Store.** Apple does not care what URL
   the backend uses; a `*.workers.dev` backend is fine for a released app.
-- The `squarely://g/:id` custom URL scheme (dev/simulator deep links).
+- The `clantab://g/:id` custom URL scheme (dev/simulator deep links).
 - **Joining a group by 6-character code** (`RFRAHM`, typed into the app's
   "Join with a Code" screen) — this needs no link at all and is fully working.
 
 #### What you can't do without a domain
 
 - **Universal Links.** When a friend taps `https://…/g/ABC123` in
-  Messages/Mail, iOS should open the Squarely app directly. That needs:
+  Messages/Mail, iOS should open the ClanTab app directly. That needs:
   1. a domain you control,
   2. an `apple-app-site-association` (AASA) file served from it over HTTPS,
   3. the app's `applinks:` entitlement naming that domain.
@@ -48,19 +48,20 @@ that open the app (Universal Links).** Nothing else needs it.
   on a `*.workers.dev` host is unreliable at best and not something to ship
   on. So without a real domain, the invite **link** doesn't open the app;
   friends fall back to typing the 6-character code (which works fine).
-- A link that looks trustworthy. `squarely.nakka-labs.workers.dev/g/ABC123`
-  reads like a dev artifact / phishing link; `squarely.app/g/ABC123` doesn't.
+- A link that looks trustworthy. `clantab.nakka-labs.workers.dev/g/ABC123`
+  reads like a dev artifact / phishing link; `clantab.nakka.dev/g/ABC123` doesn't.
 - A home for the privacy-policy page and any marketing page (these can also
   live elsewhere, but a domain is the clean answer).
 
-#### One domain, apex, serves everything
+#### One host serves everything
 
-`DESIGN.md` §8 assumes same-origin. Simplest setup: **one domain, no
-subdomains.** The Worker serves, from `squarely.app`:
+`DESIGN.md` §8 assumes same-origin. Simplest setup: **one host, no further
+splitting.** The Worker serves, from `clantab.nakka.dev` (a subdomain of the
+already-owned `nakka.dev`, shared across the app portfolio):
 
 | path | |
 |---|---|
-| `/api/*` | the API (`AppConfig.apiBaseURL = https://squarely.app/`) |
+| `/api/*` | the API (`AppConfig.apiBaseURL = https://clantab.nakka.dev/`) |
 | `/g/:groupId` | the invite landing page — this URL *is* the Universal Link |
 | `/.well-known/apple-app-site-association` | the AASA file |
 | `/` | a minimal marketing/pointer page |
@@ -70,27 +71,30 @@ once `apiBaseURL` is the real domain, the share link is automatically the
 Universal Link. No app-code change beyond the one URL constant + the
 entitlement.
 
-#### How to get one
+#### Getting it wired up
 
-- **`squarely.app`** if available (`.app` is a real TLD, HTTPS-only, ~$14/yr)
-  — or `.com` (~$10), or a cheaper alt (`getsquarely.com`, `squarely.link`, …).
-- **Buy it directly from Cloudflare Registrar** (at-cost, no markup) if they
-  carry the TLD — then it's already on Cloudflare. Otherwise buy anywhere and
-  change the nameservers to Cloudflare (free, ~5 min).
-- Once it's an active Cloudflare zone, wiring it to the Worker is a two-line
-  `wrangler.jsonc` change + a redeploy — I do that part.
+No purchase needed — `nakka.dev` is already an active Cloudflare zone
+(bought for the whole app portfolio, ~$12/yr). Turning `clantab.nakka.dev`
+into a live host for this Worker is just:
 
-**Decision:** buy a domain now if tappable invite links matter for launch; or
-ship v1 on `workers.dev` with code-only joining and add the domain later
-(the app's "Join with a Code" flow already covers this case).
+- Add the `clantab` subdomain as a Worker route / Custom Domain in
+  `wrangler.jsonc` (two-line change) + redeploy.
+- Add the `applinks:clantab.nakka.dev` Associated Domains entitlement and
+  serve the AASA file at `/.well-known/apple-app-site-association`.
+
+**Decision:** wire it up now if tappable invite links matter for launch; or
+ship v1 on `workers.dev` with code-only joining and wire the subdomain later
+(the app's "Join with a Code" flow already covers this case) — the cost
+argument for waiting is gone since the domain itself is a sunk, already-paid
+cost either way.
 
 ### 0.2 Apple distribution — **needs you**
 
-- **Bundle ID**: `com.squarely.app` (already in `project.yml`). Register it at
+- **Bundle ID**: `com.clantab.app` (already in `project.yml`). Register it at
   developer.apple.com → Identifiers, with the **Associated Domains** capability
   enabled (for Track 1).
-- **App Store Connect record**: create the "Squarely" app (needs the bundle ID).
-  A name reservation is worth doing early — "Squarely" may be taken.
+- **App Store Connect record**: create the "ClanTab" app (needs the bundle ID).
+  A name reservation is worth doing early — "ClanTab" may be taken.
 - **`DEVELOPMENT_TEAM`**: add your Team ID to `project.yml` (`settings.base`)
   so the project builds signed without per-machine Xcode fiddling. Or keep it
   out and set it in Xcode's Signing tab each machine — your call.
@@ -99,8 +103,8 @@ ship v1 on `workers.dev` with code-only joining and add the domain later
 
 ### 0.3 Environments
 
-Right now there's one Worker (`squarely`) = production, and tests use Miniflare.
-Decide whether to add a **`squarely-staging`** Worker (a second `env` in
+Right now there's one Worker (`clantab`) = production, and tests use Miniflare.
+Decide whether to add a **`clantab-staging`** Worker (a second `env` in
 `wrangler.jsonc`, its own DOs) so the iOS app can point at staging for
 pre-release testing without touching real groups. Recommended once there are
 real users; skip until then.
@@ -114,7 +118,7 @@ version going forward, independent of git tags.
 
 ## Track 1 — Custom domain + Universal Links
 
-**Goal:** `https://squarely.app/g/:groupId` links open the app directly (or the
+**Goal:** `https://clantab.nakka.dev/g/:groupId` links open the app directly (or the
 App Store if it's not installed), and the API moves to the same domain.
 
 **This is optional for launch.** Without it, invites work by 6-character code
@@ -123,29 +127,29 @@ tappable link. Depends on §0.1 (a domain).
 
 1. **Domain on Cloudflare** — add the zone, confirm DNS is active.
 2. **Worker custom domain** — `wrangler.jsonc` `routes` (or a Custom Domain in
-   the dashboard): `api.squarely.app/*` → `squarely` Worker. Keep
+   the dashboard): `clantab.nakka.dev/*` → `clantab` Worker. Keep
    `*.workers.dev` too, or disable it.
-3. **`AppConfig.apiBaseURL`** → `https://api.squarely.app/` (or serve the API and
+3. **`AppConfig.apiBaseURL`** → `https://clantab.nakka.dev/` (or serve the API and
    the landing page from the same host — `DESIGN.md` §8 assumes same-origin;
    decide `api.` subdomain vs path-based).
 4. **Real `/g/:groupId` page** — replace the stub in `worker/src/index.ts` with a
-   proper landing page: app-store badge, "Open in Squarely" (Universal Link
-   self-reference + `squarely://` fallback), still `noindex`, still reveals
+   proper landing page: app-store badge, "Open in ClanTab" (Universal Link
+   self-reference + `clantab://` fallback), still `noindex`, still reveals
    nothing about the group.
 5. **`/.well-known/apple-app-site-association`** — served by the Worker (JSON,
    `content-type: application/json`, no redirect):
    ```json
    { "applinks": { "apps": [], "details": [
-     { "appID": "<TEAMID>.com.squarely.app", "paths": ["/g/*"] } ] } }
+     { "appID": "<TEAMID>.com.clantab.app", "paths": ["/g/*"] } ] } }
    ```
 6. **iOS Associated Domains** — add to `project.yml`:
-   `com.apple.developer.associated-domains = ["applinks:squarely.app"]`
+   `com.apple.developer.associated-domains = ["applinks:clantab.nakka.dev"]`
    (an `.entitlements` file + `CODE_SIGN_ENTITLEMENTS`), and enable the
    capability on the App ID.
 7. **`RootView`** already parses `https://<host>/g/:id` (`extractGroupId` +
    `RootViewDeepLinkTests`). Just confirm `.onOpenURL` fires for a Universal
    Link (it does — same callback as the custom scheme).
-8. **Verify on a real device** — `squarely://` works in Simulator; Universal
+8. **Verify on a real device** — `clantab://` works in Simulator; Universal
    Links only truly work on a signed device build with the AASA fetched by the
    OS. Add a test target case or a manual checklist entry.
 9. **Update** `DESIGN.md` §1/§8, `App/README.md` "Known gaps", `BACKEND_PLAN.md` §6.
@@ -158,11 +162,11 @@ tappable link. Depends on §0.1 (a domain).
 
 **Goal:** a build you can put on TestFlight, then submit.
 
-1. ✅ **App icon + accent colour** — `App/Squarely/Assets.xcassets` with a
+1. ✅ **App icon + accent colour** — `App/ClanTab/Assets.xcassets` with a
    placeholder `AppIcon` (flat blue, white "=") and a blue `AccentColor`,
    wired via `ASSETCATALOG_COMPILER_*` in `project.yml`. Ships fine on
    TestFlight; **swap for real design before the App Store.**
-2. ✅ **Privacy manifest** — `App/Squarely/PrivacyInfo.xcprivacy`: no tracking;
+2. ✅ **Privacy manifest** — `App/ClanTab/PrivacyInfo.xcprivacy`: no tracking;
    "Name" (the display name) + "Other Data Types" (ledger content) both linked
    / not-for-tracking / App Functionality; `UserDefaults` → `CA92.1`. Judgement
    calls are commented in the file — revisit if App Review pushes back.
@@ -202,7 +206,7 @@ Distribute, or fastlane with an App Store Connect API key).
 ## Track 3 — Operational hardening (do alongside Track 2, before real users)
 
 0. ✅ **CI cost** — the metered macOS `ios-build.yml` is gone; the iOS build +
-   `SquarelyTests` moved to a local `pre-push` hook (`make hooks` / `make
+   `ClanTabTests` moved to a local `pre-push` hook (`make hooks` / `make
    check`, `.githooks/pre-push`). Cloud CI is now Linux-only (`test.yml`,
    `worker.yml`) plus tag-triggered `worker-deploy.yml` — all within the free
    tier. A self-hosted macOS runner could bring PR checks back later, unmetered.
@@ -214,7 +218,7 @@ Distribute, or fastlane with an App Store Connect API key).
    `cloudflare-observability` MCP can tail logs during incidents.
 2. **The `1010` edge block** — decide: (a) leave it (native app is unaffected,
    a web client is out of scope), or (b) lower the zone's Browser Integrity
-   Check / Bot Fight Mode for `api.squarely.app` if a web client is ever
+   Check / Bot Fight Mode for `clantab.nakka.dev` if a web client is ever
    planned. Document the decision.
 3. **Rate-limit review** — the Registry limiter is in-memory (resets on DO
    eviction). Fine for now; if abuse appears, move the counter to DO storage or

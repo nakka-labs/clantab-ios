@@ -1,6 +1,6 @@
-# Squarely (App target)
+# ClanTab (App target)
 
-The SwiftUI iOS app shell. Builds and its `SquarelyTests` unit tests pass via
+The SwiftUI iOS app shell. Builds and its `ClanTabTests` unit tests pass via
 the local pre-push hook (`make hooks`); run-verified end-to-end against the
 deployed Worker — see "Build status" below.
 
@@ -10,10 +10,10 @@ deployed Worker — see "Build status" below.
 brew install xcodegen        # one-time
 cd App
 xcodegen generate
-open Squarely.xcodeproj
+open ClanTab.xcodeproj
 ```
 
-`Squarely.xcodeproj` and `Squarely/Info.plist` are both generated from
+`ClanTab.xcodeproj` and `ClanTab/Info.plist` are both generated from
 `project.yml` and gitignored — never edit them directly; edit `project.yml`
 and regenerate instead.
 
@@ -23,15 +23,15 @@ build it doesn't matter; for a device build / TestFlight, either add
 your team in Xcode's Signing & Capabilities tab.
 
 `AppConfig.apiBaseURL` points at the **deployed Worker**
-(`https://squarely.nakka-labs.workers.dev`). For local backend work, run
+(`https://clantab.nakka-labs.workers.dev`). For local backend work, run
 `make worker-dev` (serves `:8787`) and temporarily swap `apiBaseURL` to
 `http://localhost:8787/`.
 
 ## Structure
 
 ```
-Squarely/
-├── SquarelyApp.swift       # @main entry point
+ClanTab/
+├── ClanTabApp.swift       # @main entry point
 ├── AppConfig.swift         # apiBaseURL (deployed Worker) + groupShareURL(groupId:)
 ├── AppRoute.swift          # navigation state: start / createGroup / joinGroup / group
 ├── RootView.swift          # switches on AppRoute, handles onOpenURL deep links
@@ -41,22 +41,22 @@ Squarely/
 └── Components/             # BalanceHeroView, MemberBalanceRow, ActivityRow, MoneyFormat,
                             # ClientErrorMessage, ExportFile (temp-file writer for ShareLink)
 
-../SquarelyTests/           # App unit tests (XCTest): deep-link parsing (RootView),
+../ClanTabTests/           # App unit tests (XCTest): deep-link parsing (RootView),
                             # group-not-found detection (GroupViewModel). Run via the
-                            # `Squarely` scheme (and by the pre-push hook).
+                            # `ClanTab` scheme (and by the pre-push hook).
 ```
 
-CSV/JSON serialization itself lives in `SquareKit.Export` (pure functions,
+CSV/JSON serialization itself lives in `ClanTabKit.Export` (pure functions,
 unit-tested) — this target only writes the result to a temp file for `ShareLink`.
 
 All domain logic (models, balances, debt simplification, validation, network
-client, identity storage) lives in `SquareKit`, referenced as a local Swift
+client, identity storage) lives in `ClanTabKit`, referenced as a local Swift
 package. This target should stay thin — views and view models only.
 
 ## Build status
 
-**Compiles + `SquarelyTests` pass** via `make check` / the `pre-push` hook
-(`xcodebuild test` for the `Squarely` scheme). This started life as a macOS
+**Compiles + `ClanTabTests` pass** via `make check` / the `pre-push` hook
+(`xcodebuild test` for the `ClanTab` scheme). This started life as a macOS
 GitHub Actions job (`ios-build.yml`, since removed — see `HANDOFF.md`) back
 when development was on Windows; it caught three real build errors on its
 first run: a `private` nested-type access error in `CreateGroupView`, a
@@ -81,7 +81,7 @@ no SwiftUI runtime warnings, no crashes. Full write-up and findings in
   it in Xcode's Signing tab for device builds.
 - Universal Links (tappable `https://…/g/:id` invites that open the app) need a
   custom domain + Associated Domains entitlement + a hosted
-  `apple-app-site-association`. Only the `squarely://g/:groupId` dev scheme is
+  `apple-app-site-association`. Only the `clantab://g/:groupId` dev scheme is
   wired for now; invites otherwise work by 6-character code. See `SHIP_PLAN.md`
   Track 1.
 - `MoneyFormat` assumes 2 decimal minor units for every currency (true for
@@ -96,7 +96,7 @@ no SwiftUI runtime warnings, no crashes. Full write-up and findings in
   another. (A group that has been *deleted* server-side is handled: Group Home
   detects the 404 and `RootView` falls back to the Start screen — see
   `GroupViewModel.groupUnavailable` / `RootView.leaveGroup`, covered by
-  `SquarelyTests`.)
+  `ClanTabTests`.)
 - Dark mode: reviewed, not changed. `BalanceHeroView`'s green/red and the rest
   of the UI all use system-adaptive colors (`.green`, `.red`, `.secondary`),
   which already adjust for dark mode automatically — nothing needed fixing.

@@ -3,7 +3,7 @@
 Language-neutral test vectors for the pure balance / debt-simplification logic,
 consumed by **both** implementations so they can't drift:
 
-- `SquareKit` — `SquareKitTests/GoldenParityTests.swift`
+- `ClanTabKit` — `ClanTabKitTests/GoldenParityTests.swift`
 - `worker/` — `worker/test/logic.test.ts`
 
 If you change `Balances`/`Simplify` in one language, the other's CI fails until

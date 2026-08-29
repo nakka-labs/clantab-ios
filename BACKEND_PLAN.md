@@ -1,7 +1,7 @@
-# Squarely Backend — Build Plan
+# ClanTab Backend — Build Plan
 
 > **Status: §1-§8 complete.** The Worker is built (`worker/`) and deployed at
-> `https://squarely.nakka-labs.workers.dev`; the iOS app runs against it end to
+> `https://clantab.nakka-labs.workers.dev`; the iOS app runs against it end to
 > end. `DESIGN.md` §2's full API is implemented, with 54 tests. See the
 > "Progress" section for detail and "The backend is done and live" at the end
 > for what's left (a domain, Universal Links). What follows is the plan as
@@ -26,7 +26,7 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
   `worker-*` targets, `.github/workflows/worker.yml`, `AGENTS.md` Backend
   section.
 - **§2 pure logic + parity** — ✅ done. 7 shared vectors run by both
-  `worker/test/logic.test.ts` and `SquareKitTests/GoldenParityTests.swift`.
+  `worker/test/logic.test.ts` and `ClanTabKitTests/GoldenParityTests.swift`.
 - **§3 RegistryDO** — ✅ done. `reserve` (collision-retry) + `resolve`
   (case-insensitive, per-IP 20/min fixed-window limiter). `test/registry.test.ts`.
 - **§4 GroupDO** — ✅ done. Schema from §3 + `schema_version`; `initGroup` /
@@ -45,7 +45,7 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
   registry 4 + group 6 + routes 20 via `@cloudflare/vitest-pool-workers`).
   `swift test` → 47.
 - **§6 `/g/:groupId` page** — minimal stub shipped: a noindex HTML page with an
-  "Open in Squarely" deep link (`src/index.ts` `handleCapabilityPage`). A real
+  "Open in ClanTab" deep link (`src/index.ts` `handleCapabilityPage`). A real
   landing page + `apple-app-site-association` / Universal Links still need a
   production domain.
 - **§7 re-verify the iOS app against the real backend** — ✅ done (2026-08-28).
@@ -57,7 +57,7 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
   Paid → recompute → Group Home's Share menu offers "Share Join Code (VYC5AU)".
   All temp changes reverted. Screenshots in the session scratchpad.
 - **§8 deploy** — ✅ done (2026-08-28). Live at
-  **`https://squarely.nakka-labs.workers.dev`** (`make worker-deploy`; the `v1`
+  **`https://clantab.nakka-labs.workers.dev`** (`make worker-deploy`; the `v1`
   migration created `RegistryDO` + `GroupDO`). `AppConfig.apiBaseURL` points at
   it. Production smoke test green, **and the iOS app was re-verified end-to-end
   against the deployed URL** (create → members → ₹3000 expense → server-computed
@@ -93,7 +93,7 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
 The repo was scaffolded for it: `.gitignore` already ignores `.wrangler/`,
 `node_modules/`, `dist/`; `DESIGN.md` names `src/worker/index.ts` and
 `worker/lib/balances.ts`. Keeping it here means one `DESIGN.md` contract, one
-place to keep the balance/simplify logic honest against `SquareKit`, and one
+place to keep the balance/simplify logic honest against `ClanTabKit`, and one
 PR touches both sides when the wire contract changes. A separate repo only
 makes sense if the backend gets its own release cadence or team — not the
 case now.
@@ -123,11 +123,11 @@ a real UX wart. Doing it means: one extra field in the §2 `group` object,
 one `group_meta` read, and a small iOS change (surface it on Group Home).
 
 **→ Add `joinCode` to the `group` object in the GET response.** Update
-`DESIGN.md` §2 + §12 and `SquarelyWireTypes.GroupSummary` when it lands.
+`DESIGN.md` §2 + §12 and `ClanTabWireTypes.GroupSummary` when it lands.
 
 ### 0.4 Error shapes the iOS client already expects
 
-`SquarelyClient` decodes a `{ error: { code, message } }` envelope into
+`ClanTabClient` decodes a `{ error: { code, message } }` envelope into
 `.server(code:message:)`, and a **bare** 404 (no body) into `.notFound`.
 `GroupViewModel` now treats either a bare 404 or a `GROUP_NOT_FOUND` envelope
 as "group is gone". So:
@@ -159,11 +159,11 @@ worker/
 │   ├── index.ts            # Worker entry + router (/api/*, /g/:groupId)
 │   ├── group-do.ts         # GroupDO
 │   ├── registry-do.ts      # RegistryDO
-│   ├── types.ts            # wire types, mirror of DESIGN.md §2 / SquarelyWireTypes
+│   ├── types.ts            # wire types, mirror of DESIGN.md §2 / ClanTabWireTypes
 │   └── lib/
-│       ├── balances.ts     # port of SquareKit Balances.compute
-│       ├── simplify.ts     # port of SquareKit Simplify.simplify
-│       ├── validation.ts   # port of SquareKit Validation.*
+│       ├── balances.ts     # port of ClanTabKit Balances.compute
+│       ├── simplify.ts     # port of ClanTabKit Simplify.simplify
+│       ├── validation.ts   # port of ClanTabKit Validation.*
 │       ├── ids.ts          # groupId (nanoid, 16) + joinCode (6, 32-char alphabet)
 │       └── schema.ts       # CREATE TABLE strings from DESIGN.md §3
 └── test/
@@ -182,14 +182,14 @@ worker/
 - New `.github/workflows/worker.yml` (ubuntu, Node 20): `npm ci`,
   `npm run typecheck`, `npm run test`. Path-filter on `worker/**`.
 - `AGENTS.md`: add a "Backend" section — the zero-dep rule, "logic mirrors
-  `SquareKit`, kept honest by shared fixtures", `wrangler dev` on `:8787`.
+  `ClanTabKit`, kept honest by shared fixtures", `wrangler dev` on `:8787`.
 
 ## 2. Pure logic + golden parity tests — **start here**
 
 No Cloudflare involved; highest value; this is `DESIGN.md` §11's "the tests
 that matter most".
 
-1. **Port the three pure modules** 1:1 from `SquareKit/Sources/SquareKit/Logic/`:
+1. **Port the three pure modules** 1:1 from `ClanTabKit/Sources/ClanTabKit/Logic/`:
    - `Balances.compute(members, expenses, settlements) → Balance[]` — payer
      credited full amount, each split member debited their share; settlement
      credits `fromId`, debits `toId`; one result per member, sums to zero.
@@ -205,7 +205,7 @@ that matter most".
    N-1, ₹100 split 3 ways remainder, already-settled → 0 transactions,
    idempotency (run twice, identical), and a seeded fuzz vector
    (Σ payments == Σ positive balances).
-3. **Make `SquareKitTests` consume the same fixtures** — add a Swift test that
+3. **Make `ClanTabKitTests` consume the same fixtures** — add a Swift test that
    decodes each JSON and asserts `Balances`/`Simplify` match `expected*`.
    Now both CIs fail if the two implementations drift. This is the
    enforcement mechanism for `DESIGN.md`'s "logic exists in exactly one place".
@@ -291,14 +291,14 @@ POST   /api/groups/:groupId/settlements
 `DESIGN.md` §1/§8: the Worker also serves the human-facing link.
 
 - `GET /g/:groupId` → minimal HTML with
-  `<meta name="robots" content="noindex">`, a "Open in Squarely" button
-  (deep link `squarely://g/:groupId` for now), and the App Store link once
+  `<meta name="robots" content="noindex">`, a "Open in ClanTab" button
+  (deep link `clantab://g/:groupId` for now), and the App Store link once
   there is one. Doesn't need the group's data.
 - **Universal Links** (cross-refs the iOS "deferred" item): serve
   `/.well-known/apple-app-site-association` once there's an App ID and the iOS
   app adds the Associated Domains entitlement + a production domain. Then the
   `https://<host>/g/:groupId` links `RootView.extractGroupId` already parses
-  start working without the `squarely://` scheme.
+  start working without the `clantab://` scheme.
 
 ## 7. Local integration + re-verify the iOS app against the real backend
 
@@ -335,7 +335,7 @@ POST   /api/groups/:groupId/settlements
 ## Rollout order (TL;DR)
 
 1. Scaffold `worker/` + `worker.yml` CI (§1)
-2. **Pure logic + shared golden fixtures + SquareKit parity test (§2) ← start here**
+2. **Pure logic + shared golden fixtures + ClanTabKit parity test (§2) ← start here**
 3. RegistryDO (§3)
 4. GroupDO (§4)
 5. Worker router (§5)
@@ -351,7 +351,7 @@ Rough sizing: §2 ~half a day (mostly the fixtures) · §3-§5 ~1-2 days ·
 | layer | tool | covers |
 |---|---|---|
 | unit | Vitest (no CF) | `balances` / `simplify` / `validation` + golden fixtures |
-| parity | Vitest **and** `SquareKitTests` | same fixtures, both implementations — fails on drift |
+| parity | Vitest **and** `ClanTabKitTests` | same fixtures, both implementations — fails on drift |
 | integration | `@cloudflare/vitest-pool-workers` | HTTP routes against real local DOs, Registry flow, idempotency, rate limit |
 | manual | iOS app ↔ `wrangler dev`, then ↔ prod | the `HANDOFF.md` runtime-verification flow, for real |
 

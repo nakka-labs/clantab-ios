@@ -1,9 +1,9 @@
-# Squarely Worker
+# ClanTab Worker
 
 The Cloudflare Worker + Durable Objects backend. Contract: `../DESIGN.md` §2-§8.
 Plan / status: `../BACKEND_PLAN.md`.
 
-**Deployed:** `https://squarely.nakka-labs.workers.dev`
+**Deployed:** `https://clantab.nakka-labs.workers.dev`
 
 ## Layout
 
@@ -12,8 +12,8 @@ src/
 ├── index.ts        Worker entry + URLPattern router (all of DESIGN.md §2)
 ├── registry-do.ts  RegistryDO  — joinCode ↔ groupId, per-IP rate limit
 ├── group-do.ts     GroupDO     — one group's SQLite ledger; server-computed balances
-├── types.ts        wire DTOs (mirror SquareKit's SquarelyWireTypes.swift)
-└── lib/            balances / simplify / validation (ports of SquareKit Logic/),
+├── types.ts        wire DTOs (mirror ClanTabKit's ClanTabWireTypes.swift)
+└── lib/            balances / simplify / validation (ports of ClanTabKit Logic/),
                     ids, schema (SQL DDL), parse (strict body parsing), errors, result
 test/               logic + validation (Node) · registry/group/routes (workers pool)
 ```
@@ -31,7 +31,7 @@ test/               logic + validation (Node) · registry/group/routes (workers 
 ## Notes
 
 - **Zero runtime dependencies.** Hand-rolled router; `crypto.getRandomValues` for ids.
-- **The balance / simplify logic must stay identical to `SquareKit`** — both run the
+- **The balance / simplify logic must stay identical to `ClanTabKit`** — both run the
   shared vectors in `../test-fixtures/balances/`.
 - **DO methods return `Result` / discriminated unions for expected failures**, never
   `throw` — a thrown error loses its prototype across the RPC boundary.

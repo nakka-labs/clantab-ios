@@ -34,7 +34,7 @@ const fixtures: Fixture[] = readdirSync(fixturesDir)
   .sort()
   .map((f) => JSON.parse(readFileSync(join(fixturesDir, f), "utf8")) as Fixture);
 
-describe("golden fixtures (shared with SquareKitTests/GoldenParityTests)", () => {
+describe("golden fixtures (shared with ClanTabKitTests/GoldenParityTests)", () => {
   it("there are fixtures to run", () => {
     expect(fixtures.length).toBeGreaterThan(0);
   });

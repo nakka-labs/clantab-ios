@@ -29,7 +29,7 @@ export function assertPositiveAmount(amountMinor: unknown): asserts amountMinor 
  * Splits must sum to exactly `amountMinor` — no tolerance. An `equal` split with a
  * remainder is expected to have had that remainder deterministically assigned
  * (client-side, to the payer) before the request is sent, so this is always an
- * exact check (`DESIGN.md` §6). Matches `SquareKit`'s `Validation.validateSplitsSum`:
+ * exact check (`DESIGN.md` §6). Matches `ClanTabKit`'s `Validation.validateSplitsSum`:
  * only non-empty + exact sum are checked. Individual shares may be `0` (a member
  * included in the expense who owes nothing for it, e.g. `1` minor unit split three
  * ways → `1, 0, 0`); they must be non-negative integers but need not be positive.
