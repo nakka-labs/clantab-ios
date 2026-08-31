@@ -161,7 +161,7 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
   `DESIGN.md` §5's sequence diagrams and §7 described a hypothetical web client (React `useGroup` hook, `identity.ts`/`localStorage`) that was never built — corrected to describe the actual iOS client (`GroupViewModel`, `UserDefaultsIdentityStore`). Also recorded the join-code API gap (found in Phase 6) in `DESIGN.md` §12 for whoever eventually builds the backend. `AGENTS.md` now notes `App/` needs macOS/Xcode.
 - [x] **App/ Runtime Verification pass** (2026-08-28) — first interactive run of `App/`, on an iOS 26.5 Simulator (Xcode 26.6) driven end-to-end by an XCUITest against a local mock of the API. Every screen and flow from Phases 3-6 exercised and asserted; no SwiftUI runtime warnings or crashes. Details, screenshots location, and findings in HANDOFF.md's "App/ Runtime Verification — Done" section. Two findings: a `.gitignore` gap for the xcodegen-generated `App/ClanTab/Info.plist`, and a pre-existing UX dead end when resuming into a group that no longer exists server-side — both since handled (next item).
 - [x] Screenshots + mermaid architecture diagram added to `README.md` (2026-08-28) — 5 screenshots from the runtime pass (`docs/screenshots/`) and a `flowchart` showing the ClanTabKit core / App shell / out-of-scope Worker split.
-- [x] Acted on the runtime-pass findings (2026-08-28): the resume-into-deleted-group dead end is fixed — Group Home now detects the group's 404 (`GroupViewModel.groupUnavailable`) and `RootView` falls back to the Start screen. Added a first `ClanTabTests` unit-test target (17 tests) covering deep-link parsing (`RootView.extractGroupId` / `resolveDeepLink`) and group-not-found detection; `ios-build.yml` now runs it in CI.
+- [x] Acted on the runtime-pass findings (2026-08-28): the resume-into-deleted-group dead end is fixed — Group Home now detects the group's 404 (`GroupViewModel.groupUnavailable`) and `RootView` falls back to the Start screen. Added a first `ClanTabTests` unit-test target (17 tests) covering deep-link parsing (`RootView.extractGroupId` / `resolveDeepLink`) and group-not-found detection. _(At the time `ios-build.yml` ran this in CI; that macOS workflow was later retired — the iOS build + `ClanTabTests` now run in the local `pre-push` hook. See `HANDOFF.md`.)_
 - [x] Tagged **`v0.1.0`** (2026-08-28) — the iOS-app-only milestone: ClanTabKit
   pure core (46 tests) + the SwiftUI app, compiled and run-verified end-to-end
   against a mock of the API, with README screenshots + architecture diagram.
@@ -178,15 +178,17 @@ Given net balances (sum of paid minus owed across all expenses and settlements),
 
 ## Phase 7 complete (2026-08-28)
 
-`PLAN.md`'s roadmap ends here. `v0.1.0` is tagged. The obvious next tracks,
-none of them started:
+`PLAN.md`'s roadmap ends here. `v0.1.0` is tagged. The next tracks (status as of
+2026-08-31 — see `HANDOFF.md` and `SHIP_PLAN.md` for detail):
 
-- **The backend** — build the Cloudflare Worker + Durable Objects from
-  `DESIGN.md` (its whole API surface), deploy it, point `AppConfig.apiBaseURL`
-  at it, and re-run the app against the real thing. **Planned in
-  `BACKEND_PLAN.md`** (phased, keyed to `DESIGN.md`).
-- **Ship the app for real** — app icon + accent colour asset catalog, a
-  physical-device run, then TestFlight (the Developer Program enrolment is now
-  in place).
-- **Universal Links** — Associated Domains entitlement + hosted
-  `apple-app-site-association`, once there's a production domain.
+- **The backend** — ✅ done. Cloudflare Worker + Durable Objects built in
+  `worker/` (`BACKEND_PLAN.md` §1-§8), deployed at
+  `https://clantab.nakka-labs.workers.dev`, `AppConfig.apiBaseURL` points at
+  it, app re-verified end to end. Tagged `v0.2.0`.
+- **Ship the app for real** — in progress (`SHIP_PLAN.md`). App icon
+  (placeholder), App ID + App Store Connect record, signing, and the first
+  TestFlight upload (`1.0 (1)`) are done. Next: on-device pass, then App Store
+  submission (real icon + screenshots).
+- **Universal Links** — not started. Associated Domains entitlement + hosted
+  `apple-app-site-association`, once there's a production domain
+  (`SHIP_PLAN.md` Track 1). Optional; invites work by 6-char code.

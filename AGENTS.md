@@ -10,8 +10,9 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 - `worker/` (Cloudflare Worker backend — `BACKEND_PLAN.md`): `npm --prefix worker ci`, then `make worker-test` / `worker-typecheck` / `worker-dev`. `make worker-deploy` needs `wrangler login`.
 
 ## CI
-- `.github/workflows/`: `test.yml` (ClanTabKit, Linux) and `worker.yml` (Worker, Linux) run on push — cheap, within the free tier. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret).
-- **The iOS build is NOT in cloud CI** — macOS Actions minutes bill 10×. It runs in the `pre-push` hook on the dev's Mac. Don't re-add a macOS workflow without a reason.
+- The repo is **public**, so GitHub-hosted runners (Linux and macOS) are unmetered.
+- `.github/workflows/`: `test.yml` (ClanTabKit, Linux) and `worker.yml` (Worker, Linux) run on push. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret). `pages.yml` publishes `docs/privacy-policy.md` to GitHub Pages.
+- **The iOS build is NOT in cloud CI** — it runs in the `pre-push` hook on the dev's Mac for fast local feedback. A macOS CI job is now cost-free to add if PR-time checks are wanted; don't add one without a reason.
 
 ## Backend (`worker/`)
 - **Same rules as `ClanTabKit`**: integer minor units only, derived balances, zero runtime dependencies (dev deps like `vitest`/`typescript` are fine). Hand-rolled router (`URLPattern`) over a framework.

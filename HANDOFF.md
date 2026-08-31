@@ -1,6 +1,6 @@
 # ClanTab iOS — Handoff Guide
 
-## ▶ Status (2026-08-28) — App + Backend Live End-to-End; `v0.2.0` Tagged
+## ▶ Status (2026-08-31) — First TestFlight Build Uploaded
 
 **iOS track**: Phases 0-7 done (`v0.1.0`). The app builds + passes
 `ClanTabTests` via `make check` / the pre-push hook, ran end-to-end on an iOS
@@ -14,13 +14,24 @@ screenshots + an architecture diagram.
 end-to-end against the deployed URL. `AppConfig.apiBaseURL` points at it.
 **Repo tagged `v0.2.0`** ("iOS app + backend, working end to end").
 
-**Next up:** `SHIP_PLAN.md` — getting ClanTab into people's hands.
-**Critical path is Track 2** (app icon, privacy manifest, App Store Connect
-record, TestFlight). Track 1 (a custom domain + Universal Links, for tappable
-invite links) is **optional for launch** — invites work today by 6-char code;
-the domain can be a fast-follow. Track 3 is operational hardening; Track 4
-(WebSockets) is post-launch. What needs you is a table at the bottom of the
-file; the App Store Connect record + icon are the launch blockers.
+**Ship track** (`SHIP_PLAN.md`): **Track 2 largely done.** As of 2026-08-31:
+- Repo is **public** (`nakka-labs/clantab-ios`) — GitHub Actions and Pages are
+  now unmetered; the "Actions minutes drained" problem in Track 3.0 is gone.
+- Apple App ID `com.clantab.app` registered; App Store Connect app "ClanTab"
+  created; `DEVELOPMENT_TEAM: UK652GNPP7` + `CODE_SIGN_STYLE: Automatic` +
+  `ITSAppUsesNonExemptEncryption: false` in `project.yml`.
+- `MARKETING_VERSION` = `1.0` (matches the App Store Connect version record).
+- **Build `1.0 (1)` archived in Xcode and uploaded to App Store Connect**
+  (2026-08-31); processed; internal test group `test-team` created.
+- Privacy policy **live** at `https://nakka-labs.github.io/clantab-ios/`
+  (published by `.github/workflows/pages.yml`).
+
+**Next up:** add an internal tester to `test-team`, install via TestFlight,
+run the on-device end-to-end pass against the production Worker, then tag
+`v0.4.0`. Still open: `CLOUDFLARE_API_TOKEN` repo secret (tag-deploy CI), a
+real app icon, App Store screenshots + App Privacy answers (external testing /
+submission only), and Track 1 (custom domain + Universal Links — optional,
+invites work by 6-char code today).
 
 The balance/simplify logic now lives in two languages kept in lockstep by
 `test-fixtures/balances/` (run by both `swift test` and `npm --prefix worker
@@ -42,11 +53,11 @@ GitHub repo description are already updated; a fresh clone should use
    (the `.xcodeproj` + `ClanTab/Info.plist` are gitignored — regenerate, never
    edit). Backend: `make worker-dev` (serves `:8787`) or work against the
    deployed `AppConfig.apiBaseURL`.
-3. **The current focus is `SHIP_PLAN.md`** — TestFlight readiness. Blockers are
-   yours: the Apple App ID + App Store Connect record, a real app icon,
-   hosting `docs/privacy-policy.md`, `CLOUDFLARE_API_TOKEN` repo secret, the
-   TestFlight upload. Everything code-side is drafted (icon placeholder,
-   `PrivacyInfo.xcprivacy`, `docs/appstore/metadata.md`, deploy CI).
+3. **The current focus is `SHIP_PLAN.md`** — TestFlight. The App ID, App Store
+   Connect record, signing, and the first build upload are **done** (see the
+   status block above). What's left: install via TestFlight and do the
+   on-device pass, add the `CLOUDFLARE_API_TOKEN` repo secret, a real app icon,
+   and the App Store listing (screenshots + App Privacy) before submission.
 
 ## Phase 0 Checklist — Completed
 - [x] Private GitHub repository created (`indra-nakka/clantab-ios`)
@@ -134,11 +145,14 @@ GitHub repo description are already updated; a fresh clone should use
 ## App/ Build + Test Check — local pre-push hook
 
 Originally a GitHub Actions **macOS** runner (`ios-build.yml`) did the iOS
-build, because development was on Windows. Now that there's a Mac, that
-moved local — macOS Actions minutes bill at 10× and drained the account's
-free pool. **`make hooks`** points `core.hooksPath` at `.githooks/`; the
-`pre-push` hook then runs, before every push, the checks relevant to what's
-being pushed:
+build, because development was on Windows. Now that there's a Mac, that moved
+local — at the time the repo was private and macOS Actions minutes (10× rate)
+had drained the account's free pool. The repo is **public** now, so
+GitHub-hosted runners (macOS included) are unmetered again and a macOS CI job
+could be re-added; the `pre-push` hook is kept anyway for fast local feedback
+without waiting on CI. **`make hooks`** points `core.hooksPath` at
+`.githooks/`; the `pre-push` hook then runs, before every push, the checks
+relevant to what's being pushed:
 
 - `swift test --package-path ClanTabKit` (if `ClanTabKit/` or `test-fixtures/`)
 - `worker` typecheck + tests (if `worker/` or `test-fixtures/`)
@@ -146,9 +160,10 @@ being pushed:
   builds the app and runs `ClanTabTests` (if `App/` or `ClanTabKit/`)
 
 `make check` runs all of it unconditionally. Bypass with `SKIP_CHECKS=1` or
-`SKIP_APP_CHECK=1`. The two remaining cloud workflows — `test.yml`
-(ClanTabKit) and `worker.yml` (Worker) — are Linux-only and stay well within
-the free tier; `worker-deploy.yml` runs on `v*` tags.
+`SKIP_APP_CHECK=1`. The two cloud workflows — `test.yml` (ClanTabKit) and
+`worker.yml` (Worker) — are Linux-only and, on a public repo, unmetered;
+`worker-deploy.yml` runs on `v*` tags. `pages.yml` publishes the privacy
+policy.
 
 **The `ios-build.yml` era closed Phases 3-6's biggest open risk.** It found
 and fixed three real build errors on its first run:
@@ -317,7 +332,8 @@ What got done:
   resume-into-deleted-group dead end (`GroupViewModel.groupUnavailable` +
   `RootView.leaveGroup`), and added the first `App/` unit-test target
   (`ClanTabTests`, 17 tests) for deep-link parsing and group-not-found
-  detection — now also run by `ios-build.yml`.
-- [ ] Release tag: **not done**. `App/` now both compiles and runs standalone
-  against a mock backend, so `v0.1.0` could reasonably mean "the iOS app
-  works standalone" without waiting on the Worker — that's the call to make.
+  detection — run by the local `pre-push` hook (was `ios-build.yml` at the
+  time; that macOS workflow was later retired).
+- [x] Release tag: **done**. `v0.1.0` (iOS app standalone, 2026-08-28),
+  `v0.2.0` (app + backend end to end), `v0.3.0` (ClanTab rebrand +
+  foreground auto-refresh) are all tagged.

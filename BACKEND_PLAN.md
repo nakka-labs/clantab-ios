@@ -72,17 +72,23 @@ schema evolution §10, testing §11, deferred §12) — this plan is the
 
 ## The backend is done and live
 
-`BACKEND_PLAN.md`'s track (§1-§8) is complete. Remaining, all unstarted:
+`BACKEND_PLAN.md`'s track (§1-§8) is complete. Remaining (status 2026-08-31 —
+tracked in `SHIP_PLAN.md`):
 
-- **A real landing page + Universal Links** — needs a production domain (own it,
-  put it on Cloudflare, `wrangler` custom domain), then a proper `/g/:groupId`
-  page + `/.well-known/apple-app-site-association`, and the iOS Associated
-  Domains entitlement. `https://<domain>/g/:groupId` links then open the app
-  directly (`RootView.extractGroupId` already parses them).
-- **Ship the iOS app** — app icon + accent-colour asset catalog, a device run,
-  TestFlight.
+- **A real landing page + Universal Links** — not started. Needs a production
+  domain on Cloudflare (`nakka.dev` is owned — `SHIP_PLAN.md` §0.1), then a
+  proper `/g/:groupId` page + `/.well-known/apple-app-site-association`, and the
+  iOS Associated Domains entitlement. `https://<domain>/g/:groupId` links then
+  open the app directly (`RootView.extractGroupId` already parses them).
+- **Ship the iOS app** — in progress. App icon (placeholder), App ID, App Store
+  Connect record, signing, and the first TestFlight upload (`1.0 (1)`) done;
+  on-device pass next, then App Store submission.
+- **`CLOUDFLARE_API_TOKEN` GitHub secret** — not set. `worker-deploy.yml` runs
+  on `v*` tags but can't deploy until it exists; `make worker-deploy` locally
+  meanwhile.
 - **WebSocket live updates** — only if usage shows people have the app open
-  simultaneously (`DESIGN.md` §12).
+  simultaneously (`DESIGN.md` §12). An interim foreground poll shipped in
+  `v0.3.0`.
 
 ---
 

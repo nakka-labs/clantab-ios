@@ -89,7 +89,7 @@ clantab-ios/
 │
 ├── test-fixtures/       # Language-neutral golden vectors run by ClanTabKit AND worker
 ├── docs/                # privacy policy, App Store metadata, screenshots
-├── .githooks/pre-push   # local build/test gate (macOS Actions is metered) — `make hooks`
+├── .githooks/pre-push   # local build/test gate (fast feedback, no CI wait) — `make hooks`
 ├── DESIGN.md            # the wire / storage / security contract
 ├── PLAN.md · BACKEND_PLAN.md · SHIP_PLAN.md   # roadmaps: app · backend · shipping
 └── HANDOFF.md           # running status log

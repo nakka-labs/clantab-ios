@@ -17,10 +17,12 @@ open ClanTab.xcodeproj
 `project.yml` and gitignored — never edit them directly; edit `project.yml`
 and regenerate instead.
 
-Signing: `project.yml` doesn't hardcode a `DEVELOPMENT_TEAM`. For a Simulator
-build it doesn't matter; for a device build / TestFlight, either add
-`DEVELOPMENT_TEAM: <your Team ID>` to `project.yml`'s `settings.base` or pick
-your team in Xcode's Signing & Capabilities tab.
+Signing: `project.yml` sets `DEVELOPMENT_TEAM: UK652GNPP7` and
+`CODE_SIGN_STYLE: Automatic`, so device / TestFlight builds sign without
+per-machine Xcode setup (the Apple ID for that team must be added in Xcode →
+Settings → Accounts). `ITSAppUsesNonExemptEncryption: false` is set too, which
+skips the export-compliance prompt on every upload (the app is HTTPS-only —
+exempt).
 
 `AppConfig.apiBaseURL` points at the **deployed Worker**
 (`https://clantab.nakka-labs.workers.dev`). For local backend work, run
@@ -77,8 +79,6 @@ no SwiftUI runtime warnings, no crashes. Full write-up and findings in
   `AccentColor`. Fine for TestFlight; swap for real design before the App Store.
 - No custom launch screen (`UILaunchScreen: {}` → plain system background —
   HIG-compliant, no flash, but unbranded). `SHIP_PLAN.md` Track 2.
-- `DEVELOPMENT_TEAM` isn't set in `project.yml` — add your Team ID there or pick
-  it in Xcode's Signing tab for device builds.
 - Universal Links (tappable `https://…/g/:id` invites that open the app) need a
   custom domain + Associated Domains entitlement + a hosted
   `apple-app-site-association`. Only the `clantab://g/:groupId` dev scheme is

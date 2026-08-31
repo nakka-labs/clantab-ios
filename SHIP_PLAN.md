@@ -4,19 +4,21 @@
 deployed the Worker (§1-§8 → `v0.2.0`). The app and backend now work end to end
 against `https://clantab.nakka-labs.workers.dev`.
 
-**What's still missing before anyone else can use it:**
-- **App Store / TestFlight presence** (Track 2) — the app has no icon, no
-  privacy manifest, and no App Store Connect record, so nobody but you can
-  install it. *This* is the real blocker to real users.
+**Status (2026-08-31):** Track 2 is largely done — App ID registered, App Store
+Connect record created, signing wired, and **build `1.0 (1)` is on App Store
+Connect** in the `test-team` internal group. Track 3.0 (CI billing) is resolved
+by making the repo public. What's left:
+- **On-device validation** (Track 2) — add an internal tester, install via
+  TestFlight, run the end-to-end pass against the production Worker, tag
+  `v0.4.0`.
+- **App Store submission** (Track 2) — real app icon, screenshots, App Privacy
+  answers, then submit for review. Not needed for internal TestFlight.
 - **Tappable invite links** (Track 1) — sharing works today via the
-  6-character join code typed into the app; a link that opens the app on tap
-  needs a custom domain + Universal Links.
-- **Operational** (Track 3) — no monitoring, no deploy automation, one known
-  edge issue (the Cloudflare `1010` block for non-browser clients).
-
-The app + backend are functionally complete and deployed. Four tracks below;
-**Track 2 is the critical path** (Track 1 is a UX upgrade you can add before or
-after launch).
+  6-character join code; a link that opens the app on tap needs a custom
+  domain + Universal Links. Optional, add anytime.
+- **Operational** (Track 3) — no monitoring yet; `CLOUDFLARE_API_TOKEN` secret
+  not set (deploy is manual via `make worker-deploy`); one known edge issue
+  (the Cloudflare `1010` block for non-browser clients).
 
 ---
 
@@ -88,18 +90,20 @@ ship v1 on `workers.dev` with code-only joining and wire the subdomain later
 argument for waiting is gone since the domain itself is a sunk, already-paid
 cost either way.
 
-### 0.2 Apple distribution — **needs you**
+### 0.2 Apple distribution — **done (2026-08-31)**
 
-- **Bundle ID**: `com.clantab.app` (already in `project.yml`). Register it at
-  developer.apple.com → Identifiers, with the **Associated Domains** capability
-  enabled (for Track 1).
-- **App Store Connect record**: create the "ClanTab" app (needs the bundle ID).
-  A name reservation is worth doing early — "ClanTab" may be taken.
-- **`DEVELOPMENT_TEAM`**: add your Team ID to `project.yml` (`settings.base`)
-  so the project builds signed without per-machine Xcode fiddling. Or keep it
-  out and set it in Xcode's Signing tab each machine — your call.
+- ✅ **Bundle ID** `com.clantab.app` registered at developer.apple.com.
+  (Associated Domains capability for Track 1 not yet enabled — add when Track 1
+  starts.)
+- ✅ **App Store Connect record** "ClanTab" created (Team: Indra Dev Nakka,
+  Team ID `UK652GNPP7`).
+- ✅ **`DEVELOPMENT_TEAM: UK652GNPP7`** + `CODE_SIGN_STYLE: Automatic` in
+  `project.yml` (`settings.base`) — the project signs without per-machine
+  Xcode setup.
 - **TestFlight scope**: internal testing (up to 100, no review) is enough to
-  start. External testing / App Store submission triggers App Review — see §2.4.
+  start. Internal group `test-team` created; build `1.0 (1)` uploaded
+  2026-08-31. External testing / App Store submission triggers App Review —
+  see §2.4.
 
 ### 0.3 Environments
 
@@ -186,37 +190,40 @@ tappable link. Depends on §0.1 (a domain).
 5. **Review-risk review** — covered in the metadata's review notes: capability
    link, no accounts, trust-based settlement, no IAP, no analytics/ads. Nothing
    should trip 3.1.1 or 5.1.1.
-6. ✅ **Deploy CI** — `.github/workflows/worker-deploy.yml`: on a `v*` tag,
-   `npm ci` → typecheck → test → `wrangler deploy`. **You add the
+6. **Deploy CI** — `.github/workflows/worker-deploy.yml` exists: on a `v*` tag,
+   `npm ci` → typecheck → test → `wrangler deploy`. **Still needs the
    `CLOUDFLARE_API_TOKEN` repo secret** (Cloudflare → My Profile → API Tokens →
-   "Edit Cloudflare Workers" template). An Xcode Cloud / fastlane lane for
+   "Edit Cloudflare Workers" template) before it can actually deploy; until
+   then, `make worker-deploy` locally. An Xcode Cloud / fastlane lane for
    TestFlight uploads is optional.
-7. **Bump `MARKETING_VERSION`** (now `1.0`) and `CURRENT_PROJECT_VERSION` per
-   build.
-8. ✅ **Privacy policy** — written at `docs/privacy-policy.md`, and
-   `.github/workflows/pages.yml` publishes just that file to GitHub Pages on
-   every change. **You**: repo Settings → Pages → Source: "GitHub Actions"
-   (one-time), then run the workflow and paste
-   `https://nakka-labs.github.io/clantab-ios/` into App Store Connect +
-   `docs/appstore/metadata.md`.
+7. ✅ **`MARKETING_VERSION` = `1.0`** (matches the App Store Connect version
+   record). Bump `CURRENT_PROJECT_VERSION` per upload.
+8. ✅ **Privacy policy** — `docs/privacy-policy.md`, published by
+   `.github/workflows/pages.yml`. Pages source set to "GitHub Actions"; **live
+   at `https://nakka-labs.github.io/clantab-ios/`** and set as the Privacy
+   Policy URL in `docs/appstore/metadata.md`. Paste it into App Store Connect
+   with the rest of the listing.
+9. ✅ **First TestFlight build** — `1.0 (1)` archived in Xcode and uploaded to
+   App Store Connect 2026-08-31; processed; internal group `test-team` created.
+   Next: add an internal tester and install via the TestFlight app.
 
-**Still needs you:** the Apple App ID + App Store Connect record, a real app
-icon (eventually), enabling GitHub Pages, App Store screenshots, the
-`CLOUDFLARE_API_TOKEN` secret, and the TestFlight upload (Xcode → Archive →
-Distribute, or fastlane with an App Store Connect API key).
+**Still needs you:** add an internal tester + the on-device end-to-end pass, a
+real app icon (before the App Store), App Store screenshots + App Privacy
+answers (external testing / submission), and the `CLOUDFLARE_API_TOKEN` repo
+secret.
 
 ---
 
 ## Track 3 — Operational hardening (do alongside Track 2, before real users)
 
-0. ✅ **CI cost** — the metered macOS `ios-build.yml` is gone; the iOS build +
-   `ClanTabTests` moved to a local `pre-push` hook (`make hooks` / `make
-   check`, `.githooks/pre-push`). Cloud CI is now Linux-only (`test.yml`,
-   `worker.yml`) plus tag-triggered `worker-deploy.yml` — all within the free
-   tier. A self-hosted macOS runner could bring PR checks back later, unmetered.
-   **Until the account's Actions minutes reset (or a spending limit is set),
-   even the Linux workflows fail** — the free pool is shared and macOS drained
-   it. `make check` locally is the source of truth meanwhile.
+0. ✅ **CI cost** — **resolved by making the repo public (2026-08-31).**
+   GitHub-hosted runners (Linux *and* macOS) are unmetered for public repos, so
+   the earlier "macOS drained the shared free pool, now every workflow fails"
+   problem is gone. `test.yml` / `worker.yml` / `worker-deploy.yml` / `pages.yml`
+   all run for free. The iOS build stays in the local `pre-push` hook (`make
+   hooks` / `make check`) for fast feedback; a macOS CI job is now cost-free to
+   add if PR-time checks are wanted. The history scan before going public found
+   no secrets in the tree (`CLOUDFLARE_API_TOKEN` is a GitHub Secret).
 1. **Observability** — the Worker already has `observability.enabled`. Set up a
    Logpush or a dashboard alert for 5xx rate and DO errors. The
    `cloudflare-observability` MCP can tail logs during incidents.
@@ -267,16 +274,20 @@ Not on the critical path. Skip until the data says otherwise.
 ## Suggested order
 
 ```
-0. Lock decisions (§0) — Apple app record is the long pole; domain is optional
+✅ 0. Decisions locked · App ID + App Store Connect record + signing done
+✅    Repo public (CI billing fixed) · privacy policy live
 
 CRITICAL PATH ─────────────────────────────────────────────
-├─ Track 2 (icon, privacy manifest, metadata, deploy CI)   needs §0.2
-├─ Track 3 (observability, edge, limits)   alongside Track 2, done before
-│                                          the first external tester
-▼
-TestFlight internal → external → App Store submission
+✅ ├─ Track 2 core: icon (placeholder), privacy manifest, metadata draft,
+   │              signing, first TestFlight upload (build 1.0 (1))
+   ├─ NOW: add internal tester → install → on-device E2E pass → tag v0.4.0
+   ├─ Track 3 (observability, edge, limits)   before the first external tester
+   ▼
+   TestFlight internal ──▶ external (needs screenshots + App Privacy)
+                      ──▶ App Store submission (needs real icon too)
 
 OPTIONAL / PARALLEL ───────────────────────────────────────
+├─ CLOUDFLARE_API_TOKEN secret → automated tag-deploy (else make worker-deploy)
 ├─ Track 1 (domain + Universal Links)   needs §0.1 (a domain); can land
 │                                       before OR after launch — until then,
 │                                       invites are by 6-char code
@@ -291,14 +302,17 @@ Rough sizing: Track 1 ≈ 1 day of work once the domain exists · Track 2 ≈ 1-
 days plus the icon/metadata/policy content (yours) · Track 3 ≈ half a day ·
 Track 4 ≈ 1-2 days when it's time.
 
-## What needs you (nothing else is blocked on me)
+## What needs you
 
-| | | required for launch? |
+| | | status |
 |---|---|---|
-| Register the App ID, create the App Store Connect app | Track 2 | **yes** |
-| App icon (or a one-line brief) | Track 2 | **yes** |
-| Privacy policy page + App Store copy/screenshots | Track 2 | **yes** |
-| Run the TestFlight upload (Xcode Archive → Distribute, or fastlane) | Track 2 | **yes** |
-| Add `CLOUDFLARE_API_TOKEN` as a GitHub secret (deploy CI) | Track 2.6 | optional |
-| **Buy a domain**, put it on Cloudflare | Track 1 | **no** — enables tappable links; add anytime |
+| Register the App ID, create the App Store Connect app | Track 2 | ✅ done 2026-08-31 |
+| Signing (`DEVELOPMENT_TEAM`) + first TestFlight upload | Track 2 | ✅ build `1.0 (1)` uploaded |
+| Make the repo public (fixes CI billing) | Track 3.0 | ✅ done 2026-08-31 |
+| Enable GitHub Pages + set the privacy-policy URL | Track 2.8 | ✅ live |
+| Add an internal tester, install via TestFlight, on-device E2E pass | Track 2 | **next** |
+| Real app icon (or a one-line brief) | Track 2 | before App Store |
+| App Store screenshots + App Privacy answers | Track 2 | external testing / submission |
+| Add `CLOUDFLARE_API_TOKEN` as a GitHub secret (deploy CI) | Track 2.6 | optional; `make worker-deploy` locally meanwhile |
+| Custom domain on Cloudflare → Universal Links | Track 1 | optional; invites work by 6-char code today |
 | Run `make worker-deploy` when the backend changes | Tracks 1 & 3 | as needed |
