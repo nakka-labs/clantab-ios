@@ -70,9 +70,11 @@ as a shared document link. Keep the link private to the people in your group.
 _leave blank for now_
 
 ## Privacy Policy URL (required)
-Host `docs/privacy-policy.md` somewhere public and put the URL here. Quickest:
-GitHub Pages for this repo → `https://nakka-labs.github.io/clantab-ios/privacy-policy`
-(enable Pages: repo Settings → Pages → deploy from `main` `/docs`).
+`https://nakka-labs.github.io/clantab-ios/`
+
+Live. `docs/privacy-policy.md` is published as the site root by
+`.github/workflows/pages.yml` on every change to that file (Pages source:
+"GitHub Actions"). The repo is public, so the Pages build is unmetered.
 
 ---
 

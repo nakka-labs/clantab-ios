@@ -39,6 +39,10 @@ targets:
       properties:
         CFBundleDisplayName: ClanTab
         UILaunchScreen: {}
+        # The app only talks HTTPS (exempt encryption), so no annual
+        # self-classification is needed. Declaring this here skips the
+        # export-compliance prompt on every TestFlight upload.
+        ITSAppUsesNonExemptEncryption: false
         # Development-only deep link scheme, testable in Simulator without a real
         # domain: `xcrun simctl openurl booted "clantab://g/<groupId>"`. Universal
         # Links (`https://<host>/g/:groupId`, DESIGN.md's actual share link) need
@@ -56,8 +60,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        # For device builds / TestFlight, add: DEVELOPMENT_TEAM: <your Team ID>
-        # (or select it in Xcode's Signing & Capabilities tab).
+        DEVELOPMENT_TEAM: UK652GNPP7
+        CODE_SIGN_STYLE: Automatic
 
   # App-level unit tests (deep-link parsing, group-not-found handling). Pure
   # XCTest, no Simulator UI — runs anywhere, including `ios-build.yml`.
