@@ -111,8 +111,9 @@ real users; skip until then.
 
 ### 0.4 `MARKETING_VERSION`
 
-Bumped to `0.2.0` (`project.yml`). Treat it as the TestFlight/App Store
-version going forward, independent of git tags.
+Set to `1.0` (`project.yml`) to match the version record App Store Connect
+created for the app. Treat it as the TestFlight/App Store version going
+forward, independent of git tags; bump `CURRENT_PROJECT_VERSION` per upload.
 
 ---
 
@@ -190,7 +191,7 @@ tappable link. Depends on §0.1 (a domain).
    `CLOUDFLARE_API_TOKEN` repo secret** (Cloudflare → My Profile → API Tokens →
    "Edit Cloudflare Workers" template). An Xcode Cloud / fastlane lane for
    TestFlight uploads is optional.
-7. **Bump `MARKETING_VERSION`** (now `0.2.0`) and `CURRENT_PROJECT_VERSION` per
+7. **Bump `MARKETING_VERSION`** (now `1.0`) and `CURRENT_PROJECT_VERSION` per
    build.
 8. ✅ **Privacy policy** — written at `docs/privacy-policy.md`, and
    `.github/workflows/pages.yml` publishes just that file to GitHub Pages on
