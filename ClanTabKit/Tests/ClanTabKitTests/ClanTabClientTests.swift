@@ -165,6 +165,44 @@ struct ClanTabClientTests {
         #expect(body["id"] as? String == "client-generated")
     }
 
+    @Test("addExpense encodes category + categoryIcon when set, omits them when nil")
+    func testAddExpenseCategoryEncoding() async throws {
+        let response = jsonData([
+            "expense": [
+                "id": "e1", "payerId": "m1", "amountMinor": 100, "description": "Cab",
+                "date": "2026-01-15T10:00:00Z", "splitType": "equal",
+                "splits": [["memberId": "m1", "amountMinor": 100]],
+            ],
+        ])
+
+        let withCategory = FakeTransport(statusCode: 201, body: response)
+        _ = try await ClanTabClient(baseURL: baseURL, transport: withCategory).addExpense(
+            groupId: "g1",
+            AddExpenseRequest(
+                payerId: "m1", amountMinor: 100, description: "Cab",
+                date: Date(timeIntervalSince1970: 0), splitType: .equal,
+                splits: [ExpenseSplit(memberId: "m1", amountMinor: 100)],
+                category: "Transport", categoryIcon: "car"
+            )
+        )
+        let set = decodeBody(await withCategory.lastRequest)
+        #expect(set["category"] as? String == "Transport")
+        #expect(set["categoryIcon"] as? String == "car")
+
+        let without = FakeTransport(statusCode: 201, body: response)
+        _ = try await ClanTabClient(baseURL: baseURL, transport: without).addExpense(
+            groupId: "g1",
+            AddExpenseRequest(
+                payerId: "m1", amountMinor: 100, description: "Cab",
+                date: Date(timeIntervalSince1970: 0), splitType: .equal,
+                splits: [ExpenseSplit(memberId: "m1", amountMinor: 100)]
+            )
+        )
+        let unset = decodeBody(await without.lastRequest)
+        #expect(unset["category"] == nil)
+        #expect(unset["categoryIcon"] == nil)
+    }
+
     @Test("fetchGroupState decodes the full group snapshot, including nested balances")
     func testFetchGroupStateDecodesFullSnapshot() async throws {
         let responseBody = jsonData([

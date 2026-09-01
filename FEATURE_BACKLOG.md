@@ -19,10 +19,13 @@
   alter a CHECK in place). Exact-amount ("custom") splits already existed as
   `.exact`. `AddExpenseView` gained a third segment with per-member `%` fields.
   See `DESIGN.md` §2/§6/§10.
-- **Custom categories + icons.** A category string + icon field on the
-  expense model, no backend change beyond storing it. Needs an icon
-  picker in the UI and a migration story for existing expenses with no
-  category (default to "Uncategorized", don't force a backfill).
+- ~~**Custom categories + icons.**~~ **Shipped 2026-09-01.** `Expense` gained
+  nullable `category` + `categoryIcon` (an SF Symbol name, stored per expense so
+  no shared name→icon table is needed). `ExpenseCategory` in `ClanTabKit` carries
+  the curated default set + icon grid; `CategoryPickerView` does one-tap defaults
+  or a custom name + icon. Schema v3 is a plain `ADD COLUMN` (no rebuild); missing
+  category renders as "Uncategorized", no backfill. Activity rows show the icon;
+  CSV export gained a Category column. See `DESIGN.md` §2/§3/§10.
 - **Graphs.** Spending visualizations from data already in the ledger —
   e.g. spend-over-time, per-member share of group spend, category
   breakdown if/when categories exist. Pure `ClanTabKit` computation (like

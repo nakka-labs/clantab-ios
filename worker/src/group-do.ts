@@ -40,6 +40,8 @@ type ExpenseRow = Row<{
   description: string;
   expense_date: string;
   split_type: "equal" | "exact" | "percentage";
+  category: string | null;
+  category_icon: string | null;
 }>;
 type SplitRow = Row<{
   expense_id: string;
@@ -79,7 +81,7 @@ export class GroupDO extends DurableObject {
    * current `SCHEMA_VERSION`.
    */
   private migrate(): void {
-    const current = this.meta(META_KEYS.schemaVersion);
+    let current = this.meta(META_KEYS.schemaVersion);
     if (current === null) return;
 
     if (current === "1") {
@@ -102,6 +104,17 @@ export class GroupDO extends DurableObject {
         DROP TABLE expenses_v1;
       `);
       this.setMeta(META_KEYS.schemaVersion, "2");
+      current = "2";
+    }
+
+    if (current === "2") {
+      // v3: add the category columns (nullable). In-place, no rebuild.
+      this.sql.exec(`
+        ALTER TABLE expenses ADD COLUMN category TEXT;
+        ALTER TABLE expenses ADD COLUMN category_icon TEXT;
+      `);
+      this.setMeta(META_KEYS.schemaVersion, "3");
+      current = "3";
     }
   }
 
@@ -177,7 +190,7 @@ export class GroupDO extends DurableObject {
     const now = Date.now();
 
     this.sql.exec(
-      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       req.payerId,
       req.amountMinor,
@@ -185,6 +198,8 @@ export class GroupDO extends DurableObject {
       req.date,
       req.splitType,
       now,
+      req.category ?? null,
+      req.categoryIcon ?? null,
     );
     for (const s of req.splits) {
       this.sql.exec(
@@ -303,6 +318,10 @@ export class GroupDO extends DurableObject {
       splits: allSplits
         .filter((s) => s.expense_id === e.id)
         .map((s) => ({ memberId: s.member_id, amountMinor: s.amount_minor })),
+      // Omit the keys entirely when unset (nullable columns → `undefined` →
+      // dropped by JSON.stringify), matching the `category?` wire shape.
+      ...(e.category != null ? { category: e.category } : {}),
+      ...(e.category_icon != null ? { categoryIcon: e.category_icon } : {}),
     };
   }
 

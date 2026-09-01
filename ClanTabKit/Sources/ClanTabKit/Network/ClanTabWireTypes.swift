@@ -96,6 +96,8 @@ public struct AddExpenseRequest: Sendable {
     public let date: Date
     public let splitType: SplitType
     public let splits: [ExpenseSplit]
+    public let category: String?
+    public let categoryIcon: String?
 
     public init(
         id: String? = nil,
@@ -104,7 +106,9 @@ public struct AddExpenseRequest: Sendable {
         description: String,
         date: Date,
         splitType: SplitType,
-        splits: [ExpenseSplit]
+        splits: [ExpenseSplit],
+        category: String? = nil,
+        categoryIcon: String? = nil
     ) {
         self.id = id
         self.payerId = payerId
@@ -113,17 +117,19 @@ public struct AddExpenseRequest: Sendable {
         self.date = date
         self.splitType = splitType
         self.splits = splits
+        self.category = category
+        self.categoryIcon = categoryIcon
     }
 }
 
 extension AddExpenseRequest: Encodable {
     private enum CodingKeys: String, CodingKey {
-        case id, payerId, amountMinor, description, date, splitType, splits
+        case id, payerId, amountMinor, description, date, splitType, splits, category, categoryIcon
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        // `id` is genuinely optional on the wire (DESIGN.md: `id?: string`) — omit
+        // Optional fields are genuinely optional on the wire (DESIGN.md §2) — omit
         // the key entirely rather than encoding an explicit `null`.
         try container.encodeIfPresent(id, forKey: .id)
         try container.encode(payerId, forKey: .payerId)
@@ -132,6 +138,8 @@ extension AddExpenseRequest: Encodable {
         try container.encode(date, forKey: .date)
         try container.encode(splitType, forKey: .splitType)
         try container.encode(splits, forKey: .splits)
+        try container.encodeIfPresent(category, forKey: .category)
+        try container.encodeIfPresent(categoryIcon, forKey: .categoryIcon)
     }
 }
 

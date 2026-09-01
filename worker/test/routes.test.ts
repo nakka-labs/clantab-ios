@@ -289,6 +289,44 @@ describe("POST /api/groups/:groupId/expenses", () => {
     expect(status).toBe(400);
     expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
   });
+
+  it("round-trips a category and its icon", async () => {
+    const { status, json } = await post(`/api/groups/${groupId}/expenses`, {
+      payerId: a,
+      amountMinor: 500,
+      description: "Taxi",
+      date: "2026-01-02T09:00:00Z",
+      splitType: "equal",
+      splits: [
+        { memberId: a, amountMinor: 250 },
+        { memberId: b, amountMinor: 250 },
+      ],
+      category: "Transport",
+      categoryIcon: "car",
+    });
+    expect(status).toBe(201);
+    expect(json.expense).toMatchObject({ category: "Transport", categoryIcon: "car" });
+
+    const state = await get(`/api/groups/${groupId}`);
+    const stored = (state.json.expenses as Json[]).find((e) => (e as Json).description === "Taxi");
+    expect(stored).toMatchObject({ category: "Transport", categoryIcon: "car" });
+  });
+
+  it("omits the category keys entirely when no category is given", async () => {
+    const { json } = await post(`/api/groups/${groupId}/expenses`, {
+      payerId: a,
+      amountMinor: 200,
+      description: "Uncategorised",
+      date: "2026-01-02T10:00:00Z",
+      splitType: "equal",
+      splits: [
+        { memberId: a, amountMinor: 100 },
+        { memberId: b, amountMinor: 100 },
+      ],
+    });
+    expect(json.expense).not.toHaveProperty("category");
+    expect(json.expense).not.toHaveProperty("categoryIcon");
+  });
 });
 
 describe("POST /api/groups/:groupId/settlements", () => {

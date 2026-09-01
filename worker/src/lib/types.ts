@@ -27,6 +27,12 @@ export interface Expense {
   date: string;
   splitType: SplitType;
   splits: ExpenseSplit[];
+  /** Free-form spending category; absent for expenses that predate categories
+   * or were left unset. Not used by the balance math. */
+  category?: string;
+  /** SF Symbol name chosen for `category` — stored per expense so any client
+   * renders the same icon without a shared name→icon table. */
+  categoryIcon?: string;
 }
 
 export interface Settlement {

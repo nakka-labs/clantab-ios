@@ -57,7 +57,8 @@ The single "give me everything" endpoint. Called on load and after every mutatio
 Response: 200 {
   group: { name, currency, createdAt, joinCode },
   members: [{ id, displayName }],
-  expenses: [{ id, payerId, amountMinor, description, date, splitType, splits: [...] }],
+  expenses: [{ id, payerId, amountMinor, description, date, splitType, splits: [...],
+               category?, categoryIcon? }],
   settlements: [{ id, fromId, toId, amountMinor, date }],
   balances: [{ memberId, netMinor }],
   simplifiedSettlements: [{ fromId, toId, amountMinor }]
@@ -68,7 +69,8 @@ Response: 200 {
 ```
 Request:  { id?: string, payerId, amountMinor, description, date,
             splitType: "equal"|"exact"|"percentage",
-            splits: [{ memberId, amountMinor }] }
+            splits: [{ memberId, amountMinor }],
+            category?: string, categoryIcon?: string }
 Response: 201 { expense: {...} }
 Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor
           400 UNKNOWN_MEMBER   — payerId or a split memberId isn't in this group
@@ -77,6 +79,8 @@ Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor
 `id` is optional and client-generated (UUID). If provided and it already exists, the DO treats this as a no-op replay (idempotent retry-safe) rather than a duplicate — covers the case where a client times out and retries a POST that actually succeeded.
 
 `splitType` is a label describing how the client divided the amount; `percentage` reaches the server already resolved to exact minor-unit `splits` (the client does the division, exactly as `equal` resolves its own remainder — see §6). The server validates `splits` sum to `amountMinor` regardless of `splitType`.
+
+`category` is a free-form label and `categoryIcon` its SF Symbol name (`ClanTabKit.ExpenseCategory`). Both optional — omitted entirely when unset. Stored verbatim, not validated against a list; the icon is stored per expense so any client renders it without a shared name→icon table.
 
 ### `POST /api/groups/:groupId/settlements`
 ```
@@ -104,13 +108,15 @@ CREATE TABLE members (
 );
 
 CREATE TABLE expenses (
-  id           TEXT PRIMARY KEY,
-  payer_id     TEXT NOT NULL REFERENCES members(id),
-  amount_minor INTEGER NOT NULL,
-  description  TEXT NOT NULL,
-  expense_date TEXT NOT NULL,
-  split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
-  created_at   INTEGER NOT NULL
+  id            TEXT PRIMARY KEY,
+  payer_id      TEXT NOT NULL REFERENCES members(id),
+  amount_minor  INTEGER NOT NULL,
+  description   TEXT NOT NULL,
+  expense_date  TEXT NOT NULL,
+  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
+  created_at    INTEGER NOT NULL,
+  category      TEXT,          -- nullable; added in schema v3
+  category_icon TEXT           -- nullable; SF Symbol name
 );
 
 CREATE TABLE expense_splits (
@@ -258,6 +264,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 
 - **`1`** — initial v1 shape.
 - **`2`** — `expenses.split_type`'s `CHECK` widened to allow `'percentage'`. SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table (rename → recreate → copy → drop); `expense_splits` has no real FK so nothing cascades. A group that hasn't been created yet has no `schema_version` row and is skipped — `GROUP_SCHEMA` already builds the current shape.
+- **`3`** — `expenses.category` + `expenses.category_icon` added (both nullable). Plain `ALTER TABLE ... ADD COLUMN`, in place, no rebuild. Migrations run in sequence, so a v1 DO walks 1→2→3 on its next instantiation.
 
 ---
 

@@ -11,7 +11,8 @@ struct ExportTests {
         id: String = "e1",
         amountMinor: Int64 = 1250,
         description: String = "Dinner",
-        date: Date = Date(timeIntervalSince1970: 1_700_000_000)
+        date: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        category: String? = nil
     ) -> Expense {
         Expense(
             id: id,
@@ -23,7 +24,9 @@ struct ExportTests {
             splits: [
                 ExpenseSplit(memberId: alice.id, amountMinor: amountMinor / 2),
                 ExpenseSplit(memberId: bob.id, amountMinor: amountMinor - amountMinor / 2),
-            ]
+            ],
+            category: category,
+            categoryIcon: category == nil ? nil : "tag"
         )
     }
 
@@ -36,7 +39,18 @@ struct ExportTests {
         let lines = csv.split(separator: "\n", omittingEmptySubsequences: false)
 
         #expect(lines.count == 3) // header + expense + settlement
-        #expect(lines[0] == "Type,Date,Description,From,To,Amount,Splits")
+        #expect(lines[0] == "Type,Date,Description,Category,From,To,Amount,Splits")
+    }
+
+    @Test("CSV includes the expense category in its own column")
+    func testCategoryColumn() {
+        let csv = Export.csv(
+            members: [alice, bob],
+            expenses: [makeExpense(description: "Cab", category: "Transport")],
+            settlements: []
+        )
+        let expenseLine = csv.split(separator: "\n").first { $0.hasPrefix("Expense,") }
+        #expect(expenseLine?.contains(",Cab,Transport,") == true)
     }
 
     @Test("CSV resolves member ids to display names")
@@ -142,6 +156,6 @@ struct ExportTests {
     @Test("Empty expenses and settlements produce a header-only CSV")
     func testEmptyLedgerProducesHeaderOnly() {
         let csv = Export.csv(members: [alice, bob], expenses: [], settlements: [])
-        #expect(csv == "Type,Date,Description,From,To,Amount,Splits")
+        #expect(csv == "Type,Date,Description,Category,From,To,Amount,Splits")
     }
 }

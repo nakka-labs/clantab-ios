@@ -17,7 +17,9 @@ it matches (or until the fixture is deliberately updated).
   "members":     [{ "id", "displayName" }],
   "expenses":    [{ "id", "payerId", "amountMinor", "description", "date",
                     "splitType": "equal" | "exact" | "percentage",
-                    "splits": [{ "memberId", "amountMinor" }] }],
+                    "splits": [{ "memberId", "amountMinor" }],
+                    "category"?, "categoryIcon"?     // optional; ignored by the math
+                  }],
   "settlements": [{ "id", "fromId", "toId", "amountMinor", "date" }],
 
   "expectedBalances":   [{ "memberId", "netMinor" }],   // in `members` order

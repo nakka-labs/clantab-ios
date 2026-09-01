@@ -43,6 +43,8 @@ struct Expense: Identifiable, Codable, Sendable {
     let date: Date
     let splitType: SplitType // .equal, .exact, or .percentage
     let splits: [ExpenseSplit]
+    let category: String?      // free-form; nil = uncategorized
+    let categoryIcon: String?  // SF Symbol name
 }
 
 struct ExpenseSplit: Codable, Sendable {
@@ -77,7 +79,7 @@ struct SimplifiedSettlement: Codable, Sendable, Equatable {
 | **Create Group** | Group name, currency picker, user display name → generates capability link + 6-char code |
 | **Join Group** | Enter 6-char code or open link → pick display name (saved to local device storage) |
 | **Group Home** | Balance hero card ("You are owed ₹1,200" / "You owe ₹350"), member net balances, activity feed |
-| **Add Expense** | Amount keypad, payer selector, description, equal / exact / percentage split allocation |
+| **Add Expense** | Amount keypad, payer selector, description, category picker (name + SF Symbol), equal / exact / percentage split allocation |
 | **Settle Up** | Minimal simplified settle-up transaction cards, 1-tap "Mark as Paid" |
 | **Export** | CSV / JSON export via iOS ShareSheet |
 

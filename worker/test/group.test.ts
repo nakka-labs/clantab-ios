@@ -99,12 +99,13 @@ describe("GroupDO", () => {
     ]);
   });
 
-  it("migrate() upgrades a v1 expenses table so percentage splits are accepted", async () => {
+  it("migrate() upgrades a v1 expenses table through every schema version", async () => {
     const g = group("g-migrate");
     const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "MIG234");
     await g.addMember("Ben");
 
-    // Rewind this DO to the pre-v2 shape: the narrower CHECK and schema_version 1.
+    // Rewind this DO to the original v1 shape: narrow CHECK, no category
+    // columns, schema_version 1 — then let migrate() walk it forward.
     await runInDurableObject(g, (instance, state) => {
       const sql = state.storage.sql;
       sql.exec("DROP TABLE expenses");
@@ -117,15 +118,28 @@ describe("GroupDO", () => {
         split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact')),
         created_at   INTEGER NOT NULL
       )`);
+      sql.exec(
+        "INSERT INTO expenses VALUES ('old-1', ?, 100, 'Legacy', '2026-01-01T00:00:00Z', 'equal', 1)",
+        ana.id,
+      );
       sql.exec("UPDATE group_meta SET value = '1' WHERE key = 'schema_version'");
       (instance as unknown as { migrate(): void }).migrate();
 
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("2");
+      expect(version).toBe("3");
+
+      // The legacy row survived the v2 rebuild and gained null category columns.
+      const legacy = sql
+        .exec<{ category: string | null; category_icon: string | null }>(
+          "SELECT category, category_icon FROM expenses WHERE id = 'old-1'",
+        )
+        .toArray()[0];
+      expect(legacy).toEqual({ category: null, category_icon: null });
     });
 
+    // percentage (needs v2) and category (needs v3) both work post-migration.
     const r = await g.addExpense({
       payerId: ana.id,
       amountMinor: 500,
@@ -133,8 +147,11 @@ describe("GroupDO", () => {
       date: "2026-01-01T00:00:00Z",
       splitType: "percentage",
       splits: [{ memberId: ana.id, amountMinor: 500 }],
+      category: "Travel",
+      categoryIcon: "airplane",
     });
     expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.expense).toMatchObject({ category: "Travel", categoryIcon: "airplane" });
   });
 
   it("addExpense returns a failure Result (not a throw) for bad input", async () => {

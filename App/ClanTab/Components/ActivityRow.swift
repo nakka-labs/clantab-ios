@@ -45,6 +45,28 @@ struct ActivityItem: Identifiable {
         }
     }
 
+    /// Leading SF Symbol: the expense's category icon (falling back to the
+    /// "uncategorized" symbol), or a settlement marker.
+    var icon: String {
+        switch kind {
+        case .expense(let expense):
+            return ExpenseCategory.resolve(name: expense.category, symbolName: expense.categoryIcon).symbolName
+        case .settlement:
+            return "arrow.left.arrow.right"
+        }
+    }
+
+    /// The category label, shown as a caption on expense rows when set.
+    var categoryName: String? {
+        switch kind {
+        case .expense(let expense):
+            guard let name = expense.category, !name.isEmpty else { return nil }
+            return name
+        case .settlement:
+            return nil
+        }
+    }
+
     private func name(for memberId: String) -> String {
         members.first { $0.id == memberId }?.displayName ?? "Someone"
     }
@@ -55,19 +77,31 @@ struct ActivityRow: View {
     let currency: String
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            Image(systemName: item.icon)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                Text(item.date, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    if let categoryName = item.categoryName {
+                        Text(categoryName)
+                        Text("·")
+                    }
+                    Text(item.date, style: .date)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
             Spacer()
             Text(MoneyFormat.string(minorUnits: item.amountMinor, currency: currency))
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(item.title), \(MoneyFormat.string(minorUnits: item.amountMinor, currency: currency))"
+            [item.title, item.categoryName, MoneyFormat.string(minorUnits: item.amountMinor, currency: currency)]
+                .compactMap { $0 }
+                .joined(separator: ", ")
         )
         .accessibilityValue(item.date.formatted(date: .abbreviated, time: .omitted))
     }

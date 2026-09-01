@@ -70,6 +70,8 @@ export interface AddExpenseRequest {
   date: string; // ISO 8601
   splitType: SplitType;
   splits: { memberId: string; amountMinor: number }[];
+  category?: string;
+  categoryIcon?: string;
 }
 export interface AddExpenseResponse {
   expense: Expense;

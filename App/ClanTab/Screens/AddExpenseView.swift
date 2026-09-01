@@ -23,6 +23,7 @@ struct AddExpenseView: View {
     @State private var includedMemberIds: Set<String>
     @State private var exactAmountText: [String: String] = [:]
     @State private var percentText: [String: String] = [:]
+    @State private var category: ExpenseCategory = .uncategorized
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
@@ -59,6 +60,16 @@ struct AddExpenseView: View {
                 Picker("Paid by", selection: $payerId) {
                     ForEach(members) { member in
                         Text(member.displayName).tag(member.id)
+                    }
+                }
+                NavigationLink {
+                    CategoryPickerView(selection: $category)
+                } label: {
+                    HStack {
+                        Text("Category")
+                        Spacer()
+                        Label(category.name, systemImage: category.symbolName)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -263,6 +274,9 @@ struct AddExpenseView: View {
             // even though `canSubmit` should already rule this out.
             try Validation.validateSplitsSum(amountMinor: amountMinor, splits: splits)
 
+            // `.uncategorized` is the "no category" sentinel — send nil, not the
+            // placeholder name, so it stays distinguishable from a real category.
+            let isCategorised = category != .uncategorized
             _ = try await client.addExpense(
                 groupId: groupId,
                 AddExpenseRequest(
@@ -272,7 +286,9 @@ struct AddExpenseView: View {
                     description: description,
                     date: Date(),
                     splitType: splitType,
-                    splits: splits
+                    splits: splits,
+                    category: isCategorised ? category.name : nil,
+                    categoryIcon: isCategorised ? category.symbolName : nil
                 )
             )
             onSaved()

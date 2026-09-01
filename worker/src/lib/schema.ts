@@ -16,13 +16,15 @@ CREATE TABLE IF NOT EXISTS members (
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
-  id           TEXT PRIMARY KEY,
-  payer_id     TEXT NOT NULL,
-  amount_minor INTEGER NOT NULL,
-  description  TEXT NOT NULL,
-  expense_date TEXT NOT NULL,
-  split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
-  created_at   INTEGER NOT NULL
+  id            TEXT PRIMARY KEY,
+  payer_id      TEXT NOT NULL,
+  amount_minor  INTEGER NOT NULL,
+  description   TEXT NOT NULL,
+  expense_date  TEXT NOT NULL,
+  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
+  created_at    INTEGER NOT NULL,
+  category      TEXT,
+  category_icon TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expense_splits (
@@ -63,5 +65,7 @@ export const META_KEYS = {
  *  - `1` → initial v1 shape.
  *  - `2` → `expenses.split_type` CHECK widened to allow `'percentage'`. SQLite
  *          can't alter a CHECK in place, so `GroupDO.migrate` rebuilds the table.
+ *  - `3` → `expenses.category` + `expenses.category_icon` added (nullable).
+ *          Plain `ALTER TABLE ... ADD COLUMN` — no rebuild.
  */
-export const SCHEMA_VERSION = "2";
+export const SCHEMA_VERSION = "3";

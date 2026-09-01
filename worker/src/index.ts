@@ -136,6 +136,8 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
     "date",
     "splitType",
     "splits",
+    "category",
+    "categoryIcon",
   ]);
 
   const splitType = requireString(body, "splitType");
@@ -157,6 +159,8 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
     date: requireString(body, "date"),
     splitType,
     splits,
+    category: optionalString(body, "category"),
+    categoryIcon: optionalString(body, "categoryIcon"),
   };
   const result = await group.addExpense(req);
   return result.ok ? json(201, result.value) : json(400, { error: result.error });
