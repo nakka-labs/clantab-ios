@@ -39,7 +39,7 @@ type ExpenseRow = Row<{
   amount_minor: number;
   description: string;
   expense_date: string;
-  split_type: "equal" | "exact";
+  split_type: "equal" | "exact" | "percentage";
 }>;
 type SplitRow = Row<{
   expense_id: string;
@@ -67,7 +67,42 @@ export class GroupDO extends DurableObject {
     this.sql = ctx.storage.sql;
     ctx.blockConcurrencyWhile(async () => {
       this.sql.exec(GROUP_SCHEMA);
+      this.migrate();
     });
+  }
+
+  /**
+   * In-place schema migrations (`DESIGN.md` §10). Runs on every construction,
+   * inside `blockConcurrencyWhile`, before any request is served. A group that
+   * hasn't been `initGroup`-ed has no `schema_version` row and is left alone —
+   * `GROUP_SCHEMA` already builds the current shape and `initGroup` stamps the
+   * current `SCHEMA_VERSION`.
+   */
+  private migrate(): void {
+    const current = this.meta(META_KEYS.schemaVersion);
+    if (current === null) return;
+
+    if (current === "1") {
+      // v2: widen `expenses.split_type` to allow 'percentage'. A `CREATE TABLE
+      // IF NOT EXISTS` can't change an existing table's CHECK, so rebuild it —
+      // SQLite's supported path for a constraint change. `expense_splits` has no
+      // real FK (see `schema.ts`), so nothing cascades.
+      this.sql.exec(`
+        ALTER TABLE expenses RENAME TO expenses_v1;
+        CREATE TABLE expenses (
+          id           TEXT PRIMARY KEY,
+          payer_id     TEXT NOT NULL,
+          amount_minor INTEGER NOT NULL,
+          description  TEXT NOT NULL,
+          expense_date TEXT NOT NULL,
+          split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
+          created_at   INTEGER NOT NULL
+        );
+        INSERT INTO expenses SELECT * FROM expenses_v1;
+        DROP TABLE expenses_v1;
+      `);
+      this.setMeta(META_KEYS.schemaVersion, "2");
+    }
   }
 
   /** Has this group been created (vs. just addressed)? Drives `GROUP_NOT_FOUND`. */

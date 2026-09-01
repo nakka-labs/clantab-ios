@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 function group(name: string) {
@@ -72,6 +72,69 @@ describe("GroupDO", () => {
     const b = await g.addExpense(req);
     expect(a).toEqual(b);
     expect((await g.getState()).expenses).toHaveLength(1);
+  });
+
+  it("records a percentage-split expense (splits pre-resolved to minor units)", async () => {
+    const g = group("g-percent");
+    const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "PCT234");
+    const { member: ben } = await g.addMember("Ben");
+
+    const r = await g.addExpense({
+      payerId: ana.id,
+      amountMinor: 1000,
+      description: "Dinner (60/40)",
+      date: "2026-01-01T00:00:00Z",
+      splitType: "percentage",
+      splits: [
+        { memberId: ana.id, amountMinor: 600 },
+        { memberId: ben.id, amountMinor: 400 },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    const state = await g.getState();
+    expect(state.expenses[0]).toMatchObject({ splitType: "percentage" });
+    expect(state.balances).toEqual([
+      { memberId: ana.id, netMinor: 400 }, // paid 1000, own share 600
+      { memberId: ben.id, netMinor: -400 },
+    ]);
+  });
+
+  it("migrate() upgrades a v1 expenses table so percentage splits are accepted", async () => {
+    const g = group("g-migrate");
+    const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "MIG234");
+    await g.addMember("Ben");
+
+    // Rewind this DO to the pre-v2 shape: the narrower CHECK and schema_version 1.
+    await runInDurableObject(g, (instance, state) => {
+      const sql = state.storage.sql;
+      sql.exec("DROP TABLE expenses");
+      sql.exec(`CREATE TABLE expenses (
+        id           TEXT PRIMARY KEY,
+        payer_id     TEXT NOT NULL,
+        amount_minor INTEGER NOT NULL,
+        description  TEXT NOT NULL,
+        expense_date TEXT NOT NULL,
+        split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact')),
+        created_at   INTEGER NOT NULL
+      )`);
+      sql.exec("UPDATE group_meta SET value = '1' WHERE key = 'schema_version'");
+      (instance as unknown as { migrate(): void }).migrate();
+
+      const version = sql
+        .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
+        .toArray()[0]?.value;
+      expect(version).toBe("2");
+    });
+
+    const r = await g.addExpense({
+      payerId: ana.id,
+      amountMinor: 500,
+      description: "Post-migration",
+      date: "2026-01-01T00:00:00Z",
+      splitType: "percentage",
+      splits: [{ memberId: ana.id, amountMinor: 500 }],
+    });
+    expect(r.ok).toBe(true);
   });
 
   it("addExpense returns a failure Result (not a throw) for bad input", async () => {

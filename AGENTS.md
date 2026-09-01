@@ -26,7 +26,7 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 - **Integer Minor Units**: All money amounts are stored and calculated in integer minor units (paise, cents, yen) as `Int` or `Int64`. Never use floating-point types (`Double`, `Float`) for monetary amounts or arithmetic. Convert to/from display units only at the UI formatting edge.
 - **Derived Balances**: Member balances are always derived on read from the collection of expenses and settlements; never cache or persist a mutable "balance" field.
 - **Zero-Login / Capability Links**: Each group is addressed by an unguessable capability identifier (`groupId`) and an optional 6-character human-friendly `joinCode`. User identity is stored locally on the device (per group).
-- **Split Integrity**: Every split in an expense must sum up exactly to the total `amountMinor`. Remainder paise/cents from equal divisions are deterministically assigned (e.g., to the payer) before dispatch.
+- **Split Integrity**: Every split in an expense must sum up exactly to the total `amountMinor`. Remainder paise/cents from equal or percentage divisions are deterministically assigned (e.g., to the payer) before dispatch. `splitType` (`equal` / `exact` / `percentage`) is a descriptive label — `percentage` is resolved to minor-unit shares client-side (`Validation.percentageSplit`), never sent as raw percentages.
 
 ## Non-Goals — Do Not Add Without Explicit Request
 - No accounts, login systems, or passwords.
@@ -35,7 +35,6 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 - No recurring expenses or subscription models.
 - No receipt OCR / paid cloud AI services in core v1.
 - No push notification servers or email collection.
-- No percentage or shares splitting in v1 (equal and exact amounts only).
 
 ## Conventions
 - Swift 6 language standard, strict concurrency checking.

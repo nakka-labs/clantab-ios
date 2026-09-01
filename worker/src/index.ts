@@ -139,8 +139,8 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
   ]);
 
   const splitType = requireString(body, "splitType");
-  if (splitType !== "equal" && splitType !== "exact") {
-    throw new BadRequestError('Field "splitType" must be "equal" or "exact".');
+  if (splitType !== "equal" && splitType !== "exact" && splitType !== "percentage") {
+    throw new BadRequestError('Field "splitType" must be "equal", "exact", or "percentage".');
   }
 
   const splits = requireArray(body, "splits").map((raw, i) => {

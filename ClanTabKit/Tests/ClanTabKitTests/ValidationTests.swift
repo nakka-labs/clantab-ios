@@ -93,4 +93,74 @@ struct ValidationTests {
             try Validation.validateSplitsSum(amountMinor: amount, splits: splits)
         }
     }
+
+    @Test("50/30/20 percentage split resolves to exact minor-unit shares")
+    func testPercentageSplitBasic() throws {
+        let splits = Validation.percentageSplit(
+            amountMinor: 10_000,
+            weights: [("a", 50), ("b", 30), ("c", 20)],
+            remainderRecipient: "a"
+        )
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["a"] == 5_000)
+        #expect(byId["b"] == 3_000)
+        #expect(byId["c"] == 2_000)
+        try Validation.validateSplitsSum(amountMinor: 10_000, splits: splits)
+    }
+
+    @Test("A rounding remainder from percentages lands on the payer")
+    func testPercentageSplitRemainderToPayer() throws {
+        // Three equal thirds of 1000: floor gives 333/333/333 = 999, 1 left over,
+        // which must land on the remainder recipient ("payer").
+        let splits = Validation.percentageSplit(
+            amountMinor: 1_000,
+            weights: [("b", 1), ("payer", 1), ("c", 1)],
+            remainderRecipient: "payer"
+        )
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["payer"] == 334)
+        #expect(byId["b"] == 333)
+        #expect(byId["c"] == 333)
+        try Validation.validateSplitsSum(amountMinor: 1_000, splits: splits)
+    }
+
+    @Test("A zero-weight member is included with a zero share")
+    func testPercentageSplitZeroWeight() throws {
+        let splits = Validation.percentageSplit(
+            amountMinor: 900,
+            weights: [("a", 100), ("b", 0)],
+            remainderRecipient: "a"
+        )
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["a"] == 900)
+        #expect(byId["b"] == 0)
+        try Validation.validateSplitsSum(amountMinor: 900, splits: splits)
+    }
+
+    @Test("Weights need not sum to 100 — the split is proportional to their total")
+    func testPercentageSplitProportionalToWeightTotal() throws {
+        let splits = Validation.percentageSplit(
+            amountMinor: 1_200,
+            weights: [("a", 1), ("b", 2), ("c", 3)],
+            remainderRecipient: "a"
+        )
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["a"] == 200)
+        #expect(byId["b"] == 400)
+        #expect(byId["c"] == 600)
+        try Validation.validateSplitsSum(amountMinor: 1_200, splits: splits)
+    }
+
+    @Test("Random fuzz: percentage splits never gain or lose a minor unit")
+    func testPercentageSplitFuzzNeverDriftsSum() throws {
+        var generator = SeededGenerator(seed: 11)
+        for _ in 0..<200 {
+            let memberCount = Int.random(in: 1...12, using: &generator)
+            let amount = Int64.random(in: 1...1_000_000, using: &generator)
+            let weights = (0..<memberCount).map { (memberId: "m\($0)", weight: Int.random(in: 0...100, using: &generator)) }
+            guard weights.contains(where: { $0.weight > 0 }) else { continue }
+            let splits = Validation.percentageSplit(amountMinor: amount, weights: weights, remainderRecipient: "m0")
+            try Validation.validateSplitsSum(amountMinor: amount, splits: splits)
+        }
+    }
 }

@@ -1,0 +1,33 @@
+{
+  "name": "percentage split (70/20/10), resolved to minor units",
+  "members": [
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" },
+    { "id": "c", "displayName": "Cal" }
+  ],
+  "expenses": [
+    {
+      "id": "e1",
+      "payerId": "a",
+      "amountMinor": 10000,
+      "description": "Villa (Ana took the big room)",
+      "date": "2026-06-01T15:00:00Z",
+      "splitType": "percentage",
+      "splits": [
+        { "memberId": "a", "amountMinor": 7000 },
+        { "memberId": "b", "amountMinor": 2000 },
+        { "memberId": "c", "amountMinor": 1000 }
+      ]
+    }
+  ],
+  "settlements": [],
+  "expectedBalances": [
+    { "memberId": "a", "netMinor": 3000 },
+    { "memberId": "b", "netMinor": -2000 },
+    { "memberId": "c", "netMinor": -1000 }
+  ],
+  "expectedSimplified": [
+    { "fromId": "b", "toId": "a", "amountMinor": 2000 },
+    { "fromId": "c", "toId": "a", "amountMinor": 1000 }
+  ]
+}

@@ -245,11 +245,49 @@ describe("POST /api/groups/:groupId/expenses", () => {
       amountMinor: 100,
       description: "x",
       date: "2026-01-01T12:00:00Z",
-      splitType: "percentage",
+      splitType: "weighted",
       splits: [{ memberId: a, amountMinor: 100 }],
     });
     expect(status).toBe(400);
     expect((json.error as Json).code).toBe("BAD_REQUEST");
+  });
+
+  it("records a percentage-split expense (splits already resolved to minor units)", async () => {
+    const { status, json } = await post(`/api/groups/${groupId}/expenses`, {
+      payerId: a,
+      amountMinor: 1000,
+      description: "Dinner (70/30)",
+      date: "2026-01-01T20:00:00Z",
+      splitType: "percentage",
+      splits: [
+        { memberId: a, amountMinor: 700 },
+        { memberId: b, amountMinor: 300 },
+      ],
+    });
+    expect(status).toBe(201);
+    expect(json.expense).toMatchObject({ splitType: "percentage", amountMinor: 1000 });
+
+    const state = await get(`/api/groups/${groupId}`);
+    expect(state.json.balances).toEqual([
+      { memberId: a, netMinor: 300 },
+      { memberId: b, netMinor: -300 },
+    ]);
+  });
+
+  it("still rejects percentage splits that don't sum to the amount (SPLIT_MISMATCH)", async () => {
+    const { status, json } = await post(`/api/groups/${groupId}/expenses`, {
+      payerId: a,
+      amountMinor: 1000,
+      description: "x",
+      date: "2026-01-01T12:00:00Z",
+      splitType: "percentage",
+      splits: [
+        { memberId: a, amountMinor: 700 },
+        { memberId: b, amountMinor: 200 },
+      ],
+    });
+    expect(status).toBe(400);
+    expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
   });
 });
 

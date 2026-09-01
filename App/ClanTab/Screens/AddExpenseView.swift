@@ -1,11 +1,12 @@
 import SwiftUI
 import ClanTabKit
 
-/// Amount, payer, description, and an equal-or-exact split — the whole shape
-/// mirrors `PLAN.md` §1's `Expense` model. All money entry converts through
-/// `MoneyFormat.minorUnits(from:)` at the text-field boundary; everything past
-/// that point (splits, validation, the request itself) stays integer minor
-/// units, per `AGENTS.md`.
+/// Amount, payer, description, and an equal / exact / percentage split — the
+/// whole shape mirrors `PLAN.md` §1's `Expense` model. All money entry converts
+/// through `MoneyFormat.minorUnits(from:)` at the text-field boundary; everything
+/// past that point (splits, validation, the request itself) stays integer minor
+/// units, per `AGENTS.md`. Percentages are resolved to minor-unit shares client
+/// side (`Validation.percentageSplit`) — the wire only carries `amountMinor`.
 struct AddExpenseView: View {
     let groupId: String
     let members: [Member]
@@ -21,6 +22,7 @@ struct AddExpenseView: View {
     @State private var splitType: SplitType = .equal
     @State private var includedMemberIds: Set<String>
     @State private var exactAmountText: [String: String] = [:]
+    @State private var percentText: [String: String] = [:]
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
@@ -64,7 +66,8 @@ struct AddExpenseView: View {
             Section("Split") {
                 Picker("Split type", selection: $splitType) {
                     Text("Equally").tag(SplitType.equal)
-                    Text("Exact amounts").tag(SplitType.exact)
+                    Text("Exact").tag(SplitType.exact)
+                    Text("Percentage").tag(SplitType.percentage)
                 }
                 .pickerStyle(.segmented)
 
@@ -112,6 +115,8 @@ struct AddExpenseView: View {
             }
         case .exact:
             exactSplitRows
+        case .percentage:
+            percentSplitRows
         }
     }
 
@@ -134,6 +139,24 @@ struct AddExpenseView: View {
         }
     }
 
+    @ViewBuilder
+    private var percentSplitRows: some View {
+        ForEach(members) { member in
+            HStack {
+                Text(member.displayName)
+                Spacer()
+                TextField("0", text: percentBinding(for: member.id))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 56)
+                Text("%").foregroundStyle(.secondary)
+            }
+        }
+        Text(percentRemainingLabel)
+            .font(.footnote)
+            .foregroundStyle(percentTotal == 100 ? Color.secondary : Color.red)
+    }
+
     private func includedBinding(for memberId: String) -> Binding<Bool> {
         Binding(
             get: { includedMemberIds.contains(memberId) },
@@ -154,10 +177,32 @@ struct AddExpenseView: View {
         )
     }
 
+    private func percentBinding(for memberId: String) -> Binding<String> {
+        Binding(
+            get: { percentText[memberId] ?? "" },
+            set: { percentText[memberId] = $0 }
+        )
+    }
+
     private var exactSplitsTotal: Int64 {
         members.reduce(Int64(0)) { partial, member in
             partial + (MoneyFormat.minorUnits(from: exactAmountText[member.id] ?? "") ?? 0)
         }
+    }
+
+    /// Parsed whole-number percent for a member (a blank or non-numeric field is `0`).
+    private func percent(for memberId: String) -> Int {
+        Int(percentText[memberId]?.trimmingCharacters(in: .whitespaces) ?? "") ?? 0
+    }
+
+    private var percentTotal: Int {
+        members.reduce(0) { $0 + percent(for: $1.id) }
+    }
+
+    private var percentRemainingLabel: String {
+        let remaining = 100 - percentTotal
+        if remaining == 0 { return "Percentages add up to 100%." }
+        return remaining > 0 ? "\(remaining)% left to assign" : "\(-remaining)% over 100%"
     }
 
     private func remainingLabel(_ remaining: Int64) -> String {
@@ -176,6 +221,8 @@ struct AddExpenseView: View {
             return !includedMemberIds.isEmpty
         case .exact:
             return exactSplitsTotal == amountMinor
+        case .percentage:
+            return percentTotal == 100
         }
     }
 
@@ -198,6 +245,17 @@ struct AddExpenseView: View {
                     }
                     return ExpenseSplit(memberId: member.id, amountMinor: value)
                 }
+            case .percentage:
+                // Resolve percentages to exact minor units here — the wire only
+                // ever carries `amountMinor` shares (DESIGN.md §6).
+                let weights = members
+                    .map { (memberId: $0.id, weight: percent(for: $0.id)) }
+                    .filter { $0.weight > 0 }
+                splits = Validation.percentageSplit(
+                    amountMinor: amountMinor,
+                    weights: weights,
+                    remainderRecipient: payerId
+                )
             }
 
             // The same rule the server enforces (DESIGN.md §6) - catching a

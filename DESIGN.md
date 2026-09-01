@@ -66,7 +66,8 @@ Response: 200 {
 
 ### `POST /api/groups/:groupId/expenses`
 ```
-Request:  { id?: string, payerId, amountMinor, description, date, splitType: "equal"|"exact",
+Request:  { id?: string, payerId, amountMinor, description, date,
+            splitType: "equal"|"exact"|"percentage",
             splits: [{ memberId, amountMinor }] }
 Response: 201 { expense: {...} }
 Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor
@@ -74,6 +75,8 @@ Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor
           400 INVALID_AMOUNT   — amountMinor <= 0, or not an integer
 ```
 `id` is optional and client-generated (UUID). If provided and it already exists, the DO treats this as a no-op replay (idempotent retry-safe) rather than a duplicate — covers the case where a client times out and retries a POST that actually succeeded.
+
+`splitType` is a label describing how the client divided the amount; `percentage` reaches the server already resolved to exact minor-unit `splits` (the client does the division, exactly as `equal` resolves its own remainder — see §6). The server validates `splits` sum to `amountMinor` regardless of `splitType`.
 
 ### `POST /api/groups/:groupId/settlements`
 ```
@@ -106,7 +109,7 @@ CREATE TABLE expenses (
   amount_minor INTEGER NOT NULL,
   description  TEXT NOT NULL,
   expense_date TEXT NOT NULL,
-  split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact')),
+  split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
   created_at   INTEGER NOT NULL
 );
 
@@ -215,10 +218,10 @@ sequenceDiagram
 
 The UI should prevent invalid input, but the DO validates independently — never trust the client, even though there's no auth to abuse here beyond "someone submits garbage."
 
-- Every `splits[].amountMinor` sums to exactly `amountMinor`. No tolerance — if `equal` split doesn't divide evenly, the remainder is assigned to one deterministic member (the payer) client-side before the request is even sent, so the server-side check is always an exact match.
+- Every `splits[].amountMinor` sums to exactly `amountMinor`. No tolerance — if an `equal` or `percentage` split doesn't divide evenly, the remainder is assigned to one deterministic member (the payer) client-side before the request is even sent, so the server-side check is always an exact match.
 - Every `memberId` referenced (payer, splits, settlement from/to) must exist in this group.
 - All amounts are positive integers.
-- `splitType` is exactly `"equal"` or `"exact"`.
+- `splitType` is exactly `"equal"`, `"exact"`, or `"percentage"`. It is descriptive only — the server never re-derives shares from it; `percentage` splits arrive pre-resolved to minor units (`ClanTabKit.Validation.percentageSplit`), so the balance math is identical for all three.
 - Reject unknown fields rather than silently ignoring them (fail loud during development).
 
 ---
@@ -251,7 +254,10 @@ The UI should prevent invalid input, but the DO validates independently — neve
 
 ## 10. Schema evolution
 
-`group_meta` includes a `schema_version` row from day one, even though v1 only ever writes version `1`. If a later change needs a different shape (e.g. adding multi-currency support to `expenses`), the DO's init/upgrade path reads this value and can migrate in place — decide the migration approach *when* that happens, not now, but the version field has to exist from the start or there's nothing to branch on later.
+`group_meta` includes a `schema_version` row from day one. The DO's constructor runs `GroupDO.migrate()` on every instantiation (inside `blockConcurrencyWhile`, before any request is served): it reads this value and applies any pending in-place migration, then stamps the current version.
+
+- **`1`** — initial v1 shape.
+- **`2`** — `expenses.split_type`'s `CHECK` widened to allow `'percentage'`. SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table (rename → recreate → copy → drop); `expense_splits` has no real FK so nothing cascades. A group that hasn't been created yet has no `schema_version` row and is skipped — `GROUP_SCHEMA` already builds the current shape.
 
 ---
 
@@ -276,5 +282,6 @@ The UI should prevent invalid input, but the DO validates independently — neve
   carries the field.
 - WebSocket live updates (upgrade path exists — same DO, add a WebSocket handler alongside the HTTP one — but not built until Phase 6+ per `PLAN.md`, and only if usage shows people actually have the app open simultaneously)
 - Optimistic UI updates on mutation
-- Multi-currency, recurring expenses, percentage/shares splitting, receipt OCR — all explicitly out of scope per `PLAN.md` §1, listed here again only so nobody mistakes their absence in this doc for an oversight
+- ~~**percentage/shares splitting**~~ — **shipped** (2026-09-01). `splitType` now includes `"percentage"`; the client resolves percentages to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.percentageSplit`), so it's a UI/label change only — the wire contract and balance math are unchanged. See §2, §6, §10 (schema v2).
+- Multi-currency, recurring expenses, receipt OCR — still out of scope per `PLAN.md` §1, listed here only so nobody mistakes their absence in this doc for an oversight
 - A "merge my old entries" flow for someone who loses local storage and rejoins as a new member

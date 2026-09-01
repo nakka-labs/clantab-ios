@@ -7,7 +7,11 @@ export interface Member {
   displayName: string;
 }
 
-export type SplitType = "equal" | "exact";
+// `percentage` is a resolved label, not a stored basis — the iOS client turns
+// entered percentages into exact minor-unit shares before dispatch, exactly as
+// `equal` resolves its own remainder client-side (`DESIGN.md` §6). The server
+// still only ever validates that `splits` sum to `amountMinor`.
+export type SplitType = "equal" | "exact" | "percentage";
 
 export interface ExpenseSplit {
   memberId: string;

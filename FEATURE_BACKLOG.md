@@ -10,11 +10,15 @@
 
 ## In scope, next up — genuinely low cost
 
-- **Custom/percentage splits.** Agreed. Add a split-type field to the
-  expense model (equal / percentage / exact-amount) — same integer-money
-  math already in use, validated in `GroupDO`, no new endpoint, just a
-  bigger request payload. Probably the single most-requested feature in
-  any splitter app's reviews.
+- ~~**Custom/percentage splits.**~~ **Shipped 2026-09-01.** `SplitType` gained
+  `.percentage`; the client resolves entered percentages to exact minor-unit
+  shares (`ClanTabKit.Validation.percentageSplit`, same deterministic-remainder
+  pattern as `equalSplit`) before dispatch, so the wire contract and balance
+  math were unchanged. Server change was minimal: widen the `splitType` union +
+  the `split_type` CHECK, plus a `GroupDO` schema-v2 migration (SQLite can't
+  alter a CHECK in place). Exact-amount ("custom") splits already existed as
+  `.exact`. `AddExpenseView` gained a third segment with per-member `%` fields.
+  See `DESIGN.md` §2/§6/§10.
 - **Custom categories + icons.** A category string + icon field on the
   expense model, no backend change beyond storing it. Needs an icon
   picker in the UI and a migration story for existing expenses with no

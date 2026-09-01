@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount_minor INTEGER NOT NULL,
   description  TEXT NOT NULL,
   expense_date TEXT NOT NULL,
-  split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact')),
+  split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
   created_at   INTEGER NOT NULL
 );
 
@@ -58,4 +58,10 @@ export const META_KEYS = {
   schemaVersion: "schema_version",
 } as const;
 
-export const SCHEMA_VERSION = "1";
+/**
+ * Bump when a `GroupDO` needs an in-place migration (`DESIGN.md` §10). History:
+ *  - `1` → initial v1 shape.
+ *  - `2` → `expenses.split_type` CHECK widened to allow `'percentage'`. SQLite
+ *          can't alter a CHECK in place, so `GroupDO.migrate` rebuilds the table.
+ */
+export const SCHEMA_VERSION = "2";

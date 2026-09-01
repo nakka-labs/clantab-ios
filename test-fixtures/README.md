@@ -16,7 +16,7 @@ it matches (or until the fixture is deliberately updated).
   "name": "human-readable case name",
   "members":     [{ "id", "displayName" }],
   "expenses":    [{ "id", "payerId", "amountMinor", "description", "date",
-                    "splitType": "equal" | "exact",
+                    "splitType": "equal" | "exact" | "percentage",
                     "splits": [{ "memberId", "amountMinor" }] }],
   "settlements": [{ "id", "fromId", "toId", "amountMinor", "date" }],
 
@@ -26,4 +26,7 @@ it matches (or until the fixture is deliberately updated).
 ```
 
 All amounts are integer minor units. `date` is ISO 8601 and does not affect the
-math. `expectedBalances` always sums to zero.
+math. `expectedBalances` always sums to zero. `splitType` is only a label —
+`percentage` splits reach the ledger already resolved to exact minor-unit shares
+(the client does the division, like `equal`'s remainder), so the balance math is
+identical for all three types.

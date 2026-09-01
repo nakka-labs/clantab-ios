@@ -1,9 +1,15 @@
 import Foundation
 
 /// How an expense's amount was divided among its splits.
+///
+/// `percentage` is a resolved label, not a stored basis: the client turns the
+/// entered percentages into exact minor-unit shares (`Validation.percentageSplit`)
+/// before dispatch, exactly as `equal` resolves its own remainder, so the split
+/// integrity rule (`AGENTS.md`) and the server's exact-sum check are unchanged.
 public enum SplitType: String, Codable, Sendable {
     case equal
     case exact
+    case percentage
 }
 
 /// One member's share of an `Expense`. All expense splits for a given expense

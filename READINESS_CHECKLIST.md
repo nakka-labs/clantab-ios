@@ -39,8 +39,9 @@ Ship order locked: independent cheap features → multi-currency → accounts
 → cross-group settling. Photo attachment shelved (cost/setup tradeoff
 unresolved, see backlog).
 
-- Custom/percentage splits, categories + icons, graphs, search/filter,
-  CSV import — independent, no accounts dependency.
+- ~~Custom/percentage splits~~ — **done 2026-09-01** (`.percentage` split type,
+  resolved client-side; schema v2 migration). Categories + icons, graphs,
+  search/filter, CSV import still open — independent, no accounts dependency.
 - Multi-currency ledgers (per-currency, no conversion, last-used default).
 - Accounts: Sign in with Apple, placeholder-member claim flow, the
   groupId-per-identity index, **in-app account deletion** (Apple
