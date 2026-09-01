@@ -33,10 +33,13 @@
   breakdowns as labelled proportional bars; reached from a "Spending Insights"
   row on Group Home. No backend or wire change — settlements are excluded (they
   move money, they aren't spend).
-- **Search / filter.** Filter the expense list — by member, date range,
-  amount — client-side over data already fetched. No new endpoint;
-  `GroupDO`'s `getState` already returns the full expense list per
-  `DESIGN.md` §2.
+- ~~**Search / filter.**~~ **Shipped 2026-09-01.** `ClanTabKit.ActivityFiltering`
+  (pure) filters the activity feed by free-text (description + involved member
+  names, case/diacritic-insensitive), by member (payer / split / settlement
+  party), and by category (`.any` / `.uncategorized` / `.named`). `GroupHomeView`
+  wires it to a `.searchable` field + a toolbar filter menu; only the feed is
+  filtered, balances stay group-wide. Date-range / amount-range filtering was
+  left out of this pass — add later if asked.
 - **CSV import (from other apps).** Let a user bring in history from
   Splitwise/other splitters via CSV, mapped into ClanTab's expense model.
   Needs: a format-detection or column-mapping step (Splitwise's export

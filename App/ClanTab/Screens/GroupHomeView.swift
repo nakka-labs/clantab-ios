@@ -10,6 +10,7 @@ struct GroupHomeView: View {
     @State private var isPresentingSettleUp = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
+    @State private var filter = ActivityFilter()
 
     init(
         groupId: String,
@@ -67,13 +68,24 @@ struct GroupHomeView: View {
                     }
                 }
 
-                Section("Activity") {
+                Section {
                     let items = activityFeed(state: state)
                     if items.isEmpty {
-                        Text("No expenses yet.").foregroundStyle(.secondary)
+                        Text(filter.isActive ? "Nothing matches your filters." : "No expenses yet.")
+                            .foregroundStyle(.secondary)
                     } else {
                         ForEach(items) { item in
                             ActivityRow(item: item, currency: currency)
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("Activity")
+                        if filter.isActive {
+                            Spacer()
+                            Button("Clear Filters") { filter = ActivityFilter() }
+                                .font(.caption)
+                                .textCase(nil)
                         }
                     }
                 }
@@ -86,6 +98,7 @@ struct GroupHomeView: View {
             }
         }
         .navigationTitle(viewModel.state?.group.name ?? "Group")
+        .searchable(text: $filter.searchText, prompt: "Search activity")
         .refreshable { await viewModel.refetch() }
         .task {
             await viewModel.load()
@@ -114,6 +127,9 @@ struct GroupHomeView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                if let state = viewModel.state, !state.expenses.isEmpty || !state.settlements.isEmpty {
+                    activityFilterMenu(state: state)
+                }
                 shareMenu
                 Button {
                     isPresentingAddExpense = true
@@ -188,8 +204,51 @@ struct GroupHomeView: View {
     }
 
     private func activityFeed(state: GroupStateResponse) -> [ActivityItem] {
-        let expenseItems = state.expenses.map { ActivityItem(expense: $0, members: state.members) }
-        let settlementItems = state.settlements.map { ActivityItem(settlement: $0, members: state.members) }
+        let filtered = ActivityFiltering.apply(
+            filter,
+            expenses: state.expenses,
+            settlements: state.settlements,
+            members: state.members
+        )
+        let expenseItems = filtered.expenses.map { ActivityItem(expense: $0, members: state.members) }
+        let settlementItems = filtered.settlements.map { ActivityItem(settlement: $0, members: state.members) }
         return (expenseItems + settlementItems).sorted { $0.date > $1.date }
+    }
+
+    /// The toolbar filter control: member + category pickers, plus Clear. Text
+    /// search is the nav-bar `.searchable` field. The icon fills in when a
+    /// filter is active.
+    @ViewBuilder
+    private func activityFilterMenu(state: GroupStateResponse) -> some View {
+        let categories = ActivityFiltering.categories(in: state.expenses)
+
+        Menu {
+            Picker("Member", selection: $filter.memberId) {
+                Text("Everyone").tag(String?.none)
+                ForEach(state.members) { member in
+                    Text(member.displayName).tag(Optional(member.id))
+                }
+            }
+
+            if !categories.isEmpty {
+                Picker("Category", selection: $filter.category) {
+                    Text("All categories").tag(CategoryFilter.any)
+                    ForEach(categories, id: \.name) { category in
+                        Label(category.name, systemImage: category.symbolName)
+                            .tag(category == .uncategorized ? CategoryFilter.uncategorized : CategoryFilter.named(category.name))
+                    }
+                }
+            }
+
+            if filter.isActive {
+                Divider()
+                Button("Clear Filters", systemImage: "xmark.circle") { filter = ActivityFilter() }
+            }
+        } label: {
+            Label(
+                "Filter Activity",
+                systemImage: filter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle"
+            )
+        }
     }
 }

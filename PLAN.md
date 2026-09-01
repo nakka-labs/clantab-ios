@@ -78,7 +78,7 @@ struct SimplifiedSettlement: Codable, Sendable, Equatable {
 |---|---|
 | **Create Group** | Group name, currency picker, user display name → generates capability link + 6-char code |
 | **Join Group** | Enter 6-char code or open link → pick display name (saved to local device storage) |
-| **Group Home** | Balance hero card ("You are owed ₹1,200" / "You owe ₹350"), member net balances, activity feed, link to Spending Insights |
+| **Group Home** | Balance hero card ("You are owed ₹1,200" / "You owe ₹350"), member net balances, activity feed (searchable + filterable by member/category), link to Spending Insights |
 | **Spending Insights** | Total spend, spend over time (day/week/month), and breakdowns by category and by member — SwiftUI Charts over `ClanTabKit.Insights` |
 | **Add Expense** | Amount keypad, payer selector, description, category picker (name + SF Symbol), equal / exact / percentage split allocation |
 | **Settle Up** | Minimal simplified settle-up transaction cards, 1-tap "Mark as Paid" |
