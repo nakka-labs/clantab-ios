@@ -132,6 +132,7 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
     "id",
     "payerId",
     "amountMinor",
+    "currency",
     "description",
     "date",
     "splitType",
@@ -155,6 +156,7 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
     id: optionalString(body, "id"),
     payerId: requireString(body, "payerId"),
     amountMinor: requireInteger(body, "amountMinor"),
+    currency: optionalString(body, "currency"),
     description: requireString(body, "description"),
     date: requireString(body, "date"),
     splitType,
@@ -218,13 +220,14 @@ function handleRoot(): Promise<Response> {
 async function handleAddSettlement(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(env, params.groupId ?? "");
   const body = await readJsonObject(request);
-  rejectUnknownKeys(body, ["id", "fromId", "toId", "amountMinor"]);
+  rejectUnknownKeys(body, ["id", "fromId", "toId", "amountMinor", "currency"]);
 
   const req: AddSettlementRequest = {
     id: optionalString(body, "id"),
     fromId: requireString(body, "fromId"),
     toId: requireString(body, "toId"),
     amountMinor: requireInteger(body, "amountMinor"),
+    currency: optionalString(body, "currency"),
   };
   const result = await group.addSettlement(req);
   return result.ok ? json(201, result.value) : json(400, { error: result.error });

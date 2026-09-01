@@ -86,7 +86,7 @@ describe("GET /api/groups/:groupId", () => {
     expect(json.members).toHaveLength(1);
     expect(json.expenses).toEqual([]);
     expect(json.settlements).toEqual([]);
-    expect(json.balances).toEqual([{ memberId: creatorId, netMinor: 0 }]);
+    expect(json.balances).toEqual([]);
     expect(json.simplifiedSettlements).toEqual([]);
   });
 
@@ -165,10 +165,10 @@ describe("POST /api/groups/:groupId/expenses", () => {
 
     const state = await get(`/api/groups/${groupId}`);
     expect(state.json.balances).toEqual([
-      { memberId: a, netMinor: 500 },
-      { memberId: b, netMinor: -500 },
+      { memberId: a, currency: "INR", netMinor: 500 },
+      { memberId: b, currency: "INR", netMinor: -500 },
     ]);
-    expect(state.json.simplifiedSettlements).toEqual([{ fromId: b, toId: a, amountMinor: 500 }]);
+    expect(state.json.simplifiedSettlements).toEqual([{ fromId: b, toId: a, amountMinor: 500, currency: "INR" }]);
   });
 
   it("treats a repeated client id as an idempotent replay", async () => {
@@ -269,8 +269,8 @@ describe("POST /api/groups/:groupId/expenses", () => {
 
     const state = await get(`/api/groups/${groupId}`);
     expect(state.json.balances).toEqual([
-      { memberId: a, netMinor: 300 },
-      { memberId: b, netMinor: -300 },
+      { memberId: a, currency: "INR", netMinor: 300 },
+      { memberId: b, currency: "INR", netMinor: -300 },
     ]);
   });
 
@@ -327,6 +327,33 @@ describe("POST /api/groups/:groupId/expenses", () => {
     expect(json.expense).not.toHaveProperty("category");
     expect(json.expense).not.toHaveProperty("categoryIcon");
   });
+
+  it("defaults currency to the group's, and keeps a foreign currency in its own bucket", async () => {
+    const base = { date: "2026-01-03T10:00:00Z", splitType: "equal" as const };
+    // No currency → group default (INR).
+    const inr = await post(`/api/groups/${groupId}/expenses`, {
+      ...base, payerId: a, amountMinor: 1000, description: "INR lunch",
+      splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
+    });
+    expect((inr.json.expense as Json).currency).toBe("INR");
+    // Explicit USD → its own ledger.
+    await post(`/api/groups/${groupId}/expenses`, {
+      ...base, payerId: b, amountMinor: 800, currency: "USD", description: "USD dinner",
+      splits: [{ memberId: a, amountMinor: 400 }, { memberId: b, amountMinor: 400 }],
+    });
+
+    const state = await get(`/api/groups/${groupId}`);
+    expect(state.json.balances).toEqual([
+      { memberId: a, currency: "INR", netMinor: 500 },
+      { memberId: b, currency: "INR", netMinor: -500 },
+      { memberId: a, currency: "USD", netMinor: -400 },
+      { memberId: b, currency: "USD", netMinor: 400 },
+    ]);
+    expect(state.json.simplifiedSettlements).toEqual([
+      { fromId: b, toId: a, amountMinor: 500, currency: "INR" },
+      { fromId: a, toId: b, amountMinor: 400, currency: "USD" },
+    ]);
+  });
 });
 
 describe("POST /api/groups/:groupId/settlements", () => {
@@ -354,10 +381,7 @@ describe("POST /api/groups/:groupId/settlements", () => {
     expect(json.settlement).toMatchObject({ fromId: b, toId: a, amountMinor: 500 });
 
     const state = await get(`/api/groups/${groupId}`);
-    expect(state.json.balances).toEqual([
-      { memberId: a, netMinor: 0 },
-      { memberId: b, netMinor: 0 },
-    ]);
+    expect(state.json.balances).toEqual([]); // fully settled — no nonzero balances
   });
 
   it("rejects a settlement to oneself", async () => {

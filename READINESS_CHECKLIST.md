@@ -40,10 +40,10 @@ Ship order locked: independent cheap features → multi-currency → accounts
 unresolved, see backlog).
 
 - ~~Custom/percentage splits~~ (v2), ~~categories + icons~~ (v3), ~~graphs~~
-  (`Insights` + SwiftUI Charts), and ~~search/filter~~ (`ActivityFiltering`, feed
-  only) — **done 2026-09-01**, all client-only bar the two schema bumps. CSV
-  import still open — independent, no accounts dependency.
-- Multi-currency ledgers (per-currency, no conversion, last-used default).
+  (`Insights` + SwiftUI Charts), ~~search/filter~~ (`ActivityFiltering`, feed
+  only), and ~~multi-currency ledgers~~ (v4 — per-currency, no FX, last-used
+  default) — **done 2026-09-01**. CSV import still open — independent, no
+  accounts dependency.
 - Accounts: Sign in with Apple, placeholder-member claim flow, the
   groupId-per-identity index, **in-app account deletion** (Apple
   Guideline 5.1.1(v) — not optional once accounts exist).

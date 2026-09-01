@@ -14,13 +14,33 @@ function sortDescending(items: Party[]): void {
  * Greedy debt simplification — a port of `ClanTabKit`'s `Simplify.simplify`, kept
  * byte-identical by the shared golden fixtures.
  *
- * Repeatedly matches the largest creditor with the largest debtor, settles the
- * smaller of the two amounts between them, and repeats until every balance is
- * zero. Deterministic regardless of input ordering: ties between equal amounts
- * are broken by `memberId`, so the same set of balances always produces the same
- * transaction list (at most N-1 for N members with a nonzero balance).
+ * Runs the greedy match **once per currency** (currencies never net against each
+ * other — no FX) and concatenates the results in the order the currencies first
+ * appear in `balances`. Within a currency: repeatedly match the largest creditor
+ * with the largest debtor, settle the smaller amount, repeat. Deterministic
+ * regardless of input ordering — ties broken by `memberId`.
  */
 export function simplify(balances: Balance[]): SimplifiedSettlement[] {
+  const order: string[] = [];
+  const byCurrency = new Map<string, Balance[]>();
+  for (const b of balances) {
+    let group = byCurrency.get(b.currency);
+    if (group === undefined) {
+      group = [];
+      byCurrency.set(b.currency, group);
+      order.push(b.currency);
+    }
+    group.push(b);
+  }
+
+  const result: SimplifiedSettlement[] = [];
+  for (const currency of order) {
+    result.push(...simplifyOneCurrency(byCurrency.get(currency)!, currency));
+  }
+  return result;
+}
+
+function simplifyOneCurrency(balances: Balance[], currency: string): SimplifiedSettlement[] {
   const creditors: Party[] = [];
   const debtors: Party[] = [];
 
@@ -39,7 +59,7 @@ export function simplify(balances: Balance[]): SimplifiedSettlement[] {
     const debtor = debtors.shift()!;
 
     const amount = Math.min(creditor.amount, debtor.amount);
-    result.push({ fromId: debtor.id, toId: creditor.id, amountMinor: amount });
+    result.push({ fromId: debtor.id, toId: creditor.id, amountMinor: amount, currency });
 
     creditor.amount -= amount;
     debtor.amount -= amount;

@@ -31,6 +31,10 @@ public struct Expense: Identifiable, Codable, Sendable {
     public let id: String
     public let payerId: String
     public let amountMinor: Int64
+    /// ISO 4217 code (e.g. "USD"). A group is not restricted to one currency;
+    /// ledgers are kept separate per currency and never blended (no FX) — see
+    /// `Balances.compute`. `amountMinor` and every split are in this currency.
+    public let currency: String
     public let description: String
     public let date: Date
     public let splitType: SplitType
@@ -46,6 +50,7 @@ public struct Expense: Identifiable, Codable, Sendable {
         id: String,
         payerId: String,
         amountMinor: Int64,
+        currency: String,
         description: String,
         date: Date,
         splitType: SplitType,
@@ -56,6 +61,7 @@ public struct Expense: Identifiable, Codable, Sendable {
         self.id = id
         self.payerId = payerId
         self.amountMinor = amountMinor
+        self.currency = currency
         self.description = description
         self.date = date
         self.splitType = splitType

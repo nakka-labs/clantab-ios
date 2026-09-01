@@ -75,7 +75,7 @@ function randomZeroSumBalances(memberCount: number, rng: () => number): Balance[
     running += amount;
   }
   amounts.push(-running);
-  return amounts.map((netMinor, i) => ({ memberId: `member-${i}`, netMinor }));
+  return amounts.map((netMinor, i) => ({ memberId: `member-${i}`, currency: "USD", netMinor }));
 }
 
 /** Apply a simplified plan on top of balances and check every member lands at zero. */

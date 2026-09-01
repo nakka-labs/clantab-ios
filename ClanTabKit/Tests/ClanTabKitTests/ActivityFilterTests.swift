@@ -18,7 +18,7 @@ struct ActivityFilterTests {
         category: String? = nil
     ) -> Expense {
         Expense(
-            id: id, payerId: payer, amountMinor: 300, description: description,
+            id: id, payerId: payer, amountMinor: 300, currency: "USD", description: description,
             date: Date(timeIntervalSince1970: 0), splitType: .equal,
             splits: splitMembers.map { ExpenseSplit(memberId: $0, amountMinor: 100) },
             category: category, categoryIcon: category == nil ? nil : "tag"
@@ -34,7 +34,7 @@ struct ActivityFilterTests {
     }
 
     private var settlements: [Settlement] {
-        [Settlement(id: "s1", fromId: "b", toId: "a", amountMinor: 100, date: Date(timeIntervalSince1970: 0))]
+        [Settlement(id: "s1", fromId: "b", toId: "a", amountMinor: 100, currency: "USD", date: Date(timeIntervalSince1970: 0))]
     }
 
     private func run(_ filter: ActivityFilter) -> (expenses: [String], settlements: [String]) {

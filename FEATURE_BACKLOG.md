@@ -47,26 +47,19 @@
   `HANDOFF.md`), then batch-`addExpense` against the existing endpoint.
   Reuses the export code's pure-function pattern in reverse.
 
-## In scope, next up — real cost, don't lump in as "cheap"
+## Shipped
 
-- **Multi-currency (no auto-conversion) — decided.** A group is NOT
-  restricted to one currency; expenses can be in any currency. Ledgers
-  are kept separate per currency, not blended — i.e. debt-simplification
-  (`PLAN.md` §2) runs once per currency bucket within a group, so a
-  member's balance can be "owes ₹500 AND owes $45," never a converted
-  single number. This is the correct complement to killing FX-conversion:
-  a blended number would just be a fiction once rates move. Cost:
-  partitioning the existing greedy algorithm by currency is cheap; the
-  real cost is UI — a balance row can carry N currency amounts, and
-  settle-up has to work per-currency (can't net ₹500 owed against $45
-  owed). **Decided:** a group remembers its last-used currency as the
-  default for new expenses; the user can override per expense — avoids
-  a currency picker on every single add for groups that are 95% one
-  currency.
-  **Do not build FX conversion** — ongoing rate-API dependency plus an
-  unavoidable correctness call (rate at expense time or settle time?)
-  that will visibly drift from what someone actually paid. Explicit
-  non-goal in `DESIGN.md` for this reason.
+- ~~**Multi-currency (no auto-conversion).**~~ **Shipped 2026-09-01.** `currency`
+  on expenses + settlements (schema v4, `ADD COLUMN` + backfill from the group
+  currency); `Balance` and `SimplifiedSettlement` gained `currency`.
+  `Balances.compute` / `Simplify.simplify` (and the worker ports) now partition
+  by currency — nonzero balances per (member, currency), the greedy plan run
+  once per currency bucket, never blended. Golden fixtures rewritten +
+  `multi-currency.json` added. App: currency picker on Add Expense defaulting to
+  the group's last-used currency (`GroupViewModel.lastUsedCurrency`), per-currency
+  lines in the balance hero / member rows / settle-up sections, a currency
+  segment on the Insights screen, a Currency column in the CSV export.
+  **FX conversion was NOT built and stays a hard non-goal** (`DESIGN.md` §12).
 
 ## Some ideas worth implementing at a later point
 

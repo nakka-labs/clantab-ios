@@ -9,14 +9,15 @@ import ClanTabKit
 struct InsightsView: View {
     let expenses: [Expense]
     let members: [Member]
-    let currency: String
 
     @State private var granularity: SpendGranularity = .month
+    @State private var currency: String = ""
 
-    private var total: Int64 { Insights.totalSpend(expenses) }
-    private var byCategory: [CategorySpend] { Insights.byCategory(expenses) }
-    private var byMember: [MemberSpend] { Insights.byMember(expenses, members: members) }
-    private var overTime: [SpendBucket] { Insights.overTime(expenses, granularity: granularity) }
+    private var currencies: [String] { Insights.currencies(in: expenses) }
+    private var total: Int64 { Insights.totalSpend(expenses, currency: currency) }
+    private var byCategory: [CategorySpend] { Insights.byCategory(expenses, currency: currency) }
+    private var byMember: [MemberSpend] { Insights.byMember(expenses, members: members, currency: currency) }
+    private var overTime: [SpendBucket] { Insights.overTime(expenses, currency: currency, granularity: granularity) }
 
     var body: some View {
         Group {
@@ -28,6 +29,15 @@ struct InsightsView: View {
                 )
             } else {
                 List {
+                    if currencies.count > 1 {
+                        Section {
+                            Picker("Currency", selection: $currency) {
+                                ForEach(currencies, id: \.self) { code in Text(code).tag(code) }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    }
+
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Total spent").font(.subheadline).foregroundStyle(.secondary)
@@ -69,6 +79,9 @@ struct InsightsView: View {
         }
         .navigationTitle("Insights")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if currency.isEmpty { currency = currencies.first ?? "" }
+        }
     }
 
     private var overTimeChart: some View {

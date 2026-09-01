@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS expenses (
   split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
   created_at    INTEGER NOT NULL,
   category      TEXT,
-  category_icon TEXT
+  category_icon TEXT,
+  currency      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expense_splits (
@@ -39,7 +40,8 @@ CREATE TABLE IF NOT EXISTS settlements (
   from_id      TEXT NOT NULL,
   to_id        TEXT NOT NULL,
   amount_minor INTEGER NOT NULL,
-  settled_at   INTEGER NOT NULL
+  settled_at   INTEGER NOT NULL,
+  currency     TEXT
 );
 `;
 
@@ -67,5 +69,7 @@ export const META_KEYS = {
  *          can't alter a CHECK in place, so `GroupDO.migrate` rebuilds the table.
  *  - `3` → `expenses.category` + `expenses.category_icon` added (nullable).
  *          Plain `ALTER TABLE ... ADD COLUMN` — no rebuild.
+ *  - `4` → `expenses.currency` + `settlements.currency` added (nullable), then
+ *          backfilled from the group's currency. Multi-currency ledgers.
  */
-export const SCHEMA_VERSION = "3";
+export const SCHEMA_VERSION = "4";

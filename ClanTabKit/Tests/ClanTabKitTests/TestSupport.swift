@@ -51,6 +51,6 @@ func randomZeroSumBalances(memberCount: Int, generator: inout SeededGenerator) -
     amounts.append(-runningSum)
 
     return (0..<memberCount).map { index in
-        Balance(memberId: "member-\(index)", netMinor: amounts[index])
+        Balance(memberId: "member-\(index)", currency: "USD", netMinor: amounts[index])
     }
 }

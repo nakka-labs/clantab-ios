@@ -8,93 +8,117 @@ struct BalancesTests {
     let bob = Member(id: "bob", displayName: "Bob")
     let carol = Member(id: "carol", displayName: "Carol")
 
+    private func expense(
+        id: String = "e1",
+        payer: String,
+        amount: Int64,
+        currency: String = "USD",
+        splits: [ExpenseSplit]
+    ) -> Expense {
+        Expense(
+            id: id, payerId: payer, amountMinor: amount, currency: currency,
+            description: "x", date: Date(), splitType: .exact, splits: splits
+        )
+    }
+
+    private func settlement(
+        id: String = "s1", from: String, to: String, amount: Int64, currency: String = "USD"
+    ) -> Settlement {
+        Settlement(id: id, fromId: from, toId: to, amountMinor: amount, currency: currency, date: Date())
+    }
+
+    private func byId(_ balances: [Balance]) -> [String: Int64] {
+        Dictionary(balances.map { ($0.memberId, $0.netMinor) }, uniquingKeysWith: { a, _ in a })
+    }
+
     @Test("Single payer covering an equal split owes nothing, is owed by everyone else")
     func testSinglePayerEqualSplit() {
-        // Alice pays 300 for a meal shared equally three ways (100 each).
-        let expense = Expense(
-            id: "e1",
-            payerId: alice.id,
-            amountMinor: 300,
-            description: "Dinner",
-            date: Date(),
-            splitType: .equal,
-            splits: [
-                ExpenseSplit(memberId: alice.id, amountMinor: 100),
-                ExpenseSplit(memberId: bob.id, amountMinor: 100),
-                ExpenseSplit(memberId: carol.id, amountMinor: 100),
-            ]
-        )
+        let e = expense(payer: alice.id, amount: 300, splits: [
+            ExpenseSplit(memberId: alice.id, amountMinor: 100),
+            ExpenseSplit(memberId: bob.id, amountMinor: 100),
+            ExpenseSplit(memberId: carol.id, amountMinor: 100),
+        ])
+        let balances = Balances.compute(members: [alice, bob, carol], expenses: [e], settlements: [])
 
-        let balances = Balances.compute(members: [alice, bob, carol], expenses: [expense], settlements: [])
-        let byId = Dictionary(uniqueKeysWithValues: balances.map { ($0.memberId, $0.netMinor) })
-
-        #expect(byId["alice"] == 200)
-        #expect(byId["bob"] == -100)
-        #expect(byId["carol"] == -100)
+        #expect(balances.allSatisfy { $0.currency == "USD" })
+        #expect(byId(balances)["alice"] == 200)
+        #expect(byId(balances)["bob"] == -100)
+        #expect(byId(balances)["carol"] == -100)
         #expect(balances.reduce(0) { $0 + $1.netMinor } == 0)
     }
 
     @Test("A settlement moves balance from the payer toward the recipient")
     func testSettlementMovesBalance() {
-        let settlement = Settlement(id: "s1", fromId: bob.id, toId: alice.id, amountMinor: 100, date: Date())
-        let balances = Balances.compute(members: [alice, bob], expenses: [], settlements: [settlement])
-        let byId = Dictionary(uniqueKeysWithValues: balances.map { ($0.memberId, $0.netMinor) })
-
-        #expect(byId["bob"] == 100)
-        #expect(byId["alice"] == -100)
-    }
-
-    @Test("Expenses fully offset by settlements produce an already-settled zero state")
-    func testZeroBalanceAlreadySettled() {
-        let expense = Expense(
-            id: "e1",
-            payerId: alice.id,
-            amountMinor: 200,
-            description: "Groceries",
-            date: Date(),
-            splitType: .equal,
-            splits: [
-                ExpenseSplit(memberId: alice.id, amountMinor: 100),
-                ExpenseSplit(memberId: bob.id, amountMinor: 100),
-            ]
+        let balances = Balances.compute(
+            members: [alice, bob], expenses: [],
+            settlements: [settlement(from: bob.id, to: alice.id, amount: 100)]
         )
-        let settlement = Settlement(id: "s1", fromId: bob.id, toId: alice.id, amountMinor: 100, date: Date())
-
-        let balances = Balances.compute(members: [alice, bob], expenses: [expense], settlements: [settlement])
-        #expect(balances.allSatisfy { $0.netMinor == 0 })
+        #expect(byId(balances)["bob"] == 100)
+        #expect(byId(balances)["alice"] == -100)
     }
 
-    @Test("Empty event history yields zero balances for every member")
+    @Test("Expenses fully offset by settlements drop out (only nonzero balances are returned)")
+    func testZeroBalanceAlreadySettled() {
+        let e = expense(payer: alice.id, amount: 200, splits: [
+            ExpenseSplit(memberId: alice.id, amountMinor: 100),
+            ExpenseSplit(memberId: bob.id, amountMinor: 100),
+        ])
+        let balances = Balances.compute(
+            members: [alice, bob], expenses: [e],
+            settlements: [settlement(from: bob.id, to: alice.id, amount: 100)]
+        )
+        #expect(balances.isEmpty)
+    }
+
+    @Test("Empty event history yields no balances at all")
     func testEmptyHistory() {
-        let balances = Balances.compute(members: [alice, bob, carol], expenses: [], settlements: [])
-        #expect(balances.count == 3)
-        #expect(balances.allSatisfy { $0.netMinor == 0 })
+        #expect(Balances.compute(members: [alice, bob, carol], expenses: [], settlements: []).isEmpty)
     }
 
     @Test("Computing balances twice from the same input is idempotent")
     func testIdempotency() {
-        let expense = Expense(
-            id: "e1",
-            payerId: alice.id,
-            amountMinor: 300,
-            description: "Dinner",
-            date: Date(),
-            splitType: .equal,
-            splits: [
-                ExpenseSplit(memberId: alice.id, amountMinor: 100),
-                ExpenseSplit(memberId: bob.id, amountMinor: 100),
-                ExpenseSplit(memberId: carol.id, amountMinor: 100),
-            ]
-        )
+        let e = expense(payer: alice.id, amount: 300, splits: [
+            ExpenseSplit(memberId: alice.id, amountMinor: 100),
+            ExpenseSplit(memberId: bob.id, amountMinor: 100),
+            ExpenseSplit(memberId: carol.id, amountMinor: 100),
+        ])
         let members = [alice, bob, carol]
-        let first = Balances.compute(members: members, expenses: [expense], settlements: [])
-        let second = Balances.compute(members: members, expenses: [expense], settlements: [])
-        #expect(first == second)
+        #expect(
+            Balances.compute(members: members, expenses: [e], settlements: [])
+                == Balances.compute(members: members, expenses: [e], settlements: [])
+        )
     }
 
-    @Test("Result order and completeness always matches the members array")
+    @Test("Within a currency, nonzero balances follow members order")
     func testResultOrderMatchesMembers() {
-        let balances = Balances.compute(members: [carol, alice, bob], expenses: [], settlements: [])
+        let e = expense(payer: carol.id, amount: 300, splits: [
+            ExpenseSplit(memberId: alice.id, amountMinor: 100),
+            ExpenseSplit(memberId: bob.id, amountMinor: 100),
+            ExpenseSplit(memberId: carol.id, amountMinor: 100),
+        ])
+        let balances = Balances.compute(members: [carol, alice, bob], expenses: [e], settlements: [])
         #expect(balances.map(\.memberId) == ["carol", "alice", "bob"])
+    }
+
+    @Test("Two currencies are kept in separate buckets, each summing to zero")
+    func testMultiCurrency() {
+        let usd = expense(id: "e1", payer: alice.id, amount: 200, currency: "USD", splits: [
+            ExpenseSplit(memberId: alice.id, amountMinor: 100),
+            ExpenseSplit(memberId: bob.id, amountMinor: 100),
+        ])
+        let eur = expense(id: "e2", payer: bob.id, amount: 500, currency: "EUR", splits: [
+            ExpenseSplit(memberId: alice.id, amountMinor: 250),
+            ExpenseSplit(memberId: bob.id, amountMinor: 250),
+        ])
+        let balances = Balances.compute(members: [alice, bob], expenses: [usd, eur], settlements: [])
+
+        // USD bucket first (first-appearance order), then EUR.
+        #expect(balances.map { "\($0.currency):\($0.memberId)=\($0.netMinor)" }
+            == ["USD:alice=100", "USD:bob=-100", "EUR:alice=-250", "EUR:bob=250"])
+
+        for currency in ["USD", "EUR"] {
+            let sum = balances.filter { $0.currency == currency }.reduce(Int64(0)) { $0 + $1.netMinor }
+            #expect(sum == 0)
+        }
     }
 }

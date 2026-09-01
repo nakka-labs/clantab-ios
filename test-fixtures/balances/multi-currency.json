@@ -1,0 +1,53 @@
+{
+  "name": "two currencies in one group — kept in separate buckets, never blended",
+  "members": [
+    { "id": "a", "displayName": "Ana" },
+    { "id": "b", "displayName": "Ben" },
+    { "id": "c", "displayName": "Cal" }
+  ],
+  "expenses": [
+    {
+      "id": "e1",
+      "payerId": "a",
+      "amountMinor": 300,
+      "currency": "USD",
+      "description": "US lunch (equal)",
+      "date": "2026-07-01T12:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "a", "amountMinor": 100 },
+        { "memberId": "b", "amountMinor": 100 },
+        { "memberId": "c", "amountMinor": 100 }
+      ]
+    },
+    {
+      "id": "e2",
+      "payerId": "b",
+      "amountMinor": 900,
+      "currency": "INR",
+      "description": "India cab (equal)",
+      "date": "2026-07-02T12:00:00Z",
+      "splitType": "equal",
+      "splits": [
+        { "memberId": "a", "amountMinor": 300 },
+        { "memberId": "b", "amountMinor": 300 },
+        { "memberId": "c", "amountMinor": 300 }
+      ]
+    }
+  ],
+  "settlements": [
+    { "id": "s1", "fromId": "c", "toId": "a", "amountMinor": 100, "currency": "USD", "date": "2026-07-03T09:00:00Z" }
+  ],
+  "expectedBalances": [
+    { "memberId": "a", "currency": "USD", "netMinor": 100 },
+    { "memberId": "b", "currency": "USD", "netMinor": -100 },
+    { "memberId": "a", "currency": "INR", "netMinor": -300 },
+    { "memberId": "b", "currency": "INR", "netMinor": 600 },
+    { "memberId": "c", "currency": "INR", "netMinor": -300 }
+  ],
+  "expectedSimplified": [
+    { "fromId": "b", "toId": "a", "amountMinor": 100, "currency": "USD" },
+    { "fromId": "a", "toId": "b", "amountMinor": 300, "currency": "INR" },
+    { "fromId": "c", "toId": "b", "amountMinor": 300, "currency": "INR" }
+  ]
+}

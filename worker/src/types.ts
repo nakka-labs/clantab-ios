@@ -66,6 +66,8 @@ export interface AddExpenseRequest {
   id?: string;
   payerId: string;
   amountMinor: number;
+  /** ISO 4217 code. Optional — defaults to the group's currency server-side. */
+  currency?: string;
   description: string;
   date: string; // ISO 8601
   splitType: SplitType;
@@ -83,6 +85,8 @@ export interface AddSettlementRequest {
   fromId: string;
   toId: string;
   amountMinor: number;
+  /** ISO 4217 code. Optional — defaults to the group's currency server-side. */
+  currency?: string;
 }
 export interface AddSettlementResponse {
   settlement: Settlement;

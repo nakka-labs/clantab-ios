@@ -10,7 +10,8 @@ import ClanTabKit
 struct AddExpenseView: View {
     let groupId: String
     let members: [Member]
-    let currency: String
+    /// The currency to pre-select — the group's last-used one.
+    let defaultCurrency: String
     let currentMemberId: String?
     let client: ClanTabClient
     let onSaved: () -> Void
@@ -19,6 +20,7 @@ struct AddExpenseView: View {
     @State private var amountText = ""
     @State private var description = ""
     @State private var payerId: String
+    @State private var currency: String
     @State private var splitType: SplitType = .equal
     @State private var includedMemberIds: Set<String>
     @State private var exactAmountText: [String: String] = [:]
@@ -27,10 +29,18 @@ struct AddExpenseView: View {
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
+    /// The currencies the user can pick — the supported set, plus the default if
+    /// it's somehow outside it (an older group on a currency since removed).
+    private var currencyChoices: [String] {
+        AppConfig.supportedCurrencies.contains(defaultCurrency)
+            ? AppConfig.supportedCurrencies
+            : [defaultCurrency] + AppConfig.supportedCurrencies
+    }
+
     init(
         groupId: String,
         members: [Member],
-        currency: String,
+        defaultCurrency: String,
         currentMemberId: String?,
         client: ClanTabClient,
         onSaved: @escaping () -> Void,
@@ -38,12 +48,13 @@ struct AddExpenseView: View {
     ) {
         self.groupId = groupId
         self.members = members
-        self.currency = currency
+        self.defaultCurrency = defaultCurrency
         self.currentMemberId = currentMemberId
         self.client = client
         self.onSaved = onSaved
         self.onCancel = onCancel
         _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
+        _currency = State(initialValue: defaultCurrency)
         _includedMemberIds = State(initialValue: Set(members.map(\.id)))
     }
 
@@ -54,8 +65,16 @@ struct AddExpenseView: View {
     var body: some View {
         Form {
             Section("Expense") {
-                TextField("Amount", text: $amountText)
-                    .keyboardType(.decimalPad)
+                HStack {
+                    TextField("Amount", text: $amountText)
+                        .keyboardType(.decimalPad)
+                    if currencyChoices.count > 1 {
+                        Picker("Currency", selection: $currency) {
+                            ForEach(currencyChoices, id: \.self) { code in Text(code).tag(code) }
+                        }
+                        .labelsHidden()
+                    }
+                }
                 TextField("Description", text: $description)
                 Picker("Paid by", selection: $payerId) {
                     ForEach(members) { member in
@@ -283,6 +302,7 @@ struct AddExpenseView: View {
                     id: UUID().uuidString,
                     payerId: payerId,
                     amountMinor: amountMinor,
+                    currency: currency,
                     description: description,
                     date: Date(),
                     splitType: splitType,

@@ -25,7 +25,7 @@ struct Group: Identifiable, Codable, Sendable {
     let id: String           // 16-char unguessable capability string (nanoid)
     let joinCode: String     // 6-char human-typeable code (e.g. "K7M9P2")
     let name: String
-    let currency: String     // e.g. "INR", "USD", "EUR" (one per group in v1)
+    let currency: String     // the group's default currency for new expenses (a group can hold many)
     let createdAt: Date
     var members: [Member]
 }
@@ -39,6 +39,7 @@ struct Expense: Identifiable, Codable, Sendable {
     let id: String
     let payerId: String
     let amountMinor: Int64   // e.g. 120000 for ₹1,200.00
+    let currency: String     // ISO 4217; ledgers are kept per-currency, never blended
     let description: String
     let date: Date
     let splitType: SplitType // .equal, .exact, or .percentage
@@ -76,7 +77,7 @@ struct SimplifiedSettlement: Codable, Sendable, Equatable {
 
 | Screen | Purpose |
 |---|---|
-| **Create Group** | Group name, currency picker, user display name → generates capability link + 6-char code |
+| **Create Group** | Group name, default-currency picker, user display name → generates capability link + 6-char code |
 | **Join Group** | Enter 6-char code or open link → pick display name (saved to local device storage) |
 | **Group Home** | Balance hero card ("You are owed ₹1,200" / "You owe ₹350"), member net balances, activity feed (searchable + filterable by member/category), link to Spending Insights |
 | **Spending Insights** | Total spend, spend over time (day/week/month), and breakdowns by category and by member — SwiftUI Charts over `ClanTabKit.Insights` |
@@ -87,7 +88,7 @@ struct SimplifiedSettlement: Codable, Sendable, Equatable {
 ### Non-Goals
 - No accounts, login systems, or passwords
 - No payment processing — settling is a manual "I paid outside the app" click
-- No multi-currency within a single group (v1)
+- No FX conversion — a group can hold multiple currencies but they are never converted or blended (shipped 2026-09-01; conversion stays a non-goal)
 - No recurring expenses
 - No paid cloud AI / receipt OCR in core v1
 - No push notification servers or email tracking

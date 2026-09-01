@@ -39,6 +39,7 @@ public enum Export {
                 csvField(name(for: expense.payerId)),
                 csvField(""),
                 decimalString(expense.amountMinor),
+                expense.currency,
                 csvField(splits),
             ]
             rows.append(Row(date: expense.date, line: fields.joined(separator: ",")))
@@ -53,6 +54,7 @@ public enum Export {
                 csvField(name(for: settlement.fromId)),
                 csvField(name(for: settlement.toId)),
                 decimalString(settlement.amountMinor),
+                settlement.currency,
                 csvField(""),
             ]
             rows.append(Row(date: settlement.date, line: fields.joined(separator: ",")))
@@ -60,7 +62,7 @@ public enum Export {
 
         rows.sort { $0.date < $1.date }
 
-        var lines = ["Type,Date,Description,Category,From,To,Amount,Splits"]
+        var lines = ["Type,Date,Description,Category,From,To,Amount,Currency,Splits"]
         lines.append(contentsOf: rows.map(\.line))
         return lines.joined(separator: "\n")
     }

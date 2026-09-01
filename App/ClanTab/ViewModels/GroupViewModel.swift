@@ -37,9 +37,21 @@ final class GroupViewModel {
         identityStore.identity(forGroup: groupId)
     }
 
-    var myBalance: Balance? {
-        guard let me = myIdentity else { return nil }
-        return state?.balances.first { $0.memberId == me.memberId }
+    /// The current member's net balance in every currency they have activity in
+    /// (nonzero only — an empty array means "all settled up").
+    var myBalances: [Balance] {
+        guard let me = myIdentity else { return [] }
+        return balances(forMember: me.memberId)
+    }
+
+    func balances(forMember memberId: String) -> [Balance] {
+        state?.balances.filter { $0.memberId == memberId } ?? []
+    }
+
+    /// Default currency for a new expense: the most recently added expense's
+    /// currency, falling back to the group's home currency.
+    var lastUsedCurrency: String {
+        state?.expenses.last?.currency ?? state?.group.currency ?? AppConfig.supportedCurrencies.first!
     }
 
     /// Fetches once per view lifetime; call `refetch()` explicitly after a

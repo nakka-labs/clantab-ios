@@ -22,6 +22,8 @@ export interface Expense {
   id: string;
   payerId: string;
   amountMinor: number;
+  /** ISO 4217 code. Ledgers are kept per-currency and never blended (no FX). */
+  currency: string;
   description: string;
   /** ISO 8601, e.g. "2026-01-01T12:00:00Z". Not used by the balance math. */
   date: string;
@@ -40,12 +42,18 @@ export interface Settlement {
   fromId: string;
   toId: string;
   amountMinor: number;
+  currency: string;
   date: string;
 }
 
-/** Positive = is owed money; negative = owes money. Always derived, never stored. */
+/**
+ * A member's net position in one currency — positive = is owed, negative = owes.
+ * Always derived, never stored. A member active in N currencies has N `Balance`
+ * entries; currencies are never blended.
+ */
 export interface Balance {
   memberId: string;
+  currency: string;
   netMinor: number;
 }
 
@@ -53,4 +61,5 @@ export interface SimplifiedSettlement {
   fromId: string;
   toId: string;
   amountMinor: number;
+  currency: string;
 }

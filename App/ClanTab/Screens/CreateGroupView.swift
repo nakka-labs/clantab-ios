@@ -29,7 +29,7 @@ struct CreateGroupView: View {
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
-    private let currencies = ["INR", "USD", "EUR", "GBP", "AUD", "CAD"]
+    private let currencies = AppConfig.supportedCurrencies
 
     var body: some View {
         Group {

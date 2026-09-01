@@ -24,12 +24,20 @@ struct SettleUpView: View {
         viewModel.state?.members ?? []
     }
 
-    private var currency: String {
-        viewModel.state?.group.currency ?? ""
-    }
-
     private var settlements: [SimplifiedSettlement] {
         viewModel.state?.simplifiedSettlements ?? []
+    }
+
+    /// The plan grouped into per-currency sections, in the order currencies
+    /// first appear (matching the server's `simplifiedSettlements` order).
+    private var settlementsByCurrency: [(currency: String, items: [SimplifiedSettlement])] {
+        var order: [String] = []
+        var groups: [String: [SimplifiedSettlement]] = [:]
+        for s in settlements {
+            if groups[s.currency] == nil { order.append(s.currency) }
+            groups[s.currency, default: []].append(s)
+        }
+        return order.map { ($0, groups[$0] ?? []) }
     }
 
     var body: some View {
@@ -39,9 +47,11 @@ struct SettleUpView: View {
                     Text("Everyone is settled up.").foregroundStyle(.secondary)
                 }
             } else {
-                Section {
-                    ForEach(Array(settlements.enumerated()), id: \.offset) { _, settlement in
-                        settlementRow(settlement)
+                ForEach(settlementsByCurrency, id: \.currency) { group in
+                    Section(settlementsByCurrency.count > 1 ? group.currency : "") {
+                        ForEach(group.items, id: \.self) { settlement in
+                            settlementRow(settlement)
+                        }
                     }
                 }
             }
@@ -61,10 +71,10 @@ struct SettleUpView: View {
     }
 
     private func settlementRow(_ settlement: SimplifiedSettlement) -> some View {
-        let rowId = "\(settlement.fromId)->\(settlement.toId)"
+        let rowId = "\(settlement.currency):\(settlement.fromId)->\(settlement.toId)"
         let payer = name(for: settlement.fromId)
         let payee = name(for: settlement.toId)
-        let amount = MoneyFormat.string(minorUnits: settlement.amountMinor, currency: currency)
+        let amount = MoneyFormat.string(minorUnits: settlement.amountMinor, currency: settlement.currency)
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(payer) pays \(payee)")
@@ -105,7 +115,8 @@ struct SettleUpView: View {
                     id: UUID().uuidString,
                     fromId: settlement.fromId,
                     toId: settlement.toId,
-                    amountMinor: settlement.amountMinor
+                    amountMinor: settlement.amountMinor,
+                    currency: settlement.currency
                 )
             )
             onSettled()

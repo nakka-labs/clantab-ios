@@ -78,6 +78,7 @@ struct ClanTabClientTests {
                 AddExpenseRequest(
                     payerId: "m1",
                     amountMinor: 100,
+                    currency: "USD",
                     description: "Snacks",
                     date: Date(timeIntervalSince1970: 0),
                     splitType: .equal,
@@ -109,6 +110,7 @@ struct ClanTabClientTests {
                 "id": "server-assigned",
                 "payerId": "m1",
                 "amountMinor": 100,
+                "currency": "USD",
                 "description": "Snacks",
                 "date": "2026-01-15T10:00:00Z",
                 "splitType": "equal",
@@ -122,6 +124,7 @@ struct ClanTabClientTests {
             AddExpenseRequest(
                 payerId: "m1",
                 amountMinor: 100,
+                currency: "USD",
                 description: "Snacks",
                 date: Date(timeIntervalSince1970: 0),
                 splitType: .equal,
@@ -140,6 +143,7 @@ struct ClanTabClientTests {
                 "id": "client-generated",
                 "payerId": "m1",
                 "amountMinor": 100,
+                "currency": "USD",
                 "description": "Snacks",
                 "date": "2026-01-15T10:00:00Z",
                 "splitType": "equal",
@@ -154,6 +158,7 @@ struct ClanTabClientTests {
                 id: "client-generated",
                 payerId: "m1",
                 amountMinor: 100,
+                currency: "USD",
                 description: "Snacks",
                 date: Date(timeIntervalSince1970: 0),
                 splitType: .equal,
@@ -169,7 +174,7 @@ struct ClanTabClientTests {
     func testAddExpenseCategoryEncoding() async throws {
         let response = jsonData([
             "expense": [
-                "id": "e1", "payerId": "m1", "amountMinor": 100, "description": "Cab",
+                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "USD", "description": "Cab",
                 "date": "2026-01-15T10:00:00Z", "splitType": "equal",
                 "splits": [["memberId": "m1", "amountMinor": 100]],
             ],
@@ -179,7 +184,7 @@ struct ClanTabClientTests {
         _ = try await ClanTabClient(baseURL: baseURL, transport: withCategory).addExpense(
             groupId: "g1",
             AddExpenseRequest(
-                payerId: "m1", amountMinor: 100, description: "Cab",
+                payerId: "m1", amountMinor: 100, currency: "USD", description: "Cab",
                 date: Date(timeIntervalSince1970: 0), splitType: .equal,
                 splits: [ExpenseSplit(memberId: "m1", amountMinor: 100)],
                 category: "Transport", categoryIcon: "car"
@@ -193,7 +198,7 @@ struct ClanTabClientTests {
         _ = try await ClanTabClient(baseURL: baseURL, transport: without).addExpense(
             groupId: "g1",
             AddExpenseRequest(
-                payerId: "m1", amountMinor: 100, description: "Cab",
+                payerId: "m1", amountMinor: 100, currency: "USD", description: "Cab",
                 date: Date(timeIntervalSince1970: 0), splitType: .equal,
                 splits: [ExpenseSplit(memberId: "m1", amountMinor: 100)]
             )
@@ -216,6 +221,7 @@ struct ClanTabClientTests {
                     "id": "e1",
                     "payerId": "m1",
                     "amountMinor": 200,
+                    "currency": "INR",
                     "description": "Dinner",
                     "date": "2026-01-15T20:00:00Z",
                     "splitType": "equal",
@@ -227,11 +233,11 @@ struct ClanTabClientTests {
             ],
             "settlements": [] as [Any],
             "balances": [
-                ["memberId": "m1", "netMinor": 100],
-                ["memberId": "m2", "netMinor": -100],
+                ["memberId": "m1", "currency": "INR", "netMinor": 100],
+                ["memberId": "m2", "currency": "INR", "netMinor": -100],
             ],
             "simplifiedSettlements": [
-                ["fromId": "m2", "toId": "m1", "amountMinor": 100],
+                ["fromId": "m2", "toId": "m1", "amountMinor": 100, "currency": "INR"],
             ],
         ])
         let transport = FakeTransport(statusCode: 200, body: responseBody)
@@ -244,11 +250,11 @@ struct ClanTabClientTests {
         #expect(state.members.count == 2)
         #expect(state.expenses.first?.splits.count == 2)
         #expect(state.balances == [
-            Balance(memberId: "m1", netMinor: 100),
-            Balance(memberId: "m2", netMinor: -100),
+            Balance(memberId: "m1", currency: "INR", netMinor: 100),
+            Balance(memberId: "m2", currency: "INR", netMinor: -100),
         ])
         #expect(state.simplifiedSettlements == [
-            SimplifiedSettlement(fromId: "m2", toId: "m1", amountMinor: 100),
+            SimplifiedSettlement(fromId: "m2", toId: "m1", amountMinor: 100, currency: "INR"),
         ])
 
         let request = await transport.lastRequest

@@ -1,9 +1,18 @@
 {
   "name": "percentage split (70/20/10), resolved to minor units",
   "members": [
-    { "id": "a", "displayName": "Ana" },
-    { "id": "b", "displayName": "Ben" },
-    { "id": "c", "displayName": "Cal" }
+    {
+      "id": "a",
+      "displayName": "Ana"
+    },
+    {
+      "id": "b",
+      "displayName": "Ben"
+    },
+    {
+      "id": "c",
+      "displayName": "Cal"
+    }
   ],
   "expenses": [
     {
@@ -14,20 +23,52 @@
       "date": "2026-06-01T15:00:00Z",
       "splitType": "percentage",
       "splits": [
-        { "memberId": "a", "amountMinor": 7000 },
-        { "memberId": "b", "amountMinor": 2000 },
-        { "memberId": "c", "amountMinor": 1000 }
-      ]
+        {
+          "memberId": "a",
+          "amountMinor": 7000
+        },
+        {
+          "memberId": "b",
+          "amountMinor": 2000
+        },
+        {
+          "memberId": "c",
+          "amountMinor": 1000
+        }
+      ],
+      "currency": "USD"
     }
   ],
   "settlements": [],
   "expectedBalances": [
-    { "memberId": "a", "netMinor": 3000 },
-    { "memberId": "b", "netMinor": -2000 },
-    { "memberId": "c", "netMinor": -1000 }
+    {
+      "memberId": "a",
+      "currency": "USD",
+      "netMinor": 3000
+    },
+    {
+      "memberId": "b",
+      "currency": "USD",
+      "netMinor": -2000
+    },
+    {
+      "memberId": "c",
+      "currency": "USD",
+      "netMinor": -1000
+    }
   ],
   "expectedSimplified": [
-    { "fromId": "b", "toId": "a", "amountMinor": 2000 },
-    { "fromId": "c", "toId": "a", "amountMinor": 1000 }
+    {
+      "fromId": "b",
+      "toId": "a",
+      "amountMinor": 2000,
+      "currency": "USD"
+    },
+    {
+      "fromId": "c",
+      "toId": "a",
+      "amountMinor": 1000,
+      "currency": "USD"
+    }
   ]
 }

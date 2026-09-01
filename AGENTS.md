@@ -31,7 +31,7 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 ## Non-Goals — Do Not Add Without Explicit Request
 - No accounts, login systems, or passwords.
 - No payment processing, banking integration, or money transfer — ever.
-- No multi-currency per group (one currency fixed at group creation for v1).
+- No FX conversion. A group can hold expenses in multiple currencies, but balances and settle-up are computed per currency and never blended — the group's `currency` is only the default for new expenses.
 - No recurring expenses or subscription models.
 - No receipt OCR / paid cloud AI services in core v1.
 - No push notification servers or email collection.

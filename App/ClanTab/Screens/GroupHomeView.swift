@@ -25,9 +25,9 @@ struct GroupHomeView: View {
 
     var body: some View {
         List {
-            if let balance = viewModel.myBalance {
+            if viewModel.state != nil {
                 Section {
-                    BalanceHeroView(balance: balance, currency: currency)
+                    BalanceHeroView(balances: viewModel.myBalances)
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
@@ -46,11 +46,7 @@ struct GroupHomeView: View {
             if let state = viewModel.state, !state.expenses.isEmpty {
                 Section {
                     NavigationLink {
-                        InsightsView(
-                            expenses: state.expenses,
-                            members: state.members,
-                            currency: currency
-                        )
+                        InsightsView(expenses: state.expenses, members: state.members)
                     } label: {
                         Label("Spending Insights", systemImage: "chart.bar")
                     }
@@ -62,8 +58,7 @@ struct GroupHomeView: View {
                     ForEach(state.members) { member in
                         MemberBalanceRow(
                             member: member,
-                            netMinor: state.balances.first { $0.memberId == member.id }?.netMinor ?? 0,
-                            currency: currency
+                            balances: viewModel.balances(forMember: member.id)
                         )
                     }
                 }
@@ -75,7 +70,7 @@ struct GroupHomeView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(items) { item in
-                            ActivityRow(item: item, currency: currency)
+                            ActivityRow(item: item)
                         }
                     }
                 } header: {
@@ -144,7 +139,7 @@ struct GroupHomeView: View {
                 AddExpenseView(
                     groupId: viewModel.groupId,
                     members: viewModel.state?.members ?? [],
-                    currency: currency,
+                    defaultCurrency: viewModel.lastUsedCurrency,
                     currentMemberId: viewModel.myIdentity?.memberId,
                     client: client,
                     onSaved: {
@@ -197,10 +192,6 @@ struct GroupHomeView: View {
                 Label("Share & Export", systemImage: "square.and.arrow.up")
             }
         }
-    }
-
-    private var currency: String {
-        viewModel.state?.group.currency ?? ""
     }
 
     private func activityFeed(state: GroupStateResponse) -> [ActivityItem] {

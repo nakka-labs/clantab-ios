@@ -10,6 +10,7 @@ struct ExportTests {
     private func makeExpense(
         id: String = "e1",
         amountMinor: Int64 = 1250,
+        currency: String = "USD",
         description: String = "Dinner",
         date: Date = Date(timeIntervalSince1970: 1_700_000_000),
         category: String? = nil
@@ -18,6 +19,7 @@ struct ExportTests {
             id: id,
             payerId: alice.id,
             amountMinor: amountMinor,
+            currency: currency,
             description: description,
             date: date,
             splitType: .equal,
@@ -33,13 +35,13 @@ struct ExportTests {
     @Test("CSV has one header row plus one row per expense and settlement")
     func testRowCount() {
         let expense = makeExpense()
-        let settlement = Settlement(id: "s1", fromId: bob.id, toId: alice.id, amountMinor: 625, date: Date())
+        let settlement = Settlement(id: "s1", fromId: bob.id, toId: alice.id, amountMinor: 625, currency: "USD", date: Date())
 
         let csv = Export.csv(members: [alice, bob], expenses: [expense], settlements: [settlement])
         let lines = csv.split(separator: "\n", omittingEmptySubsequences: false)
 
         #expect(lines.count == 3) // header + expense + settlement
-        #expect(lines[0] == "Type,Date,Description,Category,From,To,Amount,Splits")
+        #expect(lines[0] == "Type,Date,Description,Category,From,To,Amount,Currency,Splits")
     }
 
     @Test("CSV includes the expense category in its own column")
@@ -82,7 +84,7 @@ struct ExportTests {
         let csv = Export.csv(members: [alice, bob], expenses: [expense], settlements: [])
         // amountMinor must stay positive per Validation rules, so exercise the
         // formatter through a settlement instead when minorUnits is 0.
-        let settlement = Settlement(id: "s1", fromId: bob.id, toId: alice.id, amountMinor: max(minorUnits, 1), date: Date())
+        let settlement = Settlement(id: "s1", fromId: bob.id, toId: alice.id, amountMinor: max(minorUnits, 1), currency: "USD", date: Date())
         let csvViaSettlement = Export.csv(members: [alice, bob], expenses: [], settlements: [settlement])
 
         if minorUnits > 0 {
@@ -122,7 +124,7 @@ struct ExportTests {
     @Test("JSON export produces valid, pretty-printed, round-trippable JSON")
     func testJSONExportRoundTrips() throws {
         let expense = makeExpense()
-        let settlement = Settlement(id: "s1", fromId: bob.id, toId: alice.id, amountMinor: 625, date: Date())
+        let settlement = Settlement(id: "s1", fromId: bob.id, toId: alice.id, amountMinor: 625, currency: "USD", date: Date())
 
         let data = try Export.json(
             groupName: "Goa Trip",
@@ -156,6 +158,6 @@ struct ExportTests {
     @Test("Empty expenses and settlements produce a header-only CSV")
     func testEmptyLedgerProducesHeaderOnly() {
         let csv = Export.csv(members: [alice, bob], expenses: [], settlements: [])
-        #expect(csv == "Type,Date,Description,Category,From,To,Amount,Splits")
+        #expect(csv == "Type,Date,Description,Category,From,To,Amount,Currency,Splits")
     }
 }

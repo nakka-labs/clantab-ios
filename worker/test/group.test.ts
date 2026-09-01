@@ -13,18 +13,15 @@ describe("GroupDO", () => {
     expect(await g.exists()).toBe(true);
   });
 
-  it("getState returns the summary (with joinCode), members oldest-first, and a zero balance", async () => {
+  it("getState returns the summary (with joinCode), members oldest-first, and no balances", async () => {
     const g = group("g-state");
-    const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "XYZ234");
-    const { member: ben } = await g.addMember("Ben");
+    await g.initGroup("Trip", "USD", "Ana", "XYZ234");
+    await g.addMember("Ben");
 
     const state = await g.getState();
     expect(state.group).toMatchObject({ name: "Trip", currency: "USD", joinCode: "XYZ234" });
     expect(state.members.map((m) => m.displayName)).toEqual(["Ana", "Ben"]);
-    expect(state.balances).toEqual([
-      { memberId: ana.id, netMinor: 0 },
-      { memberId: ben.id, netMinor: 0 },
-    ]);
+    expect(state.balances).toEqual([]); // nothing spent yet
   });
 
   it("orders expenses and settlements by insertion time", async () => {
@@ -92,10 +89,10 @@ describe("GroupDO", () => {
     });
     expect(r.ok).toBe(true);
     const state = await g.getState();
-    expect(state.expenses[0]).toMatchObject({ splitType: "percentage" });
+    expect(state.expenses[0]).toMatchObject({ splitType: "percentage", currency: "USD" });
     expect(state.balances).toEqual([
-      { memberId: ana.id, netMinor: 400 }, // paid 1000, own share 600
-      { memberId: ben.id, netMinor: -400 },
+      { memberId: ana.id, currency: "USD", netMinor: 400 }, // paid 1000, own share 600
+      { memberId: ben.id, currency: "USD", netMinor: -400 },
     ]);
   });
 
@@ -109,6 +106,7 @@ describe("GroupDO", () => {
     await runInDurableObject(g, (instance, state) => {
       const sql = state.storage.sql;
       sql.exec("DROP TABLE expenses");
+      sql.exec("DROP TABLE settlements");
       sql.exec(`CREATE TABLE expenses (
         id           TEXT PRIMARY KEY,
         payer_id     TEXT NOT NULL,
@@ -117,6 +115,13 @@ describe("GroupDO", () => {
         expense_date TEXT NOT NULL,
         split_type   TEXT NOT NULL CHECK (split_type IN ('equal','exact')),
         created_at   INTEGER NOT NULL
+      )`);
+      sql.exec(`CREATE TABLE settlements (
+        id           TEXT PRIMARY KEY,
+        from_id      TEXT NOT NULL,
+        to_id        TEXT NOT NULL,
+        amount_minor INTEGER NOT NULL,
+        settled_at   INTEGER NOT NULL
       )`);
       sql.exec(
         "INSERT INTO expenses VALUES ('old-1', ?, 100, 'Legacy', '2026-01-01T00:00:00Z', 'equal', 1)",
@@ -128,21 +133,23 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("3");
+      expect(version).toBe("4");
 
-      // The legacy row survived the v2 rebuild and gained null category columns.
+      // The legacy row survived the v2 rebuild, gained null category columns,
+      // and had its currency backfilled from the group (USD).
       const legacy = sql
-        .exec<{ category: string | null; category_icon: string | null }>(
-          "SELECT category, category_icon FROM expenses WHERE id = 'old-1'",
+        .exec<{ category: string | null; category_icon: string | null; currency: string }>(
+          "SELECT category, category_icon, currency FROM expenses WHERE id = 'old-1'",
         )
         .toArray()[0];
-      expect(legacy).toEqual({ category: null, category_icon: null });
+      expect(legacy).toEqual({ category: null, category_icon: null, currency: "USD" });
     });
 
-    // percentage (needs v2) and category (needs v3) both work post-migration.
+    // percentage (needs v2), category (needs v3), currency (needs v4) post-migration.
     const r = await g.addExpense({
       payerId: ana.id,
       amountMinor: 500,
+      currency: "EUR",
       description: "Post-migration",
       date: "2026-01-01T00:00:00Z",
       splitType: "percentage",
@@ -151,7 +158,9 @@ describe("GroupDO", () => {
       categoryIcon: "airplane",
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.expense).toMatchObject({ category: "Travel", categoryIcon: "airplane" });
+    if (r.ok) {
+      expect(r.value.expense).toMatchObject({ category: "Travel", categoryIcon: "airplane", currency: "EUR" });
+    }
   });
 
   it("addExpense returns a failure Result (not a throw) for bad input", async () => {

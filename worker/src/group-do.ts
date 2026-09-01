@@ -42,6 +42,7 @@ type ExpenseRow = Row<{
   split_type: "equal" | "exact" | "percentage";
   category: string | null;
   category_icon: string | null;
+  currency: string;
 }>;
 type SplitRow = Row<{
   expense_id: string;
@@ -54,6 +55,7 @@ type SettlementRow = Row<{
   to_id: string;
   amount_minor: number;
   settled_at: number;
+  currency: string;
 }>;
 
 /**
@@ -115,6 +117,21 @@ export class GroupDO extends DurableObject {
       `);
       this.setMeta(META_KEYS.schemaVersion, "3");
       current = "3";
+    }
+
+    if (current === "3") {
+      // v4: add `currency` to both tables (nullable), then backfill every
+      // existing row from the group's currency — before v4 a group was
+      // single-currency, so that's exactly right.
+      this.sql.exec(`
+        ALTER TABLE expenses ADD COLUMN currency TEXT;
+        ALTER TABLE settlements ADD COLUMN currency TEXT;
+      `);
+      const groupCurrency = this.requireMeta(META_KEYS.currency);
+      this.sql.exec("UPDATE expenses SET currency = ? WHERE currency IS NULL", groupCurrency);
+      this.sql.exec("UPDATE settlements SET currency = ? WHERE currency IS NULL", groupCurrency);
+      this.setMeta(META_KEYS.schemaVersion, "4");
+      current = "4";
     }
   }
 
@@ -188,9 +205,10 @@ export class GroupDO extends DurableObject {
 
     const id = req.id ?? newRecordId();
     const now = Date.now();
+    const currency = req.currency ?? this.requireMeta(META_KEYS.currency);
 
     this.sql.exec(
-      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       req.payerId,
       req.amountMinor,
@@ -200,6 +218,7 @@ export class GroupDO extends DurableObject {
       now,
       req.category ?? null,
       req.categoryIcon ?? null,
+      currency,
     );
     for (const s of req.splits) {
       this.sql.exec(
@@ -235,13 +254,15 @@ export class GroupDO extends DurableObject {
 
     const id = req.id ?? newRecordId();
     const now = Date.now();
+    const currency = req.currency ?? this.requireMeta(META_KEYS.currency);
     this.sql.exec(
-      "INSERT INTO settlements (id, from_id, to_id, amount_minor, settled_at) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO settlements (id, from_id, to_id, amount_minor, settled_at, currency) VALUES (?, ?, ?, ?, ?, ?)",
       id,
       req.fromId,
       req.toId,
       req.amountMinor,
       now,
+      currency,
     );
 
     const settlement = this.readSettlementById(id);
@@ -312,6 +333,7 @@ export class GroupDO extends DurableObject {
       id: e.id,
       payerId: e.payer_id,
       amountMinor: e.amount_minor,
+      currency: e.currency,
       description: e.description,
       date: e.expense_date,
       splitType: e.split_type,
@@ -343,6 +365,7 @@ export class GroupDO extends DurableObject {
       fromId: s.from_id,
       toId: s.to_id,
       amountMinor: s.amount_minor,
+      currency: s.currency,
       date: isoSeconds(s.settled_at),
     };
   }

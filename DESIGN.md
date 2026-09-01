@@ -57,17 +57,19 @@ The single "give me everything" endpoint. Called on load and after every mutatio
 Response: 200 {
   group: { name, currency, createdAt, joinCode },
   members: [{ id, displayName }],
-  expenses: [{ id, payerId, amountMinor, description, date, splitType, splits: [...],
-               category?, categoryIcon? }],
-  settlements: [{ id, fromId, toId, amountMinor, date }],
-  balances: [{ memberId, netMinor }],
-  simplifiedSettlements: [{ fromId, toId, amountMinor }]
+  expenses: [{ id, payerId, amountMinor, currency, description, date, splitType,
+               splits: [...], category?, categoryIcon? }],
+  settlements: [{ id, fromId, toId, amountMinor, currency, date }],
+  balances: [{ memberId, currency, netMinor }],           // per-currency, nonzero only
+  simplifiedSettlements: [{ fromId, toId, amountMinor, currency }]
 }
 ```
 
+`balances` and `simplifiedSettlements` are **partitioned by currency** — a group is not restricted to one currency and the ledgers are never blended (no FX). A member owed in one currency and owing in another has one `balances` entry per currency; `simplifiedSettlements` runs the greedy plan once per currency. Both are ordered by currency in first-appearance order across the combined expense-then-settlement stream. `balances` omits (member, currency) pairs that net to zero.
+
 ### `POST /api/groups/:groupId/expenses`
 ```
-Request:  { id?: string, payerId, amountMinor, description, date,
+Request:  { id?: string, payerId, amountMinor, currency?, description, date,
             splitType: "equal"|"exact"|"percentage",
             splits: [{ memberId, amountMinor }],
             category?: string, categoryIcon?: string }
@@ -81,6 +83,8 @@ Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor
 `splitType` is a label describing how the client divided the amount; `percentage` reaches the server already resolved to exact minor-unit `splits` (the client does the division, exactly as `equal` resolves its own remainder — see §6). The server validates `splits` sum to `amountMinor` regardless of `splitType`.
 
 `category` is a free-form label and `categoryIcon` its SF Symbol name (`ClanTabKit.ExpenseCategory`). Both optional — omitted entirely when unset. Stored verbatim, not validated against a list; the icon is stored per expense so any client renders it without a shared name→icon table.
+
+`currency` (ISO 4217, both endpoints) is optional and defaults server-side to the group's currency — the iOS client always sends it explicitly (its last-used currency for the group). `amountMinor` and every split are in this currency. It is stored verbatim, not validated against a list.
 
 ### `POST /api/groups/:groupId/settlements`
 ```
@@ -116,7 +120,8 @@ CREATE TABLE expenses (
   split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
   created_at    INTEGER NOT NULL,
   category      TEXT,          -- nullable; added in schema v3
-  category_icon TEXT           -- nullable; SF Symbol name
+  category_icon TEXT,          -- nullable; SF Symbol name
+  currency      TEXT           -- nullable in DDL; added + backfilled in v4, always written since
 );
 
 CREATE TABLE expense_splits (
@@ -131,7 +136,8 @@ CREATE TABLE settlements (
   from_id      TEXT NOT NULL REFERENCES members(id),
   to_id        TEXT NOT NULL REFERENCES members(id),
   amount_minor INTEGER NOT NULL,
-  settled_at   INTEGER NOT NULL
+  settled_at   INTEGER NOT NULL,
+  currency     TEXT           -- nullable in DDL; added + backfilled in v4
 );
 ```
 All money as `INTEGER` minor units (paise/cents) — never `REAL`. This is the same rule as `AGENTS.md`, just enforced at the schema level too.
@@ -265,6 +271,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`1`** — initial v1 shape.
 - **`2`** — `expenses.split_type`'s `CHECK` widened to allow `'percentage'`. SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table (rename → recreate → copy → drop); `expense_splits` has no real FK so nothing cascades. A group that hasn't been created yet has no `schema_version` row and is skipped — `GROUP_SCHEMA` already builds the current shape.
 - **`3`** — `expenses.category` + `expenses.category_icon` added (both nullable). Plain `ALTER TABLE ... ADD COLUMN`, in place, no rebuild. Migrations run in sequence, so a v1 DO walks 1→2→3 on its next instantiation.
+- **`4`** — `expenses.currency` + `settlements.currency` added (both nullable), then backfilled from the group's currency (`UPDATE ... WHERE currency IS NULL`) — before v4 a group was single-currency, so that's exact. In-place, no rebuild.
 
 ---
 
@@ -290,5 +297,6 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - WebSocket live updates (upgrade path exists — same DO, add a WebSocket handler alongside the HTTP one — but not built until Phase 6+ per `PLAN.md`, and only if usage shows people actually have the app open simultaneously)
 - Optimistic UI updates on mutation
 - ~~**percentage/shares splitting**~~ — **shipped** (2026-09-01). `splitType` now includes `"percentage"`; the client resolves percentages to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.percentageSplit`), so it's a UI/label change only — the wire contract and balance math are unchanged. See §2, §6, §10 (schema v2).
-- Multi-currency, recurring expenses, receipt OCR — still out of scope per `PLAN.md` §1, listed here only so nobody mistakes their absence in this doc for an oversight
+- ~~**multi-currency**~~ — **shipped** (2026-09-01). A group holds expenses in any currency; balances and the settle-up plan are computed per currency and never blended (no FX conversion — that stays a hard non-goal). `currency` on expenses/settlements (schema v4), on `Balance`/`SimplifiedSettlement`; the group's `currency` is now just the default for new expenses. See §2, §3, §10.
+- FX conversion, recurring expenses, receipt OCR — still out of scope per `PLAN.md` §1, listed here only so nobody mistakes their absence in this doc for an oversight
 - A "merge my old entries" flow for someone who loses local storage and rejoins as a new member

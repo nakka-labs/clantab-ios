@@ -8,6 +8,10 @@ enum AppConfig {
     /// swap this for `http://localhost:8787/`.
     static let apiBaseURL = URL(string: "https://clantab.nakka-labs.workers.dev/")!
 
+    /// Currencies offered in the pickers (group creation, add expense). Every
+    /// one has 2 decimal minor units — see `MoneyFormat`.
+    static let supportedCurrencies = ["INR", "USD", "EUR", "GBP", "AUD", "CAD"]
+
     /// The user-facing capability link for a group (`DESIGN.md` §1), served by
     /// the same Worker origin as the API at `/g/:groupId` (§8: same-origin,
     /// no separate web host to configure).

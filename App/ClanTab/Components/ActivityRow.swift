@@ -45,6 +45,13 @@ struct ActivityItem: Identifiable {
         }
     }
 
+    var currency: String {
+        switch kind {
+        case .expense(let expense): return expense.currency
+        case .settlement(let settlement): return settlement.currency
+        }
+    }
+
     /// Leading SF Symbol: the expense's category icon (falling back to the
     /// "uncategorized" symbol), or a settlement marker.
     var icon: String {
@@ -74,7 +81,10 @@ struct ActivityItem: Identifiable {
 
 struct ActivityRow: View {
     let item: ActivityItem
-    let currency: String
+
+    private var amount: String {
+        MoneyFormat.string(minorUnits: item.amountMinor, currency: item.currency)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -95,11 +105,11 @@ struct ActivityRow: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(MoneyFormat.string(minorUnits: item.amountMinor, currency: currency))
+            Text(amount)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            [item.title, item.categoryName, MoneyFormat.string(minorUnits: item.amountMinor, currency: currency)]
+            [item.title, item.categoryName, amount]
                 .compactMap { $0 }
                 .joined(separator: ", ")
         )

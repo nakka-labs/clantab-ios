@@ -92,6 +92,8 @@ public struct AddExpenseRequest: Sendable {
     public let id: String?
     public let payerId: String
     public let amountMinor: Int64
+    /// ISO 4217 code the expense (and every split) is in.
+    public let currency: String
     public let description: String
     public let date: Date
     public let splitType: SplitType
@@ -103,6 +105,7 @@ public struct AddExpenseRequest: Sendable {
         id: String? = nil,
         payerId: String,
         amountMinor: Int64,
+        currency: String,
         description: String,
         date: Date,
         splitType: SplitType,
@@ -113,6 +116,7 @@ public struct AddExpenseRequest: Sendable {
         self.id = id
         self.payerId = payerId
         self.amountMinor = amountMinor
+        self.currency = currency
         self.description = description
         self.date = date
         self.splitType = splitType
@@ -124,7 +128,7 @@ public struct AddExpenseRequest: Sendable {
 
 extension AddExpenseRequest: Encodable {
     private enum CodingKeys: String, CodingKey {
-        case id, payerId, amountMinor, description, date, splitType, splits, category, categoryIcon
+        case id, payerId, amountMinor, currency, description, date, splitType, splits, category, categoryIcon
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -134,6 +138,7 @@ extension AddExpenseRequest: Encodable {
         try container.encodeIfPresent(id, forKey: .id)
         try container.encode(payerId, forKey: .payerId)
         try container.encode(amountMinor, forKey: .amountMinor)
+        try container.encode(currency, forKey: .currency)
         try container.encode(description, forKey: .description)
         try container.encode(date, forKey: .date)
         try container.encode(splitType, forKey: .splitType)
@@ -154,18 +159,20 @@ public struct AddSettlementRequest: Sendable {
     public let fromId: String
     public let toId: String
     public let amountMinor: Int64
+    public let currency: String
 
-    public init(id: String? = nil, fromId: String, toId: String, amountMinor: Int64) {
+    public init(id: String? = nil, fromId: String, toId: String, amountMinor: Int64, currency: String) {
         self.id = id
         self.fromId = fromId
         self.toId = toId
         self.amountMinor = amountMinor
+        self.currency = currency
     }
 }
 
 extension AddSettlementRequest: Encodable {
     private enum CodingKeys: String, CodingKey {
-        case id, fromId, toId, amountMinor
+        case id, fromId, toId, amountMinor, currency
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -174,6 +181,7 @@ extension AddSettlementRequest: Encodable {
         try container.encode(fromId, forKey: .fromId)
         try container.encode(toId, forKey: .toId)
         try container.encode(amountMinor, forKey: .amountMinor)
+        try container.encode(currency, forKey: .currency)
     }
 }
 
