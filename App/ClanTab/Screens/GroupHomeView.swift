@@ -42,6 +42,20 @@ struct GroupHomeView: View {
                 }
             }
 
+            if let state = viewModel.state, !state.expenses.isEmpty {
+                Section {
+                    NavigationLink {
+                        InsightsView(
+                            expenses: state.expenses,
+                            members: state.members,
+                            currency: currency
+                        )
+                    } label: {
+                        Label("Spending Insights", systemImage: "chart.bar")
+                    }
+                }
+            }
+
             if let state = viewModel.state {
                 Section("Members") {
                     ForEach(state.members) { member in

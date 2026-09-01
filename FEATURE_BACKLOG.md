@@ -26,12 +26,13 @@
   or a custom name + icon. Schema v3 is a plain `ADD COLUMN` (no rebuild); missing
   category renders as "Uncategorized", no backfill. Activity rows show the icon;
   CSV export gained a Category column. See `DESIGN.md` §2/§3/§10.
-- **Graphs.** Spending visualizations from data already in the ledger —
-  e.g. spend-over-time, per-member share of group spend, category
-  breakdown if/when categories exist. Pure `ClanTabKit` computation (like
-  `Balances`/debt-simplification today) feeding native SwiftUI Charts —
-  no backend change needed, the Worker already returns full expense
-  history.
+- ~~**Graphs.**~~ **Shipped 2026-09-01.** `ClanTabKit.Insights` (pure, like
+  `Balances`) computes total spend, spend-over-time (day/week/month, empty
+  buckets filled), spend by category, and each member's share. `InsightsView`
+  feeds spend-over-time into SwiftUI Charts and renders the category/member
+  breakdowns as labelled proportional bars; reached from a "Spending Insights"
+  row on Group Home. No backend or wire change — settlements are excluded (they
+  move money, they aren't spend).
 - **Search / filter.** Filter the expense list — by member, date range,
   amount — client-side over data already fetched. No new endpoint;
   `GroupDO`'s `getState` already returns the full expense list per

@@ -22,7 +22,7 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 - `DESIGN.md` is the wire/storage/security contract. `make worker-dev` runs `wrangler dev` on `:8787`. `make worker-test` / `worker-typecheck`. Deploy (`make worker-deploy`) needs `wrangler login` first.
 
 ## Architecture Rules
-- **Pure Core Logic in `ClanTabKit`**: `Balances.swift` and `Simplify.swift` are pure functions. No I/O, no network calls, no UI dependencies. If a test needs a mock or a running network server to test business math, move the impure logic elsewhere.
+- **Pure Core Logic in `ClanTabKit`**: `Balances.swift`, `Simplify.swift`, `Validation.swift`, and `Insights.swift` are pure functions. No I/O, no network calls, no UI dependencies. If a test needs a mock or a running network server to test business math, move the impure logic elsewhere.
 - **Integer Minor Units**: All money amounts are stored and calculated in integer minor units (paise, cents, yen) as `Int` or `Int64`. Never use floating-point types (`Double`, `Float`) for monetary amounts or arithmetic. Convert to/from display units only at the UI formatting edge.
 - **Derived Balances**: Member balances are always derived on read from the collection of expenses and settlements; never cache or persist a mutable "balance" field.
 - **Zero-Login / Capability Links**: Each group is addressed by an unguessable capability identifier (`groupId`) and an optional 6-character human-friendly `joinCode`. User identity is stored locally on the device (per group).

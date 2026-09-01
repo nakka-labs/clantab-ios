@@ -39,9 +39,9 @@ Ship order locked: independent cheap features → multi-currency → accounts
 → cross-group settling. Photo attachment shelved (cost/setup tradeoff
 unresolved, see backlog).
 
-- ~~Custom/percentage splits~~ (v2) and ~~categories + icons~~ (v3) — **done
-  2026-09-01**. Graphs, search/filter, CSV import still open — independent, no
-  accounts dependency.
+- ~~Custom/percentage splits~~ (v2), ~~categories + icons~~ (v3), and ~~graphs~~
+  (`ClanTabKit.Insights` + SwiftUI Charts, client-only) — **done 2026-09-01**.
+  Search/filter and CSV import still open — independent, no accounts dependency.
 - Multi-currency ledgers (per-currency, no conversion, last-used default).
 - Accounts: Sign in with Apple, placeholder-member claim flow, the
   groupId-per-identity index, **in-app account deletion** (Apple
