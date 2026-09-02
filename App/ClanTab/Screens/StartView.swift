@@ -12,7 +12,7 @@ struct StartView: View {
             VStack(spacing: 8) {
                 Text("ClanTab")
                     .font(.largeTitle.bold())
-                Text("Split expenses with friends. No accounts, no ads.")
+                Text("Split expenses with friends. No ads.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
