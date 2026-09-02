@@ -1,13 +1,23 @@
 # ClanTab — Logo / App Icon Brief
 
-> Status: prompt drafted, nothing generated yet. Feeds the "real app icon"
-> item in `READINESS_CHECKLIST.md`'s Branding section. No image-gen tool
-> was available in the session that wrote this — run the prompt below in
-> whatever generator you use, then run the distinctiveness check before
-> picking a finalist. This icon's construction rule (flat, geometric,
-> single silhouette, no gradients/bevels) is generalized into the
-> portfolio-wide rule in `DESIGN_BIBLE.md` §3 — read that too before
-> finalizing, so ClanTab's icon sets the pattern other apps will follow.
+> Status: **done.** Installed at
+> `App/ClanTab/Assets.xcassets/AppIcon.appiconset/icon-1024.png`,
+> replacing the earlier placeholder. Built directly as vector art (not an
+> AI image-gen output) to hit the bible's formula exactly: background is
+> the precise sRGB conversion of `oklch(55% 0.16 250)` from
+> `DESIGN_BIBLE.md` §2 — `#0074CA` — computed with the standard OKLab
+> conversion matrices, not eyeballed (the earlier placeholder's blue,
+> `#0A85FF`, was never actually on-formula). Same equals-sign motif as
+> the placeholder it replaces, refined proportions, no transparency (flat
+> RGB, alpha dropped — a transparent icon is an App Store rejection).
+>
+> Distinctiveness check status: legibility passed — rendered and
+> visually confirmed clear at 180/120/60/40px, matching item 4 below.
+> Items 2 (reverse image search) and 3 (trademark search) below need
+> tools this session doesn't have (Google Lens/TinEye, USPTO TESS) — run
+> those yourself before shipping to the App Store; item 1's shape-not-
+> color reasoning still holds since nothing in this category uses a
+> plain equals-sign motif as far as a general search turned up.
 
 ## Generation prompt
 

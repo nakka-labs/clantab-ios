@@ -167,10 +167,11 @@ tappable link. Depends on §0.1 (a domain).
 
 **Goal:** a build you can put on TestFlight, then submit.
 
-1. ✅ **App icon + accent colour** — `App/ClanTab/Assets.xcassets` with a
-   placeholder `AppIcon` (flat blue, white "=") and a blue `AccentColor`,
-   wired via `ASSETCATALOG_COMPILER_*` in `project.yml`. Ships fine on
-   TestFlight; **swap for real design before the App Store.**
+1. ✅ **App icon + accent colour** — real icon installed 2026-09-02
+   (`LOGO_BRIEF.md`), replacing the earlier placeholder: same equals-sign
+   motif, exact `DESIGN_BIBLE.md` §2 blue (`#0074CA`), no transparency.
+   Reverse-image and trademark checks from `LOGO_BRIEF.md` still need
+   running before App Store submission (not TestFlight).
 2. ✅ **Privacy manifest** — `App/ClanTab/PrivacyInfo.xcprivacy`: no tracking;
    "Name" (the display name) + "Other Data Types" (ledger content) both linked
    / not-for-tracking / App Functionality; `UserDefaults` → `CA92.1`. Judgement
@@ -207,10 +208,10 @@ tappable link. Depends on §0.1 (a domain).
    App Store Connect 2026-08-31; processed; internal group `test-team` created.
    Next: add an internal tester and install via the TestFlight app.
 
-**Still needs you:** add an internal tester + the on-device end-to-end pass, a
-real app icon (before the App Store), App Store screenshots + App Privacy
-answers (external testing / submission), and the `CLOUDFLARE_API_TOKEN` repo
-secret.
+**Still needs you:** add an internal tester + the on-device end-to-end pass,
+the reverse-image/trademark checks on the new icon (`LOGO_BRIEF.md`), App
+Store screenshots + App Privacy answers (external testing / submission), and
+the `CLOUDFLARE_API_TOKEN` repo secret.
 
 ---
 
@@ -311,7 +312,7 @@ Track 4 ≈ 1-2 days when it's time.
 | Make the repo public (fixes CI billing) | Track 3.0 | ✅ done 2026-08-31 |
 | Enable GitHub Pages + set the privacy-policy URL | Track 2.8 | ✅ live |
 | Add an internal tester, install via TestFlight, on-device E2E pass | Track 2 | **next** |
-| Real app icon (or a one-line brief) | Track 2 | before App Store |
+| Real app icon | Track 2 | ✅ done 2026-09-02 — reverse-image/trademark checks still needed |
 | App Store screenshots + App Privacy answers | Track 2 | external testing / submission |
 | Add `CLOUDFLARE_API_TOKEN` as a GitHub secret (deploy CI) | Track 2.6 | optional; `make worker-deploy` locally meanwhile |
 | Custom domain on Cloudflare → Universal Links | Track 1 | optional; invites work by 6-char code today |

@@ -7,11 +7,13 @@
 
 ## Branding & identity
 
-- Real app icon — current one is a placeholder (flat blue, white "="),
-  fine for internal TestFlight, must be swapped before App Store
-  submission. Generation prompt + a distinctiveness check against
-  competitor icons (visual survey, reverse image search, trademark
-  search, small-size confusability test) are in `LOGO_BRIEF.md`.
+- Real app icon — ✅ done 2026-09-02 (`LOGO_BRIEF.md`), exact
+  `DESIGN_BIBLE.md` §2 blue (`#0074CA`), legibility-checked at real iOS
+  sizes. The in-app `AccentColor` was synced to the same blue in the same
+  pass (it was still the off-formula placeholder `#0A7AFF`). Reverse image
+  search and trademark search (USPTO TESS) still need running with real
+  tools before App Store submission — not done in a cloud session without
+  them.
 - Wordmark/logo usable across the icon, README, App Store listing, and any
   landing page — one asset, reused everywhere, not redrawn per surface.
 - Launch screen — currently plain system background (compliant, unbranded).
