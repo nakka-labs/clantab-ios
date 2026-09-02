@@ -40,12 +40,15 @@
   wires it to a `.searchable` field + a toolbar filter menu; only the feed is
   filtered, balances stay group-wide. Date-range / amount-range filtering was
   left out of this pass — add later if asked.
-- **CSV import (from other apps).** Let a user bring in history from
-  Splitwise/other splitters via CSV, mapped into ClanTab's expense model.
-  Needs: a format-detection or column-mapping step (Splitwise's export
-  schema differs from ClanTab's own `Export.csv` format from
-  `HANDOFF.md`), then batch-`addExpense` against the existing endpoint.
-  Reuses the export code's pure-function pattern in reverse.
+- ~~**CSV import (from other apps).**~~ **Shipped 2026-09-02.** Pure
+  `ClanTabKit.CSVImport` auto-detects two formats — ClanTab's own `Export.csv`
+  (lossless round-trip) and Splitwise's per-person export (each row
+  reconstructed as a single-payer expense; genuine multi-payer rows Splitwise
+  can't export losslessly are skipped with a warning). Includes an RFC 4180
+  tokenizer and integer-math decimal parsing. `ImportCSVView` picks the file,
+  matches the names in it to members (or creates them via the join endpoint),
+  then posts each row with a client-generated id (partial import is retry-safe).
+  No backend or schema change.
 
 ## Shipped
 

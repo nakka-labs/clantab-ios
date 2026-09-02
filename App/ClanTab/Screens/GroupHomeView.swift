@@ -8,6 +8,7 @@ struct GroupHomeView: View {
     @State private var viewModel: GroupViewModel
     @State private var isPresentingAddExpense = false
     @State private var isPresentingSettleUp = false
+    @State private var isPresentingImport = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
     @State private var filter = ActivityFilter()
@@ -162,6 +163,21 @@ struct GroupHomeView: View {
                 )
             }
         }
+        .sheet(isPresented: $isPresentingImport) {
+            NavigationStack {
+                ImportCSVView(
+                    groupId: viewModel.groupId,
+                    existingMembers: viewModel.state?.members ?? [],
+                    client: client,
+                    onImported: {
+                        isPresentingImport = false
+                        expenseAddedTrigger += 1
+                        Task { await viewModel.refetch() }
+                    },
+                    onCancel: { isPresentingImport = false }
+                )
+            }
+        }
         .sensoryFeedback(.success, trigger: expenseAddedTrigger)
         .sensoryFeedback(.success, trigger: settlementMarkedTrigger)
     }
@@ -187,6 +203,11 @@ struct GroupHomeView: View {
                     settlements: state.settlements
                 ), let jsonURL = ExportFile.write(jsonData, filename: "\(filenameBase)-export.json") {
                     ShareLink("Export JSON", item: jsonURL)
+                }
+
+                Divider()
+                Button("Import from CSV", systemImage: "square.and.arrow.down") {
+                    isPresentingImport = true
                 }
             } label: {
                 Label("Share & Export", systemImage: "square.and.arrow.up")

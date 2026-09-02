@@ -83,7 +83,7 @@ struct SimplifiedSettlement: Codable, Sendable, Equatable {
 | **Spending Insights** | Total spend, spend over time (day/week/month), and breakdowns by category and by member — SwiftUI Charts over `ClanTabKit.Insights` |
 | **Add Expense** | Amount keypad, payer selector, description, category picker (name + SF Symbol), equal / exact / percentage split allocation |
 | **Settle Up** | Minimal simplified settle-up transaction cards, 1-tap "Mark as Paid" |
-| **Export** | CSV / JSON export via iOS ShareSheet |
+| **Export / Import** | CSV / JSON export via iOS ShareSheet; CSV import (ClanTab or Splitwise format) with name-matching |
 
 ### Non-Goals
 - No accounts, login systems, or passwords
