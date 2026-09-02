@@ -1,10 +1,11 @@
 # ClanTab Login / Accounts — Brief
 
-> Status: **decision locked, design not yet written.** This is the pickup
-> point for turning the zero-login model into a real-accounts model.
-> `DESIGN.md`, `BACKEND_PLAN.md`, `PLAN.md`, `AGENTS.md`, and `README.md`
-> all still describe the *old* no-login model below — none have been
-> touched for this change yet.
+> Status: **design drafted, awaiting sign-off.** The two locked decisions
+> below are unchanged; a full design resolving every "what's still open"
+> item is in **`ACCOUNTS_DESIGN.md`** (2026-09-02). Once that's signed off
+> it folds into `DESIGN.md` §13 + `BACKEND_PLAN.md`, and the "no accounts"
+> framing in `PLAN.md` / `AGENTS.md` / `README.md` gets updated. Three
+> points still want an explicit call — see `ACCOUNTS_DESIGN.md` §15.
 
 ## Why this exists
 
