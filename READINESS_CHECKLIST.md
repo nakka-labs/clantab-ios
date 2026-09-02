@@ -16,7 +16,8 @@
   them.
 - Wordmark/logo usable across the icon, README, App Store listing, and any
   landing page — one asset, reused everywhere, not redrawn per surface.
-- Launch screen — currently plain system background (compliant, unbranded).
+- Launch screen — ✅ done 2026-09-02: the white "=" mark on the brand blue
+  (`UILaunchScreen` dict, `LaunchLogo` + `AccentColor`), matches the icon.
 - App Store screenshots — reshoot cleanly on current UI (existing ones
   were from the runtime-verification pass, not a real photoshoot).
 - A real support/marketing page on `clantab.nakka.dev`, replacing the bare

@@ -176,10 +176,10 @@ tappable link. Depends on §0.1 (a domain).
    "Name" (the display name) + "Other Data Types" (ledger content) both linked
    / not-for-tracking / App Functionality; `UserDefaults` → `CA92.1`. Judgement
    calls are commented in the file — revisit if App Review pushes back.
-3. **Launch screen / polish pass** — **not done.** `UILaunchScreen: {}` is
-   plain system background (HIG-compliant, no flash, but unbranded); a
-   storyboard launch screen with the wordmark is a nice-to-have. Still to do:
-   a dark-mode spot check on a device.
+3. ✅ **Launch screen** — done 2026-09-02. `UILaunchScreen` dict:
+   `LaunchLogo` (white "=" mark) centred on `AccentColor` (the brand blue),
+   no text — HIG-compliant, matches the app icon. Deliberately
+   theme-independent (a branded launch screen shouldn't flip in dark mode).
    ✅ Accessibility: VoiceOver labels + `.accessibilityElement` on the balance
    hero, member rows, activity rows, and settle-up cards (the green/red colour
    was the only owed-vs-owe cue); balance hero now uses a Dynamic-Type font

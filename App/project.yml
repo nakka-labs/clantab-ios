@@ -38,7 +38,13 @@ targets:
       path: ClanTab/Info.plist
       properties:
         CFBundleDisplayName: ClanTab
-        UILaunchScreen: {}
+        # Branded launch screen: the white "=" mark centred on the brand blue
+        # (same asset colour as the app icon). Minimal, no text — HIG-compliant,
+        # not a splash ad. `LaunchLogo` / `AccentColor` are in Assets.xcassets.
+        UILaunchScreen:
+          UIImageName: LaunchLogo
+          UIImageRespectsSafeAreaInsets: true
+          UIColorName: AccentColor
         # The app only talks HTTPS (exempt encryption), so no annual
         # self-classification is needed. Declaring this here skips the
         # export-compliance prompt on every TestFlight upload.
