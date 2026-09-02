@@ -116,8 +116,9 @@ No third-party analytics or advertising SDKs. No in-app purchases.
 ```
 
 ## Screenshots
-Required: 6.9" (iPhone 16 Pro Max) and 6.5"/6.1". Capture on the Simulator with a
-seeded group (create → add 2 members via a second run or the join flow → one
-expense). Good set: Start, Group Home (with a balance + activity), Add Expense,
-Settle Up. The verification runs in this session produced usable frames under
-the session scratchpad — reshoot cleanly for the store.
+✅ Ready — `docs/appstore/screenshots/` (2026-09-02). Four 1320 × 2868 frames
+(iPhone 6.9" — the one required iPhone size), PNG without alpha, status bar at
+9:41: Group Home, Insights, Add Expense, Settle Up. Captured on an iPhone 17 Pro
+Max Simulator with a "Lisbon Trip" demo group. Upload as-is to the iPhone
+screenshot slot in App Store Connect; App Store Connect scales for other iPhone
+sizes.

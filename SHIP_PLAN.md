@@ -187,7 +187,8 @@ tappable link. Depends on §0.1 (a domain).
 4. ✅ **App Store metadata** — drafted in `docs/appstore/metadata.md`
    (name, subtitle, description, keywords, the App Privacy answers, and
    **review notes** walking a reviewer through the no-login model). Paste into
-   App Store Connect. Screenshots still to reshoot cleanly for the store.
+   App Store Connect. ✅ **Screenshots** — `docs/appstore/screenshots/`, four
+   6.9" frames (Group Home, Insights, Add Expense, Settle Up), 2026-09-02.
 5. **Review-risk review** — covered in the metadata's review notes: capability
    link, no accounts, trust-based settlement, no IAP, no analytics/ads. Nothing
    should trip 3.1.1 or 5.1.1.
@@ -313,7 +314,8 @@ Track 4 ≈ 1-2 days when it's time.
 | Enable GitHub Pages + set the privacy-policy URL | Track 2.8 | ✅ live |
 | Add an internal tester, install via TestFlight, on-device E2E pass | Track 2 | **next** |
 | Real app icon | Track 2 | ✅ done 2026-09-02 — reverse-image/trademark checks still needed |
-| App Store screenshots + App Privacy answers | Track 2 | external testing / submission |
+| App Store screenshots | Track 2 | ✅ done 2026-09-02 — `docs/appstore/screenshots/` |
+| App Privacy answers | Track 2 | external testing / submission |
 | Add `CLOUDFLARE_API_TOKEN` as a GitHub secret (deploy CI) | Track 2.6 | optional; `make worker-deploy` locally meanwhile |
 | Custom domain on Cloudflare → Universal Links | Track 1 | optional; invites work by 6-char code today |
 | Run `make worker-deploy` when the backend changes | Tracks 1 & 3 | as needed |

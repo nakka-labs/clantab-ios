@@ -20,11 +20,11 @@ ClanTab is a clean, private, and frictionless way for 5–10 friends to share ex
 
 ## Screenshots
 
-| Start | Share your group | Group Home | Add Expense | Settle Up |
+| Start | Group Home | Add Expense | Settle Up | Insights |
 |:---:|:---:|:---:|:---:|:---:|
-| ![Start screen](docs/screenshots/start.png) | ![Share your group with a 6-character code or link](docs/screenshots/share-group.png) | ![Group Home: balance hero, member balances, activity feed](docs/screenshots/group-home.png) | ![Add Expense: amount, payer, equal or exact split](docs/screenshots/add-expense.png) | ![Settle Up: minimal simplified transactions](docs/screenshots/settle-up.png) |
+| ![Start screen](docs/screenshots/start.png) | ![Group Home: per-currency balance hero, member balances, activity feed](docs/screenshots/group-home.png) | ![Add Expense: amount, currency, payer, category, equal/exact/percentage split](docs/screenshots/add-expense.png) | ![Settle Up: the minimal per-currency settle-up plan](docs/screenshots/settle-up.png) | ![Spending Insights: spend over time and by category](docs/screenshots/insights.png) |
 
-<sub>Captured on an iOS 26 Simulator during a runtime-verification run.</sub>
+<sub>Captured 2026-09-02 on an iPhone 17 Pro Max Simulator. App Store versions: `docs/appstore/screenshots/`.</sub>
 
 ---
 

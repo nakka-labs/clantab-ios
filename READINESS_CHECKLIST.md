@@ -18,8 +18,9 @@
   landing page — one asset, reused everywhere, not redrawn per surface.
 - Launch screen — ✅ done 2026-09-02: the white "=" mark on the brand blue
   (`UILaunchScreen` dict, `LaunchLogo` + `AccentColor`), matches the icon.
-- App Store screenshots — reshoot cleanly on current UI (existing ones
-  were from the runtime-verification pass, not a real photoshoot).
+- App Store screenshots — ✅ done 2026-09-02: `docs/appstore/screenshots/`,
+  four 1320×2868 (6.9") frames (Group Home, Insights, Add Expense, Settle Up),
+  alpha-stripped, 9:41 status bar. Upload as-is to App Store Connect.
 - A real support/marketing page on `clantab.nakka.dev`, replacing the bare
   GitHub-repo link currently in `docs/appstore/metadata.md` — same domain
   already needed for Universal Links, so it's a page, not new infra.
