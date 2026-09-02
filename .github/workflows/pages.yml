@@ -1,8 +1,9 @@
-name: Publish privacy policy
+name: Publish site (privacy + support)
 
-# Publishes docs/privacy-policy.md as a standalone page on GitHub Pages, for the
-# URL App Store Connect requires. Only that one file is published — the rest of
-# docs/ (App Store copy, screenshots) stays out of the site.
+# Publishes two pages on GitHub Pages, for the URLs App Store Connect requires:
+#   /              ← docs/privacy-policy.md   (Privacy Policy URL — unchanged)
+#   /support.html  ← docs/support.html        (Support URL)
+# Nothing else in docs/ (App Store copy, screenshots, branding) is published.
 #
 # One-time setup: repo Settings → Pages → Build and deployment → Source:
 # "GitHub Actions". The site URL is then https://nakka-labs.github.io/clantab-ios/
@@ -13,6 +14,7 @@ on:
     branches: [main]
     paths:
       - docs/privacy-policy.md
+      - docs/support.html
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -32,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Stage the privacy policy as the site root
+      - name: Stage the privacy policy (root) and the support page
         run: |
           mkdir -p _site_src
           {
@@ -41,8 +43,16 @@ jobs:
             echo '---'
             cat docs/privacy-policy.md
           } > _site_src/index.md
+          # support.html is a complete standalone document — copy it verbatim,
+          # with front matter telling Jekyll not to wrap it in a layout.
+          {
+            echo '---'
+            echo 'layout: null'
+            echo '---'
+            cat docs/support.html
+          } > _site_src/support.html
           cat > _site_src/_config.yml <<'YAML'
-          title: ClanTab Privacy Policy
+          title: ClanTab
           theme: jekyll-theme-primer
           YAML
 

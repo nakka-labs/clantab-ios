@@ -22,9 +22,12 @@
 - App Store screenshots — ✅ done 2026-09-02: `docs/appstore/screenshots/`,
   four 1320×2868 (6.9") frames (Group Home, Insights, Add Expense, Settle Up),
   alpha-stripped, 9:41 status bar. Upload as-is to App Store Connect.
-- A real support/marketing page on `clantab.nakka.dev`, replacing the bare
-  GitHub-repo link currently in `docs/appstore/metadata.md` — same domain
-  already needed for Universal Links, so it's a page, not new infra.
+- Support page — ✅ drafted 2026-09-02: `docs/support.html` (contact + FAQ +
+  privacy/repo links), published via `pages.yml` at
+  `https://nakka-labs.github.io/clantab-ios/support.html` and set as the App
+  Store Support URL. Move to `clantab.nakka.dev/support` once the domain is
+  wired (Track 1). Still needs: Pages "GitHub Actions" source confirmed live,
+  and a dedicated support email to replace `id0399@gmail.com`.
 
 ## v1 App Store track (already tracked, still open — see `SHIP_PLAN.md`)
 

@@ -64,17 +64,23 @@ as a shared document link. Keep the link private to the people in your group.
 `split,expenses,bills,trip,roommate,flatmate,shared,settle up,ious,group,tab,splitwise`
 
 ## Support URL
-`https://github.com/nakka-labs/clantab-ios` _(until there's a real support page)_
+`https://nakka-labs.github.io/clantab-ios/support.html`
+
+`docs/support.html` — standalone page (what ClanTab is, a contact address,
+an FAQ, links to the privacy policy and repo). Published alongside the
+privacy policy by `.github/workflows/pages.yml`. Move to
+`https://clantab.nakka.dev/support` once the domain is wired (Track 1).
 
 ## Marketing URL (optional)
-_leave blank for now_
+_leave blank for now — or reuse the support URL_
 
 ## Privacy Policy URL (required)
 `https://nakka-labs.github.io/clantab-ios/`
 
 Live. `docs/privacy-policy.md` is published as the site root by
-`.github/workflows/pages.yml` on every change to that file (Pages source:
-"GitHub Actions"). The repo is public, so the Pages build is unmetered.
+`.github/workflows/pages.yml` on every change to that file or `support.html`
+(Pages source: "GitHub Actions"). The repo is public, so the Pages build is
+unmetered.
 
 ---
 

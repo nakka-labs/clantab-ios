@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index">
+<title>ClanTab — Support</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #15161a;
+    --muted: #5b5e66;
+    --blue: #0074ca;
+    --card: #f4f5f7;
+    --border: #e4e6ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101114;
+      --fg: #ecedf0;
+      --muted: #a2a6ae;
+      --blue: #3d9de8;
+      --card: #191b1f;
+      --border: #2a2d33;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  header { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 2.25rem; }
+  .logo { display: inline-flex; align-items: center; gap: 0.55em; font-weight: 700; font-size: 1.9rem; letter-spacing: -0.01em; font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif; }
+  .logo .mark { display: inline-block; width: 1.02em; height: 0.66em; position: relative; }
+  .logo .mark::before, .logo .mark::after {
+    content: ""; position: absolute; left: 0; right: 0; height: 0.235em;
+    border-radius: 0.12em; background: var(--blue);
+  }
+  .logo .mark::before { top: 0.06em; }
+  .logo .mark::after { bottom: 0.06em; }
+  header .sub { color: var(--muted); font-size: 1.05rem; }
+  h1 { font-size: 1.4rem; margin: 2.5rem 0 0.5rem; letter-spacing: -0.01em; }
+  h2 { font-size: 1.08rem; margin: 1.8rem 0 0.4rem; }
+  p { margin: 0.5rem 0; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .lead { color: var(--muted); font-size: 1.05rem; }
+  .contact {
+    margin: 1.25rem 0 0; padding: 1.1rem 1.25rem; background: var(--card);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  .contact p { margin: 0.35rem 0; }
+  .faq { margin-top: 0.5rem; }
+  .faq details {
+    border-bottom: 1px solid var(--border); padding: 0.85rem 0;
+  }
+  .faq details:first-of-type { border-top: 1px solid var(--border); }
+  .faq summary {
+    cursor: pointer; font-weight: 600; list-style: none; display: flex;
+    justify-content: space-between; align-items: center; gap: 1rem;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 1.3rem; }
+  .faq details[open] summary::after { content: "\2013"; }
+  .faq details > *:not(summary) { margin-top: 0.5rem; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.92rem; }
+  footer a { color: var(--muted); text-decoration: underline; }
+  code { background: var(--card); border: 1px solid var(--border); border-radius: 5px; padding: 0.05em 0.35em; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="logo"><span class="mark" aria-hidden="true"></span>ClanTab</span>
+    <span class="sub">Support</span>
+  </header>
+
+  <p class="lead">ClanTab is a no-fuss expense splitter for small groups — trips,
+  shared flats, friend circles. Create a group, share a link or a six-character
+  code, add expenses, and let ClanTab work out the fewest payments to settle up.</p>
+
+  <div class="contact">
+    <p><strong>Need help, found a bug, or want a group's data deleted?</strong></p>
+    <p>Email <a href="mailto:id0399@gmail.com?subject=ClanTab%20support">id0399@gmail.com</a>.
+    For data-deletion requests, include the group's six-character join code.</p>
+    <p>Bug reports and feature ideas are also welcome on
+    <a href="https://github.com/nakka-labs/clantab-ios/issues">GitHub</a>.</p>
+  </div>
+
+  <h1>Frequently asked</h1>
+  <div class="faq">
+
+    <details>
+      <summary>How do I add someone to a group?</summary>
+      <p>Open the group, tap the share button, and send them the invite link or
+      the six-character code. They install ClanTab, tap <em>Join with a Code</em>
+      (or open the link), pick a display name, and they're in. They don't need an
+      account — nobody does.</p>
+    </details>
+
+    <details>
+      <summary>Someone joined but I don't see them yet.</summary>
+      <p>Pull down on the group screen to refresh. ClanTab also refreshes on its
+      own every few seconds while the group is open, so new members and expenses
+      from other people usually appear within moments.</p>
+    </details>
+
+    <details>
+      <summary>I got a new phone — how do I get back into my groups?</summary>
+      <p>Right now, open the same invite link or enter the six-character code
+      again on the new device. As long as someone still has the link, the group
+      is reachable. A "Sign in with Apple" option to sync your groups across
+      devices automatically is coming — it will always be optional.</p>
+    </details>
+
+    <details>
+      <summary>How does "Settle Up" decide who pays whom?</summary>
+      <p>It collapses everyone's balances into the smallest possible set of
+      payments (at most one fewer than the number of people who owe or are owed).
+      Instead of everyone paying everyone, a couple of transfers clear the whole
+      group. Each currency is settled on its own.</p>
+    </details>
+
+    <details>
+      <summary>Can one group use more than one currency?</summary>
+      <p>Yes. Add an expense in any supported currency. ClanTab keeps each
+      currency's ledger separate and never converts between them — so a balance
+      can read "owed &euro;40 <em>and</em> owes $15", which is the honest picture.</p>
+    </details>
+
+    <details>
+      <summary>How do I split an expense unequally?</summary>
+      <p>On the Add Expense screen, switch the split from <em>Equally</em> to
+      <em>Exact</em> (type each person's share) or <em>Percentage</em> (type each
+      person's %). ClanTab checks the parts add up before saving.</p>
+    </details>
+
+    <details>
+      <summary>How do I get my data out?</summary>
+      <p>Open the group, tap the share button, and choose <em>Export CSV</em> or
+      <em>Export JSON</em>. The CSV also imports back into ClanTab, and it can
+      bring in history from a Splitwise export.</p>
+    </details>
+
+    <details>
+      <summary>Is my data private?</summary>
+      <p>ClanTab stores only the display name you type and the group's shared
+      ledger (amounts, descriptions, who paid, how it's split). No email, no
+      phone number, no location, no analytics, no ads. Anyone with a group's link
+      or code can see and edit that group — so don't post it publicly. Full
+      detail in the <a href="https://nakka-labs.github.io/clantab-ios/">privacy
+      policy</a>.</p>
+    </details>
+
+    <details>
+      <summary>How do I delete a group's data?</summary>
+      <p>Email <a href="mailto:id0399@gmail.com?subject=ClanTab%20deletion%20request">id0399@gmail.com</a>
+      with the group's six-character join code and we'll remove that group's
+      records from the backend. Removing the app from your device clears the
+      local copy (your display name and the last group you opened).</p>
+    </details>
+
+  </div>
+
+  <h2>Privacy</h2>
+  <p>The full privacy policy is at
+  <a href="https://nakka-labs.github.io/clantab-ios/">nakka-labs.github.io/clantab-ios</a>.</p>
+
+  <h2>About</h2>
+  <p>ClanTab is open source — the code is at
+  <a href="https://github.com/nakka-labs/clantab-ios">github.com/nakka-labs/clantab-ios</a>.
+  A Nakka-Labs project.</p>
+
+  <footer>
+    <p>ClanTab for iOS &middot;
+    <a href="https://nakka-labs.github.io/clantab-ios/">Privacy</a> &middot;
+    <a href="https://github.com/nakka-labs/clantab-ios">Source</a> &middot;
+    <a href="mailto:id0399@gmail.com">Contact</a></p>
+    <p>Last updated 2 September 2026.</p>
+  </footer>
+</div>
+</body>
+</html>
