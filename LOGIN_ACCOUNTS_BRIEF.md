@@ -1,11 +1,11 @@
 # ClanTab Login / Accounts — Brief
 
-> Status: **design drafted, awaiting sign-off.** The two locked decisions
-> below are unchanged; a full design resolving every "what's still open"
-> item is in **`ACCOUNTS_DESIGN.md`** (2026-09-02). Once that's signed off
-> it folds into `DESIGN.md` §13 + `BACKEND_PLAN.md`, and the "no accounts"
-> framing in `PLAN.md` / `AGENTS.md` / `README.md` gets updated. Three
-> points still want an explicit call — see `ACCOUNTS_DESIGN.md` §15.
+> Status: **design settled — see `ACCOUNTS_DESIGN.md` (2026-09-02).** The
+> two locked decisions below are unchanged; every "what's still open" item
+> (including the three judgement calls) is resolved there. Next: fold it
+> into `DESIGN.md` §13 + `BACKEND_PLAN.md`, update the "no accounts"
+> framing in `PLAN.md` / `AGENTS.md` / `README.md`, then build per
+> `ACCOUNTS_DESIGN.md` §14.
 
 ## Why this exists
 

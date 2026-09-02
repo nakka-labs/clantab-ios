@@ -46,9 +46,8 @@ unresolved, see backlog).
   The full independent-feature batch is complete.
 - Accounts: Sign in with Apple, placeholder-member claim flow, the
   groupId-per-identity index, **in-app account deletion** (Apple
-  Guideline 5.1.1(v) — not optional once accounts exist). **Design drafted
-  in `ACCOUNTS_DESIGN.md` (2026-09-02) — awaiting sign-off on 3 points
-  (§15), then a ~5-session build.**
+  Guideline 5.1.1(v) — not optional once accounts exist). **Design settled
+  in `ACCOUNTS_DESIGN.md` (2026-09-02) — ~5-session build, backend first.**
 - Cross-group settling with a person — strictly after accounts.
 
 ## Engineering discipline

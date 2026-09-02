@@ -1,14 +1,11 @@
 # ClanTab — Accounts Design
 
-> Status: **proposal for review.** Resolves every open question in
-> `LOGIN_ACCOUNTS_BRIEF.md` with a decision + rationale. Once signed off,
-> this folds into `DESIGN.md` (a new §13) and `BACKEND_PLAN.md` (new DO +
-> routes). The two locked decisions from the brief — Sign in with Apple
-> only, placeholder members claimed via invite link — are taken as given.
->
-> **Needs your explicit sign-off** (flagged inline as ⚠️): the hybrid auth
-> model (§4), and the stateless 30-day session token with no per-device
-> revocation (§3).
+> Status: **settled — ready to build.** Resolves every open question in
+> `LOGIN_ACCOUNTS_BRIEF.md`; the three points that needed an explicit call
+> are decided in §15. Next step is to fold this into `DESIGN.md` (a new
+> §13) and `BACKEND_PLAN.md` (new DO + routes), then build per §14. The two
+> locked decisions from the brief — Sign in with Apple only, placeholder
+> members claimed via invite link — are taken as given.
 
 ---
 
@@ -92,8 +89,8 @@ No background reconciliation job in v1. Add one only if drift is observed.
 
 ## 3. Session / token model
 
-⚠️ **Decision: a stateless, HMAC-signed session token (our own JWT), 30-day
-expiry, no per-device revocation.**
+**Decision: a stateless, HMAC-signed session token (our own JWT), 30-day
+expiry, no server-side revocation.** (§15.1)
 
 - Sign-in verifies Apple's identity token **once** (see §5), then the
   Worker mints `{ sub, iat, exp }` signed with `HMAC-SHA256` using a new
@@ -103,26 +100,37 @@ expiry, no per-device revocation.**
   extracts `sub` and proceeds.
 - **Refresh:** `POST /api/auth/refresh` (Bearer) → a fresh token. The app
   calls it on launch when the current token is within ~7 days of expiry.
-- **Revocation:** stateless tokens can't be individually revoked. Account
-  deletion invalidates *effectively* — the `UserDO` is gone, so anything
-  keyed on `sub` returns empty/`404`. "Sign out a stolen device remotely"
-  is **not supported in v1** — the mitigating facts: 30-day cap, no PII or
+- **On-device storage:** the Keychain, `kSecAttrAccessibleAfterFirstUnlock`
+  (survives a reboot, readable by the launch-time refresh even before the
+  user unlocks). Never `UserDefaults`.
+- **Revocation, client-side:** on every launch the app calls
+  `ASAuthorizationAppleIDProvider.getCredentialState(forUserID:)`; if the
+  result is `.revoked` or `.notFound` it discards the stored session and
+  drops back to guest mode. So revoking ClanTab in iOS Settings kills the
+  session on next launch — no server plumbing.
+- **Revocation, server-side:** none. Account deletion invalidates
+  *effectively* (the `UserDO` is gone, so anything keyed on `sub` returns
+  empty/`404`). "Remotely sign out a phone I can't physically reach" is
+  **not supported** — the mitigating facts: the 30-day cap, no PII or
   payment data in the ledger (the existing trust model), and the token
-  only exposes groupIds, not contents.
+  exposing only groupIds, not contents. Revisit only on a real incident.
+- **Rate-limit** `POST /api/auth/apple` per-IP (garbage tokens fail fast
+  at JWKS verification, but cap the attempt rate anyway).
 
 **Rejected:** verifying Apple's token per-request (it's ~10-min-lived and
 meant for one-time verification); an opaque token stored in `UserDO`
-(adds a DO lookup to every request).
+(revocable, but adds a DO lookup to every authed request — not worth it
+for this threat model).
 
 ---
 
 ## 4. Auth surface — hybrid, not "auth on everything"
 
-⚠️ The brief says "every endpoint that used to trust 'you have the link'
-also needs auth middleware now." **This proposal disagrees**, because the
-brief also says guests stay first-class forever (§9). If a guest with the
-link must still read and write, we cannot require a session token on the
-group routes.
+The brief says "every endpoint that used to trust 'you have the link'
+also needs auth middleware now." **We deliberately don't do that** (§15.2),
+because the brief also says guests stay first-class forever (§9): if a
+guest with the link must still read and write, we cannot require a session
+token on the group routes.
 
 **Decision: the capability link stays the group-access credential. The
 session token gates only the identity-scoped endpoints.**
@@ -274,14 +282,21 @@ member row simply gains an identity. Zero data movement.
 
 ## 10. "Locked out without accounts" — cost
 
-**Confirmed: guests are supported forever, no nudge, no limit, no
-expiry.** Accounts are opt-in recovery for people who want cross-device
-sync. The only surfaces that *mention* accounts:
-- a "Sign in to sync across devices" row on the Start screen and in
-  Settings,
-- the "This is me" option when opening a link while signed in.
+**Guests are supported forever — no limit, no expiry, no gate on group
+creation.** Accounts are opt-in recovery for people who want cross-device
+sync.
 
-No gate on group creation, no cap on guest groups, no reminder.
+**One nudge, once** (§15.3). A single dismissable card on Group Home the
+first time the user reaches their **2nd group or 7 days of use**,
+whichever comes first: *"Sign in with Apple to keep your groups if you
+switch phones."* Dismiss → never shown again (persisted locally). No
+follow-ups. The reasoning: credible recovery is the whole point of this
+work, and the people who'd benefit most won't go looking in Settings —
+but a user with one group and two days in genuinely doesn't need it yet.
+
+Permanent entry points regardless: a "Sign in to sync across devices" row
+on the Start screen and in Settings, and the "This is me" option when
+opening a link while signed in.
 
 ---
 
@@ -371,7 +386,8 @@ optional `Bearer` for future use, but needs nothing today.)
 4. **Session tokens** — HMAC mint/verify + tests.
 5. **Worker routes** — `/api/auth/*`, `claimable`, `claim` + `routes.test.ts`.
 6. **iOS** — `AuthenticationServices` SIWA button; session token in the
-   Keychain; the group-list model change; the claim UI; Settings +
+   Keychain (§3); `getCredentialState` launch check; the group-list model
+   change; the claim UI; the one-time nudge card (§10); Settings +
    delete-account.
 7. **Docs** — `DESIGN.md` §13, `AGENTS.md` (the "no accounts" line becomes
    "hybrid: guests + optional Sign in with Apple"), `PLAN.md`, `README.md`.
@@ -381,12 +397,28 @@ Rough sizing: steps 1–5 (backend) ≈ 2–3 focused sessions; step 6 (iOS)
 
 ---
 
-## 15. Open for your call
+## 15. The three judgement calls — decided
 
-- **§3** — 30-day stateless token, no remote sign-out. Acceptable, or do
-  you want opaque tokens in `UserDO` (revocable, +1 DO read per request)?
-- **§4** — hybrid auth (capability link stays the group credential).
-  Acceptable, or do you want identity to actually gate group access
-  (breaks the frictionless-guest flow)?
-- **§10** — zero nudging toward accounts. Confirm, or do you want a gentle
-  "sign in to protect your groups" prompt after N groups / N days?
+**15.1 Session tokens → stateless, 30-day, no server-side revocation.**
+The ledger carries no PII and no money movement; the worst case from a
+leaked token is someone seeing display names and amounts in groups you're
+in. That doesn't justify making the Worker stateful (an opaque token in
+`UserDO` costs a DO read on every authed request). The "I want out" path
+is covered client-side by the `getCredentialState` launch check (§3) plus
+account deletion. Server-side per-device revocation is a "revisit on a
+real incident" item, not a v1 requirement.
+
+**15.2 Auth model → hybrid; the capability link stays the group
+credential.** Frictionless guests are *why* the placeholder-member
+decision exists. Gating group access behind identity would either lock
+guests out of the trip-with-non-app-users case or force a second parallel
+access model anyway. The hybrid is those two models cleanly layered:
+`groupId` possession = access, session token = "find my groupIds." The
+privacy exposure (one token → all your groupIds) is real but bounded —
+thin index, no contents, 30-day cap, no PII — and strictly smaller than
+the N per-device link stores holding the same groupIds today.
+
+**15.3 Nudging → exactly one dismissable prompt, at the 2nd group or 7
+days.** Not zero (recovery is the point of the feature and its target
+users won't self-serve), not recurring (a user with one group and two
+days in doesn't need it). See §10.
