@@ -1,16 +1,21 @@
-# ClanTab 📐 (iOS)
+<p align="center">
+  <img src="docs/branding/wordmark.png#gh-light-mode-only" alt="ClanTab" width="340">
+  <img src="docs/branding/wordmark-white.png#gh-dark-mode-only" alt="ClanTab" width="340">
+</p>
 
-An open-source, no-login expense splitter for iOS. Built for small groups (trips, shared apartments, friend circles).
+<h1 align="center">ClanTab (iOS)</h1>
 
-> **Zero accounts · Zero ads · Zero payment processing · Exact debt simplification**
+An open-source expense splitter for iOS. Built for small groups (trips, shared apartments, friend circles).
+
+> **No ads · No payment processing · Multi-currency · Exact debt simplification**
 
 ---
 
 ## What is ClanTab?
 
-ClanTab is a clean, private, and frictionless way for 5–10 friends to share expenses without creating accounts, downloading bloated fintech apps, or dealing with advertising.
+ClanTab is a clean, private, and frictionless way for 5–10 friends to share expenses without a sign-up wall, bloated fintech apps, or advertising.
 
-- **No Sign-Up / No Password**: Create a group, pick your display name, and share the link or 6-character code.
+- **No Sign-Up Required**: Create a group, pick your display name, and share the link or 6-character code. (Sign in with Apple to sync across devices is coming — always optional.)
 - **Exact Debt Simplification**: Collapses tangled pairwise IOUs down to the minimum possible number of settle-up transactions (at most $N-1$) using a greedy graph optimization algorithm.
 - **Integer Minor Units**: Guarantees zero floating-point rounding errors across all currencies (cents, paise, yen).
 - **One-Tap Settle Up**: Trust-based settlement recording.

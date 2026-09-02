@@ -14,8 +14,9 @@
   search and trademark search (USPTO TESS) still need running with real
   tools before App Store submission — not done in a cloud session without
   them.
-- Wordmark/logo usable across the icon, README, App Store listing, and any
-  landing page — one asset, reused everywhere, not redrawn per surface.
+- Wordmark/logo — ✅ done 2026-09-02: `docs/branding/` (SVG + PNG, dark +
+  white variants, regenerator script). "=" mark + "ClanTab" in SF Pro
+  Rounded Bold. README header updated to use it.
 - Launch screen — ✅ done 2026-09-02: the white "=" mark on the brand blue
   (`UILaunchScreen` dict, `LaunchLogo` + `AccentColor`), matches the icon.
 - App Store screenshots — ✅ done 2026-09-02: `docs/appstore/screenshots/`,
