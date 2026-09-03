@@ -1,14 +1,17 @@
 import { GroupDO } from "./group-do.ts";
 import { RegistryDO } from "./registry-do.ts";
 import { UserDO } from "./user-do.ts";
+import { AppleAuthError, verifyAppleIdentityToken } from "./lib/apple-auth.ts";
 import {
   BadRequestError,
   BareNotFoundError,
   GroupNotFoundError,
   HttpError,
   RateLimitedError,
+  UnauthorizedError,
 } from "./lib/errors.ts";
 import { newGroupId } from "./lib/ids.ts";
+import { SessionError, mintSession, verifySession } from "./lib/session.ts";
 import {
   assertPlainObject,
   optionalString,
@@ -27,6 +30,11 @@ interface Env {
   GROUP_DO: DurableObjectNamespace<GroupDO>;
   REGISTRY_DO: DurableObjectNamespace<RegistryDO>;
   USER_DO: DurableObjectNamespace<UserDO>;
+  /** HMAC key for session tokens (`ACCOUNTS_DESIGN.md` §3). A `vars` entry for
+   * dev/tests; `wrangler secret put SESSION_SIGNING_KEY` overrides it in prod. */
+  SESSION_SIGNING_KEY: string;
+  /** The `aud` an Apple identity token must carry — the app's bundle id. */
+  APPLE_AUDIENCE: string;
 }
 
 type Params = Record<string, string>;
@@ -45,6 +53,12 @@ const ROUTES: Route[] = [
   route("GET", "/api/groups/:groupId", handleGetState),
   route("POST", "/api/groups/:groupId/expenses", handleAddExpense),
   route("POST", "/api/groups/:groupId/settlements", handleAddSettlement),
+  route("GET", "/api/groups/:groupId/claimable", handleClaimable),
+  route("POST", "/api/groups/:groupId/members/:memberId/claim", handleClaim),
+  route("POST", "/api/auth/apple", handleAuthApple),
+  route("POST", "/api/auth/refresh", handleAuthRefresh),
+  route("GET", "/api/auth/groups", handleAuthGroups),
+  route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
   route("GET", "/g/:groupId", handleCapabilityPage),
   route("GET", "/", handleRoot),
 ];
@@ -235,10 +249,105 @@ async function handleAddSettlement(request: Request, env: Env, params: Params): 
   return result.ok ? json(201, result.value) : json(400, { error: result.error });
 }
 
+// --- accounts / auth (ACCOUNTS_DESIGN.md §5–§7, §11) --------------------
+
+async function handleAuthApple(request: Request, env: Env): Promise<Response> {
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["identityToken"]);
+  const identityToken = requireString(body, "identityToken");
+
+  let sub: string;
+  try {
+    ({ sub } = await verifyAppleIdentityToken(identityToken, { audience: env.APPLE_AUDIENCE }));
+  } catch (err) {
+    if (err instanceof AppleAuthError) {
+      throw new UnauthorizedError("INVALID_APPLE_TOKEN", "That Apple sign-in could not be verified.");
+    }
+    throw err;
+  }
+
+  const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
+  await user.ensureExists(sub);
+  const [{ token, expiresAt }, { groups }] = await Promise.all([
+    mintSession(sub, env.SESSION_SIGNING_KEY),
+    user.listGroups(),
+  ]);
+  return json(200, { sessionToken: token, expiresAt, groups });
+}
+
+async function handleAuthRefresh(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const { token, expiresAt } = await mintSession(sub, env.SESSION_SIGNING_KEY);
+  return json(200, { sessionToken: token, expiresAt });
+}
+
+async function handleAuthGroups(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const { groups } = await env.USER_DO.get(env.USER_DO.idFromName(sub)).listGroups();
+  return json(200, { groups });
+}
+
+async function handleAuthDeleteAccount(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
+  const { groups } = await user.listGroups();
+  // Release every claimed membership back to a placeholder, then wipe the index.
+  for (const g of groups) {
+    await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).unclaim(g.memberId, sub);
+  }
+  await user.deleteAll();
+  // Apple also mandates server-to-server token revocation before submission
+  // (POST https://appleid.apple.com/auth/revoke) — needs the SIWA_* signing-key
+  // secrets (ACCOUNTS_DESIGN.md §11, §13). Not wired yet.
+  return new Response(null, { status: 204 });
+}
+
+async function handleClaimable(request: Request, env: Env, params: Params): Promise<Response> {
+  await requireSession(request, env);
+  const group = await requireGroup(env, params.groupId ?? "");
+  return json(200, await group.claimable());
+}
+
+async function handleClaim(request: Request, env: Env, params: Params): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const groupId = params.groupId ?? "";
+  const group = await requireGroup(env, groupId);
+
+  const result = await group.claim(params.memberId ?? "", sub);
+  if (!result.ok) {
+    return json(result.error.code === "UNKNOWN_MEMBER" ? 404 : 409, { error: result.error });
+  }
+  // `GroupDO` is authoritative; the `UserDO` index is a self-healing cache we
+  // update after the fact (a miss just briefly hides one group from
+  // `GET /api/auth/groups`). ACCOUNTS_DESIGN.md §2.
+  await env.USER_DO
+    .get(env.USER_DO.idFromName(sub))
+    .addMembership(groupId, result.value.member.id, result.value.member.displayName);
+  return json(200, result.value);
+}
+
 // --- helpers ------------------------------------------------------------
 
 function registry(env: Env) {
   return env.REGISTRY_DO.get(env.REGISTRY_DO.idFromName("registry"));
+}
+
+/** Extract the `Authorization: Bearer <token>` value or throw a 401. */
+function bearerToken(request: Request): string {
+  const match = /^Bearer (.+)$/.exec(request.headers.get("Authorization") ?? "");
+  if (match === null) throw new UnauthorizedError("INVALID_SESSION", "Missing bearer token.");
+  return match[1]!;
+}
+
+/** Verify the session token on an identity-scoped route → the Apple `sub`. */
+async function requireSession(request: Request, env: Env): Promise<string> {
+  try {
+    const { sub } = await verifySession(bearerToken(request), env.SESSION_SIGNING_KEY);
+    return sub;
+  } catch (err) {
+    if (err instanceof SessionError) throw new UnauthorizedError();
+    throw err;
+  }
 }
 
 async function requireGroup(env: Env, groupId: string) {

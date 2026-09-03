@@ -358,8 +358,9 @@ GET    /api/groups/:groupId/claimable                  (Bearer) → { members: [
 POST   /api/groups/:groupId/members/:memberId/claim    (Bearer) → { member }
 ```
 
-Error codes (new): `INVALID_APPLE_TOKEN`, `INVALID_SESSION`,
-`NOT_PLACEHOLDER`, `ALREADY_CLAIMED`, `IDENTITY_ALREADY_IN_GROUP`.
+Error codes (new): `INVALID_APPLE_TOKEN` (401), `INVALID_SESSION` (401),
+`ALREADY_CLAIMED` (409), `IDENTITY_ALREADY_IN_GROUP` (409), `UNKNOWN_MEMBER`
+(404 on `claim`). `NOT_PLACEHOLDER` folded into `ALREADY_CLAIMED` (step 1).
 
 Existing routes: **unchanged.** (`GET /api/groups/:groupId` may accept an
 optional `Bearer` for future use, but needs nothing today.)
@@ -368,11 +369,16 @@ optional `Bearer` for future use, but needs nothing today.)
 (`user_meta`, `memberships`).
 
 **New Worker config:**
-- `USER_DO` — Durable Object namespace binding.
-- `SESSION_SIGNING_KEY` — secret (HMAC key for session tokens).
-- `APPLE_KEYS` — KV namespace (JWKS cache).
+- `USER_DO` — Durable Object namespace binding. ✅ (wrangler migration `v2`)
+- `APPLE_AUDIENCE` — `vars` entry (`com.clantab.app`). ✅
+- `SESSION_SIGNING_KEY` — HMAC key for session tokens. A `vars` entry with a
+  dev value; **prod must override** with `wrangler secret put SESSION_SIGNING_KEY`.
+  ✅ (dev)
+- ~~`APPLE_KEYS` — KV namespace (JWKS cache).~~ Dropped — replaced by an
+  in-process module-level cache (step 3).
 - `SIWA_SERVICES_ID`, `SIWA_TEAM_ID`, `SIWA_KEY_ID`, `SIWA_PRIVATE_KEY` —
-  secrets, for token revocation on account deletion.
+  secrets, for token revocation on account deletion. ⬜ **prerequisite for
+  submission** (the `DELETE` route stubs revocation with a TODO today).
 
 ---
 
@@ -388,10 +394,27 @@ optional `Bearer` for future use, but needs nothing today.)
    `memberships` tables; `ensureExists` / `exists` / `listGroups` /
    `addMembership` (idempotent per group) / `removeMembership` / `deleteAll`.
    New binding `USER_DO` + wrangler migration tag `v2`. + 5 tests.
-3. **Apple JWT verification** — JWKS fetch + cache, claim validation,
-   tested against a fixture token.
-4. **Session tokens** — HMAC mint/verify + tests.
-5. **Worker routes** — `/api/auth/*`, `claimable`, `claim` + `routes.test.ts`.
+3. ✅ **Apple JWT verification** (2026-09-03) — `worker/src/lib/apple-auth.ts`:
+   `verifyAppleIdentityToken(token, { audience, now?, fetchJwks? })` → `{ sub }`
+   or throws `AppleAuthError`. Web Crypto only (RSASSA-PKCS1-v1_5 / SHA-256),
+   checks signature + `iss` + `aud` + `exp`. **Deviation from §5:** the JWKS is
+   cached in a module-level variable (per-isolate, 24h TTL, one forced refetch on
+   a `kid` miss) instead of KV `APPLE_KEYS` — no binding to provision, verify is
+   sign-in-only. `fetchJwks` is injectable for tests. + 15 unit tests
+   (`test/auth.test.ts`, shared with step 4) using a generated RSA keypair.
+4. ✅ **Session tokens** (2026-09-03) — `worker/src/lib/session.ts`:
+   `mintSession(sub, key, now?)` → `{ token, expiresAt }`, `verifySession(token,
+   key, now?)` → `{ sub }` or throws `SessionError`. HS256 JWT `{ sub, iat, exp }`,
+   `exp = iat + 30d`, constant-time signature compare, no DO hit. Config:
+   `SESSION_SIGNING_KEY` + `APPLE_AUDIENCE` as `wrangler.jsonc` `vars` (dev value);
+   prod overrides the key via `wrangler secret put SESSION_SIGNING_KEY`.
+5. ✅ **Worker routes** (2026-09-03) — `index.ts`: `POST /api/auth/apple`,
+   `POST /api/auth/refresh`, `GET /api/auth/groups`, `DELETE /api/auth/account`,
+   `GET /api/groups/:groupId/claimable`, `POST /api/groups/:groupId/members/:memberId/claim`.
+   `requireSession()` Bearer helper → 401 `INVALID_SESSION`; bad Apple token →
+   401 `INVALID_APPLE_TOKEN`. `claim` writes `GroupDO` first, then the `UserDO`
+   index. Apple server-to-server token revocation (§11) is stubbed with a TODO —
+   needs the `SIWA_*` secrets. + 15 route tests (`test/auth-routes.test.ts`).
 6. **iOS** — `AuthenticationServices` SIWA button; session token in the
    Keychain (§3); `getCredentialState` launch check; the group-list model
    change; the claim UI; the one-time nudge card (§10); Settings +

@@ -5,6 +5,13 @@
   "compatibility_date": "2025-09-01",
   "workers_dev": true,
   "observability": { "enabled": true },
+  "vars": {
+    // The `aud` an Apple identity token must carry — the app's bundle id.
+    "APPLE_AUDIENCE": "com.clantab.app",
+    // Dev/test HMAC key for session tokens. Production overrides this with a
+    // real secret: `wrangler secret put SESSION_SIGNING_KEY` (ACCOUNTS_DESIGN.md §3).
+    "SESSION_SIGNING_KEY": "dev-only-not-a-secret-change-in-prod"
+  },
   "durable_objects": {
     "bindings": [
       { "name": "GROUP_DO", "class_name": "GroupDO" },

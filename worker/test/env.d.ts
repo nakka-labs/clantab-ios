@@ -7,5 +7,7 @@ declare module "cloudflare:test" {
     GROUP_DO: DurableObjectNamespace<GroupDO>;
     REGISTRY_DO: DurableObjectNamespace<RegistryDO>;
     USER_DO: DurableObjectNamespace<UserDO>;
+    SESSION_SIGNING_KEY: string;
+    APPLE_AUDIENCE: string;
   }
 }

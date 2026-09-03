@@ -34,6 +34,20 @@ export class BadRequestError extends HttpError {
 }
 
 /**
+ * A missing, malformed, or expired credential on an identity-scoped route
+ * (`ACCOUNTS_DESIGN.md` §4) → 401. `INVALID_APPLE_TOKEN` for `POST /api/auth/apple`,
+ * `INVALID_SESSION` for every Bearer route.
+ */
+export class UnauthorizedError extends HttpError {
+  constructor(
+    code: "INVALID_SESSION" | "INVALID_APPLE_TOKEN" = "INVALID_SESSION",
+    message = "Your session has expired. Please sign in again.",
+  ) {
+    super(401, code, message);
+  }
+}
+
+/**
  * `GET /api/groups/resolve/:joinCode` for an unknown code returns a **bare** 404
  * with no body — the iOS client maps that to `.notFound` (`DESIGN.md` §2).
  */
