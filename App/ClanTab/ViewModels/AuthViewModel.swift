@@ -105,6 +105,31 @@ final class AuthViewModel {
         }
     }
 
+    /// Link a placeholder member in `groupId` to the signed-in identity
+    /// (`ACCOUNTS_DESIGN.md` §6). On success the member's identity is seeded
+    /// locally right away (so Group Home greets them immediately) and the
+    /// authoritative list is refreshed. Returns whether it succeeded; on failure
+    /// `errorMessage` carries the reason.
+    func claim(groupId: String, memberId: String) async -> Bool {
+        guard let token = session?.token else { return false }
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+        do {
+            let response = try await client.claimMember(groupId: groupId, memberId: memberId, token: token)
+            identityStore.setIdentity(
+                GroupIdentity(memberId: response.member.id, displayName: response.member.displayName),
+                forGroup: groupId
+            )
+            knownGroups.remember(groupId: groupId)
+            await refreshGroups()
+            return true
+        } catch {
+            errorMessage = Self.friendlyMessage(for: error)
+            return false
+        }
+    }
+
     /// Store the server list and fan it out to `knownGroups` (so it shows in the
     /// start-screen list, even offline) and `identityStore` (so Group Home can
     /// greet a claimed member on a device that never joined as a guest).

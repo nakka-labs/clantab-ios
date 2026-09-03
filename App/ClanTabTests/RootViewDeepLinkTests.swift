@@ -43,17 +43,33 @@ final class RootViewDeepLinkTests: XCTestCase {
     // MARK: - resolveDeepLink
 
     func testResolvesToOpenGroupWhenIdentityExists() {
-        let resolution = RootView.resolveDeepLink(url("clantab://g/ABC123"), hasIdentity: { $0 == "ABC123" })
-        XCTAssertEqual(resolution, .openGroup("ABC123"))
+        // A local membership always wins, signed in or not.
+        for signedIn in [true, false] {
+            let resolution = RootView.resolveDeepLink(
+                url("clantab://g/ABC123"), hasIdentity: { $0 == "ABC123" }, isSignedIn: signedIn
+            )
+            XCTAssertEqual(resolution, .openGroup("ABC123"))
+        }
     }
 
-    func testResolvesToJoinGroupWhenNoIdentity() {
-        let resolution = RootView.resolveDeepLink(url("clantab://g/ABC123"), hasIdentity: { _ in false })
+    func testResolvesToJoinGroupWhenNoIdentityAndGuest() {
+        let resolution = RootView.resolveDeepLink(
+            url("clantab://g/ABC123"), hasIdentity: { _ in false }, isSignedIn: false
+        )
         XCTAssertEqual(resolution, .joinGroup("ABC123"))
     }
 
+    func testResolvesToChooseJoinWhenNoIdentityButSignedIn() {
+        let resolution = RootView.resolveDeepLink(
+            url("clantab://g/ABC123"), hasIdentity: { _ in false }, isSignedIn: true
+        )
+        XCTAssertEqual(resolution, .chooseJoin("ABC123"))
+    }
+
     func testResolvesToNilForUnparseableURL() {
-        XCTAssertNil(RootView.resolveDeepLink(url("https://clantab.example.com/"), hasIdentity: { _ in true }))
+        XCTAssertNil(RootView.resolveDeepLink(
+            url("https://clantab.example.com/"), hasIdentity: { _ in true }, isSignedIn: true
+        ))
     }
 
     private func url(_ string: String) -> URL {

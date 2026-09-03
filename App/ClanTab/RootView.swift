@@ -59,6 +59,21 @@ struct RootView: View {
                 onJoined: enterGroup,
                 onCancel: { route = .start }
             )
+        case .chooseJoin(let groupId):
+            JoinChoiceView(
+                onThisIsMe: { route = .claimMember(groupId: groupId) },
+                onJoinAsGuest: { route = .joinGroup(groupId: groupId) },
+                onCancel: { route = .start }
+            )
+        case .claimMember(let groupId):
+            ClaimMemberView(
+                groupId: groupId,
+                client: client,
+                auth: auth,
+                onClaimed: enterGroup,
+                onJoinAsGuest: { route = .joinGroup(groupId: groupId) },
+                onCancel: { route = .chooseJoin(groupId: groupId) }
+            )
         case .group(let groupId):
             GroupHomeView(
                 groupId: groupId,
@@ -83,8 +98,13 @@ struct RootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        switch Self.resolveDeepLink(url, hasIdentity: { identityStore.identity(forGroup: $0) != nil }) {
+        switch Self.resolveDeepLink(
+            url,
+            hasIdentity: { identityStore.identity(forGroup: $0) != nil },
+            isSignedIn: auth.isSignedIn
+        ) {
         case .openGroup(let groupId): enterGroup(groupId)
+        case .chooseJoin(let groupId): route = .chooseJoin(groupId: groupId)
         case .joinGroup(let groupId): route = .joinGroup(groupId: groupId)
         case nil: break
         }
@@ -105,17 +125,25 @@ struct RootView: View {
         route = .start
     }
 
-    /// Where a `/g/:groupId` link should land: straight into the group if this
-    /// device already has an identity for it, otherwise the join flow. Pure so
-    /// it can be tested without a hosting view.
+    /// Where a `/g/:groupId` link should land. Pure so it can be tested without a
+    /// hosting view:
+    /// - already a member on this device → straight into the group;
+    /// - no membership, signed in → the claim-or-join chooser (`ACCOUNTS_DESIGN.md` §6);
+    /// - no membership, guest → the join-as-guest flow.
     enum DeepLinkResolution: Equatable {
         case openGroup(String)
+        case chooseJoin(String)
         case joinGroup(String)
     }
 
-    nonisolated static func resolveDeepLink(_ url: URL, hasIdentity: (String) -> Bool) -> DeepLinkResolution? {
+    nonisolated static func resolveDeepLink(
+        _ url: URL,
+        hasIdentity: (String) -> Bool,
+        isSignedIn: Bool
+    ) -> DeepLinkResolution? {
         guard let groupId = extractGroupId(from: url) else { return nil }
-        return hasIdentity(groupId) ? .openGroup(groupId) : .joinGroup(groupId)
+        if hasIdentity(groupId) { return .openGroup(groupId) }
+        return isSignedIn ? .chooseJoin(groupId) : .joinGroup(groupId)
     }
 
     /// Recognizes both a real capability link (`https://<host>/g/:groupId`, per

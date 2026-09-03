@@ -145,6 +145,54 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(vm.groups, [])
     }
 
+    // MARK: - claim
+
+    @MainActor
+    func testClaimSeedsTheIdentityAndRefreshesTheGroupList() async {
+        let identityStore = InMemoryIdentityStore()
+        let knownGroups = InMemoryKnownGroupsStore()
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: RoutingTransport(responses: [
+                "/claim": (200, #"{"member":{"id":"m1","displayName":"Priya"}}"#),
+                "/api/auth/groups": (200, #"{"groups":[{"groupId":"g1","memberId":"m1","displayName":"Priya"}]}"#),
+            ]),
+            identityStore: identityStore,
+            knownGroups: knownGroups
+        )
+
+        let ok = await vm.claim(groupId: "g1", memberId: "m1")
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(identityStore.identity(forGroup: "g1"), GroupIdentity(memberId: "m1", displayName: "Priya"))
+        XCTAssertEqual(knownGroups.all().map(\.groupId), ["g1"])
+        XCTAssertEqual(vm.groups.map(\.groupId), ["g1"])
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func testClaimFailureSurfacesTheServerMessageAndSeedsNothing() async {
+        let identityStore = InMemoryIdentityStore()
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: StubTransport(statusCode: 409, json: #"{"error":{"code":"ALREADY_CLAIMED","message":"Linked to another account."}}"#),
+            identityStore: identityStore
+        )
+
+        let ok = await vm.claim(groupId: "g1", memberId: "m1")
+
+        XCTAssertFalse(ok)
+        XCTAssertEqual(vm.errorMessage, "Linked to another account.")
+        XCTAssertNil(identityStore.identity(forGroup: "g1"))
+    }
+
+    @MainActor
+    func testClaimWithNoSessionIsANoOp() async {
+        let vm = makeVM(store: InMemorySessionStore(), transport: FailingTransport())
+        let ok = await vm.claim(groupId: "g1", memberId: "m1")
+        XCTAssertFalse(ok)
+    }
+
     // MARK: - handleLaunch
 
     @MainActor
@@ -257,5 +305,18 @@ private struct StubTransport: ClanTabTransport {
 private struct FailingTransport: ClanTabTransport {
     func send(_ request: URLRequest) async throws -> (data: Data, statusCode: Int) {
         throw URLError(.notConnectedToInternet)
+    }
+}
+
+/// Routes canned responses by a path substring — for flows that make more than
+/// one call (claim → then myGroups).
+private struct RoutingTransport: ClanTabTransport {
+    let responses: [String: (Int, String)]
+    func send(_ request: URLRequest) async throws -> (data: Data, statusCode: Int) {
+        let path = request.url?.path ?? ""
+        for (key, value) in responses where path.contains(key) {
+            return (Data(value.1.utf8), value.0)
+        }
+        return (Data(), 404)
     }
 }

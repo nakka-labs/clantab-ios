@@ -459,8 +459,19 @@ optional `Bearer` for future use, but needs nothing today.)
      `AuthViewModelTests` seeding ×3), 3 existing adjusted. Verified in the simulator:
      create → deep-link-join a 2nd group → relaunch shows both in the list →
      tapping opens the group.
-   - ⬜ **6d — claim UI**: "Join as guest" vs "This is me" on an invite link;
-     the `claimable` picker + confirmation.
+   - ✅ **6d — claim UI** (2026-09-03). New routes `.chooseJoin(groupId)` /
+     `.claimMember(groupId)`. `resolveDeepLink` gains an `isSignedIn` dimension:
+     a member on this device → open; no membership + signed in →
+     `JoinChoiceView` ("This is me" vs "Join as a guest"); no membership + guest
+     → today's join flow (unchanged). `ClaimMemberView` fetches
+     `claimableMembers`, lists them, confirms ("Link **Priya** to your Apple ID?
+     Priya's expenses and balance become visible on all your devices."), then
+     `AuthViewModel.claim(groupId:memberId:)` → `claimMember` → seed the identity
+     locally + `refreshGroups()`. Empty list / 409 both fall back to "join as a
+     guest". +6 tests (`resolveDeepLink` ×2, `AuthViewModel.claim` ×3, +1
+     adjusted). Build-verified + logic-tested; the chooser/claim screens can't
+     be screenshot-verified without a real device (SIWA doesn't run in the
+     simulator). Guest deep-link path re-verified unbroken.
    - ⬜ **6e — the one-time nudge card** (§10).
    - ⬜ **6f — Settings + delete-account.**
 7. **Docs** — `DESIGN.md` §13, `AGENTS.md` (the "no accounts" line becomes
