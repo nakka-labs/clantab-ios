@@ -472,7 +472,18 @@ optional `Bearer` for future use, but needs nothing today.)
      adjusted). Build-verified + logic-tested; the chooser/claim screens can't
      be screenshot-verified without a real device (SIWA doesn't run in the
      simulator). Guest deep-link path re-verified unbroken.
-   - ⬜ **6e — the one-time nudge card** (§10).
+   - ✅ **6e — the one-time nudge card** (2026-09-03). `SyncNudgeStore`
+     (ClanTabKit): `firstLaunchAt` (recorded once, on `handleLaunch`) + `dismissed`,
+     `UserDefaults` + in-memory impls. `AuthViewModel.shouldShowSyncNudge(now:)`
+     — a guest, not dismissed, who's reached `nudgeGroupCount` (2) groups **or**
+     `nudgeAfter` (7 days); `dismissSyncNudge()` mirrors into observable
+     `syncNudgeDismissed` so the card vanishes reactively. `SyncNudgeCard` on
+     Group Home (top section) with a dismiss ✕ and an inline
+     `AppleSignInButton` — a new reusable component that also replaced
+     `StartView`'s inline SIWA glue. +11 tests (`SyncNudgeStoreTests` ×3,
+     `AuthViewModel` nudge ×6, `handleLaunch` first-launch ×1, +1 helper).
+     Verified in the simulator: guest with 2 groups sees the card on Group Home
+     → ✕ removes it → stays gone across relaunch and other groups.
    - ⬜ **6f — Settings + delete-account.**
 7. **Docs** — `DESIGN.md` §13, `AGENTS.md` (the "no accounts" line becomes
    "hybrid: guests + optional Sign in with Apple"), `PLAN.md`, `README.md`.

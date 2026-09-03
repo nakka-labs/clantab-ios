@@ -80,6 +80,7 @@ struct RootView: View {
                 client: client,
                 identityStore: identityStore,
                 knownGroups: knownGroups,
+                auth: auth,
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
         }

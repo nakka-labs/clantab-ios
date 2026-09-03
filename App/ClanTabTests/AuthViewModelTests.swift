@@ -145,6 +145,90 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(vm.groups, [])
     }
 
+    // MARK: - sync nudge (ACCOUNTS_DESIGN.md §10)
+
+    @MainActor
+    func testSyncNudgeHiddenBeforeTheThresholds() async {
+        let firstLaunch = Date(timeIntervalSince1970: 1_000_000)
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: FailingTransport(),
+            knownGroups: InMemoryKnownGroupsStore([known("g1", at: firstLaunch)]),
+            syncNudge: InMemorySyncNudgeStore(firstLaunchAt: firstLaunch)
+        )
+        // One group, one day in.
+        XCTAssertFalse(vm.shouldShowSyncNudge(now: firstLaunch.addingTimeInterval(day)))
+    }
+
+    @MainActor
+    func testSyncNudgeShownAtTheSecondGroup() async {
+        let firstLaunch = Date(timeIntervalSince1970: 1_000_000)
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: FailingTransport(),
+            knownGroups: InMemoryKnownGroupsStore([known("g1", at: firstLaunch), known("g2", at: firstLaunch)]),
+            syncNudge: InMemorySyncNudgeStore(firstLaunchAt: firstLaunch)
+        )
+        XCTAssertTrue(vm.shouldShowSyncNudge(now: firstLaunch.addingTimeInterval(day)))
+    }
+
+    @MainActor
+    func testSyncNudgeShownAfterSevenDaysWithOneGroup() async {
+        let firstLaunch = Date(timeIntervalSince1970: 1_000_000)
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: FailingTransport(),
+            knownGroups: InMemoryKnownGroupsStore([known("g1", at: firstLaunch)]),
+            syncNudge: InMemorySyncNudgeStore(firstLaunchAt: firstLaunch)
+        )
+        XCTAssertFalse(vm.shouldShowSyncNudge(now: firstLaunch.addingTimeInterval(6 * day)))
+        XCTAssertTrue(vm.shouldShowSyncNudge(now: firstLaunch.addingTimeInterval(7 * day)))
+    }
+
+    @MainActor
+    func testSyncNudgeNeverShownOnceDismissed() async {
+        let firstLaunch = Date(timeIntervalSince1970: 1_000_000)
+        let nudge = InMemorySyncNudgeStore(firstLaunchAt: firstLaunch)
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: FailingTransport(),
+            knownGroups: InMemoryKnownGroupsStore([known("g1", at: firstLaunch), known("g2", at: firstLaunch)]),
+            syncNudge: nudge
+        )
+        XCTAssertTrue(vm.shouldShowSyncNudge(now: firstLaunch.addingTimeInterval(day)))
+
+        vm.dismissSyncNudge()
+
+        XCTAssertFalse(vm.shouldShowSyncNudge(now: firstLaunch.addingTimeInterval(day)))
+        XCTAssertTrue(nudge.isDismissed())
+    }
+
+    @MainActor
+    func testSyncNudgeNeverShownWhenSignedIn() async {
+        let firstLaunch = Date(timeIntervalSince1970: 1_000_000)
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: FailingTransport(),
+            knownGroups: InMemoryKnownGroupsStore([known("g1", at: firstLaunch), known("g2", at: firstLaunch)]),
+            syncNudge: InMemorySyncNudgeStore(firstLaunchAt: firstLaunch)
+        )
+        XCTAssertTrue(vm.isSignedIn)
+        XCTAssertFalse(vm.shouldShowSyncNudge(now: firstLaunch.addingTimeInterval(30 * day)))
+    }
+
+    @MainActor
+    func testHandleLaunchRecordsFirstLaunchOnce() async {
+        let nudge = InMemorySyncNudgeStore()
+        let vm = makeVM(store: InMemorySessionStore(), transport: FailingTransport(), syncNudge: nudge)
+
+        await vm.handleLaunch()
+        let recorded = nudge.firstLaunchAt()
+        XCTAssertNotNil(recorded)
+
+        await vm.handleLaunch()
+        XCTAssertEqual(nudge.firstLaunchAt(), recorded, "first-launch time must not move on later launches")
+    }
+
     // MARK: - claim
 
     @MainActor
@@ -275,19 +359,25 @@ final class AuthViewModelTests: XCTestCase {
         StoredSession(token: "stored.tok", appleUserID: userID, expiresAt: Date(timeIntervalSinceNow: seconds))
     }
 
+    private func known(_ groupId: String, at date: Date) -> KnownGroup {
+        KnownGroup(groupId: groupId, name: groupId, lastOpenedAt: date)
+    }
+
     @MainActor
     private func makeVM(
         store: SessionStoring,
         transport: ClanTabTransport,
         standing: CredentialStanding = .authorized,
         identityStore: IdentityStoring = InMemoryIdentityStore(),
-        knownGroups: KnownGroupsStoring = InMemoryKnownGroupsStore()
+        knownGroups: KnownGroupsStoring = InMemoryKnownGroupsStore(),
+        syncNudge: SyncNudgeStoring = InMemorySyncNudgeStore()
     ) -> AuthViewModel {
         AuthViewModel(
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: transport),
             sessionStore: store,
             identityStore: identityStore,
             knownGroups: knownGroups,
+            syncNudge: syncNudge,
             credentialStanding: { _ in standing }
         )
     }

@@ -5,8 +5,10 @@ struct GroupHomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     private let client: ClanTabClient
     private let knownGroups: KnownGroupsStoring
+    private let auth: AuthViewModel
     private let onGroupUnavailable: () -> Void
     @State private var viewModel: GroupViewModel
+    @State private var nudgeError: String?
     @State private var isPresentingAddExpense = false
     @State private var isPresentingSettleUp = false
     @State private var isPresentingImport = false
@@ -19,16 +21,34 @@ struct GroupHomeView: View {
         client: ClanTabClient,
         identityStore: IdentityStoring,
         knownGroups: KnownGroupsStoring,
+        auth: AuthViewModel,
         onGroupUnavailable: @escaping () -> Void = {}
     ) {
         self.client = client
         self.knownGroups = knownGroups
+        self.auth = auth
         self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, identityStore: identityStore))
     }
 
     var body: some View {
         List {
+            if auth.shouldShowSyncNudge() {
+                Section {
+                    SyncNudgeCard(
+                        onCredential: { token, userID in
+                            nudgeError = nil
+                            Task { await auth.signIn(identityToken: token, userID: userID) }
+                        },
+                        onFailure: { nudgeError = $0 },
+                        onDismiss: { auth.dismissSyncNudge() }
+                    )
+                    if let message = auth.errorMessage ?? nudgeError {
+                        Text(message).font(.caption).foregroundStyle(.red)
+                    }
+                }
+            }
+
             if viewModel.state != nil {
                 Section {
                     BalanceHeroView(balances: viewModel.myBalances)

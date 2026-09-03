@@ -1,4 +1,3 @@
-import AuthenticationServices
 import ClanTabKit
 import SwiftUI
 
@@ -18,7 +17,6 @@ struct StartView: View {
     var authError: String? = nil
     var onSignIn: (_ identityToken: String, _ userID: String) -> Void = { _, _ in }
 
-    @Environment(\.colorScheme) private var colorScheme
     @State private var sheetError: String?
 
     var body: some View {
@@ -94,15 +92,13 @@ struct StartView: View {
                 .padding(.top, 4)
         } else {
             VStack(spacing: 8) {
-                SignInWithAppleButton(
-                    .signIn,
-                    onRequest: { request in
-                        // We need neither email nor name (ACCOUNTS_DESIGN.md §5).
-                        request.requestedScopes = []
+                AppleSignInButton(
+                    onCredential: { token, userID in
+                        sheetError = nil
+                        onSignIn(token, userID)
                     },
-                    onCompletion: handle
+                    onFailure: { sheetError = $0 }
                 )
-                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
                 .frame(height: 44)
                 .disabled(isSigningIn)
                 .opacity(isSigningIn ? 0.5 : 1)
@@ -119,26 +115,6 @@ struct StartView: View {
                 }
             }
             .padding(.top, 4)
-        }
-    }
-
-    private func handle(_ result: Result<ASAuthorization, Error>) {
-        sheetError = nil
-        switch result {
-        case .success(let authorization):
-            guard
-                let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                let tokenData = credential.identityToken,
-                let identityToken = String(data: tokenData, encoding: .utf8)
-            else {
-                sheetError = "Apple didn't return a usable sign-in. Please try again."
-                return
-            }
-            onSignIn(identityToken, credential.user)
-        case .failure(let error):
-            // A user cancelling the sheet isn't an error worth showing.
-            if (error as? ASAuthorizationError)?.code == .canceled { return }
-            sheetError = "Sign in didn't complete. Please try again."
         }
     }
 }

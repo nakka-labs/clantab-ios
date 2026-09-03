@@ -33,10 +33,16 @@ final class AuthViewModel {
         case discard
     }
 
+    /// The "2nd group or 7 days" threshold for the one-time sync nudge
+    /// (`ACCOUNTS_DESIGN.md` §10).
+    static let nudgeAfter: TimeInterval = 7 * 24 * 60 * 60
+    static let nudgeGroupCount = 2
+
     private let client: ClanTabClient
     private let sessionStore: SessionStoring
     private let identityStore: IdentityStoring
     private let knownGroups: KnownGroupsStoring
+    private let syncNudge: SyncNudgeStoring
     /// Injectable so tests don't need a real Apple credential. Returns `.noSession`
     /// when there's nothing stored to check.
     private let credentialStanding: @Sendable (_ appleUserID: String) async -> CredentialStanding
@@ -49,6 +55,8 @@ final class AuthViewModel {
     private(set) var groups: [GroupMembershipSummary] = []
     private(set) var isBusy = false
     private(set) var errorMessage: String?
+    /// Mirrors `syncNudge.isDismissed()` so a dismissal re-renders observers.
+    private(set) var syncNudgeDismissed: Bool
 
     var isSignedIn: Bool { session != nil }
 
@@ -57,14 +65,35 @@ final class AuthViewModel {
         sessionStore: SessionStoring,
         identityStore: IdentityStoring,
         knownGroups: KnownGroupsStoring,
+        syncNudge: SyncNudgeStoring,
         credentialStanding: @escaping @Sendable (_ appleUserID: String) async -> CredentialStanding = AuthViewModel.liveCredentialStanding
     ) {
         self.client = client
         self.sessionStore = sessionStore
         self.identityStore = identityStore
         self.knownGroups = knownGroups
+        self.syncNudge = syncNudge
         self.credentialStanding = credentialStanding
         self.session = sessionStore.load()
+        self.syncNudgeDismissed = syncNudge.isDismissed()
+    }
+
+    // MARK: - Sync nudge (ACCOUNTS_DESIGN.md §10)
+
+    /// Whether Group Home should show the one-time "sign in to keep your groups"
+    /// card: only for a guest who hasn't dismissed it, once they've reached a
+    /// 2nd group or 7 days of use.
+    func shouldShowSyncNudge(now: Date = Date()) -> Bool {
+        guard !isSignedIn, !syncNudgeDismissed else { return false }
+        guard let firstLaunch = syncNudge.firstLaunchAt() else { return false }
+        let reachedTwoGroups = knownGroups.all().count >= Self.nudgeGroupCount
+        let reachedSevenDays = now.timeIntervalSince(firstLaunch) >= Self.nudgeAfter
+        return reachedTwoGroups || reachedSevenDays
+    }
+
+    func dismissSyncNudge() {
+        syncNudge.dismiss()
+        syncNudgeDismissed = true
     }
 
     // MARK: - Sign in / out
@@ -159,6 +188,7 @@ final class AuthViewModel {
     /// On every launch: restore the session, verify the Apple credential is still
     /// good, and refresh the token if it's near expiry.
     func handleLaunch() async {
+        syncNudge.recordFirstLaunch(Date()) // no-op after the first launch
         session = sessionStore.load()
         guard let current = session else { return }
 
