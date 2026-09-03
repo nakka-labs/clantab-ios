@@ -425,9 +425,23 @@ optional `Bearer` for future use, but needs nothing today.)
      `needsRefresh`) and `SessionStoring` with `KeychainSessionStore`
      (`kSecAttrAccessibleAfterFirstUnlock`) + `InMemorySessionStore`. +19 tests.
      No UI yet.
-   - ⬜ **6b — sign-in flow**: `AuthenticationServices` SIWA button on the start
-     screen; exchange the credential; persist the session; `getCredentialState`
-     launch check + launch-time refresh.
+   - ✅ **6b — sign-in flow** (2026-09-03). `AuthViewModel` (`@MainActor
+     @Observable`): `signIn(identityToken:userID:)` → `client.signInWithApple` →
+     persist `StoredSession`; `signOut()` clears locally (no server revocation,
+     §3); `handleLaunch()` restores the session, maps
+     `ASAuthorizationAppleIDProvider.getCredentialState` to a plain
+     `CredentialStanding`, and runs the pure `launchDecision` policy
+     (`.keep` / `.refresh` / `.discard` / `.none`) — near-expiry → silent
+     `refreshSession`, revoked / gone / expired → drop to guest. `credentialStanding`
+     is an injected closure so the policy is unit-tested without a real
+     credential. `SignInWithAppleButton` on `StartView` (no scopes requested, §5),
+     wired through `RootView` → `ClanTabApp` (owns the VM + `KeychainSessionStore`).
+     Entitlement: `com.apple.developer.applesignin` via `project.yml`
+     (gitignored, generated). **Prerequisite:** enable the Sign in with Apple
+     capability on the App ID in the Apple Developer portal before a TestFlight
+     build. +13 tests. Can't drive the real Apple sheet in
+     the simulator — the credential-state / refresh / decision logic is covered
+     by unit tests (`AuthViewModelTests`); the button + build are verified.
    - ⬜ **6c — group-list model**: `@AppStorage("clantab.lastGroupId")` → a list;
      signed-in list authoritative from `myGroups`, guests unchanged.
    - ⬜ **6d — claim UI**: "Join as guest" vs "This is me" on an invite link;

@@ -4,6 +4,7 @@ import ClanTabKit
 struct RootView: View {
     let client: ClanTabClient
     let identityStore: IdentityStoring
+    let auth: AuthViewModel
 
     @AppStorage("clantab.lastGroupId") private var lastGroupId: String = ""
     @State private var route: AppRoute = .start
@@ -12,7 +13,10 @@ struct RootView: View {
         NavigationStack {
             content
         }
-        .task { resolveInitialRoute() }
+        .task {
+            resolveInitialRoute()
+            await auth.handleLaunch()
+        }
         .onOpenURL { url in handleDeepLink(url) }
     }
 
@@ -22,7 +26,13 @@ struct RootView: View {
         case .start:
             StartView(
                 onCreate: { route = .createGroup },
-                onJoinWithCode: { route = .joinGroup(groupId: nil) }
+                onJoinWithCode: { route = .joinGroup(groupId: nil) },
+                isSignedIn: auth.isSignedIn,
+                isSigningIn: auth.isBusy,
+                authError: auth.errorMessage,
+                onSignIn: { identityToken, userID in
+                    Task { await auth.signIn(identityToken: identityToken, userID: userID) }
+                }
             )
         case .createGroup:
             CreateGroupView(

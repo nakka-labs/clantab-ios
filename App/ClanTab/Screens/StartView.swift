@@ -1,10 +1,22 @@
+import AuthenticationServices
 import SwiftUI
 
 /// The very first screen for a device with no remembered group: choose to
-/// create a new group or join an existing one by code.
+/// create a new group or join an existing one by code. Optionally sign in with
+/// Apple so claimed memberships sync across devices (`ACCOUNTS_DESIGN.md` §4) —
+/// entirely optional, guests get the full app without it.
 struct StartView: View {
     let onCreate: () -> Void
     let onJoinWithCode: () -> Void
+    var isSignedIn: Bool = false
+    var isSigningIn: Bool = false
+    /// Error from exchanging the credential (network / verification), owned by
+    /// `AuthViewModel`. The credential-sheet's own failures are handled locally.
+    var authError: String? = nil
+    var onSignIn: (_ identityToken: String, _ userID: String) -> Void = { _, _ in }
+
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var sheetError: String?
 
     var body: some View {
         VStack(spacing: 24) {
@@ -25,9 +37,68 @@ struct StartView: View {
                 Button("Join with a Code", action: onJoinWithCode)
                     .buttonStyle(.bordered)
                     .controlSize(.large)
+
+                signInSection
             }
             .frame(maxWidth: .infinity)
         }
         .padding()
+    }
+
+    @ViewBuilder
+    private var signInSection: some View {
+        if isSignedIn {
+            Label("Signed in with Apple", systemImage: "checkmark.seal.fill")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+        } else {
+            VStack(spacing: 8) {
+                SignInWithAppleButton(
+                    .signIn,
+                    onRequest: { request in
+                        // We need neither email nor name (ACCOUNTS_DESIGN.md §5).
+                        request.requestedScopes = []
+                    },
+                    onCompletion: handle
+                )
+                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+                .frame(height: 44)
+                .disabled(isSigningIn)
+                .opacity(isSigningIn ? 0.5 : 1)
+
+                Text("Optional — sync your groups across devices.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let message = authError ?? sheetError {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func handle(_ result: Result<ASAuthorization, Error>) {
+        sheetError = nil
+        switch result {
+        case .success(let authorization):
+            guard
+                let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                let tokenData = credential.identityToken,
+                let identityToken = String(data: tokenData, encoding: .utf8)
+            else {
+                sheetError = "Apple didn't return a usable sign-in. Please try again."
+                return
+            }
+            onSignIn(identityToken, credential.user)
+        case .failure(let error):
+            // A user cancelling the sheet isn't an error worth showing.
+            if (error as? ASAuthorizationError)?.code == .canceled { return }
+            sheetError = "Sign in didn't complete. Please try again."
+        }
     }
 }
