@@ -415,10 +415,25 @@ optional `Bearer` for future use, but needs nothing today.)
    401 `INVALID_APPLE_TOKEN`. `claim` writes `GroupDO` first, then the `UserDO`
    index. Apple server-to-server token revocation (§11) is stubbed with a TODO —
    needs the `SIWA_*` secrets. + 15 route tests (`test/auth-routes.test.ts`).
-6. **iOS** — `AuthenticationServices` SIWA button; session token in the
-   Keychain (§3); `getCredentialState` launch check; the group-list model
-   change; the claim UI; the one-time nudge card (§10); Settings +
-   delete-account.
+6. **iOS** — broken into sub-steps:
+   - ✅ **6a — ClanTabKit auth foundation** (2026-09-03). `SessionResponse` /
+     `GroupMembershipSummary` / `MyGroupsResponse` / `ClaimableMembersResponse` /
+     `ClaimMemberResponse` wire types; `ClanTabClient` gains `signInWithApple` /
+     `refreshSession` / `myGroups` / `deleteAccount` / `claimableMembers` /
+     `claimMember` (Bearer-header plumbing + a 204-tolerant `performNoContent`);
+     `StoredSession` (`token` + `appleUserID` + `expiresAt`, with `isExpired` /
+     `needsRefresh`) and `SessionStoring` with `KeychainSessionStore`
+     (`kSecAttrAccessibleAfterFirstUnlock`) + `InMemorySessionStore`. +19 tests.
+     No UI yet.
+   - ⬜ **6b — sign-in flow**: `AuthenticationServices` SIWA button on the start
+     screen; exchange the credential; persist the session; `getCredentialState`
+     launch check + launch-time refresh.
+   - ⬜ **6c — group-list model**: `@AppStorage("clantab.lastGroupId")` → a list;
+     signed-in list authoritative from `myGroups`, guests unchanged.
+   - ⬜ **6d — claim UI**: "Join as guest" vs "This is me" on an invite link;
+     the `claimable` picker + confirmation.
+   - ⬜ **6e — the one-time nudge card** (§10).
+   - ⬜ **6f — Settings + delete-account.**
 7. **Docs** — `DESIGN.md` §13, `AGENTS.md` (the "no accounts" line becomes
    "hybrid: guests + optional Sign in with Apple"), `PLAN.md`, `README.md`.
 
