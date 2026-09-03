@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS group_meta (
 CREATE TABLE IF NOT EXISTS members (
   id           TEXT PRIMARY KEY,
   display_name TEXT NOT NULL,
-  created_at   INTEGER NOT NULL
+  created_at   INTEGER NOT NULL,
+  identity_sub TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
@@ -71,5 +72,8 @@ export const META_KEYS = {
  *          Plain `ALTER TABLE ... ADD COLUMN` — no rebuild.
  *  - `4` → `expenses.currency` + `settlements.currency` added (nullable), then
  *          backfilled from the group's currency. Multi-currency ledgers.
+ *  - `5` → `members.identity_sub` added (nullable). Every existing member is a
+ *          placeholder (NULL); claiming links a member to an Apple identity.
+ *          Plain `ALTER TABLE ... ADD COLUMN` — no rebuild. See `ACCOUNTS_DESIGN.md`.
  */
-export const SCHEMA_VERSION = "4";
+export const SCHEMA_VERSION = "5";

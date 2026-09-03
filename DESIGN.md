@@ -108,7 +108,8 @@ CREATE TABLE group_meta (
 CREATE TABLE members (
   id           TEXT PRIMARY KEY,
   display_name TEXT NOT NULL,
-  created_at   INTEGER NOT NULL
+  created_at   INTEGER NOT NULL,
+  identity_sub TEXT           -- nullable; the Apple `sub` this member is claimed by, added in v5. NULL = placeholder (ACCOUNTS_DESIGN.md)
 );
 
 CREATE TABLE expenses (
@@ -272,6 +273,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`2`** — `expenses.split_type`'s `CHECK` widened to allow `'percentage'`. SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table (rename → recreate → copy → drop); `expense_splits` has no real FK so nothing cascades. A group that hasn't been created yet has no `schema_version` row and is skipped — `GROUP_SCHEMA` already builds the current shape.
 - **`3`** — `expenses.category` + `expenses.category_icon` added (both nullable). Plain `ALTER TABLE ... ADD COLUMN`, in place, no rebuild. Migrations run in sequence, so a v1 DO walks 1→2→3 on its next instantiation.
 - **`4`** — `expenses.currency` + `settlements.currency` added (both nullable), then backfilled from the group's currency (`UPDATE ... WHERE currency IS NULL`) — before v4 a group was single-currency, so that's exact. In-place, no rebuild.
+- **`5`** — `members.identity_sub` added (nullable). Every existing member becomes a placeholder (`NULL`); claiming links it to an Apple identity. In-place, no rebuild. Accounts are additive — the capability-link model is unchanged. See `ACCOUNTS_DESIGN.md`; a full §13 for the auth surface lands with the routes.
 
 ---
 

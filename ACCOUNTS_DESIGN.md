@@ -378,8 +378,12 @@ optional `Bearer` for future use, but needs nothing today.)
 
 ## 14. Build order
 
-1. **`GroupDO` v5** — migration + `claim` / `unclaim` / `claimable` /
-   `memberIdentity` ops + tests. No wire yet.
+1. ✅ **`GroupDO` v5** (2026-09-03) — `members.identity_sub` migration +
+   `claim` / `unclaim` / `claimable` / `memberIdentity` ops + tests. No wire
+   yet. `claim` is idempotent per sub; errors `ALREADY_CLAIMED` (linked to
+   someone else), `IDENTITY_ALREADY_IN_GROUP` (you already hold a membership
+   here), `UNKNOWN_MEMBER`. (`NOT_PLACEHOLDER` from §6 folded into
+   `ALREADY_CLAIMED` — a non-placeholder member is exactly a claimed one.)
 2. **`UserDO`** — the DO + its RPC + tests.
 3. **Apple JWT verification** — JWKS fetch + cache, claim validation,
    tested against a fixture token.

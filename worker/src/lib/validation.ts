@@ -5,7 +5,13 @@ import type { ExpenseSplit } from "./types.ts";
 // `number` is safe here as long as every amount is guarded as a positive integer
 // on the way in. Reject anything non-integer rather than truncating.
 
-export type ValidationCode = "SPLIT_MISMATCH" | "UNKNOWN_MEMBER" | "INVALID_AMOUNT";
+export type ValidationCode =
+  | "SPLIT_MISMATCH"
+  | "UNKNOWN_MEMBER"
+  | "INVALID_AMOUNT"
+  // accounts / claim flow (ACCOUNTS_DESIGN.md §6)
+  | "ALREADY_CLAIMED"
+  | "IDENTITY_ALREADY_IN_GROUP";
 
 /** A validation failure that maps directly to a `DESIGN.md` §2 error envelope. */
 export class ValidationFailure extends Error {

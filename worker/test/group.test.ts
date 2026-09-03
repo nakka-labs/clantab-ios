@@ -107,6 +107,7 @@ describe("GroupDO", () => {
       const sql = state.storage.sql;
       sql.exec("DROP TABLE expenses");
       sql.exec("DROP TABLE settlements");
+      sql.exec("DROP TABLE members");
       sql.exec(`CREATE TABLE expenses (
         id           TEXT PRIMARY KEY,
         payer_id     TEXT NOT NULL,
@@ -123,6 +124,12 @@ describe("GroupDO", () => {
         amount_minor INTEGER NOT NULL,
         settled_at   INTEGER NOT NULL
       )`);
+      sql.exec(`CREATE TABLE members (
+        id           TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        created_at   INTEGER NOT NULL
+      )`);
+      sql.exec("INSERT INTO members VALUES (?, 'Ana', 1)", ana.id);
       sql.exec(
         "INSERT INTO expenses VALUES ('old-1', ?, 100, 'Legacy', '2026-01-01T00:00:00Z', 'equal', 1)",
         ana.id,
@@ -133,9 +140,9 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("4");
+      expect(version).toBe("5");
 
-      // The legacy row survived the v2 rebuild, gained null category columns,
+      // The legacy expense survived the v2 rebuild, gained null category columns,
       // and had its currency backfilled from the group (USD).
       const legacy = sql
         .exec<{ category: string | null; category_icon: string | null; currency: string }>(
@@ -143,6 +150,12 @@ describe("GroupDO", () => {
         )
         .toArray()[0];
       expect(legacy).toEqual({ category: null, category_icon: null, currency: "USD" });
+
+      // The legacy member gained a null identity_sub — i.e. it's a placeholder.
+      const member = sql
+        .exec<{ identity_sub: string | null }>("SELECT identity_sub FROM members WHERE id = ?", ana.id)
+        .toArray()[0];
+      expect(member).toEqual({ identity_sub: null });
     });
 
     // percentage (needs v2), category (needs v3), currency (needs v4) post-migration.
@@ -161,6 +174,75 @@ describe("GroupDO", () => {
     if (r.ok) {
       expect(r.value.expense).toMatchObject({ category: "Travel", categoryIcon: "airplane", currency: "EUR" });
     }
+  });
+
+  describe("claim flow", () => {
+    it("claimable() lists only placeholders; claim() links one; then it's gone from claimable", async () => {
+      const g = group("g-claim");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CLM234");
+      const { member: ben } = await g.addMember("Ben");
+
+      expect((await g.claimable()).members.map((m) => m.displayName)).toEqual(["Ana", "Ben"]);
+
+      const r = await g.claim(ana.id, "apple-sub-ana");
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.value.member).toEqual({ id: ana.id, displayName: "Ana" });
+
+      expect((await g.claimable()).members.map((m) => m.id)).toEqual([ben.id]);
+      expect(await g.memberIdentity(ana.id)).toEqual({ sub: "apple-sub-ana" });
+      // getState still doesn't expose identity.
+      const state = await g.getState();
+      expect(state.members).toEqual([
+        { id: ana.id, displayName: "Ana" },
+        { id: ben.id, displayName: "Ben" },
+      ]);
+    });
+
+    it("claim() is idempotent for the same sub, rejects a different sub", async () => {
+      const g = group("g-claim-idem");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "IDC234");
+
+      const first = await g.claim(ana.id, "sub-1");
+      const replay = await g.claim(ana.id, "sub-1");
+      expect(first).toEqual(replay);
+
+      const other = await g.claim(ana.id, "sub-2");
+      expect(other.ok).toBe(false);
+      if (!other.ok) expect(other.error.code).toBe("ALREADY_CLAIMED");
+    });
+
+    it("one identity can hold at most one membership per group", async () => {
+      const g = group("g-claim-one");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ONE234");
+      const { member: ben } = await g.addMember("Ben");
+
+      expect((await g.claim(ana.id, "sub-x")).ok).toBe(true);
+      const second = await g.claim(ben.id, "sub-x");
+      expect(second.ok).toBe(false);
+      if (!second.ok) expect(second.error.code).toBe("IDENTITY_ALREADY_IN_GROUP");
+    });
+
+    it("claim() 404s an unknown member", async () => {
+      const g = group("g-claim-404");
+      await g.initGroup("Trip", "USD", "Ana", "C40234");
+      const r = await g.claim("ghost", "sub-y");
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe("UNKNOWN_MEMBER");
+    });
+
+    it("unclaim() reverts a member to a placeholder, only for its own sub, idempotently", async () => {
+      const g = group("g-unclaim");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "UNC234");
+      await g.claim(ana.id, "sub-a");
+
+      await g.unclaim(ana.id, "sub-wrong"); // not this identity → no-op
+      expect(await g.memberIdentity(ana.id)).toEqual({ sub: "sub-a" });
+
+      await g.unclaim(ana.id, "sub-a");
+      expect(await g.memberIdentity(ana.id)).toEqual({ sub: null });
+      await g.unclaim(ana.id, "sub-a"); // idempotent
+      expect((await g.claimable()).members.map((m) => m.id)).toContain(ana.id);
+    });
   });
 
   it("addExpense returns a failure Result (not a throw) for bad input", async () => {

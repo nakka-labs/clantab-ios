@@ -32,6 +32,7 @@ type Row<T> = T & Record<string, SqlStorageValue>;
 type MemberRow = Row<{
   id: string;
   display_name: string;
+  identity_sub: string | null;
 }>;
 type ExpenseRow = Row<{
   id: string;
@@ -133,6 +134,14 @@ export class GroupDO extends DurableObject {
       this.setMeta(META_KEYS.schemaVersion, "4");
       current = "4";
     }
+
+    if (current === "4") {
+      // v5: add `members.identity_sub` (nullable). Every existing member stays a
+      // placeholder (NULL) — exactly their status today. In-place, no rebuild.
+      this.sql.exec("ALTER TABLE members ADD COLUMN identity_sub TEXT");
+      this.setMeta(META_KEYS.schemaVersion, "5");
+      current = "5";
+    }
   }
 
   /** Has this group been created (vs. just addressed)? Drives `GROUP_NOT_FOUND`. */
@@ -164,6 +173,69 @@ export class GroupDO extends DurableObject {
 
   async addMember(displayName: string): Promise<{ member: Member }> {
     return { member: this.insertMember(displayName, Date.now()) };
+  }
+
+  // --- accounts / claim flow (ACCOUNTS_DESIGN.md §6) ----------------------
+  // `GroupDO` is authoritative for membership↔identity; the Worker calls these
+  // first, then updates the `UserDO` index. No wire route wired yet.
+
+  /** The group's placeholder members (`identity_sub IS NULL`) — the list the
+   * "this is me" picker shows. */
+  async claimable(): Promise<{ members: Member[] }> {
+    const rows = this.sql
+      .exec<MemberRow>(
+        "SELECT id, display_name FROM members WHERE identity_sub IS NULL ORDER BY created_at ASC, rowid ASC",
+      )
+      .toArray();
+    return { members: rows.map((r) => ({ id: r.id, displayName: r.display_name })) };
+  }
+
+  /** Link a placeholder member to an Apple identity. Idempotent: re-claiming
+   * the same member with the same `sub` is a no-op success. */
+  async claim(memberId: string, sub: string): Promise<Result<{ member: Member }>> {
+    const rows = this.sql
+      .exec<MemberRow>("SELECT id, display_name, identity_sub FROM members WHERE id = ?", memberId)
+      .toArray();
+    const row = rows[0];
+    if (row === undefined) {
+      return fail("UNKNOWN_MEMBER", `Member "${memberId}" is not in this group.`);
+    }
+    const member: Member = { id: row.id, displayName: row.display_name };
+
+    if (row.identity_sub !== null) {
+      return row.identity_sub === sub
+        ? ok({ member })
+        : fail("ALREADY_CLAIMED", "That member has already been linked to another account.");
+    }
+
+    const held = this.sql
+      .exec<{ id: string }>("SELECT id FROM members WHERE identity_sub = ? LIMIT 1", sub)
+      .toArray();
+    if (held.length > 0) {
+      return fail("IDENTITY_ALREADY_IN_GROUP", "You already have a membership in this group.");
+    }
+
+    this.sql.exec("UPDATE members SET identity_sub = ? WHERE id = ?", sub, memberId);
+    return ok({ member });
+  }
+
+  /** Revert a member to a placeholder, but only if it's currently `sub`'s —
+   * for account deletion (`ACCOUNTS_DESIGN.md` §11). Idempotent. */
+  async unclaim(memberId: string, sub: string): Promise<void> {
+    this.sql.exec(
+      "UPDATE members SET identity_sub = NULL WHERE id = ? AND identity_sub = ?",
+      memberId,
+      sub,
+    );
+  }
+
+  /** The Apple `sub` linked to a member, or `null` — for the `UserDO` index to
+   * verify its entries against the source of truth. */
+  async memberIdentity(memberId: string): Promise<{ sub: string | null }> {
+    const rows = this.sql
+      .exec<MemberRow>("SELECT identity_sub FROM members WHERE id = ?", memberId)
+      .toArray();
+    return { sub: rows.length > 0 ? rows[0]!.identity_sub : null };
   }
 
   async getState(): Promise<GroupStateResponse> {
