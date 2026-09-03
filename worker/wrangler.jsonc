@@ -8,13 +8,18 @@
   "durable_objects": {
     "bindings": [
       { "name": "GROUP_DO", "class_name": "GroupDO" },
-      { "name": "REGISTRY_DO", "class_name": "RegistryDO" }
+      { "name": "REGISTRY_DO", "class_name": "RegistryDO" },
+      { "name": "USER_DO", "class_name": "UserDO" }
     ]
   },
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["GroupDO", "RegistryDO"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["UserDO"]
     }
   ]
 }

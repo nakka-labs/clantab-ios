@@ -384,7 +384,10 @@ optional `Bearer` for future use, but needs nothing today.)
    someone else), `IDENTITY_ALREADY_IN_GROUP` (you already hold a membership
    here), `UNKNOWN_MEMBER`. (`NOT_PLACEHOLDER` from §6 folded into
    `ALREADY_CLAIMED` — a non-placeholder member is exactly a claimed one.)
-2. **`UserDO`** — the DO + its RPC + tests.
+2. ✅ **`UserDO`** (2026-09-03) — `idFromName(appleSub)`; `user_meta` +
+   `memberships` tables; `ensureExists` / `exists` / `listGroups` /
+   `addMembership` (idempotent per group) / `removeMembership` / `deleteAll`.
+   New binding `USER_DO` + wrangler migration tag `v2`. + 5 tests.
 3. **Apple JWT verification** — JWKS fetch + cache, claim validation,
    tested against a fixture token.
 4. **Session tokens** — HMAC mint/verify + tests.

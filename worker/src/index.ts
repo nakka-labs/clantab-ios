@@ -1,5 +1,6 @@
 import { GroupDO } from "./group-do.ts";
 import { RegistryDO } from "./registry-do.ts";
+import { UserDO } from "./user-do.ts";
 import {
   BadRequestError,
   BareNotFoundError,
@@ -20,11 +21,12 @@ import {
 import { ValidationFailure } from "./lib/validation.ts";
 import type { AddExpenseRequest, AddSettlementRequest } from "./types.ts";
 
-export { GroupDO, RegistryDO };
+export { GroupDO, RegistryDO, UserDO };
 
 interface Env {
   GROUP_DO: DurableObjectNamespace<GroupDO>;
   REGISTRY_DO: DurableObjectNamespace<RegistryDO>;
+  USER_DO: DurableObjectNamespace<UserDO>;
 }
 
 type Params = Record<string, string>;

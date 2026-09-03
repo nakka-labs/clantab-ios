@@ -54,6 +54,33 @@ CREATE TABLE IF NOT EXISTS join_codes (
 );
 `;
 
+/**
+ * `UserDO` — one per Apple identity (`idFromName(appleSub)`). A thin per-identity
+ * index of "which groups, as which member" (`ACCOUNTS_DESIGN.md` §1). At most one
+ * membership per group per identity (PK on `group_id`).
+ */
+export const USER_SCHEMA = `
+CREATE TABLE IF NOT EXISTS user_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memberships (
+  group_id     TEXT PRIMARY KEY,
+  member_id    TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  added_at     INTEGER NOT NULL
+);
+`;
+
+export const USER_META_KEYS = {
+  appleSub: "apple_sub",
+  createdAt: "created_at",
+  schemaVersion: "schema_version",
+} as const;
+
+export const USER_SCHEMA_VERSION = "1";
+
 /** `group_meta` keys written at creation (`DESIGN.md` §3 + §10). */
 export const META_KEYS = {
   name: "name",
