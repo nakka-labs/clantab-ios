@@ -77,6 +77,63 @@ final class AuthViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSignInSeedsTheLocalGroupStoresFromTheServerList() async {
+        let identityStore = InMemoryIdentityStore()
+        let knownGroups = InMemoryKnownGroupsStore()
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: StubTransport(statusCode: 200, json: """
+            {"sessionToken":"s","expiresAt":"2026-12-01T00:00:00Z",
+             "groups":[{"groupId":"g1","memberId":"m1","displayName":"Priya"},
+                       {"groupId":"g2","memberId":"m2","displayName":"Priya"}]}
+            """),
+            identityStore: identityStore,
+            knownGroups: knownGroups
+        )
+
+        await vm.signIn(identityToken: "apple.jwt", userID: "u")
+
+        XCTAssertEqual(Set(knownGroups.all().map(\.groupId)), ["g1", "g2"])
+        XCTAssertEqual(identityStore.identity(forGroup: "g1"), GroupIdentity(memberId: "m1", displayName: "Priya"))
+        XCTAssertEqual(identityStore.identity(forGroup: "g2"), GroupIdentity(memberId: "m2", displayName: "Priya"))
+    }
+
+    @MainActor
+    func testSignInDoesNotOverwriteAnExistingLocalIdentity() async {
+        let identityStore = InMemoryIdentityStore()
+        identityStore.setIdentity(GroupIdentity(memberId: "guest-m", displayName: "Guest Me"), forGroup: "g1")
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: StubTransport(statusCode: 200, json: """
+            {"sessionToken":"s","expiresAt":"2026-12-01T00:00:00Z",
+             "groups":[{"groupId":"g1","memberId":"m1","displayName":"Priya"}]}
+            """),
+            identityStore: identityStore
+        )
+
+        await vm.signIn(identityToken: "apple.jwt", userID: "u")
+
+        XCTAssertEqual(identityStore.identity(forGroup: "g1")?.memberId, "guest-m")
+    }
+
+    @MainActor
+    func testHandleLaunchRefreshesTheGroupListForASurvivingSession() async {
+        let knownGroups = InMemoryKnownGroupsStore()
+        let store = InMemorySessionStore(session(expiresIn: 20 * day))
+        let vm = makeVM(
+            store: store,
+            transport: StubTransport(statusCode: 200, json: #"{"groups":[{"groupId":"g9","memberId":"m9","displayName":"Sam"}]}"#),
+            standing: .authorized,
+            knownGroups: knownGroups
+        )
+
+        await vm.handleLaunch()
+
+        XCTAssertEqual(vm.groups.map(\.groupId), ["g9"])
+        XCTAssertEqual(knownGroups.all().map(\.groupId), ["g9"])
+    }
+
+    @MainActor
     func testSignOutClearsTheSessionEverywhere() async {
         let store = InMemorySessionStore(StoredSession(token: "t", appleUserID: "u", expiresAt: Date(timeIntervalSinceNow: day)))
         let vm = makeVM(store: store, transport: StubTransport(statusCode: 200, json: "{}"))
@@ -174,11 +231,15 @@ final class AuthViewModelTests: XCTestCase {
     private func makeVM(
         store: SessionStoring,
         transport: ClanTabTransport,
-        standing: CredentialStanding = .authorized
+        standing: CredentialStanding = .authorized,
+        identityStore: IdentityStoring = InMemoryIdentityStore(),
+        knownGroups: KnownGroupsStoring = InMemoryKnownGroupsStore()
     ) -> AuthViewModel {
         AuthViewModel(
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: transport),
             sessionStore: store,
+            identityStore: identityStore,
+            knownGroups: knownGroups,
             credentialStanding: { _ in standing }
         )
     }

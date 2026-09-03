@@ -442,8 +442,23 @@ optional `Bearer` for future use, but needs nothing today.)
      build. +13 tests. Can't drive the real Apple sheet in
      the simulator — the credential-state / refresh / decision logic is covered
      by unit tests (`AuthViewModelTests`); the button + build are verified.
-   - ⬜ **6c — group-list model**: `@AppStorage("clantab.lastGroupId")` → a list;
-     signed-in list authoritative from `myGroups`, guests unchanged.
+   - ✅ **6c — group-list model** (2026-09-03). `@AppStorage("clantab.lastGroupId")`
+     is gone. New `KnownGroupsStore` (ClanTabKit): `KnownGroup { groupId, name,
+     lastOpenedAt }`, `KnownGroupsStoring` (`all()` newest-first / `remember` /
+     `forget`), `UserDefaults`- and in-memory impls. It's the guest's source of
+     truth and a signed-in user's offline cache. `AuthViewModel` gains
+     `identityStore` + `knownGroups` and `applyGroups()` — fans the server list
+     into both local stores (seeds a `GroupIdentity` only when absent, so a
+     guest identity is never clobbered); `refreshGroups()` (calls `myGroups`,
+     `INVALID_SESSION` → sign out) runs on launch for a surviving session and
+     will re-run after a claim (6d). `RootView` reads a merged
+     `knownGroups.all()` list; auto-resumes only when exactly one group is
+     known, otherwise the start screen shows a "Your Groups" list. `GroupHomeView`
+     caches the group name into the store on load; `enterGroup` bumps recency,
+     `leaveGroup` (404) forgets. +10 tests (`KnownGroupsStoreTests` ×7,
+     `AuthViewModelTests` seeding ×3), 3 existing adjusted. Verified in the simulator:
+     create → deep-link-join a 2nd group → relaunch shows both in the list →
+     tapping opens the group.
    - ⬜ **6d — claim UI**: "Join as guest" vs "This is me" on an invite link;
      the `claimable` picker + confirmation.
    - ⬜ **6e — the one-time nudge card** (§10).

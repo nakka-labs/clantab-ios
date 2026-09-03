@@ -4,6 +4,7 @@ import ClanTabKit
 struct GroupHomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     private let client: ClanTabClient
+    private let knownGroups: KnownGroupsStoring
     private let onGroupUnavailable: () -> Void
     @State private var viewModel: GroupViewModel
     @State private var isPresentingAddExpense = false
@@ -17,9 +18,11 @@ struct GroupHomeView: View {
         groupId: String,
         client: ClanTabClient,
         identityStore: IdentityStoring,
+        knownGroups: KnownGroupsStoring,
         onGroupUnavailable: @escaping () -> Void = {}
     ) {
         self.client = client
+        self.knownGroups = knownGroups
         self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, identityStore: identityStore))
     }
@@ -115,6 +118,13 @@ struct GroupHomeView: View {
         }
         .onChange(of: viewModel.groupUnavailable) { _, unavailable in
             if unavailable { onGroupUnavailable() }
+        }
+        .onChange(of: viewModel.state?.group.name) { _, name in
+            // Cache the group's name for the start-screen "Your Groups" list —
+            // a join/deep-link only ever gave us the groupId.
+            if let name, !name.isEmpty {
+                knownGroups.remember(groupId: viewModel.groupId, name: name, at: Date())
+            }
         }
         .overlay {
             if viewModel.isLoading && viewModel.state == nil {

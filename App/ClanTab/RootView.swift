@@ -4,9 +4,9 @@ import ClanTabKit
 struct RootView: View {
     let client: ClanTabClient
     let identityStore: IdentityStoring
+    let knownGroups: KnownGroupsStoring
     let auth: AuthViewModel
 
-    @AppStorage("clantab.lastGroupId") private var lastGroupId: String = ""
     @State private var route: AppRoute = .start
 
     var body: some View {
@@ -20,6 +20,14 @@ struct RootView: View {
         .onOpenURL { url in handleDeepLink(url) }
     }
 
+    /// The start screen's "Your Groups" list. Reading `auth.groups` here keeps
+    /// this recomputing after a signed-in launch seeds new groups into
+    /// `knownGroups` (which isn't itself observable).
+    private var yourGroups: [KnownGroup] {
+        _ = auth.groups
+        return knownGroups.all()
+    }
+
     @ViewBuilder
     private var content: some View {
         switch route {
@@ -27,6 +35,8 @@ struct RootView: View {
             StartView(
                 onCreate: { route = .createGroup },
                 onJoinWithCode: { route = .joinGroup(groupId: nil) },
+                groups: yourGroups,
+                onOpenGroup: enterGroup,
                 isSignedIn: auth.isSignedIn,
                 isSigningIn: auth.isBusy,
                 authError: auth.errorMessage,
@@ -54,18 +64,22 @@ struct RootView: View {
                 groupId: groupId,
                 client: client,
                 identityStore: identityStore,
+                knownGroups: knownGroups,
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
         }
     }
 
-    /// On launch, skip straight back into the last group this device was
-    /// active in, as long as we still have a remembered identity for it.
+    /// On launch, skip straight back into the group this device was last active
+    /// in — but only when there's exactly one, so a device that's seen several
+    /// groups lands on the start screen's list instead.
     private func resolveInitialRoute() {
         guard route == .start else { return }
-        if !lastGroupId.isEmpty, identityStore.identity(forGroup: lastGroupId) != nil {
-            route = .group(groupId: lastGroupId)
-        }
+        let known = knownGroups.all()
+        guard known.count == 1, let only = known.first,
+              identityStore.identity(forGroup: only.groupId) != nil
+        else { return }
+        route = .group(groupId: only.groupId)
     }
 
     private func handleDeepLink(_ url: URL) {
@@ -77,17 +91,17 @@ struct RootView: View {
     }
 
     private func enterGroup(_ groupId: String) {
-        lastGroupId = groupId
+        knownGroups.remember(groupId: groupId, name: nil, at: Date())
         route = .group(groupId: groupId)
     }
 
-    /// The group behind `lastGroupId` no longer exists (its capability URL now
-    /// 404s). Drop the remembered pointer and return to the start screen rather
-    /// than leaving the user stuck on a Group Home that can never load. The local
-    /// identity is left in place — harmless, and still valid if that same group
-    /// turns out to be reachable again later.
+    /// The group no longer exists (its capability URL now 404s). Drop it from the
+    /// known-groups list and return to the start screen rather than leaving the
+    /// user stuck on a Group Home that can never load. The local identity is left
+    /// in place — harmless, and still valid if that same group turns out to be
+    /// reachable again later.
     private func leaveGroup(_ groupId: String) {
-        if lastGroupId == groupId { lastGroupId = "" }
+        knownGroups.forget(groupId: groupId)
         route = .start
     }
 

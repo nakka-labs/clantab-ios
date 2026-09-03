@@ -35,13 +35,17 @@ final class AuthViewModel {
 
     private let client: ClanTabClient
     private let sessionStore: SessionStoring
+    private let identityStore: IdentityStoring
+    private let knownGroups: KnownGroupsStoring
     /// Injectable so tests don't need a real Apple credential. Returns `.noSession`
     /// when there's nothing stored to check.
     private let credentialStanding: @Sendable (_ appleUserID: String) async -> CredentialStanding
 
     private(set) var session: StoredSession?
-    /// The identity's groups from the last sign-in / refresh. Consumed by the
-    /// group-list model (step 6c); just carried here for now.
+    /// The identity's groups from the last sign-in / `myGroups` fetch. The
+    /// authoritative list for a signed-in user (`ACCOUNTS_DESIGN.md` §7); also
+    /// mirrored into `knownGroups` / `identityStore` so the rest of the app reads
+    /// one set of local stores.
     private(set) var groups: [GroupMembershipSummary] = []
     private(set) var isBusy = false
     private(set) var errorMessage: String?
@@ -51,10 +55,14 @@ final class AuthViewModel {
     init(
         client: ClanTabClient,
         sessionStore: SessionStoring,
+        identityStore: IdentityStoring,
+        knownGroups: KnownGroupsStoring,
         credentialStanding: @escaping @Sendable (_ appleUserID: String) async -> CredentialStanding = AuthViewModel.liveCredentialStanding
     ) {
         self.client = client
         self.sessionStore = sessionStore
+        self.identityStore = identityStore
+        self.knownGroups = knownGroups
         self.credentialStanding = credentialStanding
         self.session = sessionStore.load()
     }
@@ -77,9 +85,39 @@ final class AuthViewModel {
             )
             sessionStore.save(session)
             self.session = session
-            self.groups = response.groups ?? []
+            applyGroups(response.groups ?? [])
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
+        }
+    }
+
+    /// Pull the authoritative group list for the current session and mirror it
+    /// into the local stores (`ACCOUNTS_DESIGN.md` §7). Called on launch and
+    /// after a claim. Silent — a failure just leaves the cached list in place.
+    func refreshGroups() async {
+        guard let token = session?.token else { return }
+        do {
+            applyGroups(try await client.myGroups(token: token).groups)
+        } catch ClanTabClientError.server(let code, _) where code == "INVALID_SESSION" {
+            signOut()
+        } catch {
+            // Transient — keep the cached list.
+        }
+    }
+
+    /// Store the server list and fan it out to `knownGroups` (so it shows in the
+    /// start-screen list, even offline) and `identityStore` (so Group Home can
+    /// greet a claimed member on a device that never joined as a guest).
+    private func applyGroups(_ summaries: [GroupMembershipSummary]) {
+        groups = summaries
+        for summary in summaries {
+            knownGroups.remember(groupId: summary.groupId)
+            if identityStore.identity(forGroup: summary.groupId) == nil {
+                identityStore.setIdentity(
+                    GroupIdentity(memberId: summary.memberId, displayName: summary.displayName),
+                    forGroup: summary.groupId
+                )
+            }
         }
     }
 
@@ -105,8 +143,13 @@ final class AuthViewModel {
             break
         case .discard:
             signOut()
+            return
         case .refresh:
             await refreshSession()
+        }
+        // Session survived — refresh the authoritative group list (§7).
+        if session != nil {
+            await refreshGroups()
         }
     }
 

@@ -1,13 +1,16 @@
 import AuthenticationServices
+import ClanTabKit
 import SwiftUI
 
-/// The very first screen for a device with no remembered group: choose to
-/// create a new group or join an existing one by code. Optionally sign in with
-/// Apple so claimed memberships sync across devices (`ACCOUNTS_DESIGN.md` §4) —
-/// entirely optional, guests get the full app without it.
+/// The very first screen for a device with no remembered group: open one of the
+/// groups this device already knows, create a new group, or join by code.
+/// Optionally sign in with Apple so claimed memberships sync across devices
+/// (`ACCOUNTS_DESIGN.md` §4) — entirely optional, guests get the full app.
 struct StartView: View {
     let onCreate: () -> Void
     let onJoinWithCode: () -> Void
+    var groups: [KnownGroup] = []
+    var onOpenGroup: (_ groupId: String) -> Void = { _ in }
     var isSignedIn: Bool = false
     var isSigningIn: Bool = false
     /// Error from exchanging the credential (network / verification), owned by
@@ -29,6 +32,11 @@ struct StartView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+
+            if !groups.isEmpty {
+                yourGroupsSection
+            }
+
             Spacer()
             VStack(spacing: 12) {
                 Button("Create a Group", action: onCreate)
@@ -43,6 +51,38 @@ struct StartView: View {
             .frame(maxWidth: .infinity)
         }
         .padding()
+    }
+
+    private var yourGroupsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("YOUR GROUPS")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 6)
+
+            ForEach(groups) { group in
+                Button {
+                    onOpenGroup(group.groupId)
+                } label: {
+                    HStack {
+                        Text(group.name.isEmpty ? "Group" : group.name)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+
+                if group.id != groups.last?.id {
+                    Divider()
+                }
+            }
+        }
+        .padding(.horizontal, 4)
     }
 
     @ViewBuilder
