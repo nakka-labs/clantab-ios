@@ -6,6 +6,7 @@ struct GroupHomeView: View {
     private let client: ClanTabClient
     private let knownGroups: KnownGroupsStoring
     private let auth: AuthViewModel
+    private let onOpenSettings: () -> Void
     private let onGroupUnavailable: () -> Void
     @State private var viewModel: GroupViewModel
     @State private var nudgeError: String?
@@ -22,11 +23,13 @@ struct GroupHomeView: View {
         identityStore: IdentityStoring,
         knownGroups: KnownGroupsStoring,
         auth: AuthViewModel,
+        onOpenSettings: @escaping () -> Void = {},
         onGroupUnavailable: @escaping () -> Void = {}
     ) {
         self.client = client
         self.knownGroups = knownGroups
         self.auth = auth
+        self.onOpenSettings = onOpenSettings
         self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, identityStore: identityStore))
     }
@@ -152,6 +155,11 @@ struct GroupHomeView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: onOpenSettings) {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 if let state = viewModel.state, !state.expenses.isEmpty || !state.settlements.isEmpty {
                     activityFilterMenu(state: state)

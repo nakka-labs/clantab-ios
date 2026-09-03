@@ -484,7 +484,17 @@ optional `Bearer` for future use, but needs nothing today.)
      `AuthViewModel` nudge ×6, `handleLaunch` first-launch ×1, +1 helper).
      Verified in the simulator: guest with 2 groups sees the card on Group Home
      → ✕ removes it → stays gone across relaunch and other groups.
-   - ⬜ **6f — Settings + delete-account.**
+   - ✅ **6f — Settings + delete-account** (2026-09-03). `SettingsView` (modal,
+     owned by `RootView`, reachable from a gear on Group Home and the "Signed in"
+     row on the start screen): Account section — guests get the permanent
+     sign-in row (§10), signed-in users get "Sign Out" and, in its own section,
+     **"Delete Account"** (destructive) with a confirmation dialog and the
+     "your groups and expenses stay" caveat (Apple 5.1.1(v), §11); plus a
+     Version row. `AuthViewModel.deleteAccount()` → `client.deleteAccount(token:)`
+     → `signOut()` (an `INVALID_SESSION` response is treated as already-done; any
+     other error keeps the session). +4 tests. Guest Settings verified in the
+     simulator; the signed-in view + delete flow are logic-tested (SIWA can't
+     run in the simulator). **Step 6 complete.**
 7. **Docs** — `DESIGN.md` §13, `AGENTS.md` (the "no accounts" line becomes
    "hybrid: guests + optional Sign in with Apple"), `PLAN.md`, `README.md`.
 

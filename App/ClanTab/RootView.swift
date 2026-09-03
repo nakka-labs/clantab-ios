@@ -8,6 +8,7 @@ struct RootView: View {
     let auth: AuthViewModel
 
     @State private var route: AppRoute = .start
+    @State private var showingSettings = false
 
     var body: some View {
         NavigationStack {
@@ -18,6 +19,11 @@ struct RootView: View {
             await auth.handleLaunch()
         }
         .onOpenURL { url in handleDeepLink(url) }
+        .sheet(isPresented: $showingSettings) {
+            NavigationStack {
+                SettingsView(auth: auth, onDone: { showingSettings = false })
+            }
+        }
     }
 
     /// The start screen's "Your Groups" list. Reading `auth.groups` here keeps
@@ -42,7 +48,8 @@ struct RootView: View {
                 authError: auth.errorMessage,
                 onSignIn: { identityToken, userID in
                     Task { await auth.signIn(identityToken: identityToken, userID: userID) }
-                }
+                },
+                onOpenSettings: { showingSettings = true }
             )
         case .createGroup:
             CreateGroupView(
@@ -81,6 +88,7 @@ struct RootView: View {
                 identityStore: identityStore,
                 knownGroups: knownGroups,
                 auth: auth,
+                onOpenSettings: { showingSettings = true },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
         }

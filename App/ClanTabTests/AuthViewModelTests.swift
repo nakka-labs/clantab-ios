@@ -277,6 +277,56 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertFalse(ok)
     }
 
+    // MARK: - deleteAccount (ACCOUNTS_DESIGN.md §11)
+
+    @MainActor
+    func testDeleteAccountClearsTheSessionOnSuccess() async {
+        let store = InMemorySessionStore(session(expiresIn: 20 * day))
+        let vm = makeVM(store: store, transport: StubTransport(statusCode: 204, json: ""))
+
+        let ok = await vm.deleteAccount()
+
+        XCTAssertTrue(ok)
+        XCTAssertFalse(vm.isSignedIn)
+        XCTAssertNil(store.load())
+    }
+
+    @MainActor
+    func testDeleteAccountKeepsTheSessionOnAServerError() async {
+        let store = InMemorySessionStore(session(expiresIn: 20 * day))
+        let vm = makeVM(
+            store: store,
+            transport: StubTransport(statusCode: 500, json: #"{"error":{"code":"INTERNAL","message":"boom"}}"#)
+        )
+
+        let ok = await vm.deleteAccount()
+
+        XCTAssertFalse(ok)
+        XCTAssertTrue(vm.isSignedIn)
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func testDeleteAccountTreatsAnInvalidSessionAsAlreadyDone() async {
+        let store = InMemorySessionStore(session(expiresIn: 20 * day))
+        let vm = makeVM(
+            store: store,
+            transport: StubTransport(statusCode: 401, json: #"{"error":{"code":"INVALID_SESSION","message":"gone"}}"#)
+        )
+
+        let ok = await vm.deleteAccount()
+
+        XCTAssertTrue(ok)
+        XCTAssertFalse(vm.isSignedIn)
+    }
+
+    @MainActor
+    func testDeleteAccountWithNoSessionIsANoOp() async {
+        let vm = makeVM(store: InMemorySessionStore(), transport: FailingTransport())
+        let ok = await vm.deleteAccount()
+        XCTAssertFalse(ok)
+    }
+
     // MARK: - handleLaunch
 
     @MainActor

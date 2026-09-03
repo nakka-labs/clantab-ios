@@ -183,6 +183,29 @@ final class AuthViewModel {
         groups = []
     }
 
+    /// Delete the account (Apple Guideline 5.1.1(v), `ACCOUNTS_DESIGN.md` §11):
+    /// every claimed membership reverts to a placeholder and the server-side
+    /// index is wiped. Groups, members, and expenses are untouched — the user
+    /// simply becomes a guest again. Returns whether it succeeded.
+    func deleteAccount() async -> Bool {
+        guard let token = session?.token else { return false }
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+        do {
+            try await client.deleteAccount(token: token)
+            signOut()
+            return true
+        } catch ClanTabClientError.server(let code, _) where code == "INVALID_SESSION" {
+            // Already gone server-side — treat as done.
+            signOut()
+            return true
+        } catch {
+            errorMessage = Self.friendlyMessage(for: error)
+            return false
+        }
+    }
+
     // MARK: - Launch
 
     /// On every launch: restore the session, verify the Apple credential is still

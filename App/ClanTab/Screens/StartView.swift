@@ -16,6 +16,7 @@ struct StartView: View {
     /// `AuthViewModel`. The credential-sheet's own failures are handled locally.
     var authError: String? = nil
     var onSignIn: (_ identityToken: String, _ userID: String) -> Void = { _, _ in }
+    var onOpenSettings: () -> Void = {}
 
     @State private var sheetError: String?
 
@@ -86,10 +87,17 @@ struct StartView: View {
     @ViewBuilder
     private var signInSection: some View {
         if isSignedIn {
-            Label("Signed in with Apple", systemImage: "checkmark.seal.fill")
+            Button(action: onOpenSettings) {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.seal.fill")
+                    Text("Signed in with Apple")
+                    Image(systemName: "chevron.right").font(.caption2)
+                }
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-                .padding(.top, 4)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
         } else {
             VStack(spacing: 8) {
                 AppleSignInButton(
