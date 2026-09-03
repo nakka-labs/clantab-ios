@@ -245,6 +245,8 @@ The UI should prevent invalid input, but the DO validates independently — neve
 
 `ClanTabKit.ClanTabClient` is a plain async/await HTTP client — **no third-party networking library**, consistent with the zero-third-party-dependency rule in `AGENTS.md`. The app's `GroupViewModel` (`App/ClanTab/ViewModels/GroupViewModel.swift`) wraps it and exposes `{ state, isLoading, errorMessage }` plus `load()`/`refetch()`/`autoRefetch()`. Every mutation (`addExpense`, `addSettlement`, `joinGroup`) is a plain async call that POSTs, then the caller invokes `refetch()` on success — no optimistic UI in v1 (optimistic updates add real complexity for a low-frequency app where a half-second round trip is a non-issue). Group Home also runs a lightweight foreground poll — `autoRefetch()` every `GroupViewModel.pollInterval` while the view is on screen, plus an immediate refresh when the app returns to the foreground — so another device's expenses and settlements appear without a manual pull-to-refresh. It's a silent GET that keeps the last good `state` on a transient failure; full WebSocket push is still the eventual upgrade (`SHIP_PLAN.md` Track 4). `ClanTabKit.UserDefaultsIdentityStore` reads/writes `UserDefaults` under the key `"clantab:" + groupId` to remember `{ memberId, displayName }` per device per group — the iOS equivalent of a web client's `localStorage`-backed `identity.ts`.
 
+**Optional identity layer (accounts, `ACCOUNTS_DESIGN.md`).** Sign in with Apple is opt-in. When signed in, `ClanTabClient` also calls `/api/auth/*` (§13) and carries `Authorization: Bearer <session token>` on those calls only — never on the group routes, which stay `groupId`-possession. The app's `AuthViewModel` owns the session (`KeychainSessionStore`, `kSecAttrAccessibleAfterFirstUnlock`), a launch-time `getCredentialState` check that drops to guest mode on revoke, and a near-expiry token refresh. The single-group `@AppStorage("clantab.lastGroupId")` became a list: `KnownGroupsStore` (guest source of truth + signed-in offline cache), into which a signed-in user's authoritative `GET /api/auth/groups` list is fanned out (also seeding `IdentityStore` so a claimed member is greeted on a fresh device). Guests are unaffected by all of this.
+
 ---
 
 ## 8. Security considerations
@@ -253,7 +255,8 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **Never let a group page get indexed.** Serve `X-Robots-Tag: noindex` on all `/api/groups/*` responses and `<meta name="robots" content="noindex">` on the group HTML page. A capability URL that ends up in a search index defeats its own security model.
 - **Rate-limit the Registry DO's lookup route specifically** — it's the one shared surface across every group, so it's the one place someone could attempt to enumerate join codes. A simple per-IP counter (e.g. 20 lookups/minute) inside `RegistryDO` is enough; the keyspace (32^6) already makes brute-forcing impractical, this is defense in depth, not the primary control.
 - **CORS:** the Worker serves both the frontend and the API from the same origin, so CORS can stay locked to same-origin — no need to open it up.
-- **No PII beyond a display name the user chose themselves.** No emails, no phone numbers, no payment details ever collected — consistent with `PLAN.md`'s non-goals.
+- **No PII beyond a display name the user chose themselves.** No emails, no phone numbers, no payment details ever collected — consistent with `PLAN.md`'s non-goals. Sign in with Apple (below) requests no scopes, so not even a name or a relay email reaches the server — only Apple's opaque `sub`.
+- **Accounts don't widen the group trust model, and add one bounded exposure (`ACCOUNTS_DESIGN.md` §4/§15.2).** The session token is a stateless 30-day HMAC-signed JWT (`{sub, iat, exp}`, `env.SESSION_SIGNING_KEY`), verified locally with no DO hit and no server-side revocation. Its only power is "list the groupIds this identity has claimed" (`GET /api/auth/groups`) — it grants no access the `groupId` itself doesn't already grant. Worst case from a leaked token: someone enumerates your claimed groupIds and reads those ledgers (display names + integer amounts, no PII). Bounded by the 30-day cap and by account deletion wiping the index. This is strictly smaller than the N per-device local link stores that already hold the same groupIds. "Remotely sign out a phone I can't reach" is explicitly not supported; `getCredentialState` on the device plus account deletion cover the realistic cases.
 
 ---
 
@@ -273,7 +276,9 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`2`** — `expenses.split_type`'s `CHECK` widened to allow `'percentage'`. SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table (rename → recreate → copy → drop); `expense_splits` has no real FK so nothing cascades. A group that hasn't been created yet has no `schema_version` row and is skipped — `GROUP_SCHEMA` already builds the current shape.
 - **`3`** — `expenses.category` + `expenses.category_icon` added (both nullable). Plain `ALTER TABLE ... ADD COLUMN`, in place, no rebuild. Migrations run in sequence, so a v1 DO walks 1→2→3 on its next instantiation.
 - **`4`** — `expenses.currency` + `settlements.currency` added (both nullable), then backfilled from the group's currency (`UPDATE ... WHERE currency IS NULL`) — before v4 a group was single-currency, so that's exact. In-place, no rebuild.
-- **`5`** — `members.identity_sub` added (nullable). Every existing member becomes a placeholder (`NULL`); claiming links it to an Apple identity. In-place, no rebuild. Accounts are additive — the capability-link model is unchanged. See `ACCOUNTS_DESIGN.md`; a full §13 for the auth surface lands with the routes.
+- **`5`** — `members.identity_sub` added (nullable). Every existing member becomes a placeholder (`NULL`); claiming links it to an Apple identity. In-place, no rebuild. Accounts are additive — the capability-link model is unchanged. See §13 and `ACCOUNTS_DESIGN.md`.
+
+The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the accounts phase) carries its own `USER_SCHEMA_VERSION` (currently `1`): a `user_meta` key/value table and a `memberships` table (`group_id` PK, `member_id`, `display_name`, `added_at`). It's a self-healing index the Worker updates *after* the authoritative `GroupDO` write — never the source of truth for the membership↔identity link. No migrations yet; a `UserDO` is created fresh on first sign-in.
 
 ---
 
@@ -301,4 +306,78 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - ~~**percentage/shares splitting**~~ — **shipped** (2026-09-01). `splitType` now includes `"percentage"`; the client resolves percentages to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.percentageSplit`), so it's a UI/label change only — the wire contract and balance math are unchanged. See §2, §6, §10 (schema v2).
 - ~~**multi-currency**~~ — **shipped** (2026-09-01). A group holds expenses in any currency; balances and the settle-up plan are computed per currency and never blended (no FX conversion — that stays a hard non-goal). `currency` on expenses/settlements (schema v4), on `Balance`/`SimplifiedSettlement`; the group's `currency` is now just the default for new expenses. See §2, §3, §10.
 - FX conversion, recurring expenses, receipt OCR — still out of scope per `PLAN.md` §1, listed here only so nobody mistakes their absence in this doc for an oversight
-- A "merge my old entries" flow for someone who loses local storage and rejoins as a new member
+- ~~A "merge my old entries" flow for someone who loses local storage and rejoins as a new member~~ — **partly addressed** by the claim flow (`ACCOUNTS_DESIGN.md` §6): a signed-in user opening an invite link picks "This is me" and links the existing placeholder member instead of creating a duplicate. A true merge of two already-separate members is still not built.
+- ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03). Optional Sign in with Apple; guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session tokens; `/api/auth/*` + `claim` routes (§13). Cross-group netting ("settle across all groups with Bob") is *enabled* by the `UserDO` index but deliberately **not** built (`ACCOUNTS_DESIGN.md` §12).
+- Apple server-to-server token revocation on account deletion (`POST https://appleid.apple.com/auth/revoke`) — required before App Store submission, needs the `SIWA_*` signing-key secrets; the `DELETE /api/auth/account` route stubs it with a TODO today (`ACCOUNTS_DESIGN.md` §11)
+
+---
+
+## 13. Accounts — auth surface
+
+Optional Sign in with Apple. The design rationale, threat model, and the three
+judgement calls live in **`ACCOUNTS_DESIGN.md`**; this section is the wire
+contract only. **The pre-accounts routes (§2) are unchanged** and still need no
+credential beyond `groupId` possession.
+
+### Credentials
+
+| Endpoint | Credential |
+|---|---|
+| `GET /api/groups/:groupId`, `POST .../expenses`, `POST .../settlements`, `POST .../members`, `GET /api/groups/resolve/:joinCode` | **`groupId` possession** (unchanged) |
+| `POST /api/auth/apple` | an Apple identity token |
+| `POST /api/auth/refresh`, `GET /api/auth/groups`, `DELETE /api/auth/account` | **session token** (`Authorization: Bearer`) |
+| `GET /api/groups/:groupId/claimable`, `POST /api/groups/:groupId/members/:memberId/claim` | **session token** + `groupId` possession |
+
+### Routes
+
+```
+POST   /api/auth/apple      { identityToken }
+       → 200 { sessionToken, expiresAt, groups: [{ groupId, memberId, displayName }] }
+       Verifies the token against Apple's JWKS (iss = https://appleid.apple.com,
+       aud = com.clantab.app, not expired), then USER_DO.idFromName(sub).ensureExists(sub),
+       then mints a session (below). 401 INVALID_APPLE_TOKEN on any failure.
+
+POST   /api/auth/refresh    (Bearer)  → 200 { sessionToken, expiresAt }
+GET    /api/auth/groups     (Bearer)  → 200 { groups: [{ groupId, memberId, displayName }] }
+DELETE /api/auth/account    (Bearer)  → 204
+       UserDO.listGroups() → GroupDO.unclaim(memberId, sub) for each → UserDO.deleteAll().
+       Member rows, names, and all expenses/settlements stay; the member reverts to a
+       placeholder. (Apple token revocation is a TODO — see §12.)
+
+GET    /api/groups/:groupId/claimable                 (Bearer)
+       → 200 { members: [{ id, displayName }] }         this group's placeholders only
+POST   /api/groups/:groupId/members/:memberId/claim   (Bearer)
+       → 200 { member }
+       GroupDO.claim(memberId, sub) sets members.identity_sub, then
+       UserDO.addMembership(...). 404 UNKNOWN_MEMBER, 409 ALREADY_CLAIMED /
+       IDENTITY_ALREADY_IN_GROUP.
+```
+
+New error codes: `INVALID_APPLE_TOKEN` (401), `INVALID_SESSION` (401),
+`ALREADY_CLAIMED` (409), `IDENTITY_ALREADY_IN_GROUP` (409).
+
+### Session token
+
+Our own minimal JWT: `{ sub, iat, exp }`, HS256 over `env.SESSION_SIGNING_KEY`,
+`exp = iat + 30 days`. Verified locally on every Bearer request — no DO hit, no
+server-side revocation (`ACCOUNTS_DESIGN.md` §3). The JWKS for Apple-token
+verification is cached in a per-isolate module variable (24h TTL + a one-shot
+refetch on a `kid` miss), not KV.
+
+### `UserDO`
+
+One per Apple `sub`, `idFromName(sub)`. A thin, self-healing index — `user_meta`
++ `memberships` (§10). `GroupDO` is authoritative for the membership↔identity
+link; the Worker writes `GroupDO` first, then `UserDO`. A missed `UserDO` write
+just hides one group from `GET /api/auth/groups` until the next reconcile, which
+the app already tolerates.
+
+### Config
+
+- `USER_DO` — Durable Object namespace binding (wrangler migration `v2`).
+- `APPLE_AUDIENCE` — `vars` (`com.clantab.app`).
+- `SESSION_SIGNING_KEY` — `vars` in dev; **prod must** `wrangler secret put SESSION_SIGNING_KEY`.
+- `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` — not yet
+  set; a submission prerequisite, for Apple token revocation on account deletion.
+- The Sign in with Apple capability must be enabled on the App ID in the Apple
+  Developer portal before a TestFlight build.

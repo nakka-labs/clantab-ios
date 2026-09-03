@@ -495,11 +495,36 @@ optional `Bearer` for future use, but needs nothing today.)
      other error keeps the session). +4 tests. Guest Settings verified in the
      simulator; the signed-in view + delete flow are logic-tested (SIWA can't
      run in the simulator). **Step 6 complete.**
-7. **Docs** — `DESIGN.md` §13, `AGENTS.md` (the "no accounts" line becomes
-   "hybrid: guests + optional Sign in with Apple"), `PLAN.md`, `README.md`.
+7. ✅ **Docs** (2026-09-03). `DESIGN.md` — new **§13 (accounts / auth
+   surface)**, plus §7 (identity layer), §8 (session-token exposure, bounded),
+   §10 (`UserDO` schema), §12 (shipped bullets). `AGENTS.md` — "no accounts"
+   → "guests + optional Sign in with Apple, additive, never gate the group
+   routes". `worker/README.md` — `user-do.ts` / `lib/apple-auth` / `lib/session`,
+   103-test count, accounts config. `PLAN.md`, `README.md` (intro, architecture
+   diagram, repo layout), `READINESS_CHECKLIST.md` (accounts → code-complete,
+   owner tasks listed). **Accounts build complete.**
 
-Rough sizing: steps 1–5 (backend) ≈ 2–3 focused sessions; step 6 (iOS)
-≈ 2 sessions; step 7 ≈ half a session.
+Rough sizing (actual): steps 1–5 (backend) ≈ 2 sessions; step 6 (iOS) ≈ 3
+sessions; step 7 ≈ half a session.
+
+---
+
+## 16. Not code — owner tasks before accounts can ship
+
+1. **Deploy the worker** — `make worker-deploy`, then
+   `wrangler secret put SESSION_SIGNING_KEY` (the deployed instance is still
+   pre-accounts).
+2. **Enable Sign in with Apple** on the `com.clantab.app` App ID in the Apple
+   Developer portal (the entitlement is in `project.yml`, but the capability
+   must be turned on server-side too).
+3. **Apple token revocation** — create a Services ID + Key ID + `.p8`, set
+   `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` as
+   Worker secrets, and wire `POST https://appleid.apple.com/auth/revoke` into
+   `DELETE /api/auth/account` (§11 — Apple mandates this for submission).
+4. **TestFlight pass on a real device** — the Sign in with Apple sheet, the
+   claim flow, and `getCredentialState` can't be exercised in the simulator.
+5. **Privacy** — update `docs/privacy-policy.md` and the App Store Connect App
+   Privacy answers to cover Sign in with Apple (`READINESS_CHECKLIST.md`).
 
 ---
 

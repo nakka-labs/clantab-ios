@@ -52,11 +52,18 @@ unresolved, see backlog).
   only), ~~multi-currency ledgers~~ (v4 — per-currency, no FX), and ~~CSV import~~
   (`CSVImport` — ClanTab + Splitwise formats, client-only) — **done 2026-09-01/02**.
   The full independent-feature batch is complete.
-- Accounts: Sign in with Apple, placeholder-member claim flow, the
-  groupId-per-identity index, **in-app account deletion** (Apple
-  Guideline 5.1.1(v) — not optional once accounts exist). **Design settled
-  in `ACCOUNTS_DESIGN.md` (2026-09-02) — ~5-session build, backend first.**
-- Cross-group settling with a person — strictly after accounts.
+- ~~Accounts: Sign in with Apple, placeholder-member claim flow, the
+  groupId-per-identity index, in-app account deletion~~ — **code complete
+  2026-09-03** (`ACCOUNTS_DESIGN.md` §14: worker steps 1–5, iOS steps
+  6a–6f, docs step 7 all ✅; `DESIGN.md` §13 is the wire contract).
+  Remaining before this can ship — all owner tasks, not code:
+  - Deploy the worker (`make worker-deploy`) + `wrangler secret put SESSION_SIGNING_KEY`.
+  - Enable the Sign in with Apple capability on the `com.clantab.app` App ID.
+  - Add the `SIWA_*` secrets and wire `POST .../auth/revoke` into
+    `DELETE /api/auth/account` (Apple mandates token revocation on deletion).
+  - TestFlight pass on a real device (SIWA can't be driven in the simulator).
+- Cross-group settling with a person — enabled by the `UserDO` index,
+  still not built (deliberately, `ACCOUNTS_DESIGN.md` §12).
 
 ## Engineering discipline
 

@@ -1,5 +1,34 @@
 # ClanTab iOS — Handoff Guide
 
+## ▶ Status (2026-09-03) — Feature batch + accounts, code-complete
+
+Since the 2026-08-31 block below, all of `FEATURE_BACKLOG.md`'s independent
+features and the accounts phase have shipped **in code** (all on `main`,
+`make check` green each commit):
+
+- **Feature batch** (2026-09-01/02): percentage splits (schema v2), categories
+  + icons (v3), Spending Insights (`ClanTabKit.Insights` + SwiftUI Charts),
+  activity search/filter (`ActivityFiltering`), multi-currency ledgers (v4,
+  per-currency, **no FX**), CSV import (ClanTab + Splitwise). Branding: app
+  icon, launch screen, wordmark (`docs/branding/`), support page
+  (`docs/support.html`, published at `/support.html`), App Store screenshots
+  (`docs/appstore/screenshots/`).
+- **Accounts** (2026-09-03) — optional Sign in with Apple, guests unchanged.
+  `GroupDO` schema **v5** (`members.identity_sub`) + new **`UserDO`**; stateless
+  30-day session tokens; `/api/auth/*` + claim routes (**`DESIGN.md` §13**).
+  iOS: SIWA on the start screen, Keychain session, multi-group model
+  (`KnownGroupsStore`), "This is me" claim flow, one-time sync nudge, Settings +
+  Delete Account. Full build log: `ACCOUNTS_DESIGN.md` §14. Worker is at **103
+  tests**; ClanTabKit ~110; ClanTabTests ~49.
+- **Not done — owner tasks** (`ACCOUNTS_DESIGN.md` §16 / `READINESS_CHECKLIST.md`):
+  deploy the worker (the live instance is still pre-accounts) +
+  `wrangler secret put SESSION_SIGNING_KEY`; enable Sign in with Apple on the
+  App ID; add the `SIWA_*` secrets + wire Apple token revocation into
+  `DELETE /api/auth/account`; TestFlight pass on a real device (SIWA can't run
+  in the simulator); privacy-policy + App Privacy updates for SIWA.
+
+The 2026-08-31 block and everything below it is still accurate as history.
+
 ## ▶ Status (2026-08-31) — First TestFlight Build Uploaded
 
 **iOS track**: Phases 0-7 done (`v0.1.0`). The app builds + passes

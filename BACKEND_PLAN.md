@@ -1,11 +1,14 @@
 # ClanTab Backend — Build Plan
 
-> **Status: §1-§8 complete.** The Worker is built (`worker/`) and deployed at
-> `https://clantab.nakka-labs.workers.dev`; the iOS app runs against it end to
-> end. `DESIGN.md` §2's full API is implemented, with 54 tests. See the
-> "Progress" section for detail and "The backend is done and live" at the end
-> for what's left (a domain, Universal Links). What follows is the plan as
-> written before the build — kept as the record of decisions.
+> **Status: §1-§8 complete + accounts (`DESIGN.md` §13).** The Worker is built
+> (`worker/`) and deployed at `https://clantab.nakka-labs.workers.dev`; the iOS
+> app runs against it end to end. `DESIGN.md` §2's full API is implemented, plus
+> the optional accounts layer (§13: `UserDO`, session tokens, `/api/auth/*` +
+> claim routes, `GroupDO` schema v5) — **103 tests**. The accounts routes are
+> committed but not yet on the deployed instance (`ACCOUNTS_DESIGN.md` §16 lists
+> the deploy + Apple-config steps). See the "Progress" section for detail. What
+> follows is the plan as written before the original build — kept as the record
+> of decisions; the accounts design log lives in `ACCOUNTS_DESIGN.md`.
 
 This plan built the Cloudflare Worker + Durable Objects backend that
 `DESIGN.md` specifies. `DESIGN.md` is the contract (API §2, storage §3,

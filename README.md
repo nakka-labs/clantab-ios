@@ -15,7 +15,8 @@ An open-source expense splitter for iOS. Built for small groups (trips, shared a
 
 ClanTab is a clean, private, and frictionless way for 5–10 friends to share expenses without a sign-up wall, bloated fintech apps, or advertising.
 
-- **No Sign-Up Required**: Create a group, pick your display name, and share the link or 6-character code. (Sign in with Apple to sync across devices is coming — always optional.)
+- **No Sign-Up Required**: Create a group, pick your display name, and share the link or 6-character code — no account needed, ever.
+- **Optional Sign in with Apple**: Only to sync your groups if you switch phones. Requests no name or email; guests get the full app without it.
 - **Exact Debt Simplification**: Collapses tangled pairwise IOUs down to the minimum possible number of settle-up transactions (at most $N-1$) using a greedy graph optimization algorithm.
 - **Integer Minor Units**: Guarantees zero floating-point rounding errors across all currencies (cents, paise, yen).
 - **One-Tap Settle Up**: Trust-based settlement recording.
@@ -42,11 +43,16 @@ lives in the core; the shell only presents it; the backend recomputes balances
 authoritatively. The sync model is deliberately simple — fetch-on-load,
 refetch-after-write, no optimistic UI, no WebSocket (`DESIGN.md` §7).
 
+**Identity is optional.** Guests use a per-device, per-group local identity and
+the group link as the credential — unchanged from day one. Sign in with Apple
+adds a stateless session token (`DESIGN.md` §13, `ACCOUNTS_DESIGN.md`) that only
+syncs *which groups you're in* across devices; it never gates the group routes.
+
 ```mermaid
 flowchart TB
     subgraph app["App/ - SwiftUI shell, iOS 17+"]
-        screens["Screens: Start, Create, Join, GroupHome, AddExpense, SettleUp"]
-        vm["GroupViewModel: state / isLoading / errorMessage, load, refetch"]
+        screens["Screens: Start, Create, Join, GroupHome, AddExpense, SettleUp, Settings"]
+        vm["GroupViewModel / AuthViewModel: state, load, refetch, sign-in, claim"]
         screens --> vm
     end
 
@@ -54,7 +60,7 @@ flowchart TB
         model["Model: Group, Member, Expense, Settlement, Balance"]
         logic["Logic: Balances, Simplify, Validation"]
         client["Network: ClanTabClient, async-await, no 3rd-party HTTP"]
-        store["Storage: UserDefaultsIdentityStore, on-device per group"]
+        store["Storage: Identity / KnownGroups / Session (Keychain) stores"]
         export["Export: CSV / JSON, pure functions"]
     end
 
@@ -65,11 +71,13 @@ flowchart TB
     client -->|HTTPS| worker
 
     subgraph backend["worker/ - Cloudflare Worker + Durable Objects (deployed)"]
-        worker["Worker router, /api/*"]
+        worker["Worker router, /api/* + /api/auth/*"]
         groupdo["GroupDO, SQLite - authoritative balances + simplify"]
         registrydo["RegistryDO: joinCode to groupId, rate-limited"]
+        userdo["UserDO: per-Apple-identity group index"]
         worker --> groupdo
         worker --> registrydo
+        worker --> userdo
     end
 ```
 
@@ -81,21 +89,22 @@ flowchart TB
 clantab-ios/
 ├── ClanTabKit/           # Pure SwiftPM package: domain models, balance math, the
 │   │                    # debt-simplification engine, validation, network client, export.
-│   ├── Sources/ClanTabKit/{Model,Logic,Storage,Network,Export}/
+│   ├── Sources/ClanTabKit/{Model,Logic,Storage,Network,Export,Import}/
 │   └── Tests/ClanTabKitTests/
 │
 ├── App/                 # Native SwiftUI shell (iOS 17+, XcodeGen) — see App/README.md
-│   ├── ClanTab/         #   Screens · ViewModels · Components · Assets.xcassets · PrivacyInfo
-│   └── ClanTabTests/    #   deep-link parsing, group-not-found handling
+│   ├── ClanTab/         #   Screens · ViewModels (Group + Auth) · Components · Assets.xcassets
+│   └── ClanTabTests/    #   deep-link routing, group-not-found, AuthViewModel
 │
 ├── worker/              # Cloudflare Worker + Durable Objects backend — see worker/README.md
-│   ├── src/             #   index.ts (router) · registry-do.ts · group-do.ts · lib/
+│   ├── src/             #   index.ts (router) · registry-do · group-do · user-do · lib/
 │   └── test/            #   pure logic + @cloudflare/vitest-pool-workers integration
 │
 ├── test-fixtures/       # Language-neutral golden vectors run by ClanTabKit AND worker
 ├── docs/                # privacy policy, App Store metadata, screenshots
 ├── .githooks/pre-push   # local build/test gate (fast feedback, no CI wait) — `make hooks`
-├── DESIGN.md            # the wire / storage / security contract
+├── DESIGN.md            # the wire / storage / security contract (§13 = accounts)
+├── ACCOUNTS_DESIGN.md   # optional Sign in with Apple: rationale, threat model, build log
 ├── PLAN.md · BACKEND_PLAN.md · SHIP_PLAN.md   # roadmaps: app · backend · shipping
 └── HANDOFF.md           # running status log
 ```

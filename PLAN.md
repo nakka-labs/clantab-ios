@@ -1,6 +1,6 @@
 # ClanTab (iOS) — Build Plan
 
-An open-source, no-login expense splitter for small groups (trips, shared flats, recurring friend circles) on iOS. One link or 6-character code per group. No accounts, no payment processing, no ads.
+An open-source expense splitter for small groups (trips, shared flats, recurring friend circles) on iOS. One link or 6-character code per group; guests need no account. Sign in with Apple is optional and only adds cross-device sync (`ACCOUNTS_DESIGN.md`, shipped 2026-09-03). No payment processing, no ads.
 
 ---
 
@@ -86,7 +86,7 @@ struct SimplifiedSettlement: Codable, Sendable, Equatable {
 | **Export / Import** | CSV / JSON export via iOS ShareSheet; CSV import (ClanTab or Splitwise format) with name-matching |
 
 ### Non-Goals
-- No accounts, login systems, or passwords
+- No passwords or third-party login. Identity is optional Sign in with Apple only (`ACCOUNTS_DESIGN.md`), requesting no scopes — no name, no email, no profile. Guests are never gated.
 - No payment processing — settling is a manual "I paid outside the app" click
 - No FX conversion — a group can hold multiple currencies but they are never converted or blended (shipped 2026-09-01; conversion stays a non-goal)
 - No recurring expenses

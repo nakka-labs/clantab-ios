@@ -1,6 +1,6 @@
 # ClanTab (iOS)
 
-Open-source, no-login expense splitter for small groups. Native iOS application powered by a pure Swift core package (`ClanTabKit`). No accounts, no payments, no ads.
+Open-source expense splitter for small groups. Native iOS application powered by a pure Swift core package (`ClanTabKit`). Guests need no account — the group link is the credential; Sign in with Apple is optional and only adds cross-device sync (`ACCOUNTS_DESIGN.md`). No payments, no ads.
 
 ## Commands
 - `make check` — run everything relevant (ClanTabKit + worker + iOS build/tests). Same as what the `pre-push` hook runs; `make hooks` installs it.
@@ -11,7 +11,7 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 
 ## CI
 - The repo is **public**, so GitHub-hosted runners (Linux and macOS) are unmetered.
-- `.github/workflows/`: `test.yml` (ClanTabKit, Linux) and `worker.yml` (Worker, Linux) run on push. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret). `pages.yml` publishes `docs/privacy-policy.md` to GitHub Pages.
+- `.github/workflows/`: `test.yml` (ClanTabKit, Linux) and `worker.yml` (Worker, Linux) run on push. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret). `pages.yml` publishes the site to GitHub Pages — `docs/privacy-policy.md` at `/` and `docs/support.html` at `/support.html`.
 - **The iOS build is NOT in cloud CI** — it runs in the `pre-push` hook on the dev's Mac for fast local feedback. A macOS CI job is now cost-free to add if PR-time checks are wanted; don't add one without a reason.
 
 ## Backend (`worker/`)
@@ -25,16 +25,17 @@ Open-source, no-login expense splitter for small groups. Native iOS application 
 - **Pure Core Logic in `ClanTabKit`**: `Balances.swift`, `Simplify.swift`, `Validation.swift`, `Insights.swift`, `ActivityFilter.swift`, `Export/Export.swift`, and `Import/CSVImport.swift` are pure functions. No I/O, no network calls, no UI dependencies. If a test needs a mock or a running network server to test business math, move the impure logic elsewhere.
 - **Integer Minor Units**: All money amounts are stored and calculated in integer minor units (paise, cents, yen) as `Int` or `Int64`. Never use floating-point types (`Double`, `Float`) for monetary amounts or arithmetic. Convert to/from display units only at the UI formatting edge.
 - **Derived Balances**: Member balances are always derived on read from the collection of expenses and settlements; never cache or persist a mutable "balance" field.
-- **Zero-Login / Capability Links**: Each group is addressed by an unguessable capability identifier (`groupId`) and an optional 6-character human-friendly `joinCode`. User identity is stored locally on the device (per group).
+- **Capability Links**: Each group is addressed by an unguessable capability identifier (`groupId`) and an optional 6-character human-friendly `joinCode`. Possession of the `groupId` is the read/write credential — this is unchanged by accounts.
+- **Optional identity (`ACCOUNTS_DESIGN.md`)**: Sign in with Apple is opt-in and gates only identity-scoped endpoints (`/api/auth/*`, `claim`). A guest's identity is still stored locally per group (`UserDefaultsIdentityStore`); a signed-in user's group list is authoritative from the server. A `members` row gains a nullable `identity_sub` when claimed — nothing is reassigned, guests stay first-class forever. The change is strictly additive; never gate the group routes behind a session.
 - **Split Integrity**: Every split in an expense must sum up exactly to the total `amountMinor`. Remainder paise/cents from equal or percentage divisions are deterministically assigned (e.g., to the payer) before dispatch. `splitType` (`equal` / `exact` / `percentage`) is a descriptive label — `percentage` is resolved to minor-unit shares client-side (`Validation.percentageSplit`), never sent as raw percentages.
 
 ## Non-Goals — Do Not Add Without Explicit Request
-- No accounts, login systems, or passwords.
+- No login systems or passwords. The only identity is optional Sign in with Apple (`ACCOUNTS_DESIGN.md`) — no email/password, no other providers, no profile data. Guests are never gated.
 - No payment processing, banking integration, or money transfer — ever.
 - No FX conversion. A group can hold expenses in multiple currencies, but balances and settle-up are computed per currency and never blended — the group's `currency` is only the default for new expenses.
 - No recurring expenses or subscription models.
 - No receipt OCR / paid cloud AI services in core v1.
-- No push notification servers or email collection.
+- No push notification servers or email collection. (Sign in with Apple is configured to request no scopes — no name, no email.)
 
 ## Conventions
 - Swift 6 language standard, strict concurrency checking.
