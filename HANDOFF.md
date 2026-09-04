@@ -25,12 +25,17 @@ features and the accounts phase have shipped **in code** (all on `main`,
     secret (2026-09-04); `/api/auth/*` verified live.
   - ✅ Sign in with Apple enabled on the `com.clantab.app` App ID + confirmed
     in Xcode's Signing & Capabilities.
+  - ✅ Apple token revocation on account deletion — `lib/apple-oauth.ts` +
+    `authorizationCode` plumbing + all four `SIWA_*` secrets set + deployed
+    (2026-09-04). End-to-end proof is the TestFlight delete-account test.
   - ⬜ TestFlight pass on a real device (Sign in with Apple can't run in the
-    simulator) — this is the real end-to-end check of steps 6a–6f.
-  - ⬜ Apple token revocation on account deletion: create a Services ID + `.p8`
-    key, set the `SIWA_*` secrets, wire `POST .../auth/revoke` into
-    `DELETE /api/auth/account`. **Submission prerequisite only** (not TestFlight).
+    simulator) — the real end-to-end check of steps 6a–6f + revocation.
   - ⬜ Privacy policy + App Store Connect App Privacy answers updated for SIWA.
+
+Also since 2026-09-03: **edit / delete** an expense or settlement, and
+**Group Settings** (rename group / member, remove member, leave group) — new
+`PUT`/`DELETE`/`PATCH` routes, all deployed. Beyond accounts, `NEXT_STEPS.md`
+tracks what's left; cross-group settling is the notable backlog item.
 
 The 2026-08-31 block and everything below it is still accurate as history.
 

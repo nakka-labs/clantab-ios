@@ -18,20 +18,14 @@ Detail: `ACCOUNTS_DESIGN.md` §16.
       Xcode.
 - [x] **Re-deploy the worker** for the edit/delete + settings routes
       (2026-09-04, verified live).
-- [ ] **Apple token revocation on account deletion** (Apple Guideline 5.1.1(v),
-      submission blocker):
-  - [x] ~~Code~~ — done 2026-09-04. `authorizationCode` captured in the iOS SIWA
-        flow → `POST /api/auth/apple` exchanges it (`lib/apple-oauth.ts`, ES256
-        `client_secret`) → refresh token in `UserDO` → `DELETE /api/auth/account`
-        calls `revokeToken`. All behind a config check.
-  - [ ] Create a **Services ID** (`SIWA_SERVICES_ID`, e.g. `com.clantab.app.signin` —
-        must differ from the bundle id) and a **Key** with "Sign in with Apple"
-        enabled (download the `.p8`, note the Key ID) in the Apple Developer portal.
-  - [ ] Set the secrets:
-        `echo -n "<value>" | npx wrangler secret put SIWA_SERVICES_ID` (and
-        `SIWA_TEAM_ID` = `UK652GNPP7`, `SIWA_KEY_ID`);
-        `npx wrangler secret put SIWA_PRIVATE_KEY < AuthKey_XXXX.p8`; then
-        `make worker-deploy`. Revocation activates automatically once all four exist.
+- [x] ~~**Apple token revocation on account deletion**~~ (Apple Guideline
+      5.1.1(v)) — **live 2026-09-04**. Code (`lib/apple-oauth.ts`,
+      `authorizationCode` plumbing) + all four `SIWA_*` secrets set + deployed.
+      The `authorizationCode` exchange runs on sign-in; `DELETE
+      /api/auth/account` calls `/auth/revoke`. End-to-end proof is the
+      TestFlight delete-account test (`wrangler tail` will show a `console.error`
+      from `apple-oauth` if the `.p8` or Services ID is wrong — non-fatal, but
+      Apple's review checks deletion).
 - [ ] **TestFlight on-device pass** — the real end-to-end check of steps 6a–6f
       (Sign in with Apple can't run in the simulator). Checklist:
       guest flow unaffected · sign in · list syncs to a 2nd device · claim ·

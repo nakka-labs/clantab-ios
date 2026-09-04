@@ -28,3 +28,6 @@ Thumbs.db
 .idea/
 *.swp
 *~
+
+# Apple signing keys — NEVER commit
+*.p8

@@ -61,10 +61,9 @@ unresolved, see backlog).
     2026-09-04, `/api/auth/*` verified live.
   - ~~Enable the Sign in with Apple capability on the `com.clantab.app` App ID~~
     — done, confirmed in Xcode.
-  - ~~Wire `POST .../auth/revoke` into `DELETE /api/auth/account`~~ — code done
-    2026-09-04 (`lib/apple-oauth.ts`). Still need the `SIWA_*` Apple config
-    (Services ID + `.p8` + secrets) to activate it — **submission only**, not
-    TestFlight.
+  - ~~Wire `POST .../auth/revoke` into `DELETE /api/auth/account`~~ — **live
+    2026-09-04** (`lib/apple-oauth.ts` + all four `SIWA_*` secrets + deployed).
+    Verify end-to-end in the TestFlight delete-account test.
   - TestFlight pass on a real device (SIWA can't be driven in the simulator).
 - Cross-group settling with a person — enabled by the `UserDO` index,
   still not built (deliberately, `ACCOUNTS_DESIGN.md` §12).

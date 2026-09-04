@@ -389,9 +389,8 @@ optional `Bearer` for future use, but needs nothing today.)
 - ~~`APPLE_KEYS` — KV namespace (JWKS cache).~~ Dropped — replaced by an
   in-process module-level cache (step 3).
 - `SIWA_SERVICES_ID`, `SIWA_TEAM_ID`, `SIWA_KEY_ID`, `SIWA_PRIVATE_KEY` —
-  secrets, for token revocation on account deletion. Code done 2026-09-04
-  (`lib/apple-oauth.ts`); ⬜ the four secrets are a **submission prerequisite**
-  — revocation is inert until they're set.
+  secrets, for token revocation on account deletion. ✅ set + deployed
+  2026-09-04 (`lib/apple-oauth.ts`).
 
 ---
 
@@ -532,16 +531,11 @@ sessions; step 7 ≈ half a session.
    in effect), and the guest routes are untouched.
 2. ~~**Enable Sign in with Apple**~~ on the `com.clantab.app` App ID — done,
    confirmed in Xcode.
-3. **Apple token revocation** — the code is done (`lib/apple-oauth.ts`,
-   `authorizationCode` plumbing, `DELETE /api/auth/account` calls `revokeToken`).
-   What's left is the Apple config: in the Developer portal create a **Services
-   ID** (e.g. `com.clantab.app.signin` — must differ from the bundle id), a
-   **Key** with "Sign in with Apple" enabled (download the `.p8`, note the Key
-   ID), then set the four Worker secrets:
-   `echo -n "<value>" | npx wrangler secret put SIWA_SERVICES_ID` (repeat for
-   `SIWA_TEAM_ID` = `UK652GNPP7`, `SIWA_KEY_ID`;
-   `npx wrangler secret put SIWA_PRIVATE_KEY < AuthKey_XXXX.p8`), then
-   `make worker-deploy`. Revocation activates automatically once all four exist.
+3. ~~**Apple token revocation**~~ — **live 2026-09-04**. Code
+   (`lib/apple-oauth.ts`, `authorizationCode` plumbing) + all four `SIWA_*`
+   secrets set + deployed. Sign-in exchanges the `authorizationCode` for a
+   refresh token; `DELETE /api/auth/account` calls `/auth/revoke`. Verify
+   end-to-end in the TestFlight delete-account test.
 4. **TestFlight pass on a real device** — the Sign in with Apple sheet, the
    claim flow, and `getCredentialState` can't be exercised in the simulator.
 5. **Privacy** — update `docs/privacy-policy.md` and the App Store Connect App

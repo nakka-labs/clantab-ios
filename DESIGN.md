@@ -440,7 +440,7 @@ the app already tolerates.
   Local: `worker/.dev.vars`. Tests: `vitest.workers.config.ts`.
 - `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` — all
   four or none (`siwaConfigFromEnv`). Wired into `POST /api/auth/apple`
-  (code exchange) and `DELETE /api/auth/account` (revoke); inert until set. A
-  submission prerequisite (`ACCOUNTS_DESIGN.md` §16).
+  (code exchange) and `DELETE /api/auth/account` (revoke). ✅ set + deployed
+  2026-09-04.
 - The Sign in with Apple capability must be enabled on the App ID in the Apple
   Developer portal before a TestFlight build.
