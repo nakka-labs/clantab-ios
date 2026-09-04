@@ -14,6 +14,8 @@ struct AddExpenseView: View {
     let defaultCurrency: String
     let currentMemberId: String?
     let client: ClanTabClient
+    /// When set, the form edits this expense (`PUT`) instead of adding a new one.
+    let editing: Expense?
     let onSaved: () -> Void
     let onCancel: () -> Void
 
@@ -43,6 +45,7 @@ struct AddExpenseView: View {
         defaultCurrency: String,
         currentMemberId: String?,
         client: ClanTabClient,
+        editing: Expense? = nil,
         onSaved: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -51,12 +54,45 @@ struct AddExpenseView: View {
         self.defaultCurrency = defaultCurrency
         self.currentMemberId = currentMemberId
         self.client = client
+        self.editing = editing
         self.onSaved = onSaved
         self.onCancel = onCancel
-        _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
-        _currency = State(initialValue: defaultCurrency)
-        _includedMemberIds = State(initialValue: Set(members.map(\.id)))
+
+        guard let expense = editing else {
+            _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
+            _currency = State(initialValue: defaultCurrency)
+            _includedMemberIds = State(initialValue: Set(members.map(\.id)))
+            return
+        }
+
+        _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: expense.amountMinor))
+        _description = State(initialValue: expense.description)
+        _payerId = State(initialValue: expense.payerId)
+        _currency = State(initialValue: expense.currency)
+        _splitType = State(initialValue: expense.splitType)
+        _category = State(initialValue: ExpenseCategory.resolve(name: expense.category, symbolName: expense.categoryIcon))
+        _includedMemberIds = State(initialValue: Set(expense.splits.map(\.memberId)))
+
+        var exact: [String: String] = [:]
+        for split in expense.splits {
+            exact[split.memberId] = MoneyFormat.plainString(minorUnits: split.amountMinor)
+        }
+        _exactAmountText = State(initialValue: exact)
+
+        var percent: [String: String] = [:]
+        if expense.splitType == .percentage, expense.amountMinor > 0 {
+            // Percentages aren't stored — only the resolved minor-unit shares.
+            // Back-compute for the field; a no-op re-save re-resolves and may
+            // shift a minor unit, which the remainder rule absorbs.
+            for split in expense.splits {
+                let pct = (Double(split.amountMinor) / Double(expense.amountMinor) * 100).rounded()
+                percent[split.memberId] = String(Int(pct))
+            }
+        }
+        _percentText = State(initialValue: percent)
     }
+
+    private var isEditing: Bool { editing != nil }
 
     private var amountMinor: Int64? {
         MoneyFormat.minorUnits(from: amountText)
@@ -117,13 +153,13 @@ struct AddExpenseView: View {
                     if isSubmitting {
                         ProgressView()
                     } else {
-                        Text("Add Expense")
+                        Text(isEditing ? "Save Changes" : "Add Expense")
                     }
                 }
                 .disabled(!canSubmit || isSubmitting)
             }
         }
-        .navigationTitle("Add Expense")
+        .navigationTitle(isEditing ? "Edit Expense" : "Add Expense")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel", action: onCancel)
@@ -296,21 +332,25 @@ struct AddExpenseView: View {
             // `.uncategorized` is the "no category" sentinel — send nil, not the
             // placeholder name, so it stays distinguishable from a real category.
             let isCategorised = category != .uncategorized
-            _ = try await client.addExpense(
-                groupId: groupId,
-                AddExpenseRequest(
-                    id: UUID().uuidString,
-                    payerId: payerId,
-                    amountMinor: amountMinor,
-                    currency: currency,
-                    description: description,
-                    date: Date(),
-                    splitType: splitType,
-                    splits: splits,
-                    category: isCategorised ? category.name : nil,
-                    categoryIcon: isCategorised ? category.symbolName : nil
-                )
+            let request = AddExpenseRequest(
+                id: isEditing ? nil : UUID().uuidString,
+                payerId: payerId,
+                amountMinor: amountMinor,
+                currency: currency,
+                description: description,
+                // Adding stamps "now"; editing keeps the original date (there's
+                // no date field in this form).
+                date: editing?.date ?? Date(),
+                splitType: splitType,
+                splits: splits,
+                category: isCategorised ? category.name : nil,
+                categoryIcon: isCategorised ? category.symbolName : nil
             )
+            if let editing {
+                _ = try await client.updateExpense(groupId: groupId, expenseId: editing.id, request)
+            } else {
+                _ = try await client.addExpense(groupId: groupId, request)
+            }
             onSaved()
         } catch {
             errorMessage = friendlyMessage(for: error)

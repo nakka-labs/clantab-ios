@@ -10,6 +10,9 @@ struct GroupHomeView: View {
     private let onGroupUnavailable: () -> Void
     @State private var viewModel: GroupViewModel
     @State private var nudgeError: String?
+    @State private var mutationError: String?
+    @State private var editingExpense: Expense?
+    @State private var pendingDelete: ActivityItem?
     @State private var isPresentingAddExpense = false
     @State private var isPresentingSettleUp = false
     @State private var isPresentingImport = false
@@ -98,7 +101,21 @@ struct GroupHomeView: View {
                     } else {
                         ForEach(items) { item in
                             ActivityRow(item: item)
+                                .contentShape(Rectangle())
+                                .onTapGesture { edit(item) }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) { pendingDelete = item } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                    if case .expense = item.kind {
+                                        Button { edit(item) } label: { Label("Edit", systemImage: "pencil") }
+                                            .tint(.blue)
+                                    }
+                                }
                         }
+                    }
+                    if let mutationError {
+                        Text(mutationError).font(.caption).foregroundStyle(.red)
                     }
                 } header: {
                     HStack {
@@ -216,8 +233,64 @@ struct GroupHomeView: View {
                 )
             }
         }
+        .sheet(item: $editingExpense) { expense in
+            NavigationStack {
+                AddExpenseView(
+                    groupId: viewModel.groupId,
+                    members: viewModel.state?.members ?? [],
+                    defaultCurrency: expense.currency,
+                    currentMemberId: viewModel.myIdentity?.memberId,
+                    client: client,
+                    editing: expense,
+                    onSaved: {
+                        editingExpense = nil
+                        mutationError = nil
+                        expenseAddedTrigger += 1
+                        Task { await viewModel.refetch() }
+                    },
+                    onCancel: { editingExpense = nil }
+                )
+            }
+        }
+        .confirmationDialog(
+            deleteTitle,
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingDelete
+        ) { item in
+            Button("Delete", role: .destructive) { Task { await performDelete(item) } }
+            Button("Cancel", role: .cancel) {}
+        }
         .sensoryFeedback(.success, trigger: expenseAddedTrigger)
         .sensoryFeedback(.success, trigger: settlementMarkedTrigger)
+    }
+
+    private var deleteTitle: String {
+        guard let pendingDelete else { return "" }
+        if case .settlement = pendingDelete.kind { return "Delete this settlement?" }
+        return "Delete this expense?"
+    }
+
+    private func edit(_ item: ActivityItem) {
+        if case .expense(let expense) = item.kind {
+            mutationError = nil
+            editingExpense = expense
+        }
+    }
+
+    private func performDelete(_ item: ActivityItem) async {
+        mutationError = nil
+        do {
+            switch item.kind {
+            case .expense(let expense):
+                try await client.deleteExpense(groupId: viewModel.groupId, expenseId: expense.id)
+            case .settlement(let settlement):
+                try await client.deleteSettlement(groupId: viewModel.groupId, settlementId: settlement.id)
+            }
+            await viewModel.refetch()
+        } catch {
+            mutationError = friendlyMessage(for: error)
+        }
     }
 
     @ViewBuilder

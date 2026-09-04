@@ -15,6 +15,15 @@ enum MoneyFormat {
         return formatter.string(from: NSNumber(value: major)) ?? "\(currency) \(major)"
     }
 
+    /// A plain, editable decimal string (`"12.34"`, `"12.00"`, `"0.05"`) — no
+    /// currency symbol or grouping — for pre-filling a text field when editing.
+    /// Integer math, so it round-trips through `minorUnits(from:)` exactly.
+    static func plainString(minorUnits: Int64) -> String {
+        let sign = minorUnits < 0 ? "-" : ""
+        let magnitude = abs(minorUnits)
+        return "\(sign)\(magnitude / 100).\(String(format: "%02d", magnitude % 100))"
+    }
+
     /// Parses a decimal amount typed by the user (e.g. "12", "12.5", "12.34")
     /// into integer minor units — via string/integer math, not `Double`, so a
     /// typed amount never picks up floating-point drift on the way in. Returns
