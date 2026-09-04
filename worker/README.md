@@ -11,7 +11,8 @@ since 2026-09-04 (`SESSION_SIGNING_KEY` is a real secret).
 
 ```
 src/
-├── index.ts        Worker entry + URLPattern router (DESIGN.md §2 + §13)
+├── index.ts        Worker entry + URLPattern router (DESIGN.md §2 incl.
+│                   PUT/DELETE edit-delete, + §13 accounts)
 ├── registry-do.ts  RegistryDO  — joinCode ↔ groupId, per-IP rate limit
 ├── group-do.ts     GroupDO     — one group's SQLite ledger; server-computed balances;
 │                                 claim / unclaim (schema v5, members.identity_sub)
@@ -28,7 +29,7 @@ test/               logic + validation (Node) · registry/group/routes/user/auth
 | | |
 |---|---|
 | `npm ci` | install (Node 20+) |
-| `npm test` | Vitest — 103 tests (pure + `@cloudflare/vitest-pool-workers` integration) |
+| `npm test` | Vitest — 111 tests (pure + `@cloudflare/vitest-pool-workers` integration) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run dev` | `wrangler dev` on `:8787` |
 | `npm run deploy` | `wrangler deploy` (needs `wrangler login`) |

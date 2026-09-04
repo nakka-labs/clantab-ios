@@ -88,11 +88,30 @@ Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor
 
 ### `POST /api/groups/:groupId/settlements`
 ```
-Request:  { id?: string, fromId, toId, amountMinor }
+Request:  { id?: string, fromId, toId, amountMinor, currency? }
 Response: 201 { settlement: {...} }
 Errors:   400 UNKNOWN_MEMBER, 400 INVALID_AMOUNT
 ```
 Same idempotency treatment via optional client-generated `id`.
+
+### `PUT /api/groups/:groupId/expenses/:expenseId` · `PUT .../settlements/:settlementId`
+```
+Request:  same body as the matching POST, minus `id` (the path carries it —
+          a body `id` is rejected)
+Response: 200 { expense: {...} } / 200 { settlement: {...} }
+Errors:   404 NOT_FOUND        — no such expense/settlement in this group
+          400 SPLIT_MISMATCH / UNKNOWN_MEMBER / INVALID_AMOUNT (re-validated)
+```
+A full replacement, not a patch — send the whole record. `created_at` /
+`settled_at` is preserved so an edit doesn't reorder the activity feed. Balances
+are derived on read, so nothing else needs adjusting.
+
+### `DELETE /api/groups/:groupId/expenses/:expenseId` · `DELETE .../settlements/:settlementId`
+```
+Response: 204  (idempotent — deleting an id that's already gone still 204s)
+```
+Removes the row (and an expense's splits). Same trust model as every other §2
+route: possession of the `groupId` is the only credential.
 
 ---
 
@@ -306,6 +325,11 @@ The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the acco
 - ~~**percentage/shares splitting**~~ — **shipped** (2026-09-01). `splitType` now includes `"percentage"`; the client resolves percentages to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.percentageSplit`), so it's a UI/label change only — the wire contract and balance math are unchanged. See §2, §6, §10 (schema v2).
 - ~~**multi-currency**~~ — **shipped** (2026-09-01). A group holds expenses in any currency; balances and the settle-up plan are computed per currency and never blended (no FX conversion — that stays a hard non-goal). `currency` on expenses/settlements (schema v4), on `Balance`/`SimplifiedSettlement`; the group's `currency` is now just the default for new expenses. See §2, §3, §10.
 - FX conversion, recurring expenses, receipt OCR — still out of scope per `PLAN.md` §1, listed here only so nobody mistakes their absence in this doc for an oversight
+- ~~**No way to edit or delete an expense / settlement**~~ — **shipped**
+  (2026-09-04). `PUT` (full replacement, preserves feed order) and `DELETE`
+  (idempotent) on `.../expenses/:id` and `.../settlements/:id` (§2). iOS:
+  swipe-to-delete with a confirmation, tap-an-expense to edit in the same form.
+  Editing a member, renaming a group, and removing a member are still not built.
 - ~~A "merge my old entries" flow for someone who loses local storage and rejoins as a new member~~ — **partly addressed** by the claim flow (`ACCOUNTS_DESIGN.md` §6): a signed-in user opening an invite link picks "This is me" and links the existing placeholder member instead of creating a duplicate. A true merge of two already-separate members is still not built.
 - ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03). Optional Sign in with Apple; guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session tokens; `/api/auth/*` + `claim` routes (§13). Cross-group netting ("settle across all groups with Bob") is *enabled* by the `UserDO` index but deliberately **not** built (`ACCOUNTS_DESIGN.md` §12).
 - Apple server-to-server token revocation on account deletion (`POST https://appleid.apple.com/auth/revoke`) — required before App Store submission, needs the `SIWA_*` signing-key secrets; the `DELETE /api/auth/account` route stubs it with a TODO today (`ACCOUNTS_DESIGN.md` §11)
