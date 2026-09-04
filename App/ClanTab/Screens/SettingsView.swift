@@ -1,10 +1,12 @@
 import SwiftUI
+import ClanTabKit
 
 /// Account settings, reachable from the start screen and Group Home. The
 /// permanent home for "sign in to sync" (guests) and — Apple Guideline
 /// 5.1.1(v) — "Delete Account" (signed-in users). `ACCOUNTS_DESIGN.md` §10/§11.
 struct SettingsView: View {
     let auth: AuthViewModel
+    let client: ClanTabClient
     let onDone: () -> Void
 
     @State private var confirmingDelete = false
@@ -45,6 +47,12 @@ struct SettingsView: View {
             }
 
             if auth.isSignedIn {
+                Section {
+                    NavigationLink("Settle Across Groups") {
+                        PeopleView(auth: auth, client: client)
+                    }
+                }
+
                 Section {
                     Button("Delete Account", role: .destructive) {
                         confirmingDelete = true

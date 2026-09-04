@@ -94,6 +94,16 @@
 
 ## Confirmed — downstream of accounts, not standalone
 
+- ~~**Settle across all groups with a person.**~~ **Shipped 2026-09-04.**
+  `GET /api/auth/people` (`DESIGN.md` §13) — for a signed-in user, the net
+  owed to/from every *linked* person across shared groups, per currency
+  (never blended). `GroupDO.peerSettlements` picks the simplified settle-up
+  edge between the caller and each other claimed member; the endpoint sums
+  by person and returns per-group edges. The Apple `sub` is never exposed
+  (opaque per-person id). "Settle All" fires one ordinary `addSettlement`
+  per group — no cross-group ledger, each group stays authoritative. iOS:
+  Settings → "Settle Across Groups" → per-person breakdown → Settle All.
+
 - **Settle across all groups with a person — confirmed.** "Simplify
   dues/settling" meant cross-group netting: e.g. see and settle one
   combined view of everything owed between you and Bob across every

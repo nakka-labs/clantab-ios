@@ -356,7 +356,8 @@ The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the acco
   screen for the rest; "Leave This Group" (device-local) + a context-menu
   remove on the start-screen list.
 - ~~A "merge my old entries" flow for someone who loses local storage and rejoins as a new member~~ — **partly addressed** by the claim flow (`ACCOUNTS_DESIGN.md` §6): a signed-in user opening an invite link picks "This is me" and links the existing placeholder member instead of creating a duplicate. A true merge of two already-separate members is still not built.
-- ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03). Optional Sign in with Apple; guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session tokens; `/api/auth/*` + `claim` routes (§13). Cross-group netting ("settle across all groups with Bob") is *enabled* by the `UserDO` index but deliberately **not** built (`ACCOUNTS_DESIGN.md` §12).
+- ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03). Optional Sign in with Apple; guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session tokens; `/api/auth/*` + `claim` routes (§13).
+- ~~**cross-group netting** ("settle across all groups with Bob")~~ — **shipped** (2026-09-04). `GET /api/auth/people` (§13): per linked person, the net per currency + per-group settle-up edges. Read-side only — "Settle All" is N ordinary `addSettlement` calls.
 - ~~Apple server-to-server token revocation on account deletion~~ — **code
   shipped** (2026-09-04). `POST /api/auth/apple` takes `authorizationCode`,
   exchanges it for a refresh token stored in the `UserDO`; `DELETE
@@ -396,6 +397,14 @@ POST   /api/auth/apple      { identityToken, authorizationCode? }
 
 POST   /api/auth/refresh    (Bearer)  → 200 { sessionToken, expiresAt }
 GET    /api/auth/groups     (Bearer)  → 200 { groups: [{ groupId, memberId, displayName }] }
+GET    /api/auth/people     (Bearer)  → 200 { people: [{ id, displayName,
+                                        net: [{ currency, netMinor }],     // >0 = you owe them
+                                        groups: [{ groupId, groupName, currency, amountMinor,
+                                                   youPay, myMemberId, theirMemberId }] }] }
+       Cross-group settling: the simplified settle-up edge between the caller and
+       every *linked* person, summed across shared groups, per currency. Guests
+       never appear; the Apple `sub` is never exposed (opaque `id`). The client
+       settles each edge with an ordinary POST .../settlements.
 DELETE /api/auth/account    (Bearer)  → 204
        Revokes the Apple token first (best effort, SIWA_* configured), then
        unclaims every membership and wipes the UserDO.

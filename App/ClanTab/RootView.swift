@@ -24,7 +24,7 @@ struct RootView: View {
         .onOpenURL { url in handleDeepLink(url) }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
-                SettingsView(auth: auth, onDone: { showingSettings = false })
+                SettingsView(auth: auth, client: client, onDone: { showingSettings = false })
             }
         }
     }

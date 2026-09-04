@@ -65,8 +65,10 @@ unresolved, see backlog).
     2026-09-04** (`lib/apple-oauth.ts` + all four `SIWA_*` secrets + deployed).
     Verify end-to-end in the TestFlight delete-account test.
   - TestFlight pass on a real device (SIWA can't be driven in the simulator).
-- Cross-group settling with a person — enabled by the `UserDO` index,
-  still not built (deliberately, `ACCOUNTS_DESIGN.md` §12).
+- ~~Cross-group settling with a person~~ — **shipped 2026-09-04**.
+  `GET /api/auth/people` + iOS "Settle Across Groups" (Settings). Per
+  currency, never blended; each group settled with an ordinary
+  `addSettlement`.
 
 ## Engineering discipline
 

@@ -58,11 +58,12 @@ Detail: `ACCOUNTS_DESIGN.md` §16.
 
 `FEATURE_BACKLOG.md` has the full notes.
 
-- [ ] **Cross-group settling** — "settle everything with Bob across all groups".
-      Spec in `LOGIN_ACCOUNTS_BRIEF.md` / `FEATURE_BACKLOG.md`. **Now unblocked**
-      — the `UserDO` identity index is its only dependency. Read-side
-      aggregation over shared groups, per-currency, fires normal per-group
-      `addSettlement`s. This was the original point of doing accounts.
+- [x] ~~**Cross-group settling**~~ — shipped 2026-09-04. `GET /api/auth/people`
+      aggregates the simplified settle-up edge with every linked person across
+      shared groups, per currency (never blended); iOS "Settle Across Groups"
+      (Settings → per-person breakdown → "Settle All" fires one `addSettlement`
+      per group). Apple `sub` never leaves the server. Build- + logic-tested;
+      the iOS screen needs a real signed-in session to see (SIWA ≠ simulator).
 - [ ] **Plain photo attachment on an expense** (no OCR). Open question: R2
       (needs a card on file — breaks the zero-card invariant) vs. local-only
       (no card, not shared with the group).
