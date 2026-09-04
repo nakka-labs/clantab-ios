@@ -59,6 +59,15 @@ type SettlementRow = Row<{
   currency: string;
 }>;
 
+/** One other claimed member, from the caller's point of view — used only by
+ * `peerSettlements` for cross-group settling. */
+export interface PeerView {
+  memberId: string;
+  sub: string;
+  displayName: string;
+  edges: { currency: string; amountMinor: number; youPay: boolean }[];
+}
+
 /**
  * One group's ledger. Addressed by `idFromName(groupId)` (`DESIGN.md` §1). Every
  * request runs to completion before the next starts (`DESIGN.md` §4), so there is
@@ -295,6 +304,54 @@ export class GroupDO extends DurableObject {
       .exec<MemberRow>("SELECT identity_sub FROM members WHERE id = ?", memberId)
       .toArray();
     return { sub: rows.length > 0 ? rows[0]!.identity_sub : null };
+  }
+
+  /**
+   * Cross-group settling (`FEATURE_BACKLOG.md`): the simplified-settlement edges
+   * between the caller (`myMemberId`) and every *other claimed* member, per
+   * currency. `sub` is checked against the caller's row so a stale `UserDO`
+   * cache can't surface another identity's view — returns `null` if it no
+   * longer matches. Only linked identities appear; guests are never listed.
+   */
+  async peerSettlements(
+    sub: string,
+    myMemberId: string,
+  ): Promise<{ groupName: string; peers: PeerView[] } | null> {
+    const mine = this.sql
+      .exec<MemberRow>("SELECT id FROM members WHERE id = ? AND identity_sub = ?", myMemberId, sub)
+      .toArray();
+    if (mine.length === 0) return null;
+
+    const groupName = this.requireMeta(META_KEYS.name);
+    const claimed = this.sql
+      .exec<MemberRow>(
+        "SELECT id, display_name, identity_sub FROM members WHERE identity_sub IS NOT NULL AND id != ?",
+        myMemberId,
+      )
+      .toArray();
+    if (claimed.length === 0) return { groupName, peers: [] };
+
+    const balances = computeBalances(this.readMembers(), this.readExpenses(), this.readSettlements());
+    const plan = simplify(balances);
+
+    const peers: PeerView[] = claimed.map((c) => ({
+      memberId: c.id,
+      sub: c.identity_sub as string,
+      displayName: c.display_name,
+      edges: plan
+        .filter(
+          (s) =>
+            (s.fromId === myMemberId && s.toId === c.id) ||
+            (s.fromId === c.id && s.toId === myMemberId),
+        )
+        .map((s) => ({
+          currency: s.currency,
+          amountMinor: s.amountMinor,
+          youPay: s.fromId === myMemberId,
+        })),
+    }));
+
+    return { groupName, peers };
   }
 
   async getState(): Promise<GroupStateResponse> {

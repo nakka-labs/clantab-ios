@@ -3,6 +3,7 @@ import { RegistryDO } from "./registry-do.ts";
 import { UserDO } from "./user-do.ts";
 import { AppleAuthError, verifyAppleIdentityToken } from "./lib/apple-auth.ts";
 import { exchangeAuthorizationCode, revokeToken, siwaConfigFromEnv } from "./lib/apple-oauth.ts";
+import { b64urlEncode } from "./lib/base64url.ts";
 import {
   BadRequestError,
   BareNotFoundError,
@@ -73,6 +74,7 @@ const ROUTES: Route[] = [
   route("POST", "/api/auth/apple", handleAuthApple),
   route("POST", "/api/auth/refresh", handleAuthRefresh),
   route("GET", "/api/auth/groups", handleAuthGroups),
+  route("GET", "/api/auth/people", handleAuthPeople),
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
   route("GET", "/g/:groupId", handleCapabilityPage),
   route("GET", "/", handleRoot),
@@ -381,6 +383,84 @@ async function handleAuthGroups(request: Request, env: Env): Promise<Response> {
   const sub = await requireSession(request, env);
   const { groups } = await env.USER_DO.get(env.USER_DO.idFromName(sub)).listGroups();
   return json(200, { groups });
+}
+
+/**
+ * Cross-group settling (`FEATURE_BACKLOG.md`): for each linked person the caller
+ * shares groups with, the net owed per currency and the per-group edges the
+ * client settles one by one. A read-side aggregation — no cross-group ledger.
+ */
+async function handleAuthPeople(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const { groups } = await env.USER_DO.get(env.USER_DO.idFromName(sub)).listGroups();
+
+  interface Agg {
+    displayName: string;
+    net: Map<string, number>;
+    groups: {
+      groupId: string;
+      groupName: string;
+      currency: string;
+      amountMinor: number;
+      youPay: boolean;
+      myMemberId: string;
+      theirMemberId: string;
+    }[];
+  }
+  const byPerson = new Map<string, Agg>();
+
+  for (const g of groups) {
+    const view = await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).peerSettlements(sub, g.memberId);
+    if (view === null) continue;
+    for (const peer of view.peers) {
+      if (peer.edges.length === 0) continue;
+      let agg = byPerson.get(peer.sub);
+      if (agg === undefined) {
+        // groups come newest-first, so the first name we see is the most recent.
+        agg = { displayName: peer.displayName, net: new Map(), groups: [] };
+        byPerson.set(peer.sub, agg);
+      }
+      for (const edge of peer.edges) {
+        agg.net.set(
+          edge.currency,
+          (agg.net.get(edge.currency) ?? 0) + (edge.youPay ? edge.amountMinor : -edge.amountMinor),
+        );
+        agg.groups.push({
+          groupId: g.groupId,
+          groupName: view.groupName,
+          currency: edge.currency,
+          amountMinor: edge.amountMinor,
+          youPay: edge.youPay,
+          myMemberId: g.memberId,
+          theirMemberId: peer.memberId,
+        });
+      }
+    }
+  }
+
+  const people = await Promise.all(
+    [...byPerson.entries()]
+      .filter(([, agg]) => agg.groups.length > 0)
+      .map(async ([peerSub, agg]) => ({
+        id: await opaquePersonId(peerSub),
+        displayName: agg.displayName,
+        net: [...agg.net.entries()]
+          .filter(([, netMinor]) => netMinor !== 0)
+          .map(([currency, netMinor]) => ({ currency, netMinor }))
+          .sort((a, b) => a.currency.localeCompare(b.currency)),
+        groups: agg.groups,
+      })),
+  );
+  people.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  return json(200, { people });
+}
+
+/** A stable, non-reversible client-facing id for a person — never expose the
+ * Apple `sub`. */
+async function opaquePersonId(sub: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`clantab-person:${sub}`));
+  return b64urlEncode(new Uint8Array(digest).slice(0, 9));
 }
 
 async function handleAuthDeleteAccount(request: Request, env: Env): Promise<Response> {
