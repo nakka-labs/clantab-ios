@@ -54,6 +54,32 @@ public actor ClanTabClient {
         try await post("api/groups/\(groupId)/settlements", body: request)
     }
 
+    // MARK: - Edit / delete (DESIGN.md §2)
+
+    /// Replace an expense wholesale. `request.id` is ignored — the id in the path
+    /// identifies the row. The server keeps its position in the activity feed.
+    public func updateExpense(groupId: String, expenseId: String, _ request: AddExpenseRequest) async throws -> AddExpenseResponse {
+        try await put("api/groups/\(groupId)/expenses/\(expenseId)", body: request)
+    }
+
+    /// Remove an expense (and its splits). Idempotent — deleting one that's
+    /// already gone still succeeds.
+    public func deleteExpense(groupId: String, expenseId: String) async throws {
+        var request = URLRequest(url: url(for: "api/groups/\(groupId)/expenses/\(expenseId)"))
+        request.httpMethod = "DELETE"
+        try await performNoContent(request)
+    }
+
+    public func updateSettlement(groupId: String, settlementId: String, _ request: AddSettlementRequest) async throws -> AddSettlementResponse {
+        try await put("api/groups/\(groupId)/settlements/\(settlementId)", body: request)
+    }
+
+    public func deleteSettlement(groupId: String, settlementId: String) async throws {
+        var request = URLRequest(url: url(for: "api/groups/\(groupId)/settlements/\(settlementId)"))
+        request.httpMethod = "DELETE"
+        try await performNoContent(request)
+    }
+
     // MARK: - Accounts (ACCOUNTS_DESIGN.md §5–§7, §11)
 
     /// Exchange an Apple identity token for a session token + the identity's
@@ -104,6 +130,15 @@ public actor ClanTabClient {
     private func post<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil) async throws -> Response {
         var request = URLRequest(url: url(for: path))
         request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+        setBearer(bearer, on: &request)
+        return try await perform(request)
+    }
+
+    private func put<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil) async throws -> Response {
+        var request = URLRequest(url: url(for: path))
+        request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(body)
         setBearer(bearer, on: &request)

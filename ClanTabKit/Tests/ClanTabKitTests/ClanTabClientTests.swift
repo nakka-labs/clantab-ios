@@ -208,6 +208,83 @@ struct ClanTabClientTests {
         #expect(unset["categoryIcon"] == nil)
     }
 
+    @Test("updateExpense PUTs to the id path and decodes the replaced expense")
+    func testUpdateExpense() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData([
+            "expense": [
+                "id": "e1", "payerId": "m2", "amountMinor": 900, "currency": "INR", "description": "Lunch (fixed)",
+                "date": "2026-01-02T10:00:00Z", "splitType": "equal",
+                "splits": [["memberId": "m1", "amountMinor": 450], ["memberId": "m2", "amountMinor": 450]],
+            ],
+        ]))
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        let response = try await client.updateExpense(
+            groupId: "g1", expenseId: "e1",
+            AddExpenseRequest(
+                payerId: "m2", amountMinor: 900, currency: "INR", description: "Lunch (fixed)",
+                date: Date(timeIntervalSince1970: 0), splitType: .equal,
+                splits: [ExpenseSplit(memberId: "m1", amountMinor: 450), ExpenseSplit(memberId: "m2", amountMinor: 450)]
+            )
+        )
+        #expect(response.expense.description == "Lunch (fixed)")
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "PUT")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/expenses/e1")
+        #expect(decodeBody(request)["id"] == nil) // id lives in the path, never the body
+    }
+
+    @Test("deleteExpense sends a DELETE and tolerates a 204")
+    func testDeleteExpense() async throws {
+        let transport = FakeTransport(statusCode: 204, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        try await client.deleteExpense(groupId: "g1", expenseId: "e1")
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "DELETE")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/expenses/e1")
+    }
+
+    @Test("a PUT to an unknown expense surfaces .server(NOT_FOUND)")
+    func testUpdateExpenseNotFound() async {
+        let transport = FakeTransport(
+            statusCode: 404,
+            body: jsonData(["error": ["code": "NOT_FOUND", "message": "Expense \"e9\" is not in this group."]])
+        )
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        await #expect(throws: ClanTabClientError.server(code: "NOT_FOUND", message: "Expense \"e9\" is not in this group.")) {
+            _ = try await client.updateExpense(
+                groupId: "g1", expenseId: "e9",
+                AddExpenseRequest(
+                    payerId: "m1", amountMinor: 100, currency: "INR", description: "x",
+                    date: Date(timeIntervalSince1970: 0), splitType: .equal,
+                    splits: [ExpenseSplit(memberId: "m1", amountMinor: 100)]
+                )
+            )
+        }
+    }
+
+    @Test("updateSettlement / deleteSettlement hit the id path")
+    func testSettlementEditDelete() async throws {
+        let put = FakeTransport(statusCode: 200, body: jsonData([
+            "settlement": ["id": "s1", "fromId": "m2", "toId": "m1", "amountMinor": 500, "currency": "INR", "date": "2026-01-01T10:00:00Z"],
+        ]))
+        _ = try await ClanTabClient(baseURL: baseURL, transport: put).updateSettlement(
+            groupId: "g1", settlementId: "s1",
+            AddSettlementRequest(fromId: "m2", toId: "m1", amountMinor: 500, currency: "INR")
+        )
+        #expect(await put.lastRequest?.httpMethod == "PUT")
+        #expect(await put.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/settlements/s1")
+
+        let del = FakeTransport(statusCode: 204, body: Data())
+        try await ClanTabClient(baseURL: baseURL, transport: del).deleteSettlement(groupId: "g1", settlementId: "s1")
+        #expect(await del.lastRequest?.httpMethod == "DELETE")
+        #expect(await del.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/settlements/s1")
+    }
+
     @Test("fetchGroupState decodes the full group snapshot, including nested balances")
     func testFetchGroupStateDecodesFullSnapshot() async throws {
         let responseBody = jsonData([
