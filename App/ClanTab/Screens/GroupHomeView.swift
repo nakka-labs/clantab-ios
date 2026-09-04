@@ -7,6 +7,7 @@ struct GroupHomeView: View {
     private let knownGroups: KnownGroupsStoring
     private let auth: AuthViewModel
     private let onOpenSettings: () -> Void
+    private let onLeaveGroup: () -> Void
     private let onGroupUnavailable: () -> Void
     @State private var viewModel: GroupViewModel
     @State private var nudgeError: String?
@@ -16,6 +17,7 @@ struct GroupHomeView: View {
     @State private var isPresentingAddExpense = false
     @State private var isPresentingSettleUp = false
     @State private var isPresentingImport = false
+    @State private var isPresentingGroupSettings = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
     @State private var filter = ActivityFilter()
@@ -27,12 +29,14 @@ struct GroupHomeView: View {
         knownGroups: KnownGroupsStoring,
         auth: AuthViewModel,
         onOpenSettings: @escaping () -> Void = {},
+        onLeaveGroup: @escaping () -> Void = {},
         onGroupUnavailable: @escaping () -> Void = {}
     ) {
         self.client = client
         self.knownGroups = knownGroups
         self.auth = auth
         self.onOpenSettings = onOpenSettings
+        self.onLeaveGroup = onLeaveGroup
         self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, identityStore: identityStore))
     }
@@ -261,6 +265,20 @@ struct GroupHomeView: View {
             Button("Delete", role: .destructive) { Task { await performDelete(item) } }
             Button("Cancel", role: .cancel) {}
         }
+        .sheet(isPresented: $isPresentingGroupSettings) {
+            if let state = viewModel.state {
+                NavigationStack {
+                    GroupSettingsView(
+                        groupId: viewModel.groupId,
+                        state: state,
+                        client: client,
+                        onChanged: { Task { await viewModel.refetch() } },
+                        onLeave: { isPresentingGroupSettings = false; onLeaveGroup() },
+                        onDone: { isPresentingGroupSettings = false }
+                    )
+                }
+            }
+        }
         .sensoryFeedback(.success, trigger: expenseAddedTrigger)
         .sensoryFeedback(.success, trigger: settlementMarkedTrigger)
     }
@@ -320,8 +338,11 @@ struct GroupHomeView: View {
                 Button("Import from CSV", systemImage: "square.and.arrow.down") {
                     isPresentingImport = true
                 }
+                Button("Group Settings", systemImage: "slider.horizontal.3") {
+                    isPresentingGroupSettings = true
+                }
             } label: {
-                Label("Share & Export", systemImage: "square.and.arrow.up")
+                Label("Group Options", systemImage: "square.and.arrow.up")
             }
         }
     }

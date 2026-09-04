@@ -9,6 +9,9 @@ struct RootView: View {
 
     @State private var route: AppRoute = .start
     @State private var showingSettings = false
+    /// Bumped when the local group list changes without an `auth.groups` change
+    /// (a guest removing a group), to recompute `yourGroups`.
+    @State private var knownGroupsRevision = 0
 
     var body: some View {
         NavigationStack {
@@ -31,6 +34,7 @@ struct RootView: View {
     /// `knownGroups` (which isn't itself observable).
     private var yourGroups: [KnownGroup] {
         _ = auth.groups
+        _ = knownGroupsRevision
         return knownGroups.all()
     }
 
@@ -43,6 +47,11 @@ struct RootView: View {
                 onJoinWithCode: { route = .joinGroup(groupId: nil) },
                 groups: yourGroups,
                 onOpenGroup: enterGroup,
+                onRemoveGroup: { groupId in
+                    knownGroups.forget(groupId: groupId)
+                    identityStore.removeIdentity(forGroup: groupId)
+                    knownGroupsRevision += 1
+                },
                 isSignedIn: auth.isSignedIn,
                 isSigningIn: auth.isBusy,
                 authError: auth.errorMessage,
@@ -89,6 +98,7 @@ struct RootView: View {
                 knownGroups: knownGroups,
                 auth: auth,
                 onOpenSettings: { showingSettings = true },
+                onLeaveGroup: { leaveGroup(groupId, forgetIdentity: true) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
         }
@@ -124,13 +134,14 @@ struct RootView: View {
         route = .group(groupId: groupId)
     }
 
-    /// The group no longer exists (its capability URL now 404s). Drop it from the
-    /// known-groups list and return to the start screen rather than leaving the
-    /// user stuck on a Group Home that can never load. The local identity is left
-    /// in place — harmless, and still valid if that same group turns out to be
-    /// reachable again later.
-    private func leaveGroup(_ groupId: String) {
+    /// Drop a group from this device: on a 404 (its capability URL is gone) the
+    /// local identity is left in place — harmless, still valid if the group
+    /// becomes reachable again. On an explicit "Leave This Group"
+    /// (`forgetIdentity: true`) the identity is cleared too, so re-opening the
+    /// link starts a fresh join.
+    private func leaveGroup(_ groupId: String, forgetIdentity: Bool = false) {
         knownGroups.forget(groupId: groupId)
+        if forgetIdentity { identityStore.removeIdentity(forGroup: groupId) }
         route = .start
     }
 

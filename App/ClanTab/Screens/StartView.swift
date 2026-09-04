@@ -10,6 +10,7 @@ struct StartView: View {
     let onJoinWithCode: () -> Void
     var groups: [KnownGroup] = []
     var onOpenGroup: (_ groupId: String) -> Void = { _ in }
+    var onRemoveGroup: (_ groupId: String) -> Void = { _ in }
     var isSignedIn: Bool = false
     var isSigningIn: Bool = false
     /// Error from exchanging the credential (network / verification), owned by
@@ -75,6 +76,11 @@ struct StartView: View {
                     .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button("Remove from This Device", systemImage: "minus.circle", role: .destructive) {
+                        onRemoveGroup(group.groupId)
+                    }
+                }
 
                 if group.id != groups.last?.id {
                     Divider()
