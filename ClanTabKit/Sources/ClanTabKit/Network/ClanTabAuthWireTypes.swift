@@ -60,6 +60,68 @@ public struct MyGroupsResponse: Decodable, Sendable {
     public let groups: [GroupMembershipSummary]
 }
 
+// MARK: - GET /api/auth/people  (cross-group settling)
+
+/// The caller's net with one linked person in one currency. `netMinor > 0`
+/// means the caller owes them; `< 0` means they owe the caller. Nonzero only.
+public struct CrossGroupNet: Codable, Sendable, Equatable {
+    public let currency: String
+    public let netMinor: Int64
+
+    public init(currency: String, netMinor: Int64) {
+        self.currency = currency
+        self.netMinor = netMinor
+    }
+}
+
+/// One group's simplified settle-up edge between the caller and a linked
+/// person. The caller settles each of these with an ordinary `addSettlement`.
+public struct CrossGroupEdge: Codable, Sendable, Equatable, Identifiable {
+    public let groupId: String
+    public let groupName: String
+    public let currency: String
+    public let amountMinor: Int64
+    /// `true` → the caller pays; `false` → the person pays the caller.
+    public let youPay: Bool
+    public let myMemberId: String
+    public let theirMemberId: String
+
+    public var id: String { "\(groupId)-\(currency)" }
+
+    public init(
+        groupId: String, groupName: String, currency: String, amountMinor: Int64,
+        youPay: Bool, myMemberId: String, theirMemberId: String
+    ) {
+        self.groupId = groupId
+        self.groupName = groupName
+        self.currency = currency
+        self.amountMinor = amountMinor
+        self.youPay = youPay
+        self.myMemberId = myMemberId
+        self.theirMemberId = theirMemberId
+    }
+}
+
+public struct CrossGroupPerson: Codable, Sendable, Equatable, Identifiable {
+    /// Opaque, server-assigned — never the Apple `sub`.
+    public let id: String
+    public let displayName: String
+    public let net: [CrossGroupNet]
+    /// The `groups` key on the wire — the per-group edges.
+    public let groups: [CrossGroupEdge]
+
+    public init(id: String, displayName: String, net: [CrossGroupNet], groups: [CrossGroupEdge]) {
+        self.id = id
+        self.displayName = displayName
+        self.net = net
+        self.groups = groups
+    }
+}
+
+public struct PeopleAcrossGroupsResponse: Decodable, Sendable {
+    public let people: [CrossGroupPerson]
+}
+
 // MARK: - GET /api/groups/:groupId/claimable
 
 public struct ClaimableMembersResponse: Decodable, Sendable {

@@ -123,6 +123,13 @@ public actor ClanTabClient {
         try await get("api/auth/groups", bearer: token)
     }
 
+    /// Cross-group settling: the net owed to/from each linked person across
+    /// shared groups (`FEATURE_BACKLOG.md`). "Settle All" then fires an ordinary
+    /// `addSettlement` per `CrossGroupEdge`.
+    public func peopleAcrossGroups(token: String) async throws -> PeopleAcrossGroupsResponse {
+        try await get("api/auth/people", bearer: token)
+    }
+
     /// Delete the account: every claimed membership reverts to a placeholder and
     /// the server-side index is wiped (§11). Groups and expenses are untouched.
     public func deleteAccount(token: String) async throws {

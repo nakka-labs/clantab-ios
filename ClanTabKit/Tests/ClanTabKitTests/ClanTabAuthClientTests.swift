@@ -109,6 +109,45 @@ struct ClanTabAuthClientTests {
         #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer sess.tok.en")
     }
 
+    @Test("peopleAcrossGroups decodes the aggregation + per-group edges")
+    func testPeopleAcrossGroups() async throws {
+        let body = jsonData([
+            "people": [[
+                "id": "abc123opaque",
+                "displayName": "Bob",
+                "net": [["currency": "INR", "netMinor": -300]],
+                "groups": [
+                    [
+                        "groupId": "g1", "groupName": "Goa", "currency": "INR",
+                        "amountMinor": 500, "youPay": false,
+                        "myMemberId": "m1", "theirMemberId": "m2",
+                    ],
+                    [
+                        "groupId": "g2", "groupName": "Flat", "currency": "INR",
+                        "amountMinor": 200, "youPay": true,
+                        "myMemberId": "m9", "theirMemberId": "m8",
+                    ],
+                ],
+            ]],
+        ])
+        let transport = FakeTransport(statusCode: 200, body: body)
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        let response = try await client.peopleAcrossGroups(token: "sess")
+
+        #expect(response.people.count == 1)
+        let bob = response.people[0]
+        #expect(bob.id == "abc123opaque")
+        #expect(bob.net == [CrossGroupNet(currency: "INR", netMinor: -300)])
+        #expect(bob.groups.count == 2)
+        #expect(bob.groups[0] == CrossGroupEdge(
+            groupId: "g1", groupName: "Goa", currency: "INR", amountMinor: 500,
+            youPay: false, myMemberId: "m1", theirMemberId: "m2"
+        ))
+        #expect(await transport.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/auth/people")
+        #expect(await transport.lastRequest?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
+    }
+
     @Test("an expired session surfaces as .server(INVALID_SESSION)")
     func testMyGroupsExpiredSession() async {
         let transport = FakeTransport(
