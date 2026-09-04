@@ -175,6 +175,65 @@ export class GroupDO extends DurableObject {
     return { member: this.insertMember(displayName, Date.now()) };
   }
 
+  /** Rename the group and/or change its default currency for *new* expenses.
+   * Existing expenses/settlements keep their own currency (multi-currency:
+   * the group currency is only a default — `DESIGN.md` §2). */
+  async updateGroup(patch: { name?: string; currency?: string }): Promise<{ group: GroupSummary }> {
+    if (patch.name !== undefined) this.setMeta(META_KEYS.name, patch.name);
+    if (patch.currency !== undefined) this.setMeta(META_KEYS.currency, patch.currency);
+    return { group: this.groupSummary() };
+  }
+
+  async renameMember(id: string, displayName: string): Promise<Result<{ member: Member }>> {
+    const found = this.sql.exec<MemberRow>("SELECT id FROM members WHERE id = ?", id).toArray();
+    if (found.length === 0) return fail("NOT_FOUND", `Member "${id}" is not in this group.`);
+    this.sql.exec("UPDATE members SET display_name = ? WHERE id = ?", displayName, id);
+    return ok({ member: { id, displayName } });
+  }
+
+  /** Remove a member — only if they have no activity, aren't linked to an
+   * account, and aren't the last member. Otherwise `MEMBER_IN_USE`. */
+  async removeMember(id: string): Promise<Result<{ removed: true }>> {
+    const rows = this.sql
+      .exec<MemberRow>("SELECT id, identity_sub FROM members WHERE id = ?", id)
+      .toArray();
+    if (rows.length === 0) return fail("NOT_FOUND", `Member "${id}" is not in this group.`);
+    if (rows[0]!.identity_sub !== null) {
+      return fail("MEMBER_IN_USE", "This member is linked to an account. That account must be deleted instead.");
+    }
+
+    const referenced = this.sql
+      .exec<{ n: number }>(
+        `SELECT
+           (SELECT COUNT(*) FROM expenses WHERE payer_id = ?)
+         + (SELECT COUNT(*) FROM expense_splits WHERE member_id = ?)
+         + (SELECT COUNT(*) FROM settlements WHERE from_id = ? OR to_id = ?) AS n`,
+        id,
+        id,
+        id,
+        id,
+      )
+      .toArray()[0]!.n;
+    if (referenced > 0) {
+      return fail("MEMBER_IN_USE", "This member is on expenses or settlements. Remove or reassign those first.");
+    }
+
+    const total = this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM members").toArray()[0]!.n;
+    if (total <= 1) return fail("MEMBER_IN_USE", "A group must keep at least one member.");
+
+    this.sql.exec("DELETE FROM members WHERE id = ?", id);
+    return ok({ removed: true });
+  }
+
+  private groupSummary(): GroupSummary {
+    return {
+      name: this.requireMeta(META_KEYS.name),
+      currency: this.requireMeta(META_KEYS.currency),
+      createdAt: this.requireMeta(META_KEYS.createdAt),
+      joinCode: this.requireMeta(META_KEYS.joinCode),
+    };
+  }
+
   // --- accounts / claim flow (ACCOUNTS_DESIGN.md §6) ----------------------
   // `GroupDO` is authoritative for membership↔identity; the Worker calls these
   // first, then updates the `UserDO` index. No wire route wired yet.
@@ -245,12 +304,7 @@ export class GroupDO extends DurableObject {
     const balances = computeBalances(members, expenses, settlements);
 
     return {
-      group: {
-        name: this.requireMeta(META_KEYS.name),
-        currency: this.requireMeta(META_KEYS.currency),
-        createdAt: this.requireMeta(META_KEYS.createdAt),
-        joinCode: this.requireMeta(META_KEYS.joinCode),
-      },
+      group: this.groupSummary(),
       members,
       expenses,
       settlements,

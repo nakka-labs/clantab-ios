@@ -17,9 +17,15 @@ async function put(path: string, body: unknown): Promise<{ status: number; json:
   return { status: res.status, json: res.status === 204 ? {} : ((await res.json()) as Json) };
 }
 
-async function del(path: string): Promise<{ status: number }> {
+async function patch(path: string, body: unknown): Promise<{ status: number; json: Json }> {
+  const res = await SELF.fetch(`${BASE}${path}`, { method: "PATCH", body: JSON.stringify(body) });
+  return { status: res.status, json: res.status === 204 ? {} : ((await res.json()) as Json) };
+}
+
+async function del(path: string): Promise<{ status: number; json: Json }> {
   const res = await SELF.fetch(`${BASE}${path}`, { method: "DELETE" });
-  return { status: res.status };
+  const text = await res.text();
+  return { status: res.status, json: text ? (JSON.parse(text) as Json) : {} };
 }
 
 async function get(path: string): Promise<{ status: number; text: string; json: Json; robots: string | null }> {
@@ -536,6 +542,85 @@ describe("edit / delete", () => {
       payerId: "a", amountMinor: 1, description: "x", date: "2026-01-01T12:00:00Z", splitType: "equal", splits: [],
     })).status).toBe(404);
     expect((await del("/api/groups/nope123/expenses/x")).status).toBe(404);
+  });
+});
+
+describe("group + member settings", () => {
+  let groupId: string;
+  let a: string;
+  let b: string;
+
+  beforeEach(async () => {
+    const g = await makeGroup();
+    groupId = g.groupId;
+    a = g.creatorId;
+    b = await addMember(groupId, "Ben");
+  });
+
+  it("PATCH /api/groups/:id renames and changes the default currency", async () => {
+    const { status, json } = await patch(`/api/groups/${groupId}`, { name: "Goa 2.0", currency: "USD" });
+    expect(status).toBe(200);
+    expect(json.group).toMatchObject({ name: "Goa 2.0", currency: "USD" });
+
+    const state = await get(`/api/groups/${groupId}`);
+    expect(state.json.group).toMatchObject({ name: "Goa 2.0", currency: "USD" });
+  });
+
+  it("PATCH /api/groups/:id changing currency doesn't touch existing expenses", async () => {
+    await post(`/api/groups/${groupId}/expenses`, {
+      payerId: a, amountMinor: 1000, description: "INR lunch", date: "2026-01-01T12:00:00Z",
+      splitType: "equal", splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
+    });
+    await patch(`/api/groups/${groupId}`, { currency: "USD" });
+
+    const state = await get(`/api/groups/${groupId}`);
+    expect((state.json.expenses as Json[])[0]!.currency).toBe("INR");
+  });
+
+  it("PATCH /api/groups/:id with no fields → 400", async () => {
+    expect((await patch(`/api/groups/${groupId}`, {})).status).toBe(400);
+  });
+
+  it("PATCH a member renames them", async () => {
+    const { status, json } = await patch(`/api/groups/${groupId}/members/${b}`, { displayName: "Benjamin" });
+    expect(status).toBe(200);
+    expect(json.member).toEqual({ id: b, displayName: "Benjamin" });
+
+    const state = await get(`/api/groups/${groupId}`);
+    expect((state.json.members as Json[]).find((m) => m.id === b)?.displayName).toBe("Benjamin");
+  });
+
+  it("PATCH an unknown member → 404 NOT_FOUND", async () => {
+    const { status, json } = await patch(`/api/groups/${groupId}/members/ghost`, { displayName: "x" });
+    expect(status).toBe(404);
+    expect((json.error as Json).code).toBe("NOT_FOUND");
+  });
+
+  it("DELETE a member with no activity → 204", async () => {
+    const c = await addMember(groupId, "Cara");
+    expect((await del(`/api/groups/${groupId}/members/${c}`)).status).toBe(204);
+    const state = await get(`/api/groups/${groupId}`);
+    expect((state.json.members as Json[]).map((m) => m.id)).not.toContain(c);
+  });
+
+  it("DELETE a member who's on an expense → 409 MEMBER_IN_USE", async () => {
+    await post(`/api/groups/${groupId}/expenses`, {
+      payerId: a, amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
+      splitType: "equal", splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
+    });
+    const { status, json } = await del(`/api/groups/${groupId}/members/${b}`);
+    expect(status).toBe(409);
+    expect((json.error as Json).code).toBe("MEMBER_IN_USE");
+  });
+
+  it("DELETE the last member → 409 MEMBER_IN_USE", async () => {
+    const { groupId: solo, creatorId } = await makeGroup();
+    const { status } = await del(`/api/groups/${solo}/members/${creatorId}`);
+    expect(status).toBe(409);
+  });
+
+  it("DELETE an unknown member → 404", async () => {
+    expect((await del(`/api/groups/${groupId}/members/ghost`)).status).toBe(404);
   });
 });
 

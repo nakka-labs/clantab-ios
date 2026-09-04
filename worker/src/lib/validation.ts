@@ -11,6 +11,8 @@ export type ValidationCode =
   | "INVALID_AMOUNT"
   // edit / delete: the expense or settlement id in the path doesn't exist
   | "NOT_FOUND"
+  // a member can't be removed — it has activity, is claimed, or is the last one
+  | "MEMBER_IN_USE"
   // accounts / claim flow (ACCOUNTS_DESIGN.md §6)
   | "ALREADY_CLAIMED"
   | "IDENTITY_ALREADY_IN_GROUP";

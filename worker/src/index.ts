@@ -50,7 +50,10 @@ const ROUTES: Route[] = [
   route("POST", "/api/groups", handleCreateGroup),
   route("GET", "/api/groups/resolve/:joinCode", handleResolveJoinCode),
   route("POST", "/api/groups/:groupId/members", handleJoinGroup),
+  route("PATCH", "/api/groups/:groupId/members/:memberId", handleRenameMember),
+  route("DELETE", "/api/groups/:groupId/members/:memberId", handleRemoveMember),
   route("GET", "/api/groups/:groupId", handleGetState),
+  route("PATCH", "/api/groups/:groupId", handleUpdateGroup),
   route("POST", "/api/groups/:groupId/expenses", handleAddExpense),
   route("PUT", "/api/groups/:groupId/expenses/:expenseId", handleUpdateExpense),
   route("DELETE", "/api/groups/:groupId/expenses/:expenseId", handleDeleteExpense),
@@ -145,6 +148,32 @@ async function handleGetState(_request: Request, env: Env, params: Params): Prom
   return json(200, await group.getState());
 }
 
+async function handleUpdateGroup(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(env, params.groupId ?? "");
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["name", "currency"]);
+  const name = optionalString(body, "name");
+  const currency = optionalString(body, "currency");
+  if (name === undefined && currency === undefined) {
+    throw new BadRequestError('Provide "name" and/or "currency".');
+  }
+  return json(200, await group.updateGroup({ name, currency }));
+}
+
+async function handleRenameMember(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(env, params.groupId ?? "");
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["displayName"]);
+  const result = await group.renameMember(params.memberId ?? "", requireString(body, "displayName"));
+  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+}
+
+async function handleRemoveMember(_request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(env, params.groupId ?? "");
+  const result = await group.removeMember(params.memberId ?? "");
+  return result.ok ? new Response(null, { status: 204 }) : domainErrorResponse(result.error);
+}
+
 /** Parse an expense request body. `allowId` is true only for `POST` (the
  * idempotency key); on `PUT` the id lives in the path and a body `id` is rejected. */
 function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddExpenseRequest {
@@ -197,10 +226,11 @@ function parseSettlementBody(body: Record<string, unknown>, allowId: boolean): A
   };
 }
 
-/** A `Result` domain error → HTTP status: `NOT_FOUND` is a 404, everything else
- * (bad split, unknown member, …) is a 400. */
+/** A `Result` domain error → HTTP status: `NOT_FOUND` → 404, `MEMBER_IN_USE` →
+ * 409, everything else (bad split, unknown split member, …) → 400. */
 function domainErrorResponse(error: { code: string; message: string }): Response {
-  return json(error.code === "NOT_FOUND" ? 404 : 400, { error });
+  const status = error.code === "NOT_FOUND" ? 404 : error.code === "MEMBER_IN_USE" ? 409 : 400;
+  return json(status, { error });
 }
 
 async function handleAddExpense(request: Request, env: Env, params: Params): Promise<Response> {
