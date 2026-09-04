@@ -4,8 +4,8 @@ The Cloudflare Worker + Durable Objects backend. Contract: `../DESIGN.md` §2-§
 (guest routes) and §13 (accounts / auth). Plan / status: `../BACKEND_PLAN.md`.
 Accounts rationale: `../ACCOUNTS_DESIGN.md`.
 
-**Deployed:** `https://clantab.nakka-labs.workers.dev`
-(accounts routes ship on the next deploy)
+**Deployed:** `https://clantab.nakka-labs.workers.dev` — accounts routes live
+since 2026-09-04 (`SESSION_SIGNING_KEY` is a real secret).
 
 ## Layout
 

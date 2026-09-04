@@ -20,12 +20,17 @@ features and the accounts phase have shipped **in code** (all on `main`,
   (`KnownGroupsStore`), "This is me" claim flow, one-time sync nudge, Settings +
   Delete Account. Full build log: `ACCOUNTS_DESIGN.md` §14. Worker is at **103
   tests**; ClanTabKit ~110; ClanTabTests ~49.
-- **Not done — owner tasks** (`ACCOUNTS_DESIGN.md` §16 / `READINESS_CHECKLIST.md`):
-  deploy the worker (the live instance is still pre-accounts) +
-  `wrangler secret put SESSION_SIGNING_KEY`; enable Sign in with Apple on the
-  App ID; add the `SIWA_*` secrets + wire Apple token revocation into
-  `DELETE /api/auth/account`; TestFlight pass on a real device (SIWA can't run
-  in the simulator); privacy-policy + App Privacy updates for SIWA.
+- **Owner tasks** (`ACCOUNTS_DESIGN.md` §16 / `READINESS_CHECKLIST.md`):
+  - ✅ Worker deployed with accounts routes + a real `SESSION_SIGNING_KEY`
+    secret (2026-09-04); `/api/auth/*` verified live.
+  - ✅ Sign in with Apple enabled on the `com.clantab.app` App ID + confirmed
+    in Xcode's Signing & Capabilities.
+  - ⬜ TestFlight pass on a real device (Sign in with Apple can't run in the
+    simulator) — this is the real end-to-end check of steps 6a–6f.
+  - ⬜ Apple token revocation on account deletion: create a Services ID + `.p8`
+    key, set the `SIWA_*` secrets, wire `POST .../auth/revoke` into
+    `DELETE /api/auth/account`. **Submission prerequisite only** (not TestFlight).
+  - ⬜ Privacy policy + App Store Connect App Privacy answers updated for SIWA.
 
 The 2026-08-31 block and everything below it is still accurate as history.
 

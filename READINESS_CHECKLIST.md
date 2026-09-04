@@ -57,10 +57,13 @@ unresolved, see backlog).
   2026-09-03** (`ACCOUNTS_DESIGN.md` §14: worker steps 1–5, iOS steps
   6a–6f, docs step 7 all ✅; `DESIGN.md` §13 is the wire contract).
   Remaining before this can ship — all owner tasks, not code:
-  - Deploy the worker (`make worker-deploy`) + `wrangler secret put SESSION_SIGNING_KEY`.
-  - Enable the Sign in with Apple capability on the `com.clantab.app` App ID.
+  - ~~Deploy the worker + `wrangler secret put SESSION_SIGNING_KEY`~~ — done
+    2026-09-04, `/api/auth/*` verified live.
+  - ~~Enable the Sign in with Apple capability on the `com.clantab.app` App ID~~
+    — done, confirmed in Xcode.
   - Add the `SIWA_*` secrets and wire `POST .../auth/revoke` into
-    `DELETE /api/auth/account` (Apple mandates token revocation on deletion).
+    `DELETE /api/auth/account` (Apple mandates token revocation on deletion —
+    **submission only**, not TestFlight).
   - TestFlight pass on a real device (SIWA can't be driven in the simulator).
 - Cross-group settling with a person — enabled by the `UserDO` index,
   still not built (deliberately, `ACCOUNTS_DESIGN.md` §12).

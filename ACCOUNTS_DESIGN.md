@@ -514,11 +514,11 @@ sessions; step 7 ≈ half a session.
 
 ## 16. Not code — owner tasks before accounts can ship
 
-1. ~~**Deploy the worker**~~ — done 2026-09-04 (`make worker-deploy`; accounts
-   routes verified live). `wrangler secret put SESSION_SIGNING_KEY` must be
-   **re-run once** after the wrangler.jsonc fix (the first deploy's `vars` entry
-   had overwritten the secret with the repo's dev value — no session tokens had
-   been minted, so no exposure), then redeploy so a real secret is in effect.
+1. ~~**Deploy the worker**~~ — done 2026-09-04. `make worker-deploy` +
+   `wrangler secret put SESSION_SIGNING_KEY` (a real secret now — see the
+   wrangler.jsonc note). Verified live: `/api/auth/*` reject bad tokens with
+   401 `INVALID_APPLE_TOKEN` / `INVALID_SESSION` (no 500 → the signing key is
+   in effect), and the guest routes are untouched.
 2. **Enable Sign in with Apple** on the `com.clantab.app` App ID in the Apple
    Developer portal (the entitlement is in `project.yml`, but the capability
    must be turned on server-side too).
