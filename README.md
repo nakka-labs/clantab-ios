@@ -105,6 +105,7 @@ clantab-ios/
 ├── .githooks/pre-push   # local build/test gate (fast feedback, no CI wait) — `make hooks`
 ├── DESIGN.md            # the wire / storage / security contract (§13 = accounts)
 ├── ACCOUNTS_DESIGN.md   # optional Sign in with Apple: rationale, threat model, build log
+├── NEXT_STEPS.md        # the running "what's left" checklist (index into the below)
 ├── PLAN.md · BACKEND_PLAN.md · SHIP_PLAN.md   # roadmaps: app · backend · shipping
 └── HANDOFF.md           # running status log
 ```
