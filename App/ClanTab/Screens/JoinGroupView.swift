@@ -63,6 +63,7 @@ struct JoinGroupView: View {
                 Button("Cancel", action: onCancel)
             }
         }
+        .dismissibleKeyboard()
     }
 
     private func resolveCode() async {

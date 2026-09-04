@@ -165,6 +165,7 @@ struct AddExpenseView: View {
                 Button("Cancel", action: onCancel)
             }
         }
+        .dismissibleKeyboard()
     }
 
     /// Broken out of `body` on its own: a `switch` mixed directly into a

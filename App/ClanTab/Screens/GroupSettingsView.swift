@@ -104,6 +104,7 @@ struct GroupSettingsView: View {
                     .disabled(isBusy || !isDirty || trimmedName.isEmpty)
             }
         }
+        .dismissibleKeyboard()
         .alert(
             "Rename Member",
             isPresented: Binding(get: { renamingMember != nil }, set: { if !$0 { renamingMember = nil } }),

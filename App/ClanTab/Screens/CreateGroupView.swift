@@ -48,6 +48,7 @@ struct CreateGroupView: View {
                 }
             }
         }
+        .dismissibleKeyboard()
     }
 
     private var form: some View {
