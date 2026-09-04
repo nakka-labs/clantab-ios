@@ -45,12 +45,16 @@ Detail: `ACCOUNTS_DESIGN.md` §16.
 
 - [x] ~~Edit / delete an expense or settlement~~ — shipped 2026-09-04
       (`DESIGN.md` §2 PUT/DELETE; swipe-to-delete + tap-to-edit in the app).
-- [ ] **Rename a group / change its default currency** — set at creation,
-      immutable after.
-- [ ] **Rename or remove a member** — members can only be added; a typo or a
-      duplicate placeholder is permanent.
-- [ ] **Manually leave / remove a group from your device's list** — today a
-      group is only dropped on a 404.
+- [x] ~~Rename a group / change its default currency~~ — shipped 2026-09-04
+      (`PATCH /api/groups/:id`; Group Settings screen).
+- [x] ~~Rename or remove a member~~ — shipped 2026-09-04 (`PATCH` / `DELETE`
+      `.../members/:id`; remove is blocked with `MEMBER_IN_USE` when the member
+      has activity, is claimed, or is the last one).
+- [x] ~~Manually leave / remove a group from your device's list~~ — shipped
+      2026-09-04 ("Leave This Group" in Group Settings; "Remove from This
+      Device" context menu on the start-screen list — both device-local).
+
+*(Section 2 is done — leaving it here as the record.)*
 
 ---
 

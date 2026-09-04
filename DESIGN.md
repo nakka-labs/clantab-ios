@@ -43,13 +43,34 @@ The only Registry-backed route. Used only by the "I was told a code, not a link"
 Response: 200 { groupId }  |  404 if unknown
 ```
 
+### `PATCH /api/groups/:groupId`
+```
+Request:  { name?: string, currency? }   (at least one; unknown keys rejected)
+Response: 200 { group: {...} }            the updated GroupSummary
+```
+Renames the group and/or changes its **default** currency for new expenses.
+Existing expenses/settlements keep their own currency (§ multi-currency — the
+group currency is only a default).
+
 ### `POST /api/groups/:groupId/members`
-Join an existing group.
+Join an existing group (also how the app adds a placeholder member).
 ```
 Request:  { displayName: string }
 Response: 201 { member: { id, displayName } }
 Errors:   404 GROUP_NOT_FOUND
 ```
+
+### `PATCH /api/groups/:groupId/members/:memberId` · `DELETE .../members/:memberId`
+```
+PATCH   { displayName }  → 200 { member }
+DELETE                   → 204
+Errors: 404 NOT_FOUND        — no such member in this group
+        409 MEMBER_IN_USE    — (DELETE only) the member is on an expense/split/
+                               settlement, is linked to an account, or is the
+                               group's last member
+```
+Renaming is cosmetic — every record keys off `memberId`. A member can only be
+removed once they have zero activity.
 
 ### `GET /api/groups/:groupId`
 The single "give me everything" endpoint. Called on load and after every mutation — this is the entire sync model (§ per `PLAN.md` §0: fetch-on-load/refetch, no WebSocket in v1). Balances and the simplified settle-up list are computed **server-side**, inside the DO, so that logic exists in exactly one place (`worker/lib/balances.ts` and `simplify.ts`) and the client never reimplements it.
@@ -325,11 +346,15 @@ The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the acco
 - ~~**percentage/shares splitting**~~ — **shipped** (2026-09-01). `splitType` now includes `"percentage"`; the client resolves percentages to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.percentageSplit`), so it's a UI/label change only — the wire contract and balance math are unchanged. See §2, §6, §10 (schema v2).
 - ~~**multi-currency**~~ — **shipped** (2026-09-01). A group holds expenses in any currency; balances and the settle-up plan are computed per currency and never blended (no FX conversion — that stays a hard non-goal). `currency` on expenses/settlements (schema v4), on `Balance`/`SimplifiedSettlement`; the group's `currency` is now just the default for new expenses. See §2, §3, §10.
 - FX conversion, recurring expenses, receipt OCR — still out of scope per `PLAN.md` §1, listed here only so nobody mistakes their absence in this doc for an oversight
-- ~~**No way to edit or delete an expense / settlement**~~ — **shipped**
-  (2026-09-04). `PUT` (full replacement, preserves feed order) and `DELETE`
-  (idempotent) on `.../expenses/:id` and `.../settlements/:id` (§2). iOS:
-  swipe-to-delete with a confirmation, tap-an-expense to edit in the same form.
-  Editing a member, renaming a group, and removing a member are still not built.
+- ~~**No way to edit or delete an expense / settlement; no way to rename a
+  group / member or remove a member**~~ — **shipped** (2026-09-04). `PUT`
+  (full replacement, preserves feed order) + `DELETE` (idempotent) on
+  `.../expenses/:id` and `.../settlements/:id`; `PATCH /api/groups/:id`
+  (name / default currency); `PATCH` / `DELETE` on `.../members/:id`
+  (rename; remove when unused → else `MEMBER_IN_USE`). All §2. iOS:
+  swipe-to-delete + tap-to-edit on the activity feed; a "Group Settings"
+  screen for the rest; "Leave This Group" (device-local) + a context-menu
+  remove on the start-screen list.
 - ~~A "merge my old entries" flow for someone who loses local storage and rejoins as a new member~~ — **partly addressed** by the claim flow (`ACCOUNTS_DESIGN.md` §6): a signed-in user opening an invite link picks "This is me" and links the existing placeholder member instead of creating a duplicate. A true merge of two already-separate members is still not built.
 - ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03). Optional Sign in with Apple; guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session tokens; `/api/auth/*` + `claim` routes (§13). Cross-group netting ("settle across all groups with Bob") is *enabled* by the `UserDO` index but deliberately **not** built (`ACCOUNTS_DESIGN.md` §12).
 - Apple server-to-server token revocation on account deletion (`POST https://appleid.apple.com/auth/revoke`) — required before App Store submission, needs the `SIWA_*` signing-key secrets; the `DELETE /api/auth/account` route stubs it with a TODO today (`ACCOUNTS_DESIGN.md` §11)

@@ -52,14 +52,16 @@
 
 ## Shipped
 
-- ~~**Edit / delete an expense or settlement.**~~ **Shipped 2026-09-04.** Not in
-  the original backlog — a plain functional gap (once added, an entry could
-  never be fixed or removed). `PUT` (full replacement, preserves activity-feed
-  order) + `DELETE` (idempotent) on `.../expenses/:id` and `.../settlements/:id`
-  (`DESIGN.md` §2). iOS: swipe-to-delete with a confirmation dialog; tap an
-  expense row to edit it in the same form (`AddExpenseView` gained an `editing:`
-  mode). Same trust model — `groupId` possession, no per-member gate. Still not
-  built: editing a member, renaming a group, removing a member.
+- ~~**Edit / delete an expense or settlement; rename a group / member; remove a
+  member; leave a group.**~~ **Shipped 2026-09-04.** Not in the original
+  backlog — plain functional gaps. `PUT`+`DELETE` on `.../expenses/:id` and
+  `.../settlements/:id` (full replacement, preserves feed order; idempotent
+  delete); `PATCH /api/groups/:id` (name / default currency); `PATCH`+`DELETE`
+  on `.../members/:id` (rename; remove only when unused → else `MEMBER_IN_USE`).
+  All `DESIGN.md` §2, same `groupId`-possession trust model. iOS:
+  swipe-to-delete + tap-to-edit on the feed; a Group Settings screen for the
+  rest; "Leave This Group" + a start-screen context-menu remove, both
+  device-local.
 - ~~**Multi-currency (no auto-conversion).**~~ **Shipped 2026-09-01.** `currency`
   on expenses + settlements (schema v4, `ADD COLUMN` + backfill from the group
   currency); `Balance` and `SimplifiedSettlement` gained `currency`.

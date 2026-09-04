@@ -29,7 +29,7 @@ test/               logic + validation (Node) · registry/group/routes/user/auth
 | | |
 |---|---|
 | `npm ci` | install (Node 20+) |
-| `npm test` | Vitest — 111 tests (pure + `@cloudflare/vitest-pool-workers` integration) |
+| `npm test` | Vitest — 120 tests (pure + `@cloudflare/vitest-pool-workers` integration) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run dev` | `wrangler dev` on `:8787` |
 | `npm run deploy` | `wrangler deploy` (needs `wrangler login`) |
