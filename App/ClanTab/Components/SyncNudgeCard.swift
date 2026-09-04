@@ -4,7 +4,7 @@ import SwiftUI
 /// (`ACCOUNTS_DESIGN.md` §10). Shown once, to a guest, at their 2nd group or 7
 /// days of use — dismissable, and never shown again after that.
 struct SyncNudgeCard: View {
-    var onCredential: (_ identityToken: String, _ userID: String) -> Void
+    var onCredential: (_ identityToken: String, _ userID: String, _ authorizationCode: String?) -> Void
     var onFailure: (_ message: String) -> Void
     var onDismiss: () -> Void
 

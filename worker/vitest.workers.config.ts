@@ -10,6 +10,7 @@ export default defineWorkersProject({
       "test/user.test.ts",
       "test/auth.test.ts",
       "test/auth-routes.test.ts",
+      "test/apple-oauth.test.ts",
     ],
     poolOptions: {
       workers: {

@@ -19,9 +19,11 @@ src/
 ├── user-do.ts      UserDO      — one per Apple sub; thin self-healing group index
 ├── types.ts        wire DTOs (mirror ClanTabKit's ClanTabWireTypes.swift)
 └── lib/            balances / simplify / validation (ports of ClanTabKit Logic/),
-                    apple-auth (Apple JWKS verify), session (HS256 session JWT),
-                    base64url, ids, schema (SQL DDL), parse, errors, result
-test/               logic + validation (Node) · registry/group/routes/user/auth (workers pool)
+                    apple-auth (Apple JWKS verify), apple-oauth (code exchange +
+                    token revocation), session (HS256 session JWT), base64url,
+                    ids, schema (SQL DDL), parse, errors, result
+test/               logic + validation (Node) · registry/group/routes/user/auth/
+                    apple-oauth (workers pool)
 ```
 
 ## Commands (`make worker-*` from the repo root, or directly here)
@@ -29,7 +31,7 @@ test/               logic + validation (Node) · registry/group/routes/user/auth
 | | |
 |---|---|
 | `npm ci` | install (Node 20+) |
-| `npm test` | Vitest — 120 tests (pure + `@cloudflare/vitest-pool-workers` integration) |
+| `npm test` | Vitest — 128 tests (pure + `@cloudflare/vitest-pool-workers` integration) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run dev` | `wrangler dev` on `:8787` |
 | `npm run deploy` | `wrangler deploy` (needs `wrangler login`) |
@@ -50,9 +52,11 @@ test/               logic + validation (Node) · registry/group/routes/user/auth
   every `wrangler deploy`, so it's a real secret in prod
   (`wrangler secret put SESSION_SIGNING_KEY`), `worker/.dev.vars` (gitignored,
   see `.dev.vars.example`) for `wrangler dev`, and a fixed value in
-  `vitest.workers.config.ts` for tests. The `SIWA_*` secrets for Apple token
-  revocation on account deletion aren't set yet — a submission prerequisite;
-  `DELETE /api/auth/account` stubs revocation with a TODO.
+  `vitest.workers.config.ts` for tests. `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` /
+  `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` (all four or none) drive the Apple
+  authorization-code exchange + token revocation on account deletion
+  (`lib/apple-oauth.ts`) — the code is done and inert until the secrets are set;
+  a submission prerequisite (`ACCOUNTS_DESIGN.md` §16).
 - **Auth is additive** — the group routes are still `groupId`-possession only.
   Never add a session check to them.
 - `GET /g/:groupId` is a stub landing page (noindex + app deep link). A real page +

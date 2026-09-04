@@ -28,9 +28,9 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         AppleSignInButton(
-                            onCredential: { token, userID in
+                            onCredential: { token, userID, authCode in
                                 sheetError = nil
-                                Task { await auth.signIn(identityToken: token, userID: userID) }
+                                Task { await auth.signIn(identityToken: token, userID: userID, authorizationCode: authCode) }
                             },
                             onFailure: { sheetError = $0 }
                         )

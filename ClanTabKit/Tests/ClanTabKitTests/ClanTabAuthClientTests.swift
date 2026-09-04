@@ -41,7 +41,19 @@ struct ClanTabAuthClientTests {
         #expect(request?.httpMethod == "POST")
         #expect(request?.url?.absoluteString == "https://clantab.example.com/api/auth/apple")
         #expect(decodeBody(request)["identityToken"] as? String == "apple.jwt.here")
+        #expect(decodeBody(request)["authorizationCode"] == nil) // omitted when not provided
         #expect(request?.value(forHTTPHeaderField: "Authorization") == nil)
+    }
+
+    @Test("signInWithApple includes the authorizationCode when given")
+    func testSignInWithAuthCode() async throws {
+        let transport = FakeTransport(
+            statusCode: 200,
+            body: jsonData(["sessionToken": "s", "expiresAt": "2026-10-03T10:00:00Z", "groups": [] as [Any]])
+        )
+        _ = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .signInWithApple(identityToken: "jwt", authorizationCode: "code-abc")
+        #expect(decodeBody(await transport.lastRequest)["authorizationCode"] as? String == "code-abc")
     }
 
     @Test("an unverifiable Apple token surfaces as .server(INVALID_APPLE_TOKEN)")

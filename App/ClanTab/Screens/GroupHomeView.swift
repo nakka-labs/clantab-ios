@@ -46,9 +46,9 @@ struct GroupHomeView: View {
             if auth.shouldShowSyncNudge() {
                 Section {
                     SyncNudgeCard(
-                        onCredential: { token, userID in
+                        onCredential: { token, userID, authCode in
                             nudgeError = nil
-                            Task { await auth.signIn(identityToken: token, userID: userID) }
+                            Task { await auth.signIn(identityToken: token, userID: userID, authorizationCode: authCode) }
                         },
                         onFailure: { nudgeError = $0 },
                         onDismiss: { auth.dismissSyncNudge() }

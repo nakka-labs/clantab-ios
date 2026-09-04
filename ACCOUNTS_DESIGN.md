@@ -306,14 +306,25 @@ opening a link while signed in.
 DELETE /api/auth/account        (Bearer)
 ```
 
-1. `UserDO.listGroups()` → `[(groupId, memberId)]`.
-2. For each: `GroupDO.unclaim(memberId, sub)` — set `identity_sub = NULL`.
+1. **Revoke the Apple token** (best effort): `UserDO.refreshToken()`; if set and
+   the `SIWA_*` config is present, `POST https://appleid.apple.com/auth/revoke`
+   with an ES256 `client_secret` JWT. A failure is logged, not fatal — Apple
+   being unreachable must not block the user's deletion.
+2. `UserDO.listGroups()` → `[(groupId, memberId)]`.
+3. For each: `GroupDO.unclaim(memberId, sub)` — set `identity_sub = NULL`.
    **The member row, its name, and all its expenses/settlements stay.**
    The member reverts to a re-claimable placeholder; other members'
    balances are untouched.
-3. `UserDO.deleteAll()` — a future sign-in with the same Apple ID starts
-   fresh.
-4. `→ 204`.
+4. `UserDO.deleteAll()` — a future sign-in with the same Apple ID starts
+   fresh (also drops the stored refresh token).
+5. `→ 204`.
+
+The refresh token comes from the sign-in flow: `POST /api/auth/apple` now also
+accepts `authorizationCode` (from the same `ASAuthorizationAppleIDCredential`),
+and — when `SIWA_*` is configured — exchanges it at
+`https://appleid.apple.com/auth/token` for a refresh token stored in the
+`UserDO`. All of this is behind the config check, so sign-in and deletion work
+unchanged until the secrets are provisioned (`lib/apple-oauth.ts`).
 
 **"Only claimed member vs. others still active" — it doesn't matter.**
 Deletion never touches shared ledger data. A group where the deleted
@@ -321,12 +332,11 @@ account was the only claimed member goes back to all-placeholders
 (today's model); a group with other claimed members loses nothing except
 that one member reverting to a placeholder.
 
-**Also required for App Store submission:** Apple mandates revoking the
-Sign in with Apple token on account deletion
-(`POST https://appleid.apple.com/auth/revoke`). This needs Apple Developer
-config — a Services ID, a Key ID, and a `.p8` signing key — set as Worker
-secrets. No cost, but it's a prerequisite for the submission, not
-optional.
+**Code done 2026-09-04** (`lib/apple-oauth.ts` + the `authorizationCode`
+plumbing). Still needs the Apple Developer config to actually fire: a
+**Services ID** (`SIWA_SERVICES_ID` — not the bundle id), **Team ID**, **Key
+ID**, and a **`.p8`** key, set as the `SIWA_*` Worker secrets. A submission
+prerequisite; harmlessly inert until then.
 
 **App:** Settings → "Delete Account" → confirmation ("Your groups and
 expenses stay. You'll lose cross-device sync and can't recover this
@@ -379,8 +389,9 @@ optional `Bearer` for future use, but needs nothing today.)
 - ~~`APPLE_KEYS` — KV namespace (JWKS cache).~~ Dropped — replaced by an
   in-process module-level cache (step 3).
 - `SIWA_SERVICES_ID`, `SIWA_TEAM_ID`, `SIWA_KEY_ID`, `SIWA_PRIVATE_KEY` —
-  secrets, for token revocation on account deletion. ⬜ **prerequisite for
-  submission** (the `DELETE` route stubs revocation with a TODO today).
+  secrets, for token revocation on account deletion. Code done 2026-09-04
+  (`lib/apple-oauth.ts`); ⬜ the four secrets are a **submission prerequisite**
+  — revocation is inert until they're set.
 
 ---
 
@@ -519,13 +530,18 @@ sessions; step 7 ≈ half a session.
    wrangler.jsonc note). Verified live: `/api/auth/*` reject bad tokens with
    401 `INVALID_APPLE_TOKEN` / `INVALID_SESSION` (no 500 → the signing key is
    in effect), and the guest routes are untouched.
-2. **Enable Sign in with Apple** on the `com.clantab.app` App ID in the Apple
-   Developer portal (the entitlement is in `project.yml`, but the capability
-   must be turned on server-side too).
-3. **Apple token revocation** — create a Services ID + Key ID + `.p8`, set
-   `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` as
-   Worker secrets, and wire `POST https://appleid.apple.com/auth/revoke` into
-   `DELETE /api/auth/account` (§11 — Apple mandates this for submission).
+2. ~~**Enable Sign in with Apple**~~ on the `com.clantab.app` App ID — done,
+   confirmed in Xcode.
+3. **Apple token revocation** — the code is done (`lib/apple-oauth.ts`,
+   `authorizationCode` plumbing, `DELETE /api/auth/account` calls `revokeToken`).
+   What's left is the Apple config: in the Developer portal create a **Services
+   ID** (e.g. `com.clantab.app.signin` — must differ from the bundle id), a
+   **Key** with "Sign in with Apple" enabled (download the `.p8`, note the Key
+   ID), then set the four Worker secrets:
+   `echo -n "<value>" | npx wrangler secret put SIWA_SERVICES_ID` (repeat for
+   `SIWA_TEAM_ID` = `UK652GNPP7`, `SIWA_KEY_ID`;
+   `npx wrangler secret put SIWA_PRIVATE_KEY < AuthKey_XXXX.p8`), then
+   `make worker-deploy`. Revocation activates automatically once all four exist.
 4. **TestFlight pass on a real device** — the Sign in with Apple sheet, the
    claim flow, and `getCredentialState` can't be exercised in the simulator.
 5. **Privacy** — update `docs/privacy-policy.md` and the App Store Connect App

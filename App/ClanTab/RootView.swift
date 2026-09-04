@@ -55,8 +55,8 @@ struct RootView: View {
                 isSignedIn: auth.isSignedIn,
                 isSigningIn: auth.isBusy,
                 authError: auth.errorMessage,
-                onSignIn: { identityToken, userID in
-                    Task { await auth.signIn(identityToken: identityToken, userID: userID) }
+                onSignIn: { identityToken, userID, authCode in
+                    Task { await auth.signIn(identityToken: identityToken, userID: userID, authorizationCode: authCode) }
                 },
                 onOpenSettings: { showingSettings = true }
             )

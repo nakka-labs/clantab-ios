@@ -47,6 +47,21 @@ describe("UserDO", () => {
     expect((await u.listGroups()).groups.map((g) => g.groupId)).toEqual(["g2"]);
   });
 
+  it("stores and clears the Apple refresh token", async () => {
+    const u = user("sub-rt");
+    await u.ensureExists("sub-rt");
+    expect(await u.refreshToken()).toBeNull();
+
+    await u.setRefreshToken("rt-abc");
+    expect(await u.refreshToken()).toBe("rt-abc");
+
+    await u.setRefreshToken("rt-def"); // overwrites on re-sign-in
+    expect(await u.refreshToken()).toBe("rt-def");
+
+    await u.deleteAll();
+    expect(await u.refreshToken()).toBeNull();
+  });
+
   it("deleteAll wipes the identity — exists() goes false, groups empty", async () => {
     const u = user("sub-delete");
     await u.ensureExists("sub-delete");

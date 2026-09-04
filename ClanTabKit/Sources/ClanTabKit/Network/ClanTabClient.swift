@@ -103,9 +103,13 @@ public actor ClanTabClient {
     // MARK: - Accounts (ACCOUNTS_DESIGN.md §5–§7, §11)
 
     /// Exchange an Apple identity token for a session token + the identity's
-    /// group list. Called once per sign-in.
-    public func signInWithApple(identityToken: String) async throws -> SessionResponse {
-        try await post("api/auth/apple", body: AppleSignInRequest(identityToken: identityToken))
+    /// group list. Called once per sign-in. `authorizationCode` (from the same
+    /// credential) lets the server set up revocation for account deletion.
+    public func signInWithApple(identityToken: String, authorizationCode: String? = nil) async throws -> SessionResponse {
+        try await post(
+            "api/auth/apple",
+            body: AppleSignInRequest(identityToken: identityToken, authorizationCode: authorizationCode)
+        )
     }
 
     /// Trade a still-valid session token for a fresh one (§3). The app calls this

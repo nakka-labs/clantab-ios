@@ -6,7 +6,7 @@ import SwiftUI
 /// neither email nor name). A user cancelling the sheet is silent; anything
 /// else calls `onFailure` with a short message.
 struct AppleSignInButton: View {
-    var onCredential: (_ identityToken: String, _ userID: String) -> Void
+    var onCredential: (_ identityToken: String, _ userID: String, _ authorizationCode: String?) -> Void
     var onFailure: (_ message: String) -> Void = { _ in }
 
     @Environment(\.colorScheme) private var colorScheme
@@ -31,7 +31,8 @@ struct AppleSignInButton: View {
                 onFailure("Apple didn't return a usable sign-in. Please try again.")
                 return
             }
-            onCredential(identityToken, credential.user)
+            let authorizationCode = credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
+            onCredential(identityToken, credential.user, authorizationCode)
         case .failure(let error):
             if (error as? ASAuthorizationError)?.code == .canceled { return }
             onFailure("Sign in didn't complete. Please try again.")

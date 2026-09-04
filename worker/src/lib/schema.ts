@@ -77,6 +77,10 @@ export const USER_META_KEYS = {
   appleSub: "apple_sub",
   createdAt: "created_at",
   schemaVersion: "schema_version",
+  /** Apple refresh token, from the sign-in `authorizationCode` exchange — used
+   * to revoke on account deletion (Apple Guideline 5.1.1(v)). Only present when
+   * the `SIWA_*` config is configured. */
+  appleRefreshToken: "apple_refresh_token",
 } as const;
 
 export const USER_SCHEMA_VERSION = "1";

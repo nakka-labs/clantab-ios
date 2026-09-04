@@ -16,20 +16,22 @@ Detail: `ACCOUNTS_DESIGN.md` §16.
       (2026-09-04, `/api/auth/*` verified live).
 - [x] **Enable Sign in with Apple** on the `com.clantab.app` App ID + confirm in
       Xcode.
-- [ ] **Re-deploy the worker** for the edit/delete routes (`make worker-deploy` —
-      the live instance predates commit `ccf634e`).
+- [x] **Re-deploy the worker** for the edit/delete + settings routes
+      (2026-09-04, verified live).
 - [ ] **Apple token revocation on account deletion** (Apple Guideline 5.1.1(v),
       submission blocker):
-  - [ ] Create a Services ID (`SIWA_SERVICES_ID`, e.g. `com.clantab.app.signin`),
-        a Key ID, and a `.p8` "Sign in with Apple" key in the Apple Developer
-        portal.
-  - [ ] `wrangler secret put` for `SIWA_SERVICES_ID` / `SIWA_TEAM_ID`
-        (`UK652GNPP7`) / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY`.
-  - [ ] **Code**: capture `authorizationCode` in the iOS SIWA flow → server-side
-        token exchange (`lib/apple-oauth.ts`, client-secret JWT) → store the
-        refresh token in `UserDO` → `POST appleid.apple.com/auth/revoke` in
-        `DELETE /api/auth/account` (currently a `// TODO` at
-        `worker/src/index.ts`). *Claude can do this part.*
+  - [x] ~~Code~~ — done 2026-09-04. `authorizationCode` captured in the iOS SIWA
+        flow → `POST /api/auth/apple` exchanges it (`lib/apple-oauth.ts`, ES256
+        `client_secret`) → refresh token in `UserDO` → `DELETE /api/auth/account`
+        calls `revokeToken`. All behind a config check.
+  - [ ] Create a **Services ID** (`SIWA_SERVICES_ID`, e.g. `com.clantab.app.signin` —
+        must differ from the bundle id) and a **Key** with "Sign in with Apple"
+        enabled (download the `.p8`, note the Key ID) in the Apple Developer portal.
+  - [ ] Set the secrets:
+        `echo -n "<value>" | npx wrangler secret put SIWA_SERVICES_ID` (and
+        `SIWA_TEAM_ID` = `UK652GNPP7`, `SIWA_KEY_ID`);
+        `npx wrangler secret put SIWA_PRIVATE_KEY < AuthKey_XXXX.p8`; then
+        `make worker-deploy`. Revocation activates automatically once all four exist.
 - [ ] **TestFlight on-device pass** — the real end-to-end check of steps 6a–6f
       (Sign in with Apple can't run in the simulator). Checklist:
       guest flow unaffected · sign in · list syncs to a 2nd device · claim ·

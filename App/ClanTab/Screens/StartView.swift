@@ -16,7 +16,7 @@ struct StartView: View {
     /// Error from exchanging the credential (network / verification), owned by
     /// `AuthViewModel`. The credential-sheet's own failures are handled locally.
     var authError: String? = nil
-    var onSignIn: (_ identityToken: String, _ userID: String) -> Void = { _, _ in }
+    var onSignIn: (_ identityToken: String, _ userID: String, _ authorizationCode: String?) -> Void = { _, _, _ in }
     var onOpenSettings: () -> Void = {}
 
     @State private var sheetError: String?
@@ -107,9 +107,9 @@ struct StartView: View {
         } else {
             VStack(spacing: 8) {
                 AppleSignInButton(
-                    onCredential: { token, userID in
+                    onCredential: { token, userID, authCode in
                         sheetError = nil
-                        onSignIn(token, userID)
+                        onSignIn(token, userID, authCode)
                     },
                     onFailure: { sheetError = $0 }
                 )

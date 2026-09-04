@@ -44,6 +44,17 @@ export class UserDO extends DurableObject {
     return this.meta(USER_META_KEYS.appleSub) !== null;
   }
 
+  /** Store the Apple refresh token from the sign-in code exchange, for
+   * revocation on account deletion (`ACCOUNTS_DESIGN.md` §11). Overwrites on
+   * each sign-in that provides one. */
+  async setRefreshToken(token: string): Promise<void> {
+    this.setMeta(USER_META_KEYS.appleRefreshToken, token);
+  }
+
+  async refreshToken(): Promise<string | null> {
+    return this.meta(USER_META_KEYS.appleRefreshToken);
+  }
+
   /** The identity's groups, newest-claimed first. Returns groupIds + the member
    * id within each — never group contents. */
   async listGroups(): Promise<{ groups: Membership[] }> {

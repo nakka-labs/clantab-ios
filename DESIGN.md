@@ -357,7 +357,13 @@ The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the acco
   remove on the start-screen list.
 - ~~A "merge my old entries" flow for someone who loses local storage and rejoins as a new member~~ — **partly addressed** by the claim flow (`ACCOUNTS_DESIGN.md` §6): a signed-in user opening an invite link picks "This is me" and links the existing placeholder member instead of creating a duplicate. A true merge of two already-separate members is still not built.
 - ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03). Optional Sign in with Apple; guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session tokens; `/api/auth/*` + `claim` routes (§13). Cross-group netting ("settle across all groups with Bob") is *enabled* by the `UserDO` index but deliberately **not** built (`ACCOUNTS_DESIGN.md` §12).
-- Apple server-to-server token revocation on account deletion (`POST https://appleid.apple.com/auth/revoke`) — required before App Store submission, needs the `SIWA_*` signing-key secrets; the `DELETE /api/auth/account` route stubs it with a TODO today (`ACCOUNTS_DESIGN.md` §11)
+- ~~Apple server-to-server token revocation on account deletion~~ — **code
+  shipped** (2026-09-04). `POST /api/auth/apple` takes `authorizationCode`,
+  exchanges it for a refresh token stored in the `UserDO`; `DELETE
+  /api/auth/account` calls `revokeToken` first (`lib/apple-oauth.ts`, ES256
+  `client_secret`). All behind a config check — inert until the four `SIWA_*`
+  secrets are set (`ACCOUNTS_DESIGN.md` §11/§16). That config remains a
+  submission prerequisite.
 
 ---
 
@@ -380,18 +386,22 @@ credential beyond `groupId` possession.
 ### Routes
 
 ```
-POST   /api/auth/apple      { identityToken }
+POST   /api/auth/apple      { identityToken, authorizationCode? }
        → 200 { sessionToken, expiresAt, groups: [{ groupId, memberId, displayName }] }
        Verifies the token against Apple's JWKS (iss = https://appleid.apple.com,
        aud = com.clantab.app, not expired), then USER_DO.idFromName(sub).ensureExists(sub),
        then mints a session (below). 401 INVALID_APPLE_TOKEN on any failure.
+       `authorizationCode`, when present + SIWA_* configured, is exchanged for a
+       refresh token stored in the UserDO (for revocation on deletion).
 
 POST   /api/auth/refresh    (Bearer)  → 200 { sessionToken, expiresAt }
 GET    /api/auth/groups     (Bearer)  → 200 { groups: [{ groupId, memberId, displayName }] }
 DELETE /api/auth/account    (Bearer)  → 204
+       Revokes the Apple token first (best effort, SIWA_* configured), then
+       unclaims every membership and wipes the UserDO.
        UserDO.listGroups() → GroupDO.unclaim(memberId, sub) for each → UserDO.deleteAll().
        Member rows, names, and all expenses/settlements stay; the member reverts to a
-       placeholder. (Apple token revocation is a TODO — see §12.)
+       placeholder.
 
 GET    /api/groups/:groupId/claimable                 (Bearer)
        → 200 { members: [{ id, displayName }] }         this group's placeholders only
@@ -428,7 +438,9 @@ the app already tolerates.
 - `SESSION_SIGNING_KEY` — a real secret in prod (`wrangler secret put`); **never a
   `vars` entry** — a plain var overwrites a same-named secret on every deploy.
   Local: `worker/.dev.vars`. Tests: `vitest.workers.config.ts`.
-- `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` — not yet
-  set; a submission prerequisite, for Apple token revocation on account deletion.
+- `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` — all
+  four or none (`siwaConfigFromEnv`). Wired into `POST /api/auth/apple`
+  (code exchange) and `DELETE /api/auth/account` (revoke); inert until set. A
+  submission prerequisite (`ACCOUNTS_DESIGN.md` §16).
 - The Sign in with Apple capability must be enabled on the App ID in the Apple
   Developer portal before a TestFlight build.

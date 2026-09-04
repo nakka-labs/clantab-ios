@@ -10,9 +10,22 @@ import Foundation
 public struct AppleSignInRequest: Encodable, Sendable {
     /// The JWT from `ASAuthorizationAppleIDCredential.identityToken`.
     public let identityToken: String
+    /// `ASAuthorizationAppleIDCredential.authorizationCode`, if present — the
+    /// server exchanges it for a refresh token so it can revoke on account
+    /// deletion (`ACCOUNTS_DESIGN.md` §11). Only sent on a fresh sign-in.
+    public let authorizationCode: String?
 
-    public init(identityToken: String) {
+    public init(identityToken: String, authorizationCode: String? = nil) {
         self.identityToken = identityToken
+        self.authorizationCode = authorizationCode
+    }
+
+    private enum CodingKeys: String, CodingKey { case identityToken, authorizationCode }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(identityToken, forKey: .identityToken)
+        try container.encodeIfPresent(authorizationCode, forKey: .authorizationCode)
     }
 }
 

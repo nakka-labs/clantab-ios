@@ -101,12 +101,15 @@ final class AuthViewModel {
     /// Exchange a verified Apple credential for a session (`ACCOUNTS_DESIGN.md` §5).
     /// `userID` is `ASAuthorizationAppleIDCredential.user` — stored for the
     /// launch-time credential-state check.
-    func signIn(identityToken: String, userID: String) async {
+    func signIn(identityToken: String, userID: String, authorizationCode: String? = nil) async {
         isBusy = true
         errorMessage = nil
         defer { isBusy = false }
         do {
-            let response = try await client.signInWithApple(identityToken: identityToken)
+            let response = try await client.signInWithApple(
+                identityToken: identityToken,
+                authorizationCode: authorizationCode
+            )
             let session = StoredSession(
                 token: response.sessionToken,
                 appleUserID: userID,

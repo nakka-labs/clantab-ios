@@ -2,6 +2,7 @@ import { GroupDO } from "./group-do.ts";
 import { RegistryDO } from "./registry-do.ts";
 import { UserDO } from "./user-do.ts";
 import { AppleAuthError, verifyAppleIdentityToken } from "./lib/apple-auth.ts";
+import { exchangeAuthorizationCode, revokeToken, siwaConfigFromEnv } from "./lib/apple-oauth.ts";
 import {
   BadRequestError,
   BareNotFoundError,
@@ -35,6 +36,13 @@ interface Env {
   SESSION_SIGNING_KEY: string;
   /** The `aud` an Apple identity token must carry — the app's bundle id. */
   APPLE_AUDIENCE: string;
+  /** Sign in with Apple OAuth secrets, for token revocation on account deletion
+   * (`ACCOUNTS_DESIGN.md` §11). All four or none — revocation is a no-op until
+   * they're set. */
+  SIWA_SERVICES_ID?: string;
+  SIWA_TEAM_ID?: string;
+  SIWA_KEY_ID?: string;
+  SIWA_PRIVATE_KEY?: string;
 }
 
 type Params = Record<string, string>;
@@ -326,8 +334,9 @@ async function handleDeleteSettlement(_request: Request, env: Env, params: Param
 
 async function handleAuthApple(request: Request, env: Env): Promise<Response> {
   const body = await readJsonObject(request);
-  rejectUnknownKeys(body, ["identityToken"]);
+  rejectUnknownKeys(body, ["identityToken", "authorizationCode"]);
   const identityToken = requireString(body, "identityToken");
+  const authorizationCode = optionalString(body, "authorizationCode");
 
   let sub: string;
   try {
@@ -341,6 +350,20 @@ async function handleAuthApple(request: Request, env: Env): Promise<Response> {
 
   const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
   await user.ensureExists(sub);
+
+  // If the client sent an authorization code and the SIWA secrets are set,
+  // trade it for a refresh token and stash it for revocation on deletion
+  // (`ACCOUNTS_DESIGN.md` §11). Best-effort — a failure here never blocks sign-in.
+  const siwa = siwaConfigFromEnv(env);
+  if (authorizationCode !== undefined && siwa !== null) {
+    try {
+      const { refreshToken } = await exchangeAuthorizationCode(authorizationCode, siwa);
+      await user.setRefreshToken(refreshToken);
+    } catch (err) {
+      console.error("Apple authorization-code exchange failed:", err);
+    }
+  }
+
   const [{ token, expiresAt }, { groups }] = await Promise.all([
     mintSession(sub, env.SESSION_SIGNING_KEY),
     user.listGroups(),
@@ -363,15 +386,25 @@ async function handleAuthGroups(request: Request, env: Env): Promise<Response> {
 async function handleAuthDeleteAccount(request: Request, env: Env): Promise<Response> {
   const sub = await requireSession(request, env);
   const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
+
+  // Revoke the Apple refresh token first (Apple Guideline 5.1.1(v)) — best
+  // effort, so Apple being unreachable never blocks the user's deletion.
+  const siwa = siwaConfigFromEnv(env);
+  const refreshToken = await user.refreshToken();
+  if (siwa !== null && refreshToken !== null) {
+    try {
+      await revokeToken(refreshToken, siwa);
+    } catch (err) {
+      console.error("Apple token revocation failed during account deletion:", err);
+    }
+  }
+
   const { groups } = await user.listGroups();
   // Release every claimed membership back to a placeholder, then wipe the index.
   for (const g of groups) {
     await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).unclaim(g.memberId, sub);
   }
   await user.deleteAll();
-  // Apple also mandates server-to-server token revocation before submission
-  // (POST https://appleid.apple.com/auth/revoke) — needs the SIWA_* signing-key
-  // secrets (ACCOUNTS_DESIGN.md §11, §13). Not wired yet.
   return new Response(null, { status: 204 });
 }
 
