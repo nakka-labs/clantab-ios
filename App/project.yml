@@ -46,6 +46,10 @@ targets:
       path: ClanTab/Info.plist
       properties:
         CFBundleDisplayName: ClanTab
+        # Reference the build settings so a version bump is a one-line change in
+        # `settings.base` below — never a frozen literal in the generated plist.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # Branded launch screen: the white "=" mark centred on the brand blue
         # (same asset colour as the app icon). Minimal, no text — HIG-compliant,
         # not a splash ad. `LaunchLogo` / `AccentColor` are in Assets.xcassets.
