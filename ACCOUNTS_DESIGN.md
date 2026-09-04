@@ -371,9 +371,11 @@ optional `Bearer` for future use, but needs nothing today.)
 **New Worker config:**
 - `USER_DO` — Durable Object namespace binding. ✅ (wrangler migration `v2`)
 - `APPLE_AUDIENCE` — `vars` entry (`com.clantab.app`). ✅
-- `SESSION_SIGNING_KEY` — HMAC key for session tokens. A `vars` entry with a
-  dev value; **prod must override** with `wrangler secret put SESSION_SIGNING_KEY`.
-  ✅ (dev)
+- `SESSION_SIGNING_KEY` — HMAC key for session tokens. A real secret
+  (`wrangler secret put SESSION_SIGNING_KEY`) — **not** a `vars` entry, because
+  `wrangler deploy` applies `vars` and a plain var silently overwrites a
+  same-named secret. Local dev reads `worker/.dev.vars` (gitignored); tests use
+  a fixed value in `vitest.workers.config.ts`. ✅
 - ~~`APPLE_KEYS` — KV namespace (JWKS cache).~~ Dropped — replaced by an
   in-process module-level cache (step 3).
 - `SIWA_SERVICES_ID`, `SIWA_TEAM_ID`, `SIWA_KEY_ID`, `SIWA_PRIVATE_KEY` —
@@ -406,8 +408,9 @@ optional `Bearer` for future use, but needs nothing today.)
    `mintSession(sub, key, now?)` → `{ token, expiresAt }`, `verifySession(token,
    key, now?)` → `{ sub }` or throws `SessionError`. HS256 JWT `{ sub, iat, exp }`,
    `exp = iat + 30d`, constant-time signature compare, no DO hit. Config:
-   `SESSION_SIGNING_KEY` + `APPLE_AUDIENCE` as `wrangler.jsonc` `vars` (dev value);
-   prod overrides the key via `wrangler secret put SESSION_SIGNING_KEY`.
+   `APPLE_AUDIENCE` as a `wrangler.jsonc` `vars` entry; `SESSION_SIGNING_KEY` as a
+   real secret (prod `wrangler secret put`, dev `worker/.dev.vars`, tests
+   `vitest.workers.config.ts`) — never a var (a var overwrites the secret on deploy).
 5. ✅ **Worker routes** (2026-09-03) — `index.ts`: `POST /api/auth/apple`,
    `POST /api/auth/refresh`, `GET /api/auth/groups`, `DELETE /api/auth/account`,
    `GET /api/groups/:groupId/claimable`, `POST /api/groups/:groupId/members/:memberId/claim`.
@@ -511,9 +514,11 @@ sessions; step 7 ≈ half a session.
 
 ## 16. Not code — owner tasks before accounts can ship
 
-1. **Deploy the worker** — `make worker-deploy`, then
-   `wrangler secret put SESSION_SIGNING_KEY` (the deployed instance is still
-   pre-accounts).
+1. ~~**Deploy the worker**~~ — done 2026-09-04 (`make worker-deploy`; accounts
+   routes verified live). `wrangler secret put SESSION_SIGNING_KEY` must be
+   **re-run once** after the wrangler.jsonc fix (the first deploy's `vars` entry
+   had overwritten the secret with the repo's dev value — no session tokens had
+   been minted, so no exposure), then redeploy so a real secret is in effect.
 2. **Enable Sign in with Apple** on the `com.clantab.app` App ID in the Apple
    Developer portal (the entitlement is in `project.yml`, but the capability
    must be turned on server-side too).

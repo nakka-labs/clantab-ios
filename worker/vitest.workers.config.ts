@@ -14,6 +14,11 @@ export default defineWorkersProject({
     poolOptions: {
       workers: {
         wrangler: { configPath: "./wrangler.jsonc" },
+        // SESSION_SIGNING_KEY isn't in wrangler.jsonc `vars` (see the note there);
+        // supply a fixed test value here so it's identical in CI and locally.
+        miniflare: {
+          bindings: { SESSION_SIGNING_KEY: "test-only-session-signing-key" },
+        },
       },
     },
   },

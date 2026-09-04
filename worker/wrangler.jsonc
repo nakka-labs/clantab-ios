@@ -7,10 +7,13 @@
   "observability": { "enabled": true },
   "vars": {
     // The `aud` an Apple identity token must carry — the app's bundle id.
-    "APPLE_AUDIENCE": "com.clantab.app",
-    // Dev/test HMAC key for session tokens. Production overrides this with a
-    // real secret: `wrangler secret put SESSION_SIGNING_KEY` (ACCOUNTS_DESIGN.md §3).
-    "SESSION_SIGNING_KEY": "dev-only-not-a-secret-change-in-prod"
+    "APPLE_AUDIENCE": "com.clantab.app"
+    // SESSION_SIGNING_KEY is deliberately NOT here. `wrangler deploy` applies
+    // `vars` and a plain var overwrites a same-named secret, so putting it here
+    // clobbers the production secret on every deploy. Instead:
+    //   prod   → `wrangler secret put SESSION_SIGNING_KEY`
+    //   dev    → worker/.dev.vars   (gitignored; see .dev.vars.example)
+    //   tests  → vitest.workers.config.ts miniflare bindings
   },
   "durable_objects": {
     "bindings": [

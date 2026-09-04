@@ -1,0 +1,6 @@
+# Copy to `worker/.dev.vars` (gitignored) for local `wrangler dev` / `make worker-dev`.
+# Only needed if you hit the /api/auth/* routes locally.
+#
+# Production sets this as a real secret: `wrangler secret put SESSION_SIGNING_KEY`.
+# Tests use the value in vitest.workers.config.ts.
+SESSION_SIGNING_KEY=dev-only-not-a-secret

@@ -20,6 +20,7 @@ App/.build-sim/
 node_modules/
 .wrangler/
 dist/
+worker/.dev.vars
 
 # OS / Editor
 Thumbs.db

@@ -376,7 +376,9 @@ the app already tolerates.
 
 - `USER_DO` — Durable Object namespace binding (wrangler migration `v2`).
 - `APPLE_AUDIENCE` — `vars` (`com.clantab.app`).
-- `SESSION_SIGNING_KEY` — `vars` in dev; **prod must** `wrangler secret put SESSION_SIGNING_KEY`.
+- `SESSION_SIGNING_KEY` — a real secret in prod (`wrangler secret put`); **never a
+  `vars` entry** — a plain var overwrites a same-named secret on every deploy.
+  Local: `worker/.dev.vars`. Tests: `vitest.workers.config.ts`.
 - `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` — not yet
   set; a submission prerequisite, for Apple token revocation on account deletion.
 - The Sign in with Apple capability must be enabled on the App ID in the Apple

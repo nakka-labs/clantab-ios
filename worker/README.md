@@ -44,10 +44,14 @@ test/               logic + validation (Node) · registry/group/routes/user/auth
 - Storage: the DO SQLite API (`ctx.storage.sql`), schema in `src/lib/schema.ts`.
   `GroupDO` is at schema v5; `UserDO` at v1. wrangler migrations: `v1`
   (`GroupDO` + `RegistryDO`), `v2` (`UserDO`).
-- **Accounts config** (`DESIGN.md` §13): `APPLE_AUDIENCE` + `SESSION_SIGNING_KEY`
-  as `vars` (dev). Prod **must** `wrangler secret put SESSION_SIGNING_KEY`. The
-  `SIWA_*` secrets for Apple token revocation on account deletion aren't set yet —
-  a submission prerequisite; `DELETE /api/auth/account` stubs revocation with a TODO.
+- **Accounts config** (`DESIGN.md` §13): `APPLE_AUDIENCE` is a `vars` entry.
+  `SESSION_SIGNING_KEY` is **not** — a plain var overwrites a same-named secret on
+  every `wrangler deploy`, so it's a real secret in prod
+  (`wrangler secret put SESSION_SIGNING_KEY`), `worker/.dev.vars` (gitignored,
+  see `.dev.vars.example`) for `wrangler dev`, and a fixed value in
+  `vitest.workers.config.ts` for tests. The `SIWA_*` secrets for Apple token
+  revocation on account deletion aren't set yet — a submission prerequisite;
+  `DELETE /api/auth/account` stubs revocation with a TODO.
 - **Auth is additive** — the group routes are still `groupId`-possession only.
   Never add a session check to them.
 - `GET /g/:groupId` is a stub landing page (noindex + app deep link). A real page +
