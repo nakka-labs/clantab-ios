@@ -9,6 +9,8 @@ export type ValidationCode =
   | "SPLIT_MISMATCH"
   | "UNKNOWN_MEMBER"
   | "INVALID_AMOUNT"
+  // edit / delete: the expense or settlement id in the path doesn't exist
+  | "NOT_FOUND"
   // accounts / claim flow (ACCOUNTS_DESIGN.md §6)
   | "ALREADY_CLAIMED"
   | "IDENTITY_ALREADY_IN_GROUP";

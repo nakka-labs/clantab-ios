@@ -52,7 +52,11 @@ const ROUTES: Route[] = [
   route("POST", "/api/groups/:groupId/members", handleJoinGroup),
   route("GET", "/api/groups/:groupId", handleGetState),
   route("POST", "/api/groups/:groupId/expenses", handleAddExpense),
+  route("PUT", "/api/groups/:groupId/expenses/:expenseId", handleUpdateExpense),
+  route("DELETE", "/api/groups/:groupId/expenses/:expenseId", handleDeleteExpense),
   route("POST", "/api/groups/:groupId/settlements", handleAddSettlement),
+  route("PUT", "/api/groups/:groupId/settlements/:settlementId", handleUpdateSettlement),
+  route("DELETE", "/api/groups/:groupId/settlements/:settlementId", handleDeleteSettlement),
   route("GET", "/api/groups/:groupId/claimable", handleClaimable),
   route("POST", "/api/groups/:groupId/members/:memberId/claim", handleClaim),
   route("POST", "/api/auth/apple", handleAuthApple),
@@ -141,11 +145,11 @@ async function handleGetState(_request: Request, env: Env, params: Params): Prom
   return json(200, await group.getState());
 }
 
-async function handleAddExpense(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
-  const body = await readJsonObject(request);
+/** Parse an expense request body. `allowId` is true only for `POST` (the
+ * idempotency key); on `PUT` the id lives in the path and a body `id` is rejected. */
+function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddExpenseRequest {
   rejectUnknownKeys(body, [
-    "id",
+    ...(allowId ? ["id"] : []),
     "payerId",
     "amountMinor",
     "currency",
@@ -168,8 +172,8 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
     return { memberId: requireString(raw, "memberId"), amountMinor: requireInteger(raw, "amountMinor") };
   });
 
-  const req: AddExpenseRequest = {
-    id: optionalString(body, "id"),
+  return {
+    id: allowId ? optionalString(body, "id") : undefined,
     payerId: requireString(body, "payerId"),
     amountMinor: requireInteger(body, "amountMinor"),
     currency: optionalString(body, "currency"),
@@ -180,8 +184,43 @@ async function handleAddExpense(request: Request, env: Env, params: Params): Pro
     category: optionalString(body, "category"),
     categoryIcon: optionalString(body, "categoryIcon"),
   };
+}
+
+function parseSettlementBody(body: Record<string, unknown>, allowId: boolean): AddSettlementRequest {
+  rejectUnknownKeys(body, [...(allowId ? ["id"] : []), "fromId", "toId", "amountMinor", "currency"]);
+  return {
+    id: allowId ? optionalString(body, "id") : undefined,
+    fromId: requireString(body, "fromId"),
+    toId: requireString(body, "toId"),
+    amountMinor: requireInteger(body, "amountMinor"),
+    currency: optionalString(body, "currency"),
+  };
+}
+
+/** A `Result` domain error → HTTP status: `NOT_FOUND` is a 404, everything else
+ * (bad split, unknown member, …) is a 400. */
+function domainErrorResponse(error: { code: string; message: string }): Response {
+  return json(error.code === "NOT_FOUND" ? 404 : 400, { error });
+}
+
+async function handleAddExpense(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(env, params.groupId ?? "");
+  const req = parseExpenseBody(await readJsonObject(request), true);
   const result = await group.addExpense(req);
-  return result.ok ? json(201, result.value) : json(400, { error: result.error });
+  return result.ok ? json(201, result.value) : domainErrorResponse(result.error);
+}
+
+async function handleUpdateExpense(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(env, params.groupId ?? "");
+  const req = parseExpenseBody(await readJsonObject(request), false);
+  const result = await group.updateExpense(params.expenseId ?? "", req);
+  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+}
+
+async function handleDeleteExpense(_request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(env, params.groupId ?? "");
+  await group.deleteExpense(params.expenseId ?? "");
+  return new Response(null, { status: 204 });
 }
 
 /**
@@ -235,18 +274,22 @@ function handleRoot(): Promise<Response> {
 
 async function handleAddSettlement(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(env, params.groupId ?? "");
-  const body = await readJsonObject(request);
-  rejectUnknownKeys(body, ["id", "fromId", "toId", "amountMinor", "currency"]);
-
-  const req: AddSettlementRequest = {
-    id: optionalString(body, "id"),
-    fromId: requireString(body, "fromId"),
-    toId: requireString(body, "toId"),
-    amountMinor: requireInteger(body, "amountMinor"),
-    currency: optionalString(body, "currency"),
-  };
+  const req = parseSettlementBody(await readJsonObject(request), true);
   const result = await group.addSettlement(req);
-  return result.ok ? json(201, result.value) : json(400, { error: result.error });
+  return result.ok ? json(201, result.value) : domainErrorResponse(result.error);
+}
+
+async function handleUpdateSettlement(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(env, params.groupId ?? "");
+  const req = parseSettlementBody(await readJsonObject(request), false);
+  const result = await group.updateSettlement(params.settlementId ?? "", req);
+  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+}
+
+async function handleDeleteSettlement(_request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(env, params.groupId ?? "");
+  await group.deleteSettlement(params.settlementId ?? "");
+  return new Response(null, { status: 204 });
 }
 
 // --- accounts / auth (ACCOUNTS_DESIGN.md §5–§7, §11) --------------------

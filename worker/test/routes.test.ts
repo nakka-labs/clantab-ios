@@ -12,6 +12,16 @@ async function post(path: string, body: unknown): Promise<{ status: number; json
   return { status: res.status, json: res.status === 204 ? {} : ((await res.json()) as Json) };
 }
 
+async function put(path: string, body: unknown): Promise<{ status: number; json: Json }> {
+  const res = await SELF.fetch(`${BASE}${path}`, { method: "PUT", body: JSON.stringify(body) });
+  return { status: res.status, json: res.status === 204 ? {} : ((await res.json()) as Json) };
+}
+
+async function del(path: string): Promise<{ status: number }> {
+  const res = await SELF.fetch(`${BASE}${path}`, { method: "DELETE" });
+  return { status: res.status };
+}
+
 async function get(path: string): Promise<{ status: number; text: string; json: Json; robots: string | null }> {
   const res = await SELF.fetch(`${BASE}${path}`);
   const text = await res.text();
@@ -393,6 +403,139 @@ describe("POST /api/groups/:groupId/settlements", () => {
     });
     expect(status).toBe(400);
     expect((json.error as Json).code).toBe("UNKNOWN_MEMBER");
+  });
+});
+
+describe("edit / delete", () => {
+  let groupId: string;
+  let a: string;
+  let b: string;
+
+  const equalSplit = (amount: number) => [
+    { memberId: a, amountMinor: amount / 2 },
+    { memberId: b, amountMinor: amount / 2 },
+  ];
+
+  beforeEach(async () => {
+    const g = await makeGroup();
+    groupId = g.groupId;
+    a = g.creatorId;
+    b = await addMember(groupId, "Ben");
+  });
+
+  async function addExpense(amount: number, description = "x"): Promise<string> {
+    const { json } = await post(`/api/groups/${groupId}/expenses`, {
+      payerId: a, amountMinor: amount, description, date: "2026-01-01T12:00:00Z",
+      splitType: "equal", splits: equalSplit(amount),
+    });
+    return (json.expense as Json).id as string;
+  }
+
+  it("PUT replaces an expense and recomputes balances; created_at keeps feed order", async () => {
+    const first = await addExpense(1000, "Lunch");
+    await new Promise((r) => setTimeout(r, 2));
+    const second = await addExpense(400, "Coffee");
+
+    const { status, json } = await put(`/api/groups/${groupId}/expenses/${first}`, {
+      payerId: b, amountMinor: 2000, description: "Lunch (fixed)", date: "2026-01-02T12:00:00Z",
+      splitType: "equal", splits: [
+        { memberId: a, amountMinor: 1000 },
+        { memberId: b, amountMinor: 1000 },
+      ],
+    });
+    expect(status).toBe(200);
+    expect(json.expense).toMatchObject({ id: first, payerId: b, amountMinor: 2000, description: "Lunch (fixed)" });
+
+    const state = await get(`/api/groups/${groupId}`);
+    // b paid 2000 (own share 1000) → +1000; plus the unchanged 400 Coffee (a paid, -200 to b)
+    expect(state.json.balances).toEqual([
+      { memberId: a, currency: "INR", netMinor: -800 },
+      { memberId: b, currency: "INR", netMinor: 800 },
+    ]);
+    // order unchanged: edited "Lunch (fixed)" still before "Coffee"
+    expect((state.json.expenses as Json[]).map((e) => e.description)).toEqual(["Lunch (fixed)", "Coffee"]);
+    expect((state.json.expenses as Json[])[0]!.id).toBe(first);
+    expect((state.json.expenses as Json[])[1]!.id).toBe(second);
+  });
+
+  it("PUT to an unknown expense id → 404 NOT_FOUND", async () => {
+    const { status, json } = await put(`/api/groups/${groupId}/expenses/ghost`, {
+      payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+      splitType: "equal", splits: equalSplit(100),
+    });
+    expect(status).toBe(404);
+    expect((json.error as Json).code).toBe("NOT_FOUND");
+  });
+
+  it("PUT still validates the splits", async () => {
+    const id = await addExpense(1000);
+    const { status, json } = await put(`/api/groups/${groupId}/expenses/${id}`, {
+      payerId: a, amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
+      splitType: "exact", splits: [
+        { memberId: a, amountMinor: 400 },
+        { memberId: b, amountMinor: 400 },
+      ],
+    });
+    expect(status).toBe(400);
+    expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
+  });
+
+  it("PUT rejects a body `id` field", async () => {
+    const id = await addExpense(1000);
+    const { status } = await put(`/api/groups/${groupId}/expenses/${id}`, {
+      id: "spoof", payerId: a, amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
+      splitType: "equal", splits: equalSplit(1000),
+    });
+    expect(status).toBe(400);
+  });
+
+  it("DELETE removes an expense and its splits; balances update; idempotent", async () => {
+    const id = await addExpense(1000);
+    expect((await del(`/api/groups/${groupId}/expenses/${id}`)).status).toBe(204);
+
+    const state = await get(`/api/groups/${groupId}`);
+    expect(state.json.expenses).toEqual([]);
+    expect(state.json.balances).toEqual([]);
+
+    // second delete is a no-op success
+    expect((await del(`/api/groups/${groupId}/expenses/${id}`)).status).toBe(204);
+    expect((await del(`/api/groups/${groupId}/expenses/never-existed`)).status).toBe(204);
+  });
+
+  it("PUT / DELETE a settlement", async () => {
+    await addExpense(1000, "Lunch");
+    const { json } = await post(`/api/groups/${groupId}/settlements`, { fromId: b, toId: a, amountMinor: 200 });
+    const sId = (json.settlement as Json).id as string;
+
+    const upd = await put(`/api/groups/${groupId}/settlements/${sId}`, { fromId: b, toId: a, amountMinor: 500 });
+    expect(upd.status).toBe(200);
+    expect(upd.json.settlement).toMatchObject({ id: sId, amountMinor: 500 });
+
+    let state = await get(`/api/groups/${groupId}`);
+    expect(state.json.balances).toEqual([]); // 1000 lunch → b owes a 500; settled 500 → clear
+
+    expect((await del(`/api/groups/${groupId}/settlements/${sId}`)).status).toBe(204);
+    state = await get(`/api/groups/${groupId}`);
+    expect(state.json.settlements).toEqual([]);
+    expect(state.json.balances).toEqual([
+      { memberId: a, currency: "INR", netMinor: 500 },
+      { memberId: b, currency: "INR", netMinor: -500 },
+    ]);
+  });
+
+  it("PUT to an unknown settlement id → 404 NOT_FOUND", async () => {
+    const { status, json } = await put(`/api/groups/${groupId}/settlements/ghost`, {
+      fromId: a, toId: b, amountMinor: 100,
+    });
+    expect(status).toBe(404);
+    expect((json.error as Json).code).toBe("NOT_FOUND");
+  });
+
+  it("404s edit / delete on an unknown group", async () => {
+    expect((await put("/api/groups/nope123/expenses/x", {
+      payerId: "a", amountMinor: 1, description: "x", date: "2026-01-01T12:00:00Z", splitType: "equal", splits: [],
+    })).status).toBe(404);
+    expect((await del("/api/groups/nope123/expenses/x")).status).toBe(404);
   });
 });
 

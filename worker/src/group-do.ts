@@ -265,20 +265,122 @@ export class GroupDO extends DurableObject {
       if (existing !== null) return ok({ expense: existing }); // idempotent replay
     }
 
+    const invalid = this.validateExpense(req);
+    if (invalid !== null) return invalid;
+
+    const id = req.id ?? newRecordId();
+    this.writeExpense(id, Date.now(), req);
+
+    const expense = this.readExpenseById(id);
+    if (expense === null) throw new Error("Expense vanished immediately after insert");
+    return ok({ expense });
+  }
+
+  /**
+   * Replace an existing expense wholesale (`PUT`, `DESIGN.md` §2). `created_at`
+   * is preserved so the row keeps its place in the activity feed. Balances are
+   * derived on read, so nothing else needs touching. `NOT_FOUND` → 404.
+   */
+  async updateExpense(id: string, req: AddExpenseRequest): Promise<Result<{ expense: Expense }>> {
+    if (this.readExpenseById(id) === null) {
+      return fail("NOT_FOUND", `Expense "${id}" is not in this group.`);
+    }
+    const invalid = this.validateExpense(req);
+    if (invalid !== null) return invalid;
+
+    const createdAt = this.originalCreatedAt("expenses", id);
+    this.sql.exec("DELETE FROM expenses WHERE id = ?", id);
+    this.sql.exec("DELETE FROM expense_splits WHERE expense_id = ?", id);
+    this.writeExpense(id, createdAt, req);
+
+    const expense = this.readExpenseById(id);
+    if (expense === null) throw new Error("Expense vanished immediately after update");
+    return ok({ expense });
+  }
+
+  /** Remove an expense and its splits. Idempotent — deleting an id that isn't
+   * there is a no-op success. */
+  async deleteExpense(id: string): Promise<{ deleted: boolean }> {
+    const existed = this.readExpenseById(id) !== null;
+    this.sql.exec("DELETE FROM expense_splits WHERE expense_id = ?", id);
+    this.sql.exec("DELETE FROM expenses WHERE id = ?", id);
+    return { deleted: existed };
+  }
+
+  async addSettlement(req: AddSettlementRequest): Promise<Result<{ settlement: Settlement }>> {
+    if (req.id !== undefined) {
+      const existing = this.readSettlementById(req.id);
+      if (existing !== null) return ok({ settlement: existing });
+    }
+
+    const invalid = this.validateSettlement(req);
+    if (invalid !== null) return invalid;
+
+    const id = req.id ?? newRecordId();
+    this.writeSettlement(id, Date.now(), req);
+
+    const settlement = this.readSettlementById(id);
+    if (settlement === null) throw new Error("Settlement vanished immediately after insert");
+    return ok({ settlement });
+  }
+
+  /** Replace an existing settlement wholesale. `settled_at` is preserved.
+   * `NOT_FOUND` → 404. */
+  async updateSettlement(id: string, req: AddSettlementRequest): Promise<Result<{ settlement: Settlement }>> {
+    if (this.readSettlementById(id) === null) {
+      return fail("NOT_FOUND", `Settlement "${id}" is not in this group.`);
+    }
+    const invalid = this.validateSettlement(req);
+    if (invalid !== null) return invalid;
+
+    const settledAt = this.originalCreatedAt("settlements", id);
+    this.sql.exec("DELETE FROM settlements WHERE id = ?", id);
+    this.writeSettlement(id, settledAt, req);
+
+    const settlement = this.readSettlementById(id);
+    if (settlement === null) throw new Error("Settlement vanished immediately after update");
+    return ok({ settlement });
+  }
+
+  /** Remove a settlement. Idempotent. */
+  async deleteSettlement(id: string): Promise<{ deleted: boolean }> {
+    const existed = this.readSettlementById(id) !== null;
+    this.sql.exec("DELETE FROM settlements WHERE id = ?", id);
+    return { deleted: existed };
+  }
+
+  // --- add/edit shared internals ----------------------------------------
+
+  private validateExpense(req: AddExpenseRequest): Result<never> | null {
     try {
       assertPositiveAmount(req.amountMinor);
       const memberIds = new Set(this.readMembers().map((m) => m.id));
       assertMembersExist([req.payerId, ...req.splits.map((s) => s.memberId)], memberIds);
       assertSplitsSum(req.amountMinor, req.splits);
+      return null;
     } catch (e) {
       if (e instanceof ValidationFailure) return fail(e.code, e.message);
       throw e;
     }
+  }
 
-    const id = req.id ?? newRecordId();
-    const now = Date.now();
+  private validateSettlement(req: AddSettlementRequest): Result<never> | null {
+    if (req.fromId === req.toId) {
+      return fail("UNKNOWN_MEMBER", "A settlement cannot be from a member to themselves.");
+    }
+    try {
+      assertPositiveAmount(req.amountMinor);
+      const memberIds = new Set(this.readMembers().map((m) => m.id));
+      assertMembersExist([req.fromId, req.toId], memberIds);
+      return null;
+    } catch (e) {
+      if (e instanceof ValidationFailure) return fail(e.code, e.message);
+      throw e;
+    }
+  }
+
+  private writeExpense(id: string, createdAt: number, req: AddExpenseRequest): void {
     const currency = req.currency ?? this.requireMeta(META_KEYS.currency);
-
     this.sql.exec(
       "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
@@ -287,7 +389,7 @@ export class GroupDO extends DurableObject {
       req.description,
       req.date,
       req.splitType,
-      now,
+      createdAt,
       req.category ?? null,
       req.categoryIcon ?? null,
       currency,
@@ -300,32 +402,9 @@ export class GroupDO extends DurableObject {
         s.amountMinor,
       );
     }
-
-    const expense = this.readExpenseById(id);
-    if (expense === null) throw new Error("Expense vanished immediately after insert");
-    return ok({ expense });
   }
 
-  async addSettlement(req: AddSettlementRequest): Promise<Result<{ settlement: Settlement }>> {
-    if (req.id !== undefined) {
-      const existing = this.readSettlementById(req.id);
-      if (existing !== null) return ok({ settlement: existing });
-    }
-
-    if (req.fromId === req.toId) {
-      return fail("UNKNOWN_MEMBER", "A settlement cannot be from a member to themselves.");
-    }
-    try {
-      assertPositiveAmount(req.amountMinor);
-      const memberIds = new Set(this.readMembers().map((m) => m.id));
-      assertMembersExist([req.fromId, req.toId], memberIds);
-    } catch (e) {
-      if (e instanceof ValidationFailure) return fail(e.code, e.message);
-      throw e;
-    }
-
-    const id = req.id ?? newRecordId();
-    const now = Date.now();
+  private writeSettlement(id: string, settledAt: number, req: AddSettlementRequest): void {
     const currency = req.currency ?? this.requireMeta(META_KEYS.currency);
     this.sql.exec(
       "INSERT INTO settlements (id, from_id, to_id, amount_minor, settled_at, currency) VALUES (?, ?, ?, ?, ?, ?)",
@@ -333,13 +412,19 @@ export class GroupDO extends DurableObject {
       req.fromId,
       req.toId,
       req.amountMinor,
-      now,
+      settledAt,
       currency,
     );
+  }
 
-    const settlement = this.readSettlementById(id);
-    if (settlement === null) throw new Error("Settlement vanished immediately after insert");
-    return ok({ settlement });
+  /** The `created_at` / `settled_at` of a row about to be rewritten, so an edit
+   * doesn't reorder the activity feed. Read before the DELETE. */
+  private originalCreatedAt(table: "expenses" | "settlements", id: string): number {
+    const column = table === "expenses" ? "created_at" : "settled_at";
+    const rows = this.sql
+      .exec<{ ts: number }>(`SELECT ${column} AS ts FROM ${table} WHERE id = ?`, id)
+      .toArray();
+    return rows.length > 0 ? rows[0]!.ts : Date.now();
   }
 
   // --- persistence helpers -------------------------------------------------
