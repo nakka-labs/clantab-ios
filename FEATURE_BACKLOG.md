@@ -1,14 +1,18 @@
 # ClanTab — Post-v1 Feature Backlog
 
-> Status: **discussed, not designed.** Pickup point for the next round of
-> feature work, separate from `LOGIN_ACCOUNTS_BRIEF.md`.
+> Status: **discussed, not designed** for anything below not yet shipped.
 >
-> **Sequencing decided:** ship the items below *before* the accounts work
-> in `LOGIN_ACCOUNTS_BRIEF.md`. They're technically independent of
-> identity, they're cheaper, and they buy more real usage before
-> committing to an identity model that'll need long-term support.
+> **Sequencing (resolved 2026-09-05):** most of what's below has no
+> dependency on `MANDATORY_LOGIN_PLAN.md` and ships in any order relative to
+> it — see `NEXT_STEPS.md` Phase 5. The exception is push notifications,
+> the widget, and Siri (all three moved into v1 scope 2026-09-05, below) —
+> those sequence *after* `MANDATORY_LOGIN_PLAN.md` Part 2 (`UserDO`
+> re-keying), since device-token-per-identity is cleaner built once against
+> the final stable identity keys — see `NEXT_STEPS.md` Phase 6.
 
 ## In scope, next up — genuinely low cost
+
+All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, confirmed 2026-09-05. Nothing here needs owner action beyond reviewing the result.
 
 - ~~**Custom/percentage splits.**~~ **Shipped 2026-09-01.** `SplitType` gained
   `.percentage`; the client resolves entered percentages to exact minor-unit
@@ -50,6 +54,119 @@
   then posts each row with a client-generated id (partial import is retry-safe).
   No backend or schema change.
 
+- **Delete goes to trash, with attribution.** Every delete becomes a soft
+  delete (`deleted_at` + `deleted_by` nullable columns, plain `ADD COLUMN`
+  migration, no rebuild) instead of a real `DELETE`; balance/simplify
+  computation excludes soft-deleted rows. A "Recently Deleted" screen per
+  group lists them with Restore. The in-the-moment swipe-to-delete keeps an
+  "Undo" toast for ~5s as the fast path — same underlying mechanism, the
+  toast is just quick access to the same restore action the trash screen
+  offers indefinitely after. `deleted_by` (and while the schema's open,
+  `created_by`/`edited_by`) also answers "wait, who did that" — the
+  no-accounts trust model means anyone with the link can delete anything;
+  this is the fix. No purge job needed for v1 — SQLite storage is cheap
+  enough (`production_priority` project memory's cost model) to just keep
+  trash forever until there's a reason not to.
+- **Duplicate an expense.** Swipe/context action on an activity row that
+  opens `AddExpenseView` pre-filled with the same payer/split/category and
+  today's date, amount blank. Reuses the existing `editing:` prefill
+  pattern (a `duplicating:` variant, same logic minus the id/PUT). Solves
+  the recurring-cost itch (rent, groceries) for the common case without the
+  correctness problems of auto-posting — see the recurring-reminders item
+  below for why full auto-post stays off the table.
+- **Recurring reminders (not auto-post).** ~~Previously listed under
+  "Dropped" as a stated non-goal~~ — reopened 2026-09-05: Splitwise
+  paywalls this, it's a real feature migrating users will miss, so it's
+  worth building the cheap, correct version rather than skipping it
+  outright. A recurring *template* (amount, payer, split, cadence)
+  schedules a local iOS notification ("Log this month's rent?") that opens
+  `AddExpenseView` pre-filled — the user still confirms/adjusts and taps
+  Add, same as Duplicate above. Zero backend change, zero server push infra
+  (`UNUserNotificationCenter`, scheduled client-side). **Auto-post (silently
+  creating the expense with no confirmation) stays off the table** — not a
+  cost problem, a correctness one: a shared, no-hidden-owner ledger where
+  expenses can appear with nobody having actively added them is how you get
+  "wait, who added this" disputes, the exact trust problem the trash/
+  attribution item above exists to fix. Reminder-only gets the value
+  without the risk. **Edge case found by simulating real usage
+  (2026-09-05):** a template referencing a member who's since been
+  removed from the group needs to disable itself and prompt "this
+  reminder needs updating" rather than silently pre-filling with a
+  member who no longer exists — check membership validity when the
+  notification fires, not just when the template was created.
+- **Empty-state consistency.** `InsightsView`'s empty state already uses
+  `ContentUnavailableView` (icon + title + subtitle); `GroupHomeView`'s
+  empty activity feed is a plain `Text("No expenses yet.")` row. Bring the
+  latter up to the same treatment — it's the first thing a brand-new group
+  shows.
+- **Amount-entry typography.** Apply `BalanceHeroView`'s SF Rounded
+  bold-numeral treatment (`DESIGN_BIBLE.md`'s "single highest-leverage
+  move") to `AddExpenseView`'s amount field too, for visual consistency.
+- **Select All / Select None on the equal-split member list.** Trivial,
+  saves taps once a group has more than a few people.
+- **Inline error highlighting on exact/percentage splits.** Right now
+  over/under is only a summary footer line; highlight the specific
+  offending row too.
+- **UPI deep link on Settle Up.** Optional per-member UPI ID (a new
+  nullable field, user-supplied, never verified/processed by ClanTab);
+  "Mark as Paid" builds a plain `upi://pay?pa=<vpa>&am=<amount>&...` link
+  that hands off to GPay/PhonePe/Paytm, the person pays there, then
+  confirms back in ClanTab. Doesn't touch the no-payment-processing
+  non-goal — ClanTab never sees or moves money, just constructs a URI the
+  OS opens. Real differentiation for the actual India-based audience this
+  app is for.
+- **Backup, in two tiers.** (1) Near-free: the CSV/JSON export already
+  goes through `ShareLink`, whose share sheet already offers "Save to
+  Files" — which already supports iCloud Drive and Google Drive today, if
+  the Drive app is installed, with zero new code. The gap is just
+  visibility — add an occasional gentle nudge to actually do it (reuses
+  `Export.swift` entirely). (2) Medium: real automatic backup via CloudKit
+  (iOS/iCloud only — no ₹ cost, the container comes with the Apple
+  Developer Program already paid for) — a periodic silent snapshot, not a
+  second source of truth, so no sync/conflict-resolution complexity
+  (`GroupDO` stays authoritative; CloudKit here is purely a backup
+  destination). **Skip a Google Drive API integration for now** — it needs
+  its own OAuth scope-verification process with Google (real time cost,
+  not money) and there's no Android client yet to justify it; revisit if
+  `NAV_POLISH_PLAN.md` Part 3's cross-platform guardrails ever turn into an
+  actual Android build.
+- **Explicit light/dark/system theme toggle.** Dark mode already works
+  today — SwiftUI's automatic system-appearance adaptation, reviewed in
+  `HANDOFF.md`'s Phase 6 checklist. What's missing is a manual override in
+  Settings (a `Picker` + `.preferredColorScheme()` at the root, persisted
+  via `@AppStorage`) for someone who wants to pin the app's look
+  independent of their system setting. Cheap — hours, not days.
+- **Category colors, formula-driven, not hand-picked.** Categories already
+  have name + SF Symbol icon (shipped 2026-09-01); add a color. Rather than
+  free-picking colors (inconsistent, risks poor contrast), extend
+  `DESIGN_BIBLE.md`'s existing `oklch(55% 0.16 H)` accent formula — the one
+  brand blue stays the app's primary/action color everywhere it is today;
+  categories get a *pastel* variant of the same formula (higher lightness,
+  lower chroma, hue varies per category), generated systematically rather
+  than art-directed one at a time. Directly answers "the UI reads a bit
+  dull" — one accent color across every screen is the actual cause, and a
+  curated multi-hue category palette fixes it without abandoning the
+  single-accent brand discipline. A full custom-color-picker for
+  user-created categories is a reasonable follow-on once the curated
+  palette ships — not needed for v1 of this.
+
+- **Push notifications.** **Moved into v1 scope 2026-09-05** — the single
+  highest-engagement feature on this list; "Priya added ₹500" landing on a
+  lock screen is what turns "checked occasionally" into "used daily." Real
+  backend work (device token management + dispatch on every mutation —
+  `SHIP_PLAN.md` Track 4's WebSocket work is adjacent, not the same
+  thing), no ₹ cost (APNs itself is free). Notify on someone *else's*
+  action, never your own.
+- **Home-screen widget (WidgetKit).** **Moved into v1 scope 2026-09-05** —
+  glanceable "you owe / you're owed" for the primary group without opening
+  the app; fits the SF Rounded hero-numeral treatment already established.
+  Needs an App Group + a lightweight refresh path, and a sane empty state
+  for zero-groups-yet before first sign-in. No ₹ cost.
+- **Siri / App Intents.** **Moved into v1 scope 2026-09-05** — "Add a ₹500
+  expense to Flatmates" via Shortcuts/Siri. No ₹ cost, moderate-high
+  effort (disambiguating group/member/split by voice). Lowest-priority of
+  the three above within v1, build last.
+
 ## Shipped
 
 - ~~**Edit / delete an expense or settlement; rename a group / member; remove a
@@ -90,7 +207,10 @@
 
 ## Dropped
 
-- **Recurring/scheduled expenses.** Dropped, not building — both the reminder-only and auto-post versions. Stays a non-goal per `DESIGN.md`.
+- Nothing currently. ~~Recurring/scheduled expenses~~ was here (dropped
+  2026-08-31) and moved back to "In scope, next up" 2026-09-05 as
+  reminder-only (not auto-post) — see that entry for why the two versions
+  aren't the same decision.
 
 ## Confirmed — downstream of accounts, not standalone
 
@@ -109,7 +229,7 @@
   combined view of everything owed between you and Bob across every
   group you share, not just per-group (per-group minimal-transaction
   settling already exists — the greedy debt-simplification algorithm,
-  `PLAN.md` §2). Full spec lives in `LOGIN_ACCOUNTS_BRIEF.md` (it depends
+  `PLAN.md` §2). Full spec lives in `ACCOUNTS_DESIGN.md` (it depends
   on the accounts identity index — name matching can't safely tell two
   different groups' "Bob" apart, only a real linked identity can).
   Mechanically: a read-side aggregation over groups sharing both
@@ -129,8 +249,5 @@
 
 ## Not yet decided
 
-- Sequencing relative to `LOGIN_ACCOUNTS_BRIEF.md` — whether these ship
-  before, after, or interleaved with the accounts work. Both are
-  independent of each other technically (none of graphs/search/CSV-import
-  touch identity), so this is purely a prioritization call, not a
-  dependency.
+Resolved 2026-09-05 — see the sequencing note at the top of this file and
+`NEXT_STEPS.md` Phases 5-6.

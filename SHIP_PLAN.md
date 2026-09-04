@@ -191,7 +191,9 @@ tappable link. Depends on §0.1 (a domain).
    6.9" frames (Group Home, Insights, Add Expense, Settle Up), 2026-09-02.
 5. **Review-risk review** — covered in the metadata's review notes: capability
    link, no accounts, trust-based settlement, no IAP, no analytics/ads. Nothing
-   should trip 3.1.1 or 5.1.1.
+   should trip 3.1.1 or 5.1.1. **Guideline 1.2 (user-generated content) is the
+   real open risk** for a public listing — see Track 3 §7. Resolve before
+   submission, not just before TestFlight.
 6. **Deploy CI** — `.github/workflows/worker-deploy.yml` exists: on a `v*` tag,
    `npm ci` → typecheck → test → `wrangler deploy`. **Still needs the
    `CLOUDFLARE_API_TOKEN` repo secret** (Cloudflare → My Profile → API Tokens →
@@ -233,9 +235,17 @@ the `CLOUDFLARE_API_TOKEN` repo secret.
    a web client is out of scope), or (b) lower the zone's Browser Integrity
    Check / Bot Fight Mode for `clantab.nakka.dev` if a web client is ever
    planned. Document the decision.
-3. **Rate-limit review** — the Registry limiter is in-memory (resets on DO
-   eviction). Fine for now; if abuse appears, move the counter to DO storage or
-   add a Cloudflare Rate Limiting rule on `/api/groups/resolve/*`.
+3. **Rate-limit review, and the bigger fix underneath it** — the Registry
+   limiter is in-memory (resets on DO eviction), and `RegistryDO` itself is a
+   **singleton**: every group creation and every join-code lookup for the
+   entire app serializes through one Durable Object (`DESIGN.md` §3). Fine at
+   today's volume; becomes the one real architectural ceiling at production
+   scale (cost-modeled 2026-09-04, see project memory `production_priority`).
+   **[CLI]** Move code→groupId resolution to Workers KV (write-once on
+   create, read-many on lookup) and replace the in-memory counter with a
+   Cloudflare Rate Limiting rule on `/api/groups/resolve/*`. Do this before a
+   real traffic spike, not after — it's cheap now and likely lowers the bill
+   too.
 4. **Data durability** — DO SQLite is backed up by Cloudflare, but there's no
    user-facing "export the whole group" beyond the CSV/JSON the app already
    does. Consider a periodic `GET`-and-archive job if any group matters.
@@ -243,9 +253,21 @@ the `CLOUDFLARE_API_TOKEN` repo secret.
    will ever see. Add a billing alert anyway.
 6. **`compatibility_date`** — `wrangler.jsonc` pins `2025-09-01`; bump
    deliberately when adopting new runtime behaviour, not drift.
-7. **Abuse / content** — a capability URL that leaks (posted publicly) exposes
-   that group. Documented trust model (`DESIGN.md` §8). No action unless it
-   becomes a real problem; note it.
+7. **Abuse / content — now a real App Store requirement, not just a
+   documented risk.** A capability URL that leaks (posted publicly) exposes
+   that group; documented trust model (`DESIGN.md` §8). Beyond the leak
+   scenario: group names, member names, and expense descriptions are all
+   user-generated and shared between whoever holds the link — Apple's
+   Guideline 1.2 requires a report mechanism and a way to block/remove a bad
+   actor for any app with shared user-generated content. Not optional once
+   this is a public App Store listing (priority bumped 2026-09-04). **[CLI]**
+   Scaffold a report-content action + a block/remove-member path (remove
+   already exists via Group Settings; report doesn't). **[OWNER]** Approve
+   the moderation copy and the EULA's zero-tolerance UGC clause before
+   submission.
+8. **[CLI] Foreground poll interval** — `GroupViewModel.pollInterval` is 5s;
+   drop it to ~20-30s. Same UX for a low-frequency app, and it directly cuts
+   the Workers request/row-read bill at scale (cost-modeled 2026-09-04).
 
 ---
 
@@ -275,47 +297,13 @@ Not on the critical path. Skip until the data says otherwise.
 
 ## Suggested order
 
-```
-✅ 0. Decisions locked · App ID + App Store Connect record + signing done
-✅    Repo public (CI billing fixed) · privacy policy live
-
-CRITICAL PATH ─────────────────────────────────────────────
-✅ ├─ Track 2 core: icon (placeholder), privacy manifest, metadata draft,
-   │              signing, first TestFlight upload (build 1.0 (1))
-   ├─ NOW: add internal tester → install → on-device E2E pass → tag v0.4.0
-   ├─ Track 3 (observability, edge, limits)   before the first external tester
-   ▼
-   TestFlight internal ──▶ external (needs screenshots + App Privacy)
-                      ──▶ App Store submission (needs real icon too)
-
-OPTIONAL / PARALLEL ───────────────────────────────────────
-├─ CLOUDFLARE_API_TOKEN secret → automated tag-deploy (else make worker-deploy)
-├─ Track 1 (domain + Universal Links)   needs §0.1 (a domain); can land
-│                                       before OR after launch — until then,
-│                                       invites are by 6-char code
-└─ Track 4 (WebSockets)   post-launch, iff concurrent usage appears
-```
-
-You can ship v1 on the `workers.dev` backend with code-only joining, then add
-the domain + Universal Links as a fast-follow. Or buy the domain up front and
-do both tracks together. Either is fine.
-
-Rough sizing: Track 1 ≈ 1 day of work once the domain exists · Track 2 ≈ 1-2
-days plus the icon/metadata/policy content (yours) · Track 3 ≈ half a day ·
-Track 4 ≈ 1-2 days when it's time.
+**Superseded 2026-09-05** — the master sequencing (including how Tracks
+1-4 here interleave with `MANDATORY_LOGIN_PLAN.md`, `ACCESS_TOKEN_PLAN.md`,
+`NAV_POLISH_PLAN.md`, and `FEATURE_BACKLOG.md`) now lives in
+`NEXT_STEPS.md`. This doc stays the detailed reference for Tracks 1-4's
+*how*; `NEXT_STEPS.md` owns *when*.
 
 ## What needs you
 
-| | | status |
-|---|---|---|
-| Register the App ID, create the App Store Connect app | Track 2 | ✅ done 2026-08-31 |
-| Signing (`DEVELOPMENT_TEAM`) + first TestFlight upload | Track 2 | ✅ build `1.0 (1)` uploaded |
-| Make the repo public (fixes CI billing) | Track 3.0 | ✅ done 2026-08-31 |
-| Enable GitHub Pages + set the privacy-policy URL | Track 2.8 | ✅ live |
-| Add an internal tester, install via TestFlight, on-device E2E pass | Track 2 | **next** |
-| Real app icon | Track 2 | ✅ done 2026-09-02 — reverse-image/trademark checks still needed |
-| App Store screenshots | Track 2 | ✅ done 2026-09-02 — `docs/appstore/screenshots/` |
-| App Privacy answers | Track 2 | external testing / submission |
-| Add `CLOUDFLARE_API_TOKEN` as a GitHub secret (deploy CI) | Track 2.6 | optional; `make worker-deploy` locally meanwhile |
-| Custom domain on Cloudflare → Universal Links | Track 1 | optional; invites work by 6-char code today |
-| Run `make worker-deploy` when the backend changes | Tracks 1 & 3 | as needed |
+See `NEXT_STEPS.md` — every open item across every plan doc is tagged
+**[CLI]** / **[OWNER]** there in one place instead of duplicated per-doc.

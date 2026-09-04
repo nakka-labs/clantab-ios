@@ -2,8 +2,8 @@
 
 > One consolidated list of everything left before this is "complete and
 > deployment ready." Doesn't replace the detailed docs — points at them.
-> Sources: `SHIP_PLAN.md` (v1 App Store track), `LOGIN_ACCOUNTS_BRIEF.md`
-> (accounts), `FEATURE_BACKLOG.md` (features).
+> Sources: `SHIP_PLAN.md` (v1 App Store track), `MANDATORY_LOGIN_PLAN.md`
+> (accounts/login), `FEATURE_BACKLOG.md` (features).
 
 ## Branding & identity
 
@@ -41,34 +41,25 @@
 - Track 3 operational hardening: observability/alerting, rate-limit
   review, a billing alert.
 
-## Feature scope (see `FEATURE_BACKLOG.md` / `LOGIN_ACCOUNTS_BRIEF.md`)
+## Feature scope
 
-Ship order locked: independent cheap features → multi-currency → accounts
-→ cross-group settling. Photo attachment shelved (cost/setup tradeoff
-unresolved, see backlog).
+Master order (including accounts/login sequencing) now lives in
+`NEXT_STEPS.md` — this section previously duplicated it and had drifted
+stale (it still described the shipped optional-guest accounts model as the
+target). Quick pointers:
 
-- ~~Custom/percentage splits~~ (v2), ~~categories + icons~~ (v3), ~~graphs~~
-  (`Insights` + SwiftUI Charts), ~~search/filter~~ (`ActivityFiltering`, feed
-  only), ~~multi-currency ledgers~~ (v4 — per-currency, no FX), and ~~CSV import~~
-  (`CSVImport` — ClanTab + Splitwise formats, client-only) — **done 2026-09-01/02**.
-  The full independent-feature batch is complete.
-- ~~Accounts: Sign in with Apple, placeholder-member claim flow, the
-  groupId-per-identity index, in-app account deletion~~ — **code complete
-  2026-09-03** (`ACCOUNTS_DESIGN.md` §14: worker steps 1–5, iOS steps
-  6a–6f, docs step 7 all ✅; `DESIGN.md` §13 is the wire contract).
-  Remaining before this can ship — all owner tasks, not code:
-  - ~~Deploy the worker + `wrangler secret put SESSION_SIGNING_KEY`~~ — done
-    2026-09-04, `/api/auth/*` verified live.
-  - ~~Enable the Sign in with Apple capability on the `com.clantab.app` App ID~~
-    — done, confirmed in Xcode.
-  - ~~Wire `POST .../auth/revoke` into `DELETE /api/auth/account`~~ — **live
-    2026-09-04** (`lib/apple-oauth.ts` + all four `SIWA_*` secrets + deployed).
-    Verify end-to-end in the TestFlight delete-account test.
-  - TestFlight pass on a real device (SIWA can't be driven in the simulator).
-- ~~Cross-group settling with a person~~ — **shipped 2026-09-04**.
-  `GET /api/auth/people` + iOS "Settle Across Groups" (Settings). Per
-  currency, never blended; each group settled with an ordinary
-  `addSettlement`.
+- **Shipped:** percentage splits, categories+icons, graphs, search/filter,
+  CSV import, multi-currency, edit/delete/rename/remove/leave, cross-group
+  settling — see `NEXT_STEPS.md` "Historical record."
+- **In flight, not a target state:** accounts as shipped (optional Sign in
+  with Apple, `ACCOUNTS_DESIGN.md`) is being replaced by
+  `MANDATORY_LOGIN_PLAN.md` (Apple + Google, mandatory, guests removed).
+  Don't build against the optional-guest model — it's going away.
+- **Remaining v1 scope:** `NEXT_STEPS.md` Phases 0-8 — mandatory login,
+  access-token hardening (`ACCESS_TOKEN_PLAN.md`, new), nav polish
+  (`NAV_POLISH_PLAN.md`), the full `FEATURE_BACKLOG.md` "In scope, next up"
+  list (including push/widget/Siri, moved into v1 2026-09-05), Guideline
+  1.2 moderation, and App Store submission.
 
 ## Engineering discipline
 
@@ -82,8 +73,20 @@ unresolved, see backlog).
 
 ## Legal / privacy (new, caused by accounts)
 
-- Privacy policy text (`docs/privacy-policy.md`) updated to describe
-  Sign in with Apple + account data once accounts ship — it currently
-  describes the no-login model.
-- App Privacy answers in App Store Connect re-submitted to match (they
-  currently state no accounts/no linked data).
+- **[CLI to draft, OWNER to approve]** Privacy policy text
+  (`docs/privacy-policy.md`) updated to describe Sign in with Apple +
+  account data once accounts ship — it currently describes the no-login
+  model.
+- **[OWNER]** App Privacy answers in App Store Connect re-submitted to match
+  (they currently state no accounts/no linked data).
+- **[CLI]** Report-content + block/remove-member mechanism (Apple Guideline
+  1.2 — user-generated content). Required for a real public listing, not
+  optional. `SHIP_PLAN.md` Track 3 §7.
+- **[OWNER]** Trademark + reverse-image clearance (USPTO TESS) on the
+  "ClanTab" name and icon — not done in a cloud session, needs real tools.
+  `LOGO_BRIEF.md` checklist.
+- **[OWNER]** Move the public support contact off personal Gmail
+  (`id0399@gmail.com`) to a dedicated alias before App Store submission.
+- **[OWNER]** Conscious decision on monetization — "no ads, no fees" is
+  locked, but the Cloudflare bill grows with users and there's currently no
+  revenue offset. Not urgent; shouldn't happen by default either.

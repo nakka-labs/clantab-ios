@@ -1,101 +1,172 @@
 # ClanTab — Next Steps
 
-> A single running list of what's left, pulled together from
-> `ACCOUNTS_DESIGN.md` §16, `READINESS_CHECKLIST.md`, `FEATURE_BACKLOG.md`,
-> `SHIP_PLAN.md`, and `DESIGN.md` §12. Those stay authoritative for detail; this
-> is the index. Last synced: 2026-09-04.
+> Single running master order for everything left before v1 ships. Detail
+> lives in `MANDATORY_LOGIN_PLAN.md`, `ACCESS_TOKEN_PLAN.md`,
+> `NAV_POLISH_PLAN.md`, `FEATURE_BACKLOG.md`, `SHIP_PLAN.md`,
+> `READINESS_CHECKLIST.md`, `DESIGN.md` §12/§13 — those stay authoritative
+> for *how*; this file is the only place that says *in what order*, and owns
+> the master **[CLI]**/**[OWNER]** sequencing. Those other docs' own
+> "suggested order" sections point back here instead of keeping a second
+> copy. Last resequenced: 2026-09-04.
+>
+> **Ground rule (confirmed 2026-09-04):** v1 doesn't ship until this whole
+> list is checked off — a slower, single high-quality release beats several
+> partial ones. Nothing below is quietly deferred to "v1.1" unless marked so.
 
 ---
 
-## 1. Ship the accounts phase (owner tasks — not code)
+## Phase 0 — Owner decisions that unblock everything else
 
-The code (worker steps 1–5, iOS 6a–6f, docs) is complete on `main`.
-Detail: `ACCOUNTS_DESIGN.md` §16.
+Pure decisions / account creation, zero CLI dependency — clear these first
+so nothing downstream stalls waiting on you.
 
-- [x] **Deploy the worker** + `wrangler secret put SESSION_SIGNING_KEY`
-      (2026-09-04, `/api/auth/*` verified live).
-- [x] **Enable Sign in with Apple** on the `com.clantab.app` App ID + confirm in
-      Xcode.
-- [x] **Re-deploy the worker** for the edit/delete + settings routes
-      (2026-09-04, verified live).
-- [x] ~~**Apple token revocation on account deletion**~~ (Apple Guideline
-      5.1.1(v)) — **live 2026-09-04**. Code (`lib/apple-oauth.ts`,
-      `authorizationCode` plumbing) + all four `SIWA_*` secrets set + deployed.
-      The `authorizationCode` exchange runs on sign-in; `DELETE
-      /api/auth/account` calls `/auth/revoke`. End-to-end proof is the
-      TestFlight delete-account test (`wrangler tail` will show a `console.error`
-      from `apple-oauth` if the `.p8` or Services ID is wrong — non-fatal, but
-      Apple's review checks deletion).
-- [ ] **TestFlight on-device pass** — the real end-to-end check of steps 6a–6f
-      (Sign in with Apple can't run in the simulator). Checklist:
-      guest flow unaffected · sign in · list syncs to a 2nd device · claim ·
-      one-time nudge · relaunch stays signed in · revoke in iOS Settings drops to
-      guest · Delete Account leaves the ledger intact.
-- [ ] **Privacy** — update `docs/privacy-policy.md` and the App Store Connect
-      **App Privacy** answers to disclose the Apple `sub` (User ID, "App
-      Functionality", not tracking). `READINESS_CHECKLIST.md` §"Legal / privacy".
+- [x] **[OWNER]** Confirm dropping the guest tier is final — **confirmed
+      2026-09-04** (`MANDATORY_LOGIN_PLAN.md` Part 0).
+- [x] **[OWNER]** Confirm ~zero real signed-in users on the current `UserDO`
+      keying — **confirmed 2026-09-04: app has never left internal
+      TestFlight testing, no real users.** Phase 2's re-keying is a clean
+      cutover, no migration script needed (`MANDATORY_LOGIN_PLAN.md` Part 0).
+- [ ] **[OWNER]** Create the Google Cloud OAuth client
+      (`MANDATORY_LOGIN_PLAN.md` Part 1).
+
+## Phase 1 — Cheap infra hardening (no dependencies — do now)
+
+- [ ] **[CLI]** `RegistryDO` singleton → Workers KV (`SHIP_PLAN.md` Track 3
+      §3) — the one real architectural scaling ceiling; cheap now, likely
+      lowers the bill.
+- [ ] **[CLI]** Foreground poll interval 5s → ~20-30s (`SHIP_PLAN.md` Track 3
+      §8).
+- [ ] **[CLI]** Verify GitHub secret scanning + push protection are on
+      (`MANDATORY_LOGIN_PLAN.md` Part 4).
+
+## Phase 2 — Mandatory login (Apple + Google, guests removed)
+
+`MANDATORY_LOGIN_PLAN.md` has the full detail. This is the biggest
+structural rework left in the app — everything after this phase should be
+built once, against the final post-login shape, not built now and reworked
+again once the guest tier disappears.
+
+- [ ] **[CLI]** Part 1 — Google Sign-In (worker route + iOS button + view
+      model). Needs Phase 0's OAuth client.
+- [ ] **[CLI]** Part 2 — `UserDO` re-keying to `provider:sub`.
+- [ ] **[CLI]** Part 2.5 — Add Member by name. **Hard prerequisite for Part
+      3, not optional polish** — without it, removing guests is a real
+      regression (see the plan's "Critical finding" callout).
+- [ ] **[CLI]** Part 3 — Remove the guest tier (`StartView`,
+      `JoinChoiceView`/`ClaimMemberView`, retire `IdentityStoring`).
+
+## Phase 3 — Access token / credential decoupling
+
+`ACCESS_TOKEN_PLAN.md` (new). Decouples the shareable link/code from the
+Durable Object's permanent identity, so a leaked or socially-revoked link
+can actually be rotated — not possible today (`groupId` possession is the
+only credential, `DESIGN.md` §2/§8). Cost-modeled 2026-09-04, ~1.5-2.5 days.
+Not a hard dependency on Phase 2 — today's Bearer+claimed-member auth
+already works — but cheapest done once Part 2.5's "Add Member by name"
+sharing story is final, so the regenerate-link UI is designed once.
+
+- [ ] **[CLI]** Parts 1-3 — server token issuance/verification (the
+      `requireGroup` chokepoint in `worker/src/index.ts`, a new
+      `access_token` key in `group_meta`), iOS carry + regenerate, the
+      join-code path.
+- [ ] **[OWNER]** Part 4 — pick a migration strategy for existing groups
+      (trivial either way given today's user count).
+
+## Phase 4 — Nav polish
+
+`NAV_POLISH_PLAN.md` — **sequenced after Phase 2** (previously scoped
+standalone; moved here so `StartView` is touched once, on its final
+signed-in-only shape, not once now and again when guests are removed).
+
+- [ ] **[CLI]** Part 1 — fix group switching (`GroupsListView` extraction +
+      toolbar entry).
+- [ ] **[CLI]** Part 2 — Settings reorg (Account / App sections).
+- Part 3's cross-platform guardrails are ambient — apply throughout every
+  phase above, not a scheduled step of their own.
+
+## Phase 5 — Feature backlog, identity-independent
+
+`FEATURE_BACKLOG.md` "In scope, next up" — no dependency on Phase 2, ships
+in any order relative to it, and order within this phase doesn't matter:
+
+- [ ] **[CLI]** Trash + attribution (soft delete, "Recently Deleted", undo
+      toast)
+- [ ] **[CLI]** Duplicate an expense
+- [ ] **[CLI]** Recurring reminders (not auto-post)
+- [ ] **[CLI]** Empty-state consistency
+- [ ] **[CLI]** Amount-entry typography
+- [ ] **[CLI]** Select All / Select None (equal split)
+- [ ] **[CLI]** Inline split-error highlighting
+- [ ] **[CLI]** UPI deep link on Settle Up
+- [ ] **[CLI]** Backup, two tiers (Save-to-Files nudge + CloudKit)
+- [ ] **[CLI]** Theme toggle (light/dark/system)
+- [ ] **[CLI]** Category pastel colors
+
+## Phase 6 — Feature backlog, identity-dependent
+
+Needs Phase 2's stable `UserDO` keys — building these against a
+soon-to-be-rekeyed identity risks rework.
+
+- [ ] **[CLI]** Push notifications
+- [ ] **[CLI]** Home-screen widget (WidgetKit)
+- [ ] **[CLI]** Siri / App Intents (build last of the three — lowest
+      priority within v1)
+
+## Phase 7 — Guideline 1.2 (user-generated content moderation)
+
+Real App Store requirement for a public listing, not optional
+(`SHIP_PLAN.md` Track 3 §7).
+
+- [ ] **[CLI]** Report-content action + block/remove-member path (remove
+      already exists via Group Settings; report doesn't).
+- [ ] **[OWNER]** Approve moderation copy + EULA zero-tolerance UGC clause.
+
+## Phase 8 — App Store submission track
+
+`SHIP_PLAN.md` Tracks 1 & 2, `READINESS_CHECKLIST.md`.
+
+- [ ] **[CLI]** Track 1 — custom domain + Universal Links (`nakka.dev`
+      already owned). Do this **before** broad TestFlight distribution, not
+      after — so shared links look right and Associated Domains gets tested
+      before submission, not scrambled at the end.
+- [ ] **[OWNER]** Trademark + reverse-image checks (USPTO TESS) on the
+      "ClanTab" name/icon.
+- [ ] **[OWNER]** Move the support contact off personal Gmail to a
+      dedicated alias.
+- [ ] **[CLI to draft, OWNER to approve]** Privacy policy + App Privacy
+      answers — update to describe Apple+Google mandatory login and UGC
+      moderation (currently describes the no-login model).
+- [ ] **[CLI to draft, OWNER to approve]** App Store review notes
+      (`docs/appstore/metadata.md`) — currently walk a reviewer through "the
+      no-login model," which will be false.
+- [ ] **[OWNER]** Monetization stance — conscious decision, no urgency
+      (~$5-55/mo across 100-1M users, cost-modeled 2026-09-04).
+- [ ] **[OWNER]** `CLOUDFLARE_API_TOKEN` GitHub secret — nice-to-have, not
+      blocking (`make worker-deploy` works locally meanwhile).
+- [ ] **[OWNER]** TestFlight on-device end-to-end pass (Sign in with
+      Apple/Google can't run in the simulator) → tag a version.
+- [ ] **[OWNER]** Submit for App Store review.
 
 ---
 
-## 2. Small functional gaps (not designed — decide if they're v1.1)
+## Historical record (shipped, kept for context — not on the critical path)
 
-- [x] ~~Edit / delete an expense or settlement~~ — shipped 2026-09-04
-      (`DESIGN.md` §2 PUT/DELETE; swipe-to-delete + tap-to-edit in the app).
-- [x] ~~Rename a group / change its default currency~~ — shipped 2026-09-04
-      (`PATCH /api/groups/:id`; Group Settings screen).
-- [x] ~~Rename or remove a member~~ — shipped 2026-09-04 (`PATCH` / `DELETE`
-      `.../members/:id`; remove is blocked with `MEMBER_IN_USE` when the member
-      has activity, is claimed, or is the last one).
-- [x] ~~Manually leave / remove a group from your device's list~~ — shipped
-      2026-09-04 ("Leave This Group" in Group Settings; "Remove from This
-      Device" context menu on the start-screen list — both device-local).
+- [x] Accounts phase code (worker steps 1-5, iOS 6a-6f) — complete on
+      `main`, `ACCOUNTS_DESIGN.md` §16. Superseded target-state-wise by
+      `MANDATORY_LOGIN_PLAN.md` above (Phase 2); this is what's live today.
+- [x] Edit/delete an expense or settlement, rename group/member, remove
+      member, leave a group — shipped 2026-09-04.
+- [x] Cross-group settling — shipped 2026-09-04.
+- [x] Percentage splits, categories+icons, graphs, search/filter, CSV
+      import, multi-currency — shipped 2026-09-01/02.
 
-*(Section 2 is done — leaving it here as the record.)*
+## Deliberate non-goals — will NOT be built
 
----
+FX / currency conversion · payment processing or money transfer · receipt
+OCR / bill reading (the one revisit-later item on the feature list —
+`FEATURE_BACKLOG.md` "Explicitly held off") · a second cross-group ledger
+(cross-group settling still fires one `addSettlement` per underlying group).
 
-## 3. Backlog features (designed-ish, not built)
-
-`FEATURE_BACKLOG.md` has the full notes.
-
-- [x] ~~**Cross-group settling**~~ — shipped 2026-09-04. `GET /api/auth/people`
-      aggregates the simplified settle-up edge with every linked person across
-      shared groups, per currency (never blended); iOS "Settle Across Groups"
-      (Settings → per-person breakdown → "Settle All" fires one `addSettlement`
-      per group). Apple `sub` never leaves the server. Build- + logic-tested;
-      the iOS screen needs a real signed-in session to see (SIWA ≠ simulator).
-- [ ] **Plain photo attachment on an expense** (no OCR). Open question: R2
-      (needs a card on file — breaks the zero-card invariant) vs. local-only
-      (no card, not shared with the group).
-- [ ] **Date-range / amount-range filters** on the activity feed — left out of
-      the search/filter pass.
-
----
-
-## 4. Infrastructure / operational
-
-`SHIP_PLAN.md` Tracks 1, 3, 4.
-
-- [ ] **Custom domain + Universal Links** (Track 1). `nakka.dev` is owned.
-      Invites work by 6-char code today; tappable `https://…/g/:id` links need
-      the domain on the Worker + the Associated Domains entitlement +
-      `apple-app-site-association`.
-- [ ] **WebSocket live updates** (Track 4) — currently a 5s foreground poll.
-      Only if concurrent usage actually appears.
-- [ ] **Operational hardening** (Track 3): observability/alerting, a billing
-      alert, rate-limit review — including **`POST /api/auth/apple` per-IP**
-      (`ACCOUNTS_DESIGN.md` §3 wants it; not done).
-- [ ] **`CLOUDFLARE_API_TOKEN` GitHub secret** — enables deploy-on-tag
-      (`worker-deploy.yml`); `make worker-deploy` locally meanwhile.
-- [ ] **App icon reverse-image + USPTO trademark checks** — the icon shipped;
-      the checks on it haven't run.
-
----
-
-## 5. Deliberate non-goals — will NOT be built
-
-FX / currency conversion · recurring or scheduled expenses · receipt OCR /
-bill reading · payment processing or money transfer · push-notification
-servers or email collection · passwords or third-party login.
-
-(Sign in with Apple is the only identity, requesting no name and no email.)
+**Corrected 2026-09-05:** third-party login is no longer a non-goal — Google
+joins Apple as part of the mandatory login model (`MANDATORY_LOGIN_PLAN.md`).
+Sign in with Apple is no longer the only identity.

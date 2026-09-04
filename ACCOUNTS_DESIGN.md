@@ -1,11 +1,10 @@
 # ClanTab — Accounts Design
 
-> Status: **settled — ready to build.** Resolves every open question in
-> `LOGIN_ACCOUNTS_BRIEF.md`; the three points that needed an explicit call
-> are decided in §15. Next step is to fold this into `DESIGN.md` (a new
-> §13) and `BACKEND_PLAN.md` (new DO + routes), then build per §14. The two
-> locked decisions from the brief — Sign in with Apple only, placeholder
-> members claimed via invite link — are taken as given.
+> Status: **settled — ready to build** (its "Sign in with Apple only"
+> premise is superseded by `MANDATORY_LOGIN_PLAN.md` — Google joins Apple,
+> login becomes mandatory; the placeholder-member/claim-via-invite-link
+> design below is unchanged). Next step is to fold this into `DESIGN.md`
+> (a new §13) and `BACKEND_PLAN.md` (new DO + routes), then build per §14.
 
 ---
 
@@ -346,8 +345,8 @@ account.") → call the endpoint → clear the local session → done.
 
 ## 12. Cross-group netting — enabled here, not built here
 
-"Settle across all groups with Bob" (`FEATURE_BACKLOG.md`,
-`LOGIN_ACCOUNTS_BRIEF.md`) becomes *possible* once the `UserDO` index
+"Settle across all groups with Bob" (`FEATURE_BACKLOG.md`)
+becomes *possible* once the `UserDO` index
 exists — two claimed identities can be matched across the groups they
 share. It is a **separate downstream phase**: a read-side aggregation over
 those groups, reported per currency (never blended — the multi-currency
