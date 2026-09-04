@@ -208,6 +208,61 @@ struct ClanTabClientTests {
         #expect(unset["categoryIcon"] == nil)
     }
 
+    @Test("updateGroup PATCHes name + currency and decodes the group summary")
+    func testUpdateGroup() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData([
+            "group": ["name": "Goa 2.0", "currency": "USD", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2"],
+        ]))
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        let response = try await client.updateGroup(groupId: "g1", name: "Goa 2.0", currency: "USD")
+        #expect(response.group.name == "Goa 2.0")
+        #expect(response.group.currency == "USD")
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "PATCH")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1")
+        let body = decodeBody(request)
+        #expect(body["name"] as? String == "Goa 2.0")
+        #expect(body["currency"] as? String == "USD")
+    }
+
+    @Test("updateGroup omits the key it isn't changing")
+    func testUpdateGroupPartial() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData([
+            "group": ["name": "Renamed", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2"],
+        ]))
+        _ = try await ClanTabClient(baseURL: baseURL, transport: transport).updateGroup(groupId: "g1", name: "Renamed")
+        let body = decodeBody(await transport.lastRequest)
+        #expect(body["name"] as? String == "Renamed")
+        #expect(body["currency"] == nil)
+    }
+
+    @Test("renameMember PATCHes and removeMember DELETEs the member path")
+    func testMemberRenameRemove() async throws {
+        let rename = FakeTransport(statusCode: 200, body: jsonData(["member": ["id": "m2", "displayName": "Benjamin"]]))
+        let renamed = try await ClanTabClient(baseURL: baseURL, transport: rename).renameMember(groupId: "g1", memberId: "m2", displayName: "Benjamin")
+        #expect(renamed.member == Member(id: "m2", displayName: "Benjamin"))
+        #expect(await rename.lastRequest?.httpMethod == "PATCH")
+        #expect(await rename.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/members/m2")
+
+        let remove = FakeTransport(statusCode: 204, body: Data())
+        try await ClanTabClient(baseURL: baseURL, transport: remove).removeMember(groupId: "g1", memberId: "m2")
+        #expect(await remove.lastRequest?.httpMethod == "DELETE")
+    }
+
+    @Test("removing a member in use surfaces .server(MEMBER_IN_USE)")
+    func testRemoveMemberInUse() async {
+        let transport = FakeTransport(
+            statusCode: 409,
+            body: jsonData(["error": ["code": "MEMBER_IN_USE", "message": "This member is on expenses or settlements."]])
+        )
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+        await #expect(throws: ClanTabClientError.server(code: "MEMBER_IN_USE", message: "This member is on expenses or settlements.")) {
+            try await client.removeMember(groupId: "g1", memberId: "m2")
+        }
+    }
+
     @Test("updateExpense PUTs to the id path and decodes the replaced expense")
     func testUpdateExpense() async throws {
         let transport = FakeTransport(statusCode: 200, body: jsonData([

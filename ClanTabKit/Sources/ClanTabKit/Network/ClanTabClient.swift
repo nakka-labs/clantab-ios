@@ -54,6 +54,26 @@ public actor ClanTabClient {
         try await post("api/groups/\(groupId)/settlements", body: request)
     }
 
+    // MARK: - Group & member settings (DESIGN.md §2)
+
+    /// Rename the group and/or change its default currency for new expenses.
+    /// Existing expenses keep their own currency.
+    public func updateGroup(groupId: String, name: String? = nil, currency: String? = nil) async throws -> UpdateGroupResponse {
+        try await patch("api/groups/\(groupId)", body: UpdateGroupRequest(name: name, currency: currency))
+    }
+
+    public func renameMember(groupId: String, memberId: String, displayName: String) async throws -> JoinGroupResponse {
+        try await patch("api/groups/\(groupId)/members/\(memberId)", body: JoinGroupRequest(displayName: displayName))
+    }
+
+    /// Remove a member. Throws `.server(code: "MEMBER_IN_USE", …)` if they're on
+    /// any expense/settlement, linked to an account, or the last member.
+    public func removeMember(groupId: String, memberId: String) async throws {
+        var request = URLRequest(url: url(for: "api/groups/\(groupId)/members/\(memberId)"))
+        request.httpMethod = "DELETE"
+        try await performNoContent(request)
+    }
+
     // MARK: - Edit / delete (DESIGN.md §2)
 
     /// Replace an expense wholesale. `request.id` is ignored — the id in the path
@@ -137,8 +157,16 @@ public actor ClanTabClient {
     }
 
     private func put<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil) async throws -> Response {
+        try await bodyRequest("PUT", path, body: body, bearer: bearer)
+    }
+
+    private func patch<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil) async throws -> Response {
+        try await bodyRequest("PATCH", path, body: body, bearer: bearer)
+    }
+
+    private func bodyRequest<Body: Encodable, Response: Decodable>(_ method: String, _ path: String, body: Body, bearer: String?) async throws -> Response {
         var request = URLRequest(url: url(for: path))
-        request.httpMethod = "PUT"
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(body)
         setBearer(bearer, on: &request)

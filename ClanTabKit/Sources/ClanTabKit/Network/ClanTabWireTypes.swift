@@ -73,6 +73,30 @@ public struct JoinGroupResponse: Decodable, Sendable {
     public let member: Member
 }
 
+// MARK: - PATCH /api/groups/:groupId
+
+public struct UpdateGroupRequest: Encodable, Sendable {
+    public let name: String?
+    public let currency: String?
+
+    public init(name: String? = nil, currency: String? = nil) {
+        self.name = name
+        self.currency = currency
+    }
+
+    private enum CodingKeys: String, CodingKey { case name, currency }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(currency, forKey: .currency)
+    }
+}
+
+public struct UpdateGroupResponse: Decodable, Sendable {
+    public let group: GroupSummary
+}
+
 // MARK: - GET /api/groups/:groupId
 
 public struct GroupStateResponse: Decodable, Sendable {
