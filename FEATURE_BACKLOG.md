@@ -79,13 +79,17 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   cheap enough (`production_priority` project memory's cost model) to just
   keep trash forever until there's a reason not to. Not yet deployed
   (server side).
-- **Duplicate an expense.** Swipe/context action on an activity row that
-  opens `AddExpenseView` pre-filled with the same payer/split/category and
-  today's date, amount blank. Reuses the existing `editing:` prefill
-  pattern (a `duplicating:` variant, same logic minus the id/PUT). Solves
-  the recurring-cost itch (rent, groceries) for the common case without the
-  correctness problems of auto-posting — see the recurring-reminders item
-  below for why full auto-post stays off the table.
+- **Duplicate an expense.** **Done 2026-09-05.** A "Duplicate" swipe action
+  on an expense row (`GroupHomeView`, alongside Edit/Delete) opens
+  `AddExpenseView` pre-filled with the same payer/split/category — amount
+  blank, date today. Reuses the existing `editing:` prefill pattern (a new
+  `duplicating:` param); `editing` itself stays `nil` for a duplicate, which
+  is what already makes `save()` POST a fresh expense with a new id instead
+  of PUTing over the original — no separate branch needed. No backend or
+  wire change; App build + test green (63/63, unchanged — view-layer only).
+  Solves the recurring-cost itch (rent, groceries) for the common case
+  without the correctness problems of auto-posting — see the
+  recurring-reminders item below for why full auto-post stays off the table.
 - **Recurring reminders (not auto-post).** ~~Previously listed under
   "Dropped" as a stated non-goal~~ — reopened 2026-09-05: Splitwise
   paywalls this, it's a real feature migrating users will miss, so it's

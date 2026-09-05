@@ -16,6 +16,7 @@ struct GroupHomeView: View {
     @State private var nudgeError: String?
     @State private var mutationError: String?
     @State private var editingExpense: Expense?
+    @State private var duplicatingExpense: Expense?
     @State private var pendingDelete: ActivityItem?
     @State private var isPresentingAddExpense = false
     @State private var isPresentingSettleUp = false
@@ -136,9 +137,13 @@ struct GroupHomeView: View {
                                     Button(role: .destructive) { pendingDelete = item } label: {
                                         Label("Delete", systemImage: "trash")
                                     }
-                                    if case .expense = item.kind {
+                                    if case .expense(let expense) = item.kind {
                                         Button { edit(item) } label: { Label("Edit", systemImage: "pencil") }
                                             .tint(.blue)
+                                        Button { duplicatingExpense = expense } label: {
+                                            Label("Duplicate", systemImage: "doc.on.doc")
+                                        }
+                                        .tint(.orange)
                                     }
                                 }
                         }
@@ -299,6 +304,25 @@ struct GroupHomeView: View {
                         Task { await viewModel.refetch() }
                     },
                     onCancel: { editingExpense = nil }
+                )
+            }
+        }
+        .sheet(item: $duplicatingExpense) { expense in
+            NavigationStack {
+                AddExpenseView(
+                    groupId: viewModel.groupId,
+                    members: viewModel.state?.members ?? [],
+                    defaultCurrency: expense.currency,
+                    currentMemberId: viewModel.myIdentity?.memberId,
+                    client: client,
+                    accessToken: viewModel.accessToken,
+                    duplicating: expense,
+                    onSaved: {
+                        duplicatingExpense = nil
+                        expenseAddedTrigger += 1
+                        Task { await viewModel.refetch() }
+                    },
+                    onCancel: { duplicatingExpense = nil }
                 )
             }
         }

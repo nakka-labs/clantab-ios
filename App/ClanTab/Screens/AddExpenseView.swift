@@ -48,6 +48,12 @@ struct AddExpenseView: View {
         client: ClanTabClient,
         accessToken: String? = nil,
         editing: Expense? = nil,
+        /// Pre-fill from this expense (same payer/split/category) but leave
+        /// `editing` `nil` — `save()` then POSTs a fresh expense with today's
+        /// date and a blank amount, rather than PUTing over the original
+        /// (`FEATURE_BACKLOG.md` "Duplicate an expense"). Mutually exclusive
+        /// with `editing`; a caller never sets both.
+        duplicating: Expense? = nil,
         onSaved: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -61,14 +67,20 @@ struct AddExpenseView: View {
         self.onSaved = onSaved
         self.onCancel = onCancel
 
-        guard let expense = editing else {
+        guard let expense = editing ?? duplicating else {
             _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
             _currency = State(initialValue: defaultCurrency)
             _includedMemberIds = State(initialValue: Set(members.map(\.id)))
             return
         }
 
-        _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: expense.amountMinor))
+        // Duplicating leaves the amount blank — everything else about the
+        // expense carries over, but the amount is the one field that's
+        // rarely identical trip to trip (that's the whole reason this isn't
+        // just an "undo delete" of a fresh copy).
+        if editing != nil {
+            _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: expense.amountMinor))
+        }
         _description = State(initialValue: expense.description)
         _payerId = State(initialValue: expense.payerId)
         _currency = State(initialValue: expense.currency)
