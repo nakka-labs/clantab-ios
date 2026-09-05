@@ -35,6 +35,14 @@ export interface Expense {
   /** SF Symbol name chosen for `category` — stored per expense so any client
    * renders the same icon without a shared name→icon table. */
   categoryIcon?: string;
+  /** Present only in a "Recently Deleted" listing (`FEATURE_BACKLOG.md`) — a
+   * soft-deleted row is otherwise excluded from every response entirely
+   * (`getState`, balances, `addExpense` replay). ISO 8601, seconds precision. */
+  deletedAt?: string;
+  /** The memberId attributed with the delete — client-supplied, trusted at
+   * face value like every other identifier in this trust model (`DESIGN.md`
+   * §6/§8); not cryptographically verified against a session. */
+  deletedBy?: string;
 }
 
 export interface Settlement {
@@ -44,6 +52,9 @@ export interface Settlement {
   amountMinor: number;
   currency: string;
   date: string;
+  /** See `Expense.deletedAt`/`deletedBy` — same "Recently Deleted"-only shape. */
+  deletedAt?: string;
+  deletedBy?: string;
 }
 
 /**

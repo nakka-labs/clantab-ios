@@ -77,9 +77,12 @@ const ROUTES: Route[] = [
   route("POST", "/api/groups/:groupId/expenses", handleAddExpense),
   route("PUT", "/api/groups/:groupId/expenses/:expenseId", handleUpdateExpense),
   route("DELETE", "/api/groups/:groupId/expenses/:expenseId", handleDeleteExpense),
+  route("POST", "/api/groups/:groupId/expenses/:expenseId/restore", handleRestoreExpense),
   route("POST", "/api/groups/:groupId/settlements", handleAddSettlement),
   route("PUT", "/api/groups/:groupId/settlements/:settlementId", handleUpdateSettlement),
   route("DELETE", "/api/groups/:groupId/settlements/:settlementId", handleDeleteSettlement),
+  route("POST", "/api/groups/:groupId/settlements/:settlementId/restore", handleRestoreSettlement),
+  route("GET", "/api/groups/:groupId/trash", handleTrash),
   route("GET", "/api/groups/:groupId/claimable", handleClaimable),
   route("POST", "/api/groups/:groupId/members/:memberId/claim", handleClaim),
   route("POST", "/api/auth/apple", handleAuthApple),
@@ -287,8 +290,17 @@ async function handleUpdateExpense(request: Request, env: Env, params: Params): 
 
 async function handleDeleteExpense(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
-  await group.deleteExpense(params.expenseId ?? "");
+  await group.deleteExpense(params.expenseId ?? "", deletedByParam(request));
   return new Response(null, { status: 204 });
+}
+
+/** Undo a soft delete (`FEATURE_BACKLOG.md` "Delete goes to trash") — the
+ * fast-path "Undo" toast and the "Recently Deleted" screen's Restore both
+ * call this. `NOT_FOUND` if the id doesn't exist or isn't currently trashed. */
+async function handleRestoreExpense(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  const result = await group.restoreExpense(params.expenseId ?? "");
+  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
 }
 
 /**
@@ -356,8 +368,22 @@ async function handleUpdateSettlement(request: Request, env: Env, params: Params
 
 async function handleDeleteSettlement(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
-  await group.deleteSettlement(params.settlementId ?? "");
+  await group.deleteSettlement(params.settlementId ?? "", deletedByParam(request));
   return new Response(null, { status: 204 });
+}
+
+/** See `handleRestoreExpense`. */
+async function handleRestoreSettlement(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  const result = await group.restoreSettlement(params.settlementId ?? "");
+  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+}
+
+/** Soft-deleted expenses/settlements for this group's "Recently Deleted"
+ * screen (`FEATURE_BACKLOG.md`). */
+async function handleTrash(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  return json(200, await group.trash());
 }
 
 // --- accounts / auth (ACCOUNTS_DESIGN.md §5–§7, §11) --------------------
@@ -577,6 +603,13 @@ async function handleClaim(request: Request, env: Env, params: Params): Promise<
 }
 
 // --- helpers ------------------------------------------------------------
+
+/** The `?deletedBy=<memberId>` query param on a delete request
+ * (`FEATURE_BACKLOG.md` "Delete goes to trash, with attribution") — optional,
+ * a client that omits it just gets an unattributed trash entry. */
+function deletedByParam(request: Request): string | undefined {
+  return new URL(request.url).searchParams.get("deletedBy") ?? undefined;
+}
 
 /** Extract the `Authorization: Bearer <token>` value or throw a 401. */
 function bearerToken(request: Request): string {

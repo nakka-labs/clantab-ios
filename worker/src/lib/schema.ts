@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at    INTEGER NOT NULL,
   category      TEXT,
   category_icon TEXT,
-  currency      TEXT
+  currency      TEXT,
+  deleted_at    INTEGER,
+  deleted_by    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expense_splits (
@@ -42,7 +44,9 @@ CREATE TABLE IF NOT EXISTS settlements (
   to_id        TEXT NOT NULL,
   amount_minor INTEGER NOT NULL,
   settled_at   INTEGER NOT NULL,
-  currency     TEXT
+  currency     TEXT,
+  deleted_at   INTEGER,
+  deleted_by   TEXT
 );
 `;
 
@@ -109,5 +113,10 @@ export const META_KEYS = {
  *  - `5` → `members.identity_sub` added (nullable). Every existing member is a
  *          placeholder (NULL); claiming links a member to an Apple identity.
  *          Plain `ALTER TABLE ... ADD COLUMN` — no rebuild. See `ACCOUNTS_DESIGN.md`.
+ *  - `6` → `expenses.deleted_at` / `.deleted_by` and `settlements.deleted_at` /
+ *          `.deleted_by` added (nullable). Delete becomes soft — a row with
+ *          `deleted_at` set is excluded from balances/getState but stays in
+ *          storage for "Recently Deleted" + Restore (`FEATURE_BACKLOG.md`).
+ *          Plain `ALTER TABLE ... ADD COLUMN` — no rebuild.
  */
-export const SCHEMA_VERSION = "5";
+export const SCHEMA_VERSION = "6";

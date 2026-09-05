@@ -44,6 +44,8 @@ type ExpenseRow = Row<{
   category: string | null;
   category_icon: string | null;
   currency: string;
+  deleted_at: number | null;
+  deleted_by: string | null;
 }>;
 type SplitRow = Row<{
   expense_id: string;
@@ -57,6 +59,8 @@ type SettlementRow = Row<{
   amount_minor: number;
   settled_at: number;
   currency: string;
+  deleted_at: number | null;
+  deleted_by: string | null;
 }>;
 
 /** One other claimed member, from the caller's point of view — used only by
@@ -151,6 +155,20 @@ export class GroupDO extends DurableObject {
       this.setMeta(META_KEYS.schemaVersion, "5");
       current = "5";
     }
+
+    if (current === "5") {
+      // v6: delete becomes soft. `deleted_at` / `deleted_by` on both tables
+      // (nullable); every existing row is untouched (NULL = active).
+      // In-place, no rebuild. See `FEATURE_BACKLOG.md` "Delete goes to trash".
+      this.sql.exec(`
+        ALTER TABLE expenses ADD COLUMN deleted_at INTEGER;
+        ALTER TABLE expenses ADD COLUMN deleted_by TEXT;
+        ALTER TABLE settlements ADD COLUMN deleted_at INTEGER;
+        ALTER TABLE settlements ADD COLUMN deleted_by TEXT;
+      `);
+      this.setMeta(META_KEYS.schemaVersion, "6");
+      current = "6";
+    }
   }
 
   /** Has this group been created (vs. just addressed)? Drives `GROUP_NOT_FOUND`. */
@@ -213,12 +231,15 @@ export class GroupDO extends DurableObject {
       return fail("MEMBER_IN_USE", "This member is linked to an account. That account must be deleted instead.");
     }
 
+    // Trashed (soft-deleted) rows don't count — from the group's point of
+    // view they're already gone, same as if they'd never been on this member.
     const referenced = this.sql
       .exec<{ n: number }>(
         `SELECT
-           (SELECT COUNT(*) FROM expenses WHERE payer_id = ?)
-         + (SELECT COUNT(*) FROM expense_splits WHERE member_id = ?)
-         + (SELECT COUNT(*) FROM settlements WHERE from_id = ? OR to_id = ?) AS n`,
+           (SELECT COUNT(*) FROM expenses WHERE payer_id = ? AND deleted_at IS NULL)
+         + (SELECT COUNT(*) FROM expense_splits es JOIN expenses e ON e.id = es.expense_id
+              WHERE es.member_id = ? AND e.deleted_at IS NULL)
+         + (SELECT COUNT(*) FROM settlements WHERE (from_id = ? OR to_id = ?) AND deleted_at IS NULL) AS n`,
         id,
         id,
         id,
@@ -444,13 +465,34 @@ export class GroupDO extends DurableObject {
     return ok({ expense });
   }
 
-  /** Remove an expense and its splits. Idempotent — deleting an id that isn't
-   * there is a no-op success. */
-  async deleteExpense(id: string): Promise<{ deleted: boolean }> {
-    const existed = this.readExpenseById(id) !== null;
-    this.sql.exec("DELETE FROM expense_splits WHERE expense_id = ?", id);
-    this.sql.exec("DELETE FROM expenses WHERE id = ?", id);
-    return { deleted: existed };
+  /** Soft-delete: stamps `deleted_at`/`deleted_by` instead of a real `DELETE`
+   * (`FEATURE_BACKLOG.md`) — splits are left alone so Restore can reconstruct
+   * the expense exactly. Idempotent both ways: deleting an id that never
+   * existed is a no-op `{ deleted: false }`; deleting one that's already
+   * trashed is a no-op `{ deleted: true }` that doesn't touch the original
+   * `deleted_at`/`deleted_by`. `deletedBy` is a memberId, trusted at face
+   * value like every other id in this trust model — not cryptographically
+   * verified against a session. */
+  async deleteExpense(id: string, deletedBy?: string): Promise<{ deleted: boolean }> {
+    const row = this.expenseRow(id);
+    if (row === null) return { deleted: false };
+    if (row.deleted_at === null) {
+      this.sql.exec("UPDATE expenses SET deleted_at = ?, deleted_by = ? WHERE id = ?", Date.now(), deletedBy ?? null, id);
+    }
+    return { deleted: true };
+  }
+
+  /** Undo a soft delete. `NOT_FOUND` if the id doesn't exist or isn't
+   * currently trashed (already active, or never existed). */
+  async restoreExpense(id: string): Promise<Result<{ expense: Expense }>> {
+    const row = this.expenseRow(id);
+    if (row === null || row.deleted_at === null) {
+      return fail("NOT_FOUND", `Expense "${id}" is not in the trash.`);
+    }
+    this.sql.exec("UPDATE expenses SET deleted_at = NULL, deleted_by = NULL WHERE id = ?", id);
+    const expense = this.readExpenseById(id);
+    if (expense === null) throw new Error("Expense vanished immediately after restore");
+    return ok({ expense });
   }
 
   async addSettlement(req: AddSettlementRequest): Promise<Result<{ settlement: Settlement }>> {
@@ -488,11 +530,45 @@ export class GroupDO extends DurableObject {
     return ok({ settlement });
   }
 
-  /** Remove a settlement. Idempotent. */
-  async deleteSettlement(id: string): Promise<{ deleted: boolean }> {
-    const existed = this.readSettlementById(id) !== null;
-    this.sql.exec("DELETE FROM settlements WHERE id = ?", id);
-    return { deleted: existed };
+  /** Soft-delete — see `deleteExpense` for the full semantics (same idempotent
+   * shape, same trust model for `deletedBy`). */
+  async deleteSettlement(id: string, deletedBy?: string): Promise<{ deleted: boolean }> {
+    const row = this.settlementRow(id);
+    if (row === null) return { deleted: false };
+    if (row.deleted_at === null) {
+      this.sql.exec("UPDATE settlements SET deleted_at = ?, deleted_by = ? WHERE id = ?", Date.now(), deletedBy ?? null, id);
+    }
+    return { deleted: true };
+  }
+
+  /** Undo a soft delete. `NOT_FOUND` if the id doesn't exist or isn't
+   * currently trashed. */
+  async restoreSettlement(id: string): Promise<Result<{ settlement: Settlement }>> {
+    const row = this.settlementRow(id);
+    if (row === null || row.deleted_at === null) {
+      return fail("NOT_FOUND", `Settlement "${id}" is not in the trash.`);
+    }
+    this.sql.exec("UPDATE settlements SET deleted_at = NULL, deleted_by = NULL WHERE id = ?", id);
+    const settlement = this.readSettlementById(id);
+    if (settlement === null) throw new Error("Settlement vanished immediately after restore");
+    return ok({ settlement });
+  }
+
+  /** Soft-deleted expenses/settlements, newest-deleted first
+   * (`FEATURE_BACKLOG.md` "Recently Deleted"). No purge job — kept forever
+   * until there's a reason not to (SQLite storage is cheap). */
+  async trash(): Promise<{ expenses: Expense[]; settlements: Settlement[] }> {
+    const expenseRows = this.sql
+      .exec<ExpenseRow>("SELECT * FROM expenses WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, rowid DESC")
+      .toArray();
+    const splits = this.sql.exec<SplitRow>("SELECT * FROM expense_splits").toArray();
+    const settlementRows = this.sql
+      .exec<SettlementRow>("SELECT * FROM settlements WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, rowid DESC")
+      .toArray();
+    return {
+      expenses: expenseRows.map((e) => this.toExpense(e, splits)),
+      settlements: settlementRows.map((s) => this.toSettlement(s)),
+    };
   }
 
   // --- add/edit shared internals ----------------------------------------
@@ -614,21 +690,33 @@ export class GroupDO extends DurableObject {
       .map((r) => ({ id: r.id, displayName: r.display_name }));
   }
 
+  /** Active (non-trashed) expenses only — `getState`, balances, idempotent-add
+   * and update's existence check all go through this. `trash()` and the raw
+   * `expenseRow` helper are the only paths that ever see a soft-deleted row. */
   private readExpenses(): Expense[] {
     const rows = this.sql
-      .exec<ExpenseRow>("SELECT * FROM expenses ORDER BY created_at ASC, rowid ASC")
+      .exec<ExpenseRow>("SELECT * FROM expenses WHERE deleted_at IS NULL ORDER BY created_at ASC, rowid ASC")
       .toArray();
     const splits = this.sql.exec<SplitRow>("SELECT * FROM expense_splits").toArray();
     return rows.map((e) => this.toExpense(e, splits));
   }
 
   private readExpenseById(id: string): Expense | null {
-    const rows = this.sql.exec<ExpenseRow>("SELECT * FROM expenses WHERE id = ?", id).toArray();
+    const rows = this.sql
+      .exec<ExpenseRow>("SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL", id)
+      .toArray();
     if (rows.length === 0) return null;
     const splits = this.sql
       .exec<SplitRow>("SELECT * FROM expense_splits WHERE expense_id = ?", id)
       .toArray();
     return this.toExpense(rows[0]!, splits);
+  }
+
+  /** Raw row lookup regardless of trashed state — for `deleteExpense` /
+   * `restoreExpense`, which need to see a row whichever state it's in. */
+  private expenseRow(id: string): ExpenseRow | null {
+    const rows = this.sql.exec<ExpenseRow>("SELECT * FROM expenses WHERE id = ?", id).toArray();
+    return rows.length > 0 ? rows[0]! : null;
   }
 
   private toExpense(e: ExpenseRow, allSplits: SplitRow[]): Expense {
@@ -647,19 +735,30 @@ export class GroupDO extends DurableObject {
       // dropped by JSON.stringify), matching the `category?` wire shape.
       ...(e.category != null ? { category: e.category } : {}),
       ...(e.category_icon != null ? { categoryIcon: e.category_icon } : {}),
+      ...(e.deleted_at != null ? { deletedAt: isoSeconds(e.deleted_at) } : {}),
+      ...(e.deleted_by != null ? { deletedBy: e.deleted_by } : {}),
     };
   }
 
+  /** Active (non-trashed) settlements only — see `readExpenses`. */
   private readSettlements(): Settlement[] {
     return this.sql
-      .exec<SettlementRow>("SELECT * FROM settlements ORDER BY settled_at ASC, rowid ASC")
+      .exec<SettlementRow>("SELECT * FROM settlements WHERE deleted_at IS NULL ORDER BY settled_at ASC, rowid ASC")
       .toArray()
       .map((s) => this.toSettlement(s));
   }
 
   private readSettlementById(id: string): Settlement | null {
-    const rows = this.sql.exec<SettlementRow>("SELECT * FROM settlements WHERE id = ?", id).toArray();
+    const rows = this.sql
+      .exec<SettlementRow>("SELECT * FROM settlements WHERE id = ? AND deleted_at IS NULL", id)
+      .toArray();
     return rows.length > 0 ? this.toSettlement(rows[0]!) : null;
+  }
+
+  /** Raw row lookup regardless of trashed state — see `expenseRow`. */
+  private settlementRow(id: string): SettlementRow | null {
+    const rows = this.sql.exec<SettlementRow>("SELECT * FROM settlements WHERE id = ?", id).toArray();
+    return rows.length > 0 ? rows[0]! : null;
   }
 
   private toSettlement(s: SettlementRow): Settlement {
@@ -670,6 +769,8 @@ export class GroupDO extends DurableObject {
       amountMinor: s.amount_minor,
       currency: s.currency,
       date: isoSeconds(s.settled_at),
+      ...(s.deleted_at != null ? { deletedAt: isoSeconds(s.deleted_at) } : {}),
+      ...(s.deleted_by != null ? { deletedBy: s.deleted_by } : {}),
     };
   }
 }

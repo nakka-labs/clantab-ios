@@ -140,16 +140,21 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("5");
+      expect(version).toBe("6");
 
       // The legacy expense survived the v2 rebuild, gained null category columns,
-      // and had its currency backfilled from the group (USD).
+      // had its currency backfilled from the group (USD), and gained null
+      // deleted_at/deleted_by (v6) — i.e. it's active, not trashed.
       const legacy = sql
-        .exec<{ category: string | null; category_icon: string | null; currency: string }>(
-          "SELECT category, category_icon, currency FROM expenses WHERE id = 'old-1'",
-        )
+        .exec<{
+          category: string | null;
+          category_icon: string | null;
+          currency: string;
+          deleted_at: number | null;
+          deleted_by: string | null;
+        }>("SELECT category, category_icon, currency, deleted_at, deleted_by FROM expenses WHERE id = 'old-1'")
         .toArray()[0];
-      expect(legacy).toEqual({ category: null, category_icon: null, currency: "USD" });
+      expect(legacy).toEqual({ category: null, category_icon: null, currency: "USD", deleted_at: null, deleted_by: null });
 
       // The legacy member gained a null identity_sub — i.e. it's a placeholder.
       const member = sql
@@ -308,6 +313,156 @@ describe("GroupDO", () => {
 
       await g.unclaim(ana.id, "sub-a");
       expect(await g.hasClaimedMember("sub-a")).toBe(false);
+    });
+  });
+
+  describe("trash (FEATURE_BACKLOG.md — delete goes to trash, with attribution)", () => {
+    it("deleteExpense soft-deletes: gone from getState/balances, present in trash() with attribution", async () => {
+      const g = group("g-trash-expense");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "TR1234");
+      const { member: ben } = await g.addMember("Ben");
+      const { value } = (await g.addExpense({
+        payerId: ana.id,
+        amountMinor: 200,
+        currency: "USD",
+        description: "Lunch",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [
+          { memberId: ana.id, amountMinor: 100 },
+          { memberId: ben.id, amountMinor: 100 },
+        ],
+      })) as { value: { expense: { id: string } } };
+
+      const del = await g.deleteExpense(value.expense.id, ben.id);
+      expect(del).toEqual({ deleted: true });
+
+      const state = await g.getState();
+      expect(state.expenses).toEqual([]);
+      expect(state.balances).toEqual([]); // the only expense is trashed — nothing owed
+
+      const { expenses } = await g.trash();
+      expect(expenses).toHaveLength(1);
+      expect(expenses[0]).toMatchObject({ id: value.expense.id, deletedBy: ben.id });
+      expect(expenses[0]!.deletedAt).toBeTruthy();
+      // Splits survive the soft delete — Restore needs them intact.
+      expect(expenses[0]!.splits).toHaveLength(2);
+    });
+
+    it("restoreExpense brings it back exactly, clears the trash attribution", async () => {
+      const g = group("g-restore-expense");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "RS1234");
+      const { value } = (await g.addExpense({
+        payerId: ana.id,
+        amountMinor: 100,
+        currency: "USD",
+        description: "Coffee",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ana.id, amountMinor: 100 }],
+      })) as { value: { expense: { id: string } } };
+      await g.deleteExpense(value.expense.id, ana.id);
+
+      const restored = await g.restoreExpense(value.expense.id);
+      expect(restored.ok).toBe(true);
+      if (restored.ok) {
+        expect(restored.value.expense).toMatchObject({ id: value.expense.id, description: "Coffee" });
+        expect(restored.value.expense.deletedAt).toBeUndefined();
+        expect(restored.value.expense.deletedBy).toBeUndefined();
+      }
+
+      const state = await g.getState();
+      expect(state.expenses).toHaveLength(1);
+      expect((await g.trash()).expenses).toEqual([]);
+    });
+
+    it("deleteExpense is idempotent both ways: unknown id -> false, already-trashed -> true without overwriting attribution", async () => {
+      const g = group("g-trash-idempotent");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ID1234");
+      const { member: ben } = await g.addMember("Ben");
+      const { value } = (await g.addExpense({
+        payerId: ana.id,
+        amountMinor: 100,
+        currency: "USD",
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ana.id, amountMinor: 100 }],
+      })) as { value: { expense: { id: string } } };
+
+      expect(await g.deleteExpense("never-existed")).toEqual({ deleted: false });
+
+      await g.deleteExpense(value.expense.id, ana.id);
+      expect(await g.deleteExpense(value.expense.id, ben.id)).toEqual({ deleted: true });
+      // Second call (attributed to Ben) didn't clobber the original attribution.
+      expect((await g.trash()).expenses[0]).toMatchObject({ deletedBy: ana.id });
+    });
+
+    it("restoreExpense 404s an unknown id or one that's active, not trashed", async () => {
+      const g = group("g-restore-404");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "R41234");
+      const { value } = (await g.addExpense({
+        payerId: ana.id,
+        amountMinor: 100,
+        currency: "USD",
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ana.id, amountMinor: 100 }],
+      })) as { value: { expense: { id: string } } };
+
+      const activeResult = await g.restoreExpense(value.expense.id);
+      expect(activeResult.ok).toBe(false);
+      if (!activeResult.ok) expect(activeResult.error.code).toBe("NOT_FOUND");
+
+      const ghostResult = await g.restoreExpense("never-existed");
+      expect(ghostResult.ok).toBe(false);
+    });
+
+    it("deleteSettlement / restoreSettlement mirror the expense behavior", async () => {
+      const g = group("g-trash-settlement");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "TS1234");
+      const { member: ben } = await g.addMember("Ben");
+      const { value } = (await g.addSettlement({
+        fromId: ben.id,
+        toId: ana.id,
+        amountMinor: 300,
+        currency: "USD",
+      })) as { value: { settlement: { id: string } } };
+
+      await g.deleteSettlement(value.settlement.id, ben.id);
+      expect((await g.getState()).settlements).toEqual([]);
+      const { settlements } = await g.trash();
+      expect(settlements).toMatchObject([{ id: value.settlement.id, deletedBy: ben.id }]);
+
+      const restored = await g.restoreSettlement(value.settlement.id);
+      expect(restored.ok).toBe(true);
+      expect((await g.getState()).settlements).toHaveLength(1);
+      expect((await g.trash()).settlements).toEqual([]);
+    });
+
+    it("removeMember isn't blocked by a trashed expense, only an active one", async () => {
+      const g = group("g-trash-remove-member");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "RM1234");
+      const { member: ben } = await g.addMember("Ben");
+      const { value } = (await g.addExpense({
+        payerId: ben.id,
+        amountMinor: 100,
+        currency: "USD",
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ben.id, amountMinor: 100 }],
+      })) as { value: { expense: { id: string } } };
+
+      // While the expense is active, Ben can't be removed.
+      const blocked = await g.removeMember(ben.id);
+      expect(blocked.ok).toBe(false);
+
+      // Once it's trashed, the reference no longer counts.
+      await g.deleteExpense(value.expense.id, ana.id);
+      const removed = await g.removeMember(ben.id);
+      expect(removed.ok).toBe(true);
     });
   });
 });

@@ -54,19 +54,26 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   then posts each row with a client-generated id (partial import is retry-safe).
   No backend or schema change.
 
-- **Delete goes to trash, with attribution.** Every delete becomes a soft
-  delete (`deleted_at` + `deleted_by` nullable columns, plain `ADD COLUMN`
-  migration, no rebuild) instead of a real `DELETE`; balance/simplify
-  computation excludes soft-deleted rows. A "Recently Deleted" screen per
-  group lists them with Restore. The in-the-moment swipe-to-delete keeps an
-  "Undo" toast for ~5s as the fast path — same underlying mechanism, the
-  toast is just quick access to the same restore action the trash screen
-  offers indefinitely after. `deleted_by` (and while the schema's open,
-  `created_by`/`edited_by`) also answers "wait, who did that" — the
-  no-accounts trust model means anyone with the link can delete anything;
-  this is the fix. No purge job needed for v1 — SQLite storage is cheap
-  enough (`production_priority` project memory's cost model) to just keep
-  trash forever until there's a reason not to.
+- **Delete goes to trash, with attribution.** **Server side done 2026-09-05**
+  (schema v6: `deleted_at` + `deleted_by`, nullable, plain `ADD COLUMN` on
+  both `expenses` and `settlements` — no rebuild); worker tests 154 → 163,
+  `wrangler deploy --dry-run` validates, not yet deployed. `DELETE` now
+  soft-deletes (splits are left alone so a restored expense comes back
+  exactly); `getState`/balances/`removeMember`'s in-use check all exclude
+  trashed rows; new `GET .../trash` (lists both, newest-deleted first) and
+  `POST .../expenses|settlements/:id/restore`. `deletedBy` is an optional
+  `?deletedBy=<memberId>` query param on the delete call — client-supplied,
+  trusted at face value like every other id in this trust model, not
+  cryptographically verified. **Scoped down from the original ask:**
+  `created_by`/`edited_by` deliberately not built in this pass — the
+  headline "anyone with the link can delete anything" gap is `deleted_by`;
+  the other two are a separable follow-up, not bundled in just because the
+  schema was open. **Still to do (iOS):** a "Recently Deleted" screen per
+  group with Restore, and the in-the-moment swipe-to-delete's "Undo" toast
+  (~5s) as the fast path to the same restore action. No purge job needed for
+  v1 — SQLite storage is cheap enough (`production_priority` project
+  memory's cost model) to just keep trash forever until there's a reason
+  not to.
 - **Duplicate an expense.** Swipe/context action on an activity row that
   opens `AddExpenseView` pre-filled with the same payer/split/category and
   today's date, amount blank. Reuses the existing `editing:` prefill

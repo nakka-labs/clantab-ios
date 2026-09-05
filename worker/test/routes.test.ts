@@ -639,6 +639,48 @@ describe("edit / delete", () => {
     expect((await del(`/api/groups/${groupId}/expenses/never-existed`, token)).status).toBe(204);
   });
 
+  it("DELETE soft-deletes with attribution — GET /trash shows it, POST restore brings it back", async () => {
+    const id = await addExpense(1000, "Lunch");
+    expect((await del(`/api/groups/${groupId}/expenses/${id}?deletedBy=${b}`, token)).status).toBe(204);
+
+    expect((await get(`/api/groups/${groupId}`, undefined, token)).json.expenses).toEqual([]);
+
+    const trash = await get(`/api/groups/${groupId}/trash`, undefined, token);
+    expect(trash.status).toBe(200);
+    expect(trash.json.expenses).toHaveLength(1);
+    expect((trash.json.expenses as Json[])[0]).toMatchObject({ id, deletedBy: b });
+    expect(trash.json.settlements).toEqual([]);
+
+    const restore = await post(`/api/groups/${groupId}/expenses/${id}/restore`, {}, token);
+    expect(restore.status).toBe(200);
+    expect((restore.json.expense as Json).id).toBe(id);
+    expect((restore.json.expense as Json)).not.toHaveProperty("deletedBy");
+
+    expect((await get(`/api/groups/${groupId}`, undefined, token)).json.expenses).toHaveLength(1);
+    expect((await get(`/api/groups/${groupId}/trash`, undefined, token)).json.expenses).toEqual([]);
+  });
+
+  it("POST restore 404s an id that's still active, or unknown", async () => {
+    const id = await addExpense(1000);
+    expect((await post(`/api/groups/${groupId}/expenses/${id}/restore`, {}, token)).status).toBe(404);
+    expect((await post(`/api/groups/${groupId}/expenses/ghost/restore`, {}, token)).status).toBe(404);
+  });
+
+  it("settlement DELETE/trash/restore mirror expenses", async () => {
+    const { json } = await post(`/api/groups/${groupId}/settlements`, { fromId: b, toId: a, amountMinor: 200 }, token);
+    const sId = (json.settlement as Json).id as string;
+
+    expect((await del(`/api/groups/${groupId}/settlements/${sId}?deletedBy=${a}`, token)).status).toBe(204);
+    expect((await get(`/api/groups/${groupId}`, undefined, token)).json.settlements).toEqual([]);
+
+    const trash = await get(`/api/groups/${groupId}/trash`, undefined, token);
+    expect(trash.json.settlements).toMatchObject([{ id: sId, deletedBy: a }]);
+
+    const restore = await post(`/api/groups/${groupId}/settlements/${sId}/restore`, {}, token);
+    expect(restore.status).toBe(200);
+    expect((await get(`/api/groups/${groupId}`, undefined, token)).json.settlements).toHaveLength(1);
+  });
+
   it("PUT / DELETE a settlement", async () => {
     await addExpense(1000, "Lunch");
     const { json } = await post(

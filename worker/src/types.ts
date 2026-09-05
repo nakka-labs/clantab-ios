@@ -105,6 +105,25 @@ export interface AddSettlementResponse {
   settlement: Settlement;
 }
 
+// GET /api/groups/:groupId/trash
+/** Soft-deleted expenses/settlements, newest-deleted first — `FEATURE_BACKLOG.md`
+ * "Delete goes to trash, with attribution". Everywhere else (`GroupStateResponse`,
+ * `addExpense`, …) excludes these entirely. */
+export interface TrashResponse {
+  expenses: Expense[];
+  settlements: Settlement[];
+}
+
+// POST /api/groups/:groupId/expenses/:expenseId/restore
+export interface RestoreExpenseResponse {
+  expense: Expense;
+}
+
+// POST /api/groups/:groupId/settlements/:settlementId/restore
+export interface RestoreSettlementResponse {
+  settlement: Settlement;
+}
+
 /** `{ "error": { "code", "message" } }` — every non-bare error response (`DESIGN.md` §2). */
 export interface ErrorEnvelope {
   error: { code: string; message: string };
