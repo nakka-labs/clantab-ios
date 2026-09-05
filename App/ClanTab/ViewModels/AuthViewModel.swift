@@ -1,6 +1,8 @@
 import AuthenticationServices
 import Foundation
 import Observation
+import UIKit
+import UserNotifications
 import ClanTabKit
 
 /// Where the signed-in Apple credential stands right now, as reported by
@@ -127,6 +129,41 @@ final class AuthViewModel {
         backupNudge.recordShown(now)
     }
 
+    // MARK: - Push notifications (FEATURE_BACKLOG.md "Push notifications")
+
+    private static let deviceTokenDefaultsKey = "clantab.push.deviceToken"
+
+    /// Register this device's APNs token with the server — called from
+    /// `AppDelegate` once the OS hands it over. No-op while signed out (there's
+    /// no identity to register it against yet); harmless to call repeatedly,
+    /// e.g. on every launch, since the server-side registration is itself
+    /// idempotent. Cached locally so `signOut()` can clean up its own
+    /// registration.
+    func registerDeviceToken(_ deviceToken: String) async {
+        guard let token = session?.token else { return }
+        do {
+            try await client.registerDevice(deviceToken: deviceToken, token: token)
+            UserDefaults.standard.set(deviceToken, forKey: Self.deviceTokenDefaultsKey)
+        } catch {
+            // Best-effort — a registration failure shouldn't surface as a
+            // user-facing error; the next launch tries again.
+            print("registerDeviceToken failed: \(error)")
+        }
+    }
+
+    /// Prompt for push permission right after a fresh sign-in — a real
+    /// decision point, not launch (Apple's own guidance: ask near a moment
+    /// that motivates it). `requestAuthorization` itself is idempotent —
+    /// once the person has answered, it just returns that answer without
+    /// re-prompting, so this is safe to call on every sign-in.
+    private func requestPushAuthorizationIfNeeded() {
+        Task {
+            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            guard granted else { return }
+            await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
+        }
+    }
+
     // MARK: - Sign in / out
 
     /// Exchange a verified Apple credential for a session (`ACCOUNTS_DESIGN.md` §5).
@@ -150,6 +187,7 @@ final class AuthViewModel {
             sessionStore.save(session)
             self.session = session
             applyGroups(response.groups ?? [])
+            requestPushAuthorizationIfNeeded()
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
         }
@@ -169,6 +207,7 @@ final class AuthViewModel {
             sessionStore.save(session)
             self.session = session
             applyGroups(response.groups ?? [])
+            requestPushAuthorizationIfNeeded()
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
         }
@@ -234,6 +273,15 @@ final class AuthViewModel {
     /// `MANDATORY_LOGIN_PLAN.md` Part 3). There is no server-side revocation
     /// (`ACCOUNTS_DESIGN.md` §3); the token simply expires on its own.
     func signOut() {
+        // Best-effort, fire-and-forget — this identity's session is about to
+        // be gone either way, so a failure here just leaves a stale device
+        // token registered until the next `registerDeviceToken` overwrites it
+        // for whoever signs in next (`GroupDO.claimedIdentitiesExcluding`
+        // still only ever notifies this group's actual claimed members).
+        if let token = session?.token, let deviceToken = UserDefaults.standard.string(forKey: Self.deviceTokenDefaultsKey) {
+            Task { try? await client.unregisterDevice(deviceToken: deviceToken, token: token) }
+        }
+        UserDefaults.standard.removeObject(forKey: Self.deviceTokenDefaultsKey)
         sessionStore.clear()
         session = nil
         groups = []

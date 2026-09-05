@@ -3,6 +3,7 @@ import ClanTabKit
 
 @main
 struct ClanTabApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let client: ClanTabClient
     private let knownGroups: KnownGroupsStoring
     @State private var auth: AuthViewModel
@@ -26,6 +27,7 @@ struct ClanTabApp: App {
         WindowGroup {
             RootView(client: client, knownGroups: knownGroups, auth: auth)
                 .preferredColorScheme(theme.colorScheme)
+                .task { appDelegate.authViewModel = auth }
         }
     }
 }

@@ -229,13 +229,48 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   gray marker) and `CategoryPickerView`'s rows. ClanTabKit 141/141 passing
   (was 134); App 69/69 passing (view-layer wiring, no new App tests).
 
-- **Push notifications.** **Moved into v1 scope 2026-09-05** — the single
-  highest-engagement feature on this list; "Priya added ₹500" landing on a
-  lock screen is what turns "checked occasionally" into "used daily." Real
-  backend work (device token management + dispatch on every mutation —
-  `SHIP_PLAN.md` Track 4's WebSocket work is adjacent, not the same
-  thing), no ₹ cost (APNs itself is free). Notify on someone *else's*
-  action, never your own.
+- **Push notifications.** **Moved into v1 scope 2026-09-05.** **Code done
+  2026-09-05** (server + iOS); **real delivery still blocked on an owner
+  action** — see below. The single highest-engagement feature on this
+  list; "Priya added ₹500" landing on a lock screen is what turns "checked
+  occasionally" into "used daily." No ₹ cost (APNs itself is free). Notify
+  on someone *else's* action, never your own — scoped to the two
+  highest-value mutations for v1 (new expense, settlement marked paid);
+  edits/deletes/member changes stay silent, extendable later.
+  Server: `lib/apns.ts` is a hand-rolled APNs HTTP/2 client (ES256
+  provider-token JWT via Web Crypto, no library — same construction as
+  `apple-oauth.ts`'s SIWA client secret, factored into a shared
+  `lib/pem.ts`). `lib/notify.ts` fans a push out to every *other* claimed
+  member's registered devices (`GroupDO.claimedIdentitiesExcluding`,
+  `UserDO`'s new `devices` table / `registerDevice`/`unregisterDevice`/
+  `deviceTokens`), forgetting any token APNs reports dead. Wired into
+  `handleAddExpense`/`handleAddSettlement` via `ctx.waitUntil` — fire-and-
+  forget, never blocks or fails the mutation's own response; a no-op
+  (not an error) until the `APNS_*` secrets are set. New
+  `POST /api/auth/devices` / `DELETE /api/auth/devices/:token` routes.
+  Worker suite 193/193 passing (was 174).
+  iOS: `ClanTabClient.registerDevice`/`unregisterDevice`; a new
+  `AppDelegate` (App target only, never `ClanTabKit` — the cross-platform
+  guardrail) bridges `UIApplication`'s registration callbacks and
+  `UNUserNotificationCenterDelegate` into the app — permission is
+  requested right after a fresh sign-in, foreground pushes still show a
+  banner, and a tap opens the group via the *same* deep-link path as any
+  other incoming URL (`RootView.handleDeepLink`). `AuthViewModel` caches
+  the last-registered device token locally and unregisters it on sign-out,
+  so a device switching identities doesn't leave the old identity
+  subscribed. `aps-environment` entitlement added to `project.yml`.
+  ClanTabKit 144/144 passing (was 141); App 69/69 passing (view/UIKit glue
+  — untestable without a real device, matching the rest of this repo's
+  external-service call sites, e.g. `apple-oauth.ts`/`google-auth.ts`).
+  **What's left, all owner actions (`NEXT_STEPS.md` Phase 6) — none of
+  this is buildable or verifiable from here:** (1) enable the Push
+  Notifications capability on the App ID in the Apple Developer portal;
+  (2) generate an APNs Auth Key (`.p8`) there, and set its Key ID + the
+  Team ID + the key contents + the bundle id as the worker's
+  `APNS_KEY_ID`/`APNS_TEAM_ID`/`APNS_PRIVATE_KEY`/`APNS_TOPIC` secrets
+  (`wrangler secret put ...`); (3) a real-device TestFlight pass — the
+  Simulator can't obtain a genuine APNs device token at all, only a real
+  device can, so end-to-end delivery has zero test coverage until then.
 - **Home-screen widget (WidgetKit).** **Moved into v1 scope 2026-09-05** —
   glanceable "you owe / you're owed" for the primary group without opening
   the app; fits the SF Rounded hero-numeral treatment already established.

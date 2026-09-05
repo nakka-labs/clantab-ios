@@ -237,4 +237,42 @@ struct ClanTabAuthClientTests {
             try await client.deleteAccount(token: "stale")
         }
     }
+
+    // MARK: - push notifications (FEATURE_BACKLOG.md)
+
+    @Test("registerDevice POSTs the token + platform with a bearer, tolerates a 204")
+    func testRegisterDevice() async throws {
+        let transport = FakeTransport(statusCode: 204, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        try await client.registerDevice(deviceToken: "deadbeef", token: "sess")
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "POST")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/auth/devices")
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
+        #expect(decodeBody(request)["token"] as? String == "deadbeef")
+        #expect(decodeBody(request)["platform"] as? String == "ios")
+    }
+
+    @Test("registerDevice sends a non-default platform when given")
+    func testRegisterDeviceCustomPlatform() async throws {
+        let transport = FakeTransport(statusCode: 204, body: Data())
+        try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .registerDevice(deviceToken: "tok", platform: "ios-sim", token: "sess")
+        #expect(decodeBody(await transport.lastRequest)["platform"] as? String == "ios-sim")
+    }
+
+    @Test("unregisterDevice DELETEs the token's own path with a bearer")
+    func testUnregisterDevice() async throws {
+        let transport = FakeTransport(statusCode: 204, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        try await client.unregisterDevice(deviceToken: "deadbeef", token: "sess")
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "DELETE")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/auth/devices/deadbeef")
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
+    }
 }

@@ -315,6 +315,21 @@ export class GroupDO extends DurableObject {
     return rows.length > 0;
   }
 
+  /** Every *other* claimed identity in this group — for push notification
+   * fan-out (`FEATURE_BACKLOG.md` "Push notifications"): "notify on someone
+   * else's action, never your own," so the acting identity is excluded, and
+   * guests (`identity_sub IS NULL`) never appear — there's no device to
+   * notify without a signed-in identity. */
+  async claimedIdentitiesExcluding(actingSub: string): Promise<{ identities: string[] }> {
+    const rows = this.sql
+      .exec<{ identity_sub: string }>(
+        "SELECT DISTINCT identity_sub FROM members WHERE identity_sub IS NOT NULL AND identity_sub != ?",
+        actingSub,
+      )
+      .toArray();
+    return { identities: rows.map((r) => r.identity_sub) };
+  }
+
   // --- accounts / claim flow (ACCOUNTS_DESIGN.md §6) ----------------------
   // `GroupDO` is authoritative for membership↔identity; the Worker calls these
   // first, then updates the `UserDO` index. No wire route wired yet.

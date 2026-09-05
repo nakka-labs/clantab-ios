@@ -254,6 +254,33 @@ describe("GroupDO", () => {
     });
   });
 
+  describe("claimedIdentitiesExcluding (FEATURE_BACKLOG.md — push notifications)", () => {
+    it("lists every claimed identity except the one excluded, dedupes, and skips guests", async () => {
+      const g = group("g-notify");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "NTF234");
+      const { member: ben } = await g.addMember("Ben");
+      await g.addMember("Guest"); // never claimed — identity_sub stays null
+
+      await g.claim(ana.id, "apple:ana");
+      await g.claim(ben.id, "apple:ben");
+
+      expect(await g.claimedIdentitiesExcluding("apple:ana")).toEqual({ identities: ["apple:ben"] });
+      expect(await g.claimedIdentitiesExcluding("apple:ben")).toEqual({ identities: ["apple:ana"] });
+      expect(await g.claimedIdentitiesExcluding("apple:someone-else")).toEqual({
+        identities: expect.arrayContaining(["apple:ana", "apple:ben"]),
+      });
+    });
+
+    it("excludes an identity once unclaimed", async () => {
+      const g = group("g-notify-unclaim");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "NTU234");
+      await g.claim(ana.id, "apple:ana");
+      await g.unclaim(ana.id, "apple:ana");
+
+      expect(await g.claimedIdentitiesExcluding("apple:someone-else")).toEqual({ identities: [] });
+    });
+  });
+
   it("addExpense returns a failure Result (not a throw) for bad input", async () => {
     const g = group("g-bad");
     const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "BAD234");

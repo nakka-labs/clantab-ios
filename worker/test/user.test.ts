@@ -74,4 +74,38 @@ describe("UserDO", () => {
     // A fresh sign-in with the same Apple ID starts clean.
     expect(await u.ensureExists("sub-delete")).toEqual({ created: true });
   });
+
+  // --- push notifications (FEATURE_BACKLOG.md "Push notifications") ------
+
+  it("registerDevice is idempotent and lists every registered token", async () => {
+    const u = user("sub-devices");
+    expect(await u.deviceTokens()).toEqual([]);
+
+    await u.registerDevice("tok-1", "ios");
+    await u.registerDevice("tok-1", "ios"); // re-registration is a no-op
+    await u.registerDevice("tok-2", "ios");
+
+    expect((await u.deviceTokens()).sort()).toEqual(["tok-1", "tok-2"]);
+  });
+
+  it("unregisterDevice drops one token and is idempotent", async () => {
+    const u = user("sub-unregister");
+    await u.registerDevice("tok-1", "ios");
+    await u.registerDevice("tok-2", "ios");
+
+    await u.unregisterDevice("tok-1");
+    expect(await u.deviceTokens()).toEqual(["tok-2"]);
+
+    await u.unregisterDevice("tok-1"); // already gone — no error
+    expect(await u.deviceTokens()).toEqual(["tok-2"]);
+  });
+
+  it("deleteAll clears registered devices too", async () => {
+    const u = user("sub-delete-devices");
+    await u.registerDevice("tok-1", "ios");
+
+    await u.deleteAll();
+
+    expect(await u.deviceTokens()).toEqual([]);
+  });
 });

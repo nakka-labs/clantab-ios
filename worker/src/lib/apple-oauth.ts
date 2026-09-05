@@ -6,6 +6,7 @@
 // signed with the team's `.p8` key.
 
 import { b64urlEncode } from "./base64url.ts";
+import { pemToDer } from "./pem.ts";
 
 const APPLE_TOKEN_URL = "https://appleid.apple.com/auth/token";
 const APPLE_REVOKE_URL = "https://appleid.apple.com/auth/revoke";
@@ -131,15 +132,4 @@ export async function revokeToken(refreshToken: string, config: SiwaConfig, opts
   if (!res.ok) {
     throw new AppleOAuthError(`Apple token revocation failed (${res.status}).`);
   }
-}
-
-function pemToDer(pem: string): Uint8Array {
-  const base64 = pem
-    .replace(/-----BEGIN [^-]+-----/, "")
-    .replace(/-----END [^-]+-----/, "")
-    .replace(/\s+/g, "");
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
 }

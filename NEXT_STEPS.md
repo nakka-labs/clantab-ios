@@ -149,7 +149,12 @@ Phase 6.
 Needs Phase 2's stable `UserDO` keys — building these against a
 soon-to-be-rekeyed identity risks rework.
 
-- [ ] **[CLI]** Push notifications
+- [x] **[CLI]** Push notifications — **code done 2026-09-05** (server +
+      iOS, `FEATURE_BACKLOG.md`). **[OWNER]** still needed before real
+      delivery works: enable Push Notifications on the App ID, generate an
+      APNs Auth Key, set the worker's `APNS_*` secrets, and a real-device
+      TestFlight pass (the Simulator can't get a genuine APNs token at
+      all).
 - [ ] **[CLI]** Home-screen widget (WidgetKit)
 - [ ] **[CLI]** Siri / App Intents (build last of the three — lowest
       priority within v1)

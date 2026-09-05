@@ -4,3 +4,17 @@
 # Production sets this as a real secret: `wrangler secret put SESSION_SIGNING_KEY`.
 # Tests use the value in vitest.workers.config.ts.
 SESSION_SIGNING_KEY=dev-only-not-a-secret
+
+# Push notifications (FEATURE_BACKLOG.md) — all optional; apnsConfigFromEnv()
+# is a no-op until every one of APNS_KEY_ID/APNS_TEAM_ID/APNS_PRIVATE_KEY/
+# APNS_TOPIC is set (NEXT_STEPS.md Phase 6's owner action: enable Push
+# Notifications on the App ID, generate a .p8 Auth Key in the Apple Developer
+# portal). Production sets these as real secrets (`wrangler secret put ...`);
+# APNS_PRIVATE_KEY is the whole .p8 file's contents, literal newlines and all.
+# APNS_ENVIRONMENT=sandbox for an Xcode debug build's device tokens
+# (unset/anything else = production, for TestFlight/App Store builds).
+# APNS_KEY_ID=
+# APNS_TEAM_ID=
+# APNS_PRIVATE_KEY=
+# APNS_TOPIC=com.clantab.app
+# APNS_ENVIRONMENT=sandbox

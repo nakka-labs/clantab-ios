@@ -137,6 +137,20 @@ public struct PeopleAcrossGroupsResponse: Decodable, Sendable {
     public let people: [CrossGroupPerson]
 }
 
+// MARK: - POST /api/auth/devices
+
+/// Register an APNs device token for push (`FEATURE_BACKLOG.md` "Push
+/// notifications"). Idempotent — safe to send on every launch.
+public struct RegisterDeviceRequest: Encodable, Sendable {
+    public let token: String
+    public let platform: String
+
+    public init(token: String, platform: String = "ios") {
+        self.token = token
+        self.platform = platform
+    }
+}
+
 // MARK: - GET /api/groups/:groupId/claimable
 
 public struct ClaimableMembersResponse: Decodable, Sendable {

@@ -196,6 +196,27 @@ public actor ClanTabClient {
         _ = try await performNoContent(request)
     }
 
+    /// Register this device for push (`FEATURE_BACKLOG.md` "Push
+    /// notifications") — call on every launch once the OS hands the app an
+    /// APNs device token. Idempotent; safe to call unconditionally.
+    public func registerDevice(deviceToken: String, platform: String = "ios", token: String) async throws {
+        var request = URLRequest(url: url(for: "api/auth/devices"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(RegisterDeviceRequest(token: deviceToken, platform: platform))
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        _ = try await performNoContent(request)
+    }
+
+    /// Forget a device token — call on sign-out so a shared/reset device
+    /// stops getting pushed for an identity no longer signed in on it.
+    public func unregisterDevice(deviceToken: String, token: String) async throws {
+        var request = URLRequest(url: url(for: "api/auth/devices/\(deviceToken)"))
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        _ = try await performNoContent(request)
+    }
+
     /// This group's placeholder members — the "this is me" picker (§6). Needs
     /// the access token too, same as any other group route — a not-yet-claimed
     /// caller has no claimed-member fallback yet (`ACCESS_TOKEN_PLAN.md` Part 1).

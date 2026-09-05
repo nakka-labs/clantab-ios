@@ -82,6 +82,8 @@ describe("Bearer-gated routes reject a missing / bad token", () => {
     ["POST", "/api/auth/refresh"],
     ["GET", "/api/auth/groups"],
     ["DELETE", "/api/auth/account"],
+    ["POST", "/api/auth/devices"],
+    ["DELETE", "/api/auth/devices/sometoken"],
   ] as const)("%s %s → 401 without a token", async (method, path) => {
     const { status, json } = await call(method, path);
     expect(status).toBe(401);
@@ -113,6 +115,29 @@ describe("GET /api/auth/groups", () => {
     });
     expect(status).toBe(200);
     expect(json.groups).toEqual([]);
+  });
+});
+
+describe("POST /api/auth/devices, DELETE /api/auth/devices/:token (FEATURE_BACKLOG.md — push notifications)", () => {
+  it("registers a device token, idempotently, defaulting platform to ios", async () => {
+    const bearer = await token("000123.devices.0001");
+    expect((await call("POST", "/api/auth/devices", { bearer, body: { token: "dev-tok-1" } })).status).toBe(204);
+    // Re-registering the same token (e.g. every launch) is a safe no-op.
+    expect((await call("POST", "/api/auth/devices", { bearer, body: { token: "dev-tok-1" } })).status).toBe(204);
+  });
+
+  it("rejects a missing token with 400", async () => {
+    const bearer = await token("000123.devices.0002");
+    const { status } = await call("POST", "/api/auth/devices", { bearer, body: {} });
+    expect(status).toBe(400);
+  });
+
+  it("unregisters a device token idempotently, scoped to the caller's own identity", async () => {
+    const bearer = await token("000123.devices.0003");
+    await call("POST", "/api/auth/devices", { bearer, body: { token: "dev-tok-2" } });
+
+    expect((await call("DELETE", "/api/auth/devices/dev-tok-2", { bearer })).status).toBe(204);
+    expect((await call("DELETE", "/api/auth/devices/dev-tok-2", { bearer })).status).toBe(204); // already gone
   });
 });
 

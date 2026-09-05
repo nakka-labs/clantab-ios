@@ -101,6 +101,33 @@ export class UserDO extends DurableObject {
   async deleteAll(): Promise<void> {
     this.sql.exec("DELETE FROM memberships");
     this.sql.exec("DELETE FROM user_meta");
+    this.sql.exec("DELETE FROM devices");
+  }
+
+  // --- push notifications (FEATURE_BACKLOG.md "Push notifications") ------
+
+  /** Register a device token for push (idempotent — re-registering the same
+   * token, e.g. on every launch, is a safe no-op). One identity can hold
+   * several tokens (multiple devices); all get notified. */
+  async registerDevice(token: string, platform: string): Promise<void> {
+    this.sql.exec(
+      "INSERT INTO devices (token, platform, added_at) VALUES (?, ?, ?) ON CONFLICT(token) DO NOTHING",
+      token,
+      platform,
+      Date.now(),
+    );
+  }
+
+  /** Forget a device token — sign-out, or APNs reporting it dead
+   * (`Unregistered`/`BadDeviceToken`). Idempotent. */
+  async unregisterDevice(token: string): Promise<void> {
+    this.sql.exec("DELETE FROM devices WHERE token = ?", token);
+  }
+
+  /** Every currently-registered device token for this identity, for push
+   * fan-out. */
+  async deviceTokens(): Promise<string[]> {
+    return this.sql.exec<{ token: string }>("SELECT token FROM devices").toArray().map((r) => r.token);
   }
 
   // --- helpers -----------------------------------------------------------

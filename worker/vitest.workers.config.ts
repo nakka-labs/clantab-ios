@@ -12,6 +12,8 @@ export default defineWorkersProject({
       "test/google-auth.test.ts",
       "test/auth-routes.test.ts",
       "test/apple-oauth.test.ts",
+      "test/apns.test.ts",
+      "test/notify.test.ts",
     ],
     poolOptions: {
       workers: {

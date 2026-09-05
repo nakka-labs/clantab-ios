@@ -24,6 +24,12 @@ struct RootView: View {
             resolveInitialRoute()
         }
         .onOpenURL { url in handleDeepLink(url) }
+        .onReceive(NotificationCenter.default.publisher(for: .pushNotificationTapped)) { notification in
+            // A tapped push is handled exactly like any other incoming URL
+            // (`AppDelegate`, `FEATURE_BACKLOG.md` "Push notifications").
+            guard let url = notification.userInfo?["url"] as? URL else { return }
+            handleDeepLink(url)
+        }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             guard signedIn, let pending = pendingDeepLink else { return }
             pendingDeepLink = nil

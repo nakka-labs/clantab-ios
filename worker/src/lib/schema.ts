@@ -70,6 +70,18 @@ CREATE TABLE IF NOT EXISTS memberships (
   display_name TEXT NOT NULL,
   added_at     INTEGER NOT NULL
 );
+
+-- Registered APNs device tokens, for push notifications
+-- (FEATURE_BACKLOG.md "Push notifications"). One identity can hold several
+-- (phone + iPad, or a reinstall that got a new token before the old one
+-- expired) -- all get notified. Re-registering the same token is a no-op
+-- (PK on token); added_at isn't touched on re-registration, nothing to
+-- gain from it.
+CREATE TABLE IF NOT EXISTS devices (
+  token    TEXT PRIMARY KEY,
+  platform TEXT NOT NULL,
+  added_at INTEGER NOT NULL
+);
 `;
 
 export const USER_META_KEYS = {

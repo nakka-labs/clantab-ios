@@ -15,6 +15,7 @@ import {
 } from "./lib/errors.ts";
 import { newGroupId } from "./lib/ids.ts";
 import { reserveJoinCode, resolveJoinCode } from "./lib/join-codes.ts";
+import { newExpensePayload, notifyGroup, settlementPayload } from "./lib/notify.ts";
 import { SessionError, mintSession, verifySession } from "./lib/session.ts";
 import {
   assertPlainObject,
@@ -55,10 +56,18 @@ interface Env {
   SIWA_TEAM_ID?: string;
   SIWA_KEY_ID?: string;
   SIWA_PRIVATE_KEY?: string;
+  /** APNs push (`FEATURE_BACKLOG.md` "Push notifications", `lib/apns.ts`).
+   * All four required, plus `APNS_TOPIC` — a no-op (not an error) until
+   * they're set (`NEXT_STEPS.md` Phase 6's owner action). */
+  APNS_KEY_ID?: string;
+  APNS_TEAM_ID?: string;
+  APNS_PRIVATE_KEY?: string;
+  APNS_TOPIC?: string;
+  APNS_ENVIRONMENT?: string;
 }
 
 type Params = Record<string, string>;
-type Handler = (request: Request, env: Env, params: Params) => Promise<Response>;
+type Handler = (request: Request, env: Env, params: Params, ctx: ExecutionContext) => Promise<Response>;
 
 interface Route {
   method: string;
@@ -90,6 +99,8 @@ const ROUTES: Route[] = [
   route("POST", "/api/auth/google", handleAuthGoogle),
   route("POST", "/api/auth/refresh", handleAuthRefresh),
   route("GET", "/api/auth/groups", handleAuthGroups),
+  route("POST", "/api/auth/devices", handleRegisterDevice),
+  route("DELETE", "/api/auth/devices/:token", handleUnregisterDevice),
   route("GET", "/api/auth/people", handleAuthPeople),
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
   route("GET", "/g/:groupId", handleCapabilityPage),
@@ -101,10 +112,10 @@ function route(method: string, pathname: string, handler: Handler): Route {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     let response: Response;
     try {
-      response = await dispatch(request, env);
+      response = await dispatch(request, env, ctx);
     } catch (err) {
       response = toErrorResponse(err);
     }
@@ -116,7 +127,7 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-async function dispatch(request: Request, env: Env): Promise<Response> {
+async function dispatch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const matches = ROUTES.filter((r) => r.pattern.test(url));
   if (matches.length === 0) {
@@ -129,7 +140,7 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
     });
   }
   const params = (matched.pattern.exec(url)?.pathname.groups ?? {}) as Params;
-  return matched.handler(request, env, params);
+  return matched.handler(request, env, params, ctx);
 }
 
 // --- handlers ------------------------------------------------------------
@@ -290,11 +301,37 @@ function domainErrorResponse(error: { code: string; message: string }): Response
   return json(status, { error });
 }
 
-async function handleAddExpense(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(request, env, params.groupId ?? "");
+async function handleAddExpense(request: Request, env: Env, params: Params, ctx: ExecutionContext): Promise<Response> {
+  const groupId = params.groupId ?? "";
+  const group = await requireGroup(request, env, groupId);
   const req = parseExpenseBody(await readJsonObject(request), true);
   const result = await group.addExpense(req);
-  return result.ok ? json(201, result.value) : domainErrorResponse(result.error);
+  if (!result.ok) return domainErrorResponse(result.error);
+
+  const actingSub = await optionalSessionSub(request, env);
+  if (actingSub !== undefined) {
+    const expense = result.value.expense;
+    ctx.waitUntil(
+      (async () => {
+        const state = await group.getState();
+        const payerName = state.members.find((m) => m.id === expense.payerId)?.displayName ?? "Someone";
+        await notifyGroup(
+          env,
+          group,
+          actingSub,
+          newExpensePayload({
+            groupId,
+            groupName: state.group.name,
+            payerName,
+            amountMinor: expense.amountMinor,
+            currency: expense.currency,
+            description: expense.description,
+          }),
+        );
+      })(),
+    );
+  }
+  return json(201, result.value);
 }
 
 async function handleUpdateExpense(request: Request, env: Env, params: Params): Promise<Response> {
@@ -368,11 +405,42 @@ function handleRoot(): Promise<Response> {
   );
 }
 
-async function handleAddSettlement(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(request, env, params.groupId ?? "");
+async function handleAddSettlement(
+  request: Request,
+  env: Env,
+  params: Params,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const groupId = params.groupId ?? "";
+  const group = await requireGroup(request, env, groupId);
   const req = parseSettlementBody(await readJsonObject(request), true);
   const result = await group.addSettlement(req);
-  return result.ok ? json(201, result.value) : domainErrorResponse(result.error);
+  if (!result.ok) return domainErrorResponse(result.error);
+
+  const actingSub = await optionalSessionSub(request, env);
+  if (actingSub !== undefined) {
+    const settlement = result.value.settlement;
+    ctx.waitUntil(
+      (async () => {
+        const state = await group.getState();
+        const nameFor = (memberId: string) => state.members.find((m) => m.id === memberId)?.displayName ?? "Someone";
+        await notifyGroup(
+          env,
+          group,
+          actingSub,
+          settlementPayload({
+            groupId,
+            groupName: state.group.name,
+            fromName: nameFor(settlement.fromId),
+            toName: nameFor(settlement.toId),
+            amountMinor: settlement.amountMinor,
+            currency: settlement.currency,
+          }),
+        );
+      })(),
+    );
+  }
+  return json(201, result.value);
 }
 
 async function handleUpdateSettlement(request: Request, env: Env, params: Params): Promise<Response> {
@@ -489,6 +557,27 @@ async function handleAuthGroups(request: Request, env: Env): Promise<Response> {
   const sub = await requireSession(request, env);
   const { groups } = await env.USER_DO.get(env.USER_DO.idFromName(sub)).listGroups();
   return json(200, { groups });
+}
+
+/** Register this device for push (`FEATURE_BACKLOG.md` "Push
+ * notifications") — called on launch after the OS hands the app an APNs
+ * device token. Idempotent; call it again any time the token changes. */
+async function handleRegisterDevice(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["token", "platform"]);
+  const token = requireString(body, "token");
+  const platform = optionalString(body, "platform") ?? "ios";
+  await env.USER_DO.get(env.USER_DO.idFromName(sub)).registerDevice(token, platform);
+  return new Response(null, { status: 204 });
+}
+
+/** Forget a device token — called on sign-out so a shared/reset device
+ * stops getting pushed for an identity no longer signed in on it. */
+async function handleUnregisterDevice(request: Request, env: Env, params: Params): Promise<Response> {
+  const sub = await requireSession(request, env);
+  await env.USER_DO.get(env.USER_DO.idFromName(sub)).unregisterDevice(decodeURIComponent(params.token ?? ""));
+  return new Response(null, { status: 204 });
 }
 
 /**
