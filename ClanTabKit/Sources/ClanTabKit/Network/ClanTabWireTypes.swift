@@ -9,17 +9,26 @@ import Foundation
 /// returned from both `POST /api/groups` and `GET /api/groups/:groupId`
 /// (`DESIGN.md` §2/§12) so Group Home can re-share it, not just the
 /// post-creation confirmation step.
+///
+/// `accessToken` (`ACCESS_TOKEN_PLAN.md`) is the rotatable capability-link
+/// credential, separate from `groupId` itself — re-shareable for the same
+/// reason `joinCode` is: whoever's asking already holds valid access, so the
+/// current token exposes nothing new. `nil` only for a group that predates
+/// this feature and has never had its link regenerated — `groupId`
+/// possession alone still works for one of those, unchanged.
 public struct GroupSummary: Codable, Sendable, Equatable {
     public let name: String
     public let currency: String
     public let createdAt: Date
     public let joinCode: String
+    public let accessToken: String?
 
-    public init(name: String, currency: String, createdAt: Date, joinCode: String) {
+    public init(name: String, currency: String, createdAt: Date, joinCode: String, accessToken: String? = nil) {
         self.name = name
         self.currency = currency
         self.createdAt = createdAt
         self.joinCode = joinCode
+        self.accessToken = accessToken
     }
 }
 
@@ -57,6 +66,16 @@ public struct CreateGroupResponse: Decodable, Sendable {
 
 public struct ResolveJoinCodeResponse: Decodable, Sendable {
     public let groupId: String
+    /// The group's *current* access token (`ACCESS_TOKEN_PLAN.md` Part 3) —
+    /// always up to date even across a link rotation, since a code is
+    /// resolved fresh each time rather than bookmarked.
+    public let accessToken: String?
+}
+
+// MARK: - POST /api/groups/:groupId/regenerate-link
+
+public struct RegenerateLinkResponse: Decodable, Sendable {
+    public let accessToken: String
 }
 
 // MARK: - POST /api/groups/:groupId/members

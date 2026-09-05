@@ -74,12 +74,28 @@ group they create has one). `wrangler deploy --dry-run` validates.
 
 ## Part 2 — iOS: carry + regenerate
 
-1. **[CLI]** Persist the token alongside `groupId` everywhere `groupId` is
-   stored locally (`KnownGroup`, deep-link resolution).
-2. **[CLI]** `GroupSettingsView` gains "Regenerate Link" with a clear
+**In progress 2026-09-05, split into smaller commits.** Foundation done: the
+network layer that will carry the token, committed and tested (ClanTabKit
+116 → 117 tests). Still to do: actually wiring it through `RootView`'s
+screens/view models, and the `GroupSettingsView` "Regenerate Link" UI.
+
+1. [x] **[CLI, foundation]** `ClanTabClient`'s group-data methods
+   (`fetchGroupState`, `joinGroup`, `addExpense`/`addSettlement`,
+   `updateGroup`/`renameMember`/`removeMember`, the edit/delete methods,
+   `claimableMembers`/`claimMember`) all gain an `accessToken: String? = nil`
+   parameter, appended as `?token=`; a new `regenerateLink(groupId:accessToken:)`
+   method. `GroupSummary`/`ResolveJoinCodeResponse` carry `accessToken` on the
+   wire. `KnownGroup` gains an `accessToken` field — `remember(...)` updates it
+   only when given a non-nil value, so a caller without the current token
+   (e.g. mirroring `GET /api/auth/groups`, which doesn't return one) never
+   clobbers one learned elsewhere. `AppConfig.groupShareURL` embeds it.
+   [ ] **Not yet done:** actually threading it through `RootView` /
+   `GroupViewModel` / `CreateGroupView` / `JoinGroupView` / `ClaimMemberView`
+   / `GroupHomeView` so a real request ever carries a real token.
+2. [ ] **[CLI]** `GroupSettingsView` gains "Regenerate Link" with a clear
    warning dialog — this is destructive to anyone still holding the old
    link/code, not undoable.
-3. **[CLI]** `RootView.resolveDeepLink` / `extractGroupId` parse the token
+3. [ ] **[CLI]** `RootView.resolveDeepLink` / `extractGroupId` parse the token
    portion of a shared URL, not just the groupId.
 
 ## Part 3 — Join-by-code stays evergreen

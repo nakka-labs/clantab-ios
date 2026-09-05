@@ -11,13 +11,20 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     /// load fills it in (a join/deep-link only yields a `groupId`).
     public var name: String
     public var lastOpenedAt: Date
+    /// The group's current access token (`ACCESS_TOKEN_PLAN.md`) — `nil` for a
+    /// group that predates the feature and was never regenerated, or one this
+    /// device only ever learned about via `GET /api/auth/groups` (which
+    /// doesn't return a token; the Bearer-session alternate credential covers
+    /// that case server-side instead).
+    public var accessToken: String?
 
     public var id: String { groupId }
 
-    public init(groupId: String, name: String, lastOpenedAt: Date) {
+    public init(groupId: String, name: String, lastOpenedAt: Date, accessToken: String? = nil) {
         self.groupId = groupId
         self.name = name
         self.lastOpenedAt = lastOpenedAt
+        self.accessToken = accessToken
     }
 }
 
@@ -29,16 +36,19 @@ public protocol KnownGroupsStoring: Sendable {
     func all() -> [KnownGroup]
     /// Insert or update. Always bumps `lastOpenedAt` to `date`. A non-empty
     /// `name` replaces the stored one; `nil` leaves the stored name untouched
-    /// (so a join, which has no name, never clobbers a cached one).
-    func remember(groupId: String, name: String?, at date: Date)
+    /// (so a join, which has no name, never clobbers a cached one). Same for
+    /// `accessToken` — `nil` leaves whatever's already stored alone, so a
+    /// caller that doesn't have the current token handy (e.g. mirroring
+    /// `GET /api/auth/groups`) never clobbers one learned elsewhere.
+    func remember(groupId: String, name: String?, accessToken: String?, at date: Date)
     /// Drop a group from the list (its capability URL now 404s, or the account
     /// was deleted).
     func forget(groupId: String)
 }
 
 public extension KnownGroupsStoring {
-    func remember(groupId: String, name: String? = nil, at date: Date = Date()) {
-        remember(groupId: groupId, name: name, at: date)
+    func remember(groupId: String, name: String? = nil, accessToken: String? = nil, at date: Date = Date()) {
+        remember(groupId: groupId, name: name, accessToken: accessToken, at: date)
     }
 }
 
@@ -58,14 +68,15 @@ public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked 
         return load().sorted { $0.lastOpenedAt > $1.lastOpenedAt }
     }
 
-    public func remember(groupId: String, name: String?, at date: Date) {
+    public func remember(groupId: String, name: String?, accessToken: String?, at date: Date) {
         lock.lock(); defer { lock.unlock() }
         var groups = load()
         if let index = groups.firstIndex(where: { $0.groupId == groupId }) {
             groups[index].lastOpenedAt = date
             if let name, !name.isEmpty { groups[index].name = name }
+            if let accessToken { groups[index].accessToken = accessToken }
         } else {
-            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date))
+            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date, accessToken: accessToken))
         }
         save(groups)
     }
@@ -102,13 +113,14 @@ public final class InMemoryKnownGroupsStore: KnownGroupsStoring, @unchecked Send
         return groups.sorted { $0.lastOpenedAt > $1.lastOpenedAt }
     }
 
-    public func remember(groupId: String, name: String?, at date: Date) {
+    public func remember(groupId: String, name: String?, accessToken: String?, at date: Date) {
         lock.lock(); defer { lock.unlock() }
         if let index = groups.firstIndex(where: { $0.groupId == groupId }) {
             groups[index].lastOpenedAt = date
             if let name, !name.isEmpty { groups[index].name = name }
+            if let accessToken { groups[index].accessToken = accessToken }
         } else {
-            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date))
+            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date, accessToken: accessToken))
         }
     }
 

@@ -392,4 +392,45 @@ struct ClanTabClientTests {
         let request = await transport.lastRequest
         #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1")
     }
+
+    // MARK: - Access token (ACCESS_TOKEN_PLAN.md)
+
+    @Test("fetchGroupState appends ?token= when an accessToken is given, omits it entirely otherwise")
+    func testFetchGroupStateCarriesAccessToken() async throws {
+        let responseBody = jsonData([
+            "group": ["name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2", "accessToken": "tok123"],
+            "members": [] as [Any], "expenses": [] as [Any], "settlements": [] as [Any],
+            "balances": [] as [Any], "simplifiedSettlements": [] as [Any],
+        ])
+        let withToken = FakeTransport(statusCode: 200, body: responseBody)
+        let state = try await ClanTabClient(baseURL: baseURL, transport: withToken)
+            .fetchGroupState(groupId: "g1", accessToken: "tok123")
+        #expect(state.group.accessToken == "tok123")
+        let requestURL = await withToken.lastRequest?.url?.absoluteString
+        #expect(requestURL == "https://clantab.example.com/api/groups/g1?token=tok123")
+
+        let withoutToken = FakeTransport(statusCode: 200, body: responseBody)
+        _ = try await ClanTabClient(baseURL: baseURL, transport: withoutToken).fetchGroupState(groupId: "g1")
+        let bareURL = await withoutToken.lastRequest?.url?.absoluteString
+        #expect(bareURL == "https://clantab.example.com/api/groups/g1")
+    }
+
+    @Test("resolveJoinCode decodes the current accessToken alongside groupId")
+    func testResolveJoinCodeDecodesAccessToken() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData(["groupId": "g123", "accessToken": "tok456"]))
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport).resolveJoinCode("K7M9P2")
+        #expect(response.groupId == "g123")
+        #expect(response.accessToken == "tok456")
+    }
+
+    @Test("regenerateLink POSTs to the regenerate-link path with the current token, decodes the new one")
+    func testRegenerateLink() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData(["accessToken": "fresh789"]))
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .regenerateLink(groupId: "g1", accessToken: "old123")
+        #expect(response.accessToken == "fresh789")
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "POST")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/regenerate-link?token=old123")
+    }
 }

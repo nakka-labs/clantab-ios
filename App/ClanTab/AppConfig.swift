@@ -14,9 +14,16 @@ enum AppConfig {
 
     /// The user-facing capability link for a group (`DESIGN.md` §1), served by
     /// the same Worker origin as the API at `/g/:groupId` (§8: same-origin,
-    /// no separate web host to configure).
-    static func groupShareURL(groupId: String) -> URL {
-        URL(string: "g/\(groupId)", relativeTo: apiBaseURL)!
+    /// no separate web host to configure). `accessToken` (`ACCESS_TOKEN_PLAN.md`)
+    /// rides along as `?token=` when the group has one — `nil` for a group
+    /// that predates the feature and was never regenerated, in which case the
+    /// link is exactly what it always was.
+    static func groupShareURL(groupId: String, accessToken: String? = nil) -> URL {
+        let base = URL(string: "g/\(groupId)", relativeTo: apiBaseURL)!
+        guard let accessToken else { return base }
+        var components = URLComponents(url: base, resolvingAgainstBaseURL: true)!
+        components.queryItems = [URLQueryItem(name: "token", value: accessToken)]
+        return components.url!
     }
 
     /// The iOS OAuth client id from Google Cloud Console

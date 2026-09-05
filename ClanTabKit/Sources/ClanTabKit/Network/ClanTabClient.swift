@@ -38,64 +38,75 @@ public actor ClanTabClient {
         try await get("api/groups/resolve/\(joinCode)")
     }
 
-    public func joinGroup(groupId: String, _ request: JoinGroupRequest) async throws -> JoinGroupResponse {
-        try await post("api/groups/\(groupId)/members", body: request)
+    /// - Parameter accessToken: the group's capability-link credential
+    ///   (`ACCESS_TOKEN_PLAN.md`), carried as `?token=`. `nil` only for a
+    ///   group that predates the feature and was never regenerated.
+    public func joinGroup(groupId: String, _ request: JoinGroupRequest, accessToken: String? = nil) async throws -> JoinGroupResponse {
+        try await post("api/groups/\(groupId)/members", body: request, accessToken: accessToken)
     }
 
-    public func fetchGroupState(groupId: String) async throws -> GroupStateResponse {
-        try await get("api/groups/\(groupId)")
+    public func fetchGroupState(groupId: String, accessToken: String? = nil) async throws -> GroupStateResponse {
+        try await get("api/groups/\(groupId)", accessToken: accessToken)
     }
 
-    public func addExpense(groupId: String, _ request: AddExpenseRequest) async throws -> AddExpenseResponse {
-        try await post("api/groups/\(groupId)/expenses", body: request)
+    public func addExpense(groupId: String, _ request: AddExpenseRequest, accessToken: String? = nil) async throws -> AddExpenseResponse {
+        try await post("api/groups/\(groupId)/expenses", body: request, accessToken: accessToken)
     }
 
-    public func addSettlement(groupId: String, _ request: AddSettlementRequest) async throws -> AddSettlementResponse {
-        try await post("api/groups/\(groupId)/settlements", body: request)
+    public func addSettlement(groupId: String, _ request: AddSettlementRequest, accessToken: String? = nil) async throws -> AddSettlementResponse {
+        try await post("api/groups/\(groupId)/settlements", body: request, accessToken: accessToken)
     }
 
     // MARK: - Group & member settings (DESIGN.md §2)
 
     /// Rename the group and/or change its default currency for new expenses.
     /// Existing expenses keep their own currency.
-    public func updateGroup(groupId: String, name: String? = nil, currency: String? = nil) async throws -> UpdateGroupResponse {
-        try await patch("api/groups/\(groupId)", body: UpdateGroupRequest(name: name, currency: currency))
+    public func updateGroup(groupId: String, name: String? = nil, currency: String? = nil, accessToken: String? = nil) async throws -> UpdateGroupResponse {
+        try await patch("api/groups/\(groupId)", body: UpdateGroupRequest(name: name, currency: currency), accessToken: accessToken)
     }
 
-    public func renameMember(groupId: String, memberId: String, displayName: String) async throws -> JoinGroupResponse {
-        try await patch("api/groups/\(groupId)/members/\(memberId)", body: JoinGroupRequest(displayName: displayName))
+    public func renameMember(groupId: String, memberId: String, displayName: String, accessToken: String? = nil) async throws -> JoinGroupResponse {
+        try await patch("api/groups/\(groupId)/members/\(memberId)", body: JoinGroupRequest(displayName: displayName), accessToken: accessToken)
     }
 
     /// Remove a member. Throws `.server(code: "MEMBER_IN_USE", …)` if they're on
     /// any expense/settlement, linked to an account, or the last member.
-    public func removeMember(groupId: String, memberId: String) async throws {
-        var request = URLRequest(url: url(for: "api/groups/\(groupId)/members/\(memberId)"))
+    public func removeMember(groupId: String, memberId: String, accessToken: String? = nil) async throws {
+        var request = URLRequest(url: url(for: "api/groups/\(groupId)/members/\(memberId)", accessToken: accessToken))
         request.httpMethod = "DELETE"
         try await performNoContent(request)
+    }
+
+    /// Rotate the group's `access_token` — every previously shared link/code
+    /// stops working immediately (`ACCESS_TOKEN_PLAN.md` Part 1). Needs the
+    /// *current* token (or nothing, for a not-yet-tokened group) to
+    /// authorize, same as any other group route.
+    public func regenerateLink(groupId: String, accessToken: String? = nil) async throws -> RegenerateLinkResponse {
+        try await send("POST", "api/groups/\(groupId)/regenerate-link", bearer: nil, accessToken: accessToken)
     }
 
     // MARK: - Edit / delete (DESIGN.md §2)
 
     /// Replace an expense wholesale. `request.id` is ignored — the id in the path
     /// identifies the row. The server keeps its position in the activity feed.
-    public func updateExpense(groupId: String, expenseId: String, _ request: AddExpenseRequest) async throws -> AddExpenseResponse {
-        try await put("api/groups/\(groupId)/expenses/\(expenseId)", body: request)
+    public func updateExpense(groupId: String, expenseId: String, _ request: AddExpenseRequest, accessToken: String? = nil) async throws -> AddExpenseResponse {
+        try await put("api/groups/\(groupId)/expenses/\(expenseId)", body: request, accessToken: accessToken)
     }
 
     /// Remove an expense (and its splits). Idempotent — deleting one that's
     /// already gone still succeeds.
-    public func deleteExpense(groupId: String, expenseId: String) async throws {
-        var request = URLRequest(url: url(for: "api/groups/\(groupId)/expenses/\(expenseId)"))
+    public func deleteExpense(groupId: String, expenseId: String, accessToken: String? = nil) async throws {
+        var request = URLRequest(url: url(for: "api/groups/\(groupId)/expenses/\(expenseId)", accessToken: accessToken))
         request.httpMethod = "DELETE"
         try await performNoContent(request)
     }
 
-    public func updateSettlement(groupId: String, settlementId: String, _ request: AddSettlementRequest) async throws -> AddSettlementResponse {
-        try await put("api/groups/\(groupId)/settlements/\(settlementId)", body: request)
+    public func updateSettlement(groupId: String, settlementId: String, _ request: AddSettlementRequest, accessToken: String? = nil) async throws -> AddSettlementResponse {
+        try await put("api/groups/\(groupId)/settlements/\(settlementId)", body: request, accessToken: accessToken)
     }
 
-    public func deleteSettlement(groupId: String, settlementId: String) async throws {
-        var request = URLRequest(url: url(for: "api/groups/\(groupId)/settlements/\(settlementId)"))
+    public func deleteSettlement(groupId: String, settlementId: String, accessToken: String? = nil) async throws {
+        var request = URLRequest(url: url(for: "api/groups/\(groupId)/settlements/\(settlementId)", accessToken: accessToken))
         request.httpMethod = "DELETE"
         try await performNoContent(request)
     }
@@ -145,27 +156,29 @@ public actor ClanTabClient {
         _ = try await performNoContent(request)
     }
 
-    /// This group's placeholder members — the "this is me" picker (§6).
-    public func claimableMembers(groupId: String, token: String) async throws -> ClaimableMembersResponse {
-        try await get("api/groups/\(groupId)/claimable", bearer: token)
+    /// This group's placeholder members — the "this is me" picker (§6). Needs
+    /// the access token too, same as any other group route — a not-yet-claimed
+    /// caller has no claimed-member fallback yet (`ACCESS_TOKEN_PLAN.md` Part 1).
+    public func claimableMembers(groupId: String, token: String, accessToken: String? = nil) async throws -> ClaimableMembersResponse {
+        try await get("api/groups/\(groupId)/claimable", bearer: token, accessToken: accessToken)
     }
 
     /// Link a placeholder member in this group to the signed-in identity (§6).
-    public func claimMember(groupId: String, memberId: String, token: String) async throws -> ClaimMemberResponse {
-        try await send("POST", "api/groups/\(groupId)/members/\(memberId)/claim", bearer: token)
+    public func claimMember(groupId: String, memberId: String, token: String, accessToken: String? = nil) async throws -> ClaimMemberResponse {
+        try await send("POST", "api/groups/\(groupId)/members/\(memberId)/claim", bearer: token, accessToken: accessToken)
     }
 
     // MARK: - Request plumbing
 
-    private func get<Response: Decodable>(_ path: String, bearer: String? = nil) async throws -> Response {
-        var request = URLRequest(url: url(for: path))
+    private func get<Response: Decodable>(_ path: String, bearer: String? = nil, accessToken: String? = nil) async throws -> Response {
+        var request = URLRequest(url: url(for: path, accessToken: accessToken))
         request.httpMethod = "GET"
         setBearer(bearer, on: &request)
         return try await perform(request)
     }
 
-    private func post<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil) async throws -> Response {
-        var request = URLRequest(url: url(for: path))
+    private func post<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil, accessToken: String? = nil) async throws -> Response {
+        var request = URLRequest(url: url(for: path, accessToken: accessToken))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(body)
@@ -173,16 +186,16 @@ public actor ClanTabClient {
         return try await perform(request)
     }
 
-    private func put<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil) async throws -> Response {
-        try await bodyRequest("PUT", path, body: body, bearer: bearer)
+    private func put<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil, accessToken: String? = nil) async throws -> Response {
+        try await bodyRequest("PUT", path, body: body, bearer: bearer, accessToken: accessToken)
     }
 
-    private func patch<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil) async throws -> Response {
-        try await bodyRequest("PATCH", path, body: body, bearer: bearer)
+    private func patch<Body: Encodable, Response: Decodable>(_ path: String, body: Body, bearer: String? = nil, accessToken: String? = nil) async throws -> Response {
+        try await bodyRequest("PATCH", path, body: body, bearer: bearer, accessToken: accessToken)
     }
 
-    private func bodyRequest<Body: Encodable, Response: Decodable>(_ method: String, _ path: String, body: Body, bearer: String?) async throws -> Response {
-        var request = URLRequest(url: url(for: path))
+    private func bodyRequest<Body: Encodable, Response: Decodable>(_ method: String, _ path: String, body: Body, bearer: String?, accessToken: String?) async throws -> Response {
+        var request = URLRequest(url: url(for: path, accessToken: accessToken))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(body)
@@ -192,8 +205,8 @@ public actor ClanTabClient {
 
     /// A bodyless request (`POST /api/auth/refresh`, the claim routes) that still
     /// expects a decodable response.
-    private func send<Response: Decodable>(_ method: String, _ path: String, bearer: String?) async throws -> Response {
-        var request = URLRequest(url: url(for: path))
+    private func send<Response: Decodable>(_ method: String, _ path: String, bearer: String?, accessToken: String? = nil) async throws -> Response {
+        var request = URLRequest(url: url(for: path, accessToken: accessToken))
         request.httpMethod = method
         setBearer(bearer, on: &request)
         return try await perform(request)
@@ -204,8 +217,17 @@ public actor ClanTabClient {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
-    private func url(for path: String) -> URL {
-        URL(string: path, relativeTo: baseURL)!
+    /// - Parameter accessToken: appended as `?token=` (`ACCESS_TOKEN_PLAN.md`)
+    ///   — `nil` omits it entirely, for routes that don't need one.
+    private func url(for path: String, accessToken: String? = nil) -> URL {
+        guard let accessToken else {
+            return URL(string: path, relativeTo: baseURL)!
+        }
+        var components = URLComponents(string: path)!
+        var items = components.queryItems ?? []
+        items.append(URLQueryItem(name: "token", value: accessToken))
+        components.queryItems = items
+        return components.url(relativeTo: baseURL)!
     }
 
     private func perform<Response: Decodable>(_ request: URLRequest) async throws -> Response {

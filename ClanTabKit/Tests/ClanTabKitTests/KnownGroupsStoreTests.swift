@@ -76,4 +76,22 @@ struct KnownGroupsStoreTests {
         #expect(store.all().map(\.groupId) == ["g1"])
         #expect(store.all().first?.name == "")
     }
+
+    // MARK: - accessToken (ACCESS_TOKEN_PLAN.md)
+
+    @Test("remember sets accessToken on insert, and a later nil doesn't clobber it")
+    func testAccessTokenPersistsAndIsntClobbered() {
+        let store = InMemoryKnownGroupsStore()
+        store.remember(groupId: "g1", name: "Goa Trip", accessToken: "tok1", at: t0)
+        #expect(store.all().first?.accessToken == "tok1")
+
+        // A later remember with no token (e.g. mirroring GET /api/auth/groups,
+        // which doesn't return one) leaves the stored token alone.
+        store.remember(groupId: "g1", accessToken: nil, at: t0.addingTimeInterval(60))
+        #expect(store.all().first?.accessToken == "tok1")
+
+        // A non-nil token (e.g. after a Regenerate Link) does update it.
+        store.remember(groupId: "g1", accessToken: "tok2", at: t0.addingTimeInterval(120))
+        #expect(store.all().first?.accessToken == "tok2")
+    }
 }
