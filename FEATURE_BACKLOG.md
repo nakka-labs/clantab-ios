@@ -271,11 +271,37 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   (`wrangler secret put ...`); (3) a real-device TestFlight pass — the
   Simulator can't obtain a genuine APNs device token at all, only a real
   device can, so end-to-end delivery has zero test coverage until then.
-- **Home-screen widget (WidgetKit).** **Moved into v1 scope 2026-09-05** —
-  glanceable "you owe / you're owed" for the primary group without opening
-  the app; fits the SF Rounded hero-numeral treatment already established.
-  Needs an App Group + a lightweight refresh path, and a sane empty state
-  for zero-groups-yet before first sign-in. No ₹ cost.
+- **Home-screen widget (WidgetKit).** **Moved into v1 scope, done
+  2026-09-05.** Glanceable "you owe / you're owed" for the primary group
+  without opening the app; fits the SF Rounded hero-numeral treatment
+  already established. Needs an App Group + a lightweight refresh path,
+  and a sane empty state for zero-groups-yet before first sign-in. No ₹
+  cost. Scoped small-only, no user-facing group picker for v1 (owner
+  decision, 2026-09-05) — "primary group" = whichever the app most
+  recently opened, and the app pushes a snapshot rather than the widget
+  making its own network calls, per the backlog's own "lightweight
+  refresh path" wording; a configurable group picker
+  (`WidgetConfigurationIntent`) and medium/large sizes are reasonable
+  follow-ons.
+  New `ClanTabWidgetExtension` target (`App/project.yml`), App-Groups
+  entitlement (`group.com.clantab.app`) on both it and `ClanTab`. Pure
+  logic in ClanTabKit: `WidgetSnapshotStoring` (a display cache, not a
+  second source of truth — always the direct, unmodified output of
+  `Balances.compute`, replaced wholesale on every refresh, matching
+  `AGENTS.md`'s "derived, never persisted" rule in spirit) and
+  `Balances.headline(_:)` (the largest-magnitude nonzero currency, for a
+  multi-currency member in a widget with room for exactly one number).
+  `MoneyFormat` moved from the App target into `ClanTabKit/Logic` (pure
+  Foundation already, now shared by both the App and the widget
+  extension). `GroupViewModel.refetch()`/`autoRefetch()` write the
+  snapshot and call `WidgetCenter.reloadTimelines` on every successful
+  fetch of the currently-open group — which is always "primary" by
+  construction, since opening a group is what makes it most-recently-
+  opened in the first place. ClanTabKit 152/152 passing (was 144); App
+  70/70 passing (widget UI itself untested — WidgetKit rendering has no
+  practical unit-test path, matching this repo's treatment of other
+  UIKit-glue code; verified instead by installing the built app in the
+  Simulator and confirming the `.appex` embeds and validates correctly).
 - **Siri / App Intents.** **Moved into v1 scope 2026-09-05** — "Add a ₹500
   expense to Flatmates" via Shortcuts/Siri. No ₹ cost, moderate-high
   effort (disambiguating group/member/split by voice). Lowest-priority of

@@ -121,4 +121,30 @@ struct BalancesTests {
             #expect(sum == 0)
         }
     }
+
+    // MARK: - headline (FEATURE_BACKLOG.md "Home-screen widget")
+
+    @Test("headline picks the largest-magnitude nonzero balance")
+    func testHeadlinePicksLargestMagnitude() {
+        let balances = [
+            Balance(memberId: "m1", currency: "INR", netMinor: 500),
+            Balance(memberId: "m1", currency: "USD", netMinor: -2000),
+        ]
+        #expect(Balances.headline(balances) == Balance(memberId: "m1", currency: "USD", netMinor: -2000))
+    }
+
+    @Test("headline is nil for an empty or all-zero list")
+    func testHeadlineNilWhenSettled() {
+        #expect(Balances.headline([]) == nil)
+        #expect(Balances.headline([Balance(memberId: "m1", currency: "INR", netMinor: 0)]) == nil)
+    }
+
+    @Test("headline ignores zero entries alongside a real one")
+    func testHeadlineIgnoresZeroEntries() {
+        let balances = [
+            Balance(memberId: "m1", currency: "INR", netMinor: 0),
+            Balance(memberId: "m1", currency: "USD", netMinor: 100),
+        ]
+        #expect(Balances.headline(balances) == Balance(memberId: "m1", currency: "USD", netMinor: 100))
+    }
 }

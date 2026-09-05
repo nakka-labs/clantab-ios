@@ -84,6 +84,103 @@ final class GroupViewModelTests: XCTestCase {
             syncNudge: InMemorySyncNudgeStore()
         )
     }
+
+    // MARK: - widget snapshot (FEATURE_BACKLOG.md "Home-screen widget")
+
+    @MainActor
+    private func makeSignedInAuth(memberId: String) async -> AuthViewModel {
+        let session = StoredSession(token: "sess-tok", provider: .apple, appleUserID: "u1", expiresAt: Date().addingTimeInterval(3600))
+        let auth = AuthViewModel(
+            client: ClanTabClient(
+                baseURL: URL(string: "https://example.invalid/")!,
+                transport: GroupsTransport(groupId: "g", memberId: memberId)
+            ),
+            sessionStore: InMemorySessionStore(session),
+            knownGroups: InMemoryKnownGroupsStore(),
+            syncNudge: InMemorySyncNudgeStore()
+        )
+        await auth.refreshGroups()
+        return auth
+    }
+
+    @MainActor
+    func testRefetchWritesTheWidgetSnapshotForAClaimedMember() async {
+        let snapshotStore = InMemoryWidgetSnapshotStore()
+        let vm = GroupViewModel(
+            groupId: "g",
+            client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: GroupStateTransport()),
+            auth: await makeSignedInAuth(memberId: "m1"),
+            widgetSnapshotStore: snapshotStore
+        )
+
+        await vm.refetch()
+
+        let snapshot = snapshotStore.snapshot()
+        XCTAssertEqual(snapshot?.groupId, "g")
+        XCTAssertEqual(snapshot?.groupName, "Goa Trip")
+        XCTAssertEqual(snapshot?.balances, [Balance(memberId: "m1", currency: "INR", netMinor: 100)])
+    }
+
+    @MainActor
+    func testRefetchSkipsTheWidgetSnapshotWithoutAClaimedIdentity() async {
+        let snapshotStore = InMemoryWidgetSnapshotStore()
+        let vm = GroupViewModel(
+            groupId: "g",
+            client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: GroupStateTransport()),
+            auth: makeAuth(), // signed out — no claimed membership anywhere
+            widgetSnapshotStore: snapshotStore
+        )
+
+        await vm.refetch()
+
+        XCTAssertNil(snapshotStore.snapshot())
+    }
+
+    @MainActor
+    func testAutoRefetchAlsoWritesTheWidgetSnapshot() async {
+        let snapshotStore = InMemoryWidgetSnapshotStore()
+        let vm = GroupViewModel(
+            groupId: "g",
+            client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: GroupStateTransport()),
+            auth: await makeSignedInAuth(memberId: "m2"),
+            widgetSnapshotStore: snapshotStore
+        )
+
+        await vm.autoRefetch()
+
+        XCTAssertEqual(snapshotStore.snapshot()?.balances, [Balance(memberId: "m2", currency: "INR", netMinor: -100)])
+    }
+}
+
+/// `GET /api/auth/groups` — one membership, in group "g" as `memberId`.
+private struct GroupsTransport: ClanTabTransport {
+    let groupId: String
+    let memberId: String
+    func send(_ request: URLRequest) async throws -> (data: Data, statusCode: Int) {
+        let body = #"{"groups":[{"groupId":"\#(groupId)","memberId":"\#(memberId)","displayName":"Me"}]}"#
+        return (Data(body.utf8), 200)
+    }
+}
+
+/// `GET /api/groups/:groupId` — a minimal two-member group with a nonzero
+/// balance for each, for the widget-snapshot tests above.
+private struct GroupStateTransport: ClanTabTransport {
+    func send(_ request: URLRequest) async throws -> (data: Data, statusCode: Int) {
+        let body = """
+        {
+          "group": {"name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2"},
+          "members": [{"id": "m1", "displayName": "Alice"}, {"id": "m2", "displayName": "Bob"}],
+          "expenses": [],
+          "settlements": [],
+          "balances": [
+            {"memberId": "m1", "currency": "INR", "netMinor": 100},
+            {"memberId": "m2", "currency": "INR", "netMinor": -100}
+          ],
+          "simplifiedSettlements": []
+        }
+        """
+        return (Data(body.utf8), 200)
+    }
 }
 
 /// Always responds 404 with no body — the shape `GET /api/groups/:groupId`

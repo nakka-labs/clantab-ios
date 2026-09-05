@@ -155,7 +155,8 @@ soon-to-be-rekeyed identity risks rework.
       APNs Auth Key, set the worker's `APNS_*` secrets, and a real-device
       TestFlight pass (the Simulator can't get a genuine APNs token at
       all).
-- [ ] **[CLI]** Home-screen widget (WidgetKit)
+- [x] **[CLI]** Home-screen widget (WidgetKit) — **done 2026-09-05**
+      (`FEATURE_BACKLOG.md`). Small size only, no group picker for v1.
 - [ ] **[CLI]** Siri / App Intents (build last of the three — lowest
       priority within v1)
 

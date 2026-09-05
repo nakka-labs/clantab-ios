@@ -61,4 +61,13 @@ public enum Balances {
         }
         return result
     }
+
+    /// The one balance to headline when there's only room for one — the
+    /// largest-magnitude nonzero currency. Used by the home-screen widget
+    /// (`FEATURE_BACKLOG.md`), which can't show every currency a
+    /// multi-currency group's member is active in. `nil` means "all settled
+    /// up," not "unknown."
+    public static func headline(_ balances: [Balance]) -> Balance? {
+        balances.filter { $0.netMinor != 0 }.max { abs($0.netMinor) < abs($1.netMinor) }
+    }
 }

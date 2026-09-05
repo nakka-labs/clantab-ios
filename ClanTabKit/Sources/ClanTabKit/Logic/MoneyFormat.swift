@@ -2,12 +2,15 @@ import Foundation
 
 /// Formats integer minor units for display — the one place money is converted
 /// out of minor units, per `AGENTS.md`'s "convert at the UI formatting edge" rule.
+/// Pure Foundation, no UIKit/SwiftUI — shared by the App target and the
+/// `ClanTabWidget` extension (`FEATURE_BACKLOG.md` "Home-screen widget"),
+/// which otherwise couldn't see an App-target-only file.
 ///
 /// Assumes 2 decimal minor units, true for every currency in the v1 picker
 /// (INR/USD/EUR/GBP/AUD/CAD) but not universally (e.g. JPY has 0) — worth
 /// revisiting if the currency list grows.
-enum MoneyFormat {
-    static func string(minorUnits: Int64, currency: String) -> String {
+public enum MoneyFormat {
+    public static func string(minorUnits: Int64, currency: String) -> String {
         let major = Double(minorUnits) / 100.0
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -18,7 +21,7 @@ enum MoneyFormat {
     /// A plain, editable decimal string (`"12.34"`, `"12.00"`, `"0.05"`) — no
     /// currency symbol or grouping — for pre-filling a text field when editing.
     /// Integer math, so it round-trips through `minorUnits(from:)` exactly.
-    static func plainString(minorUnits: Int64) -> String {
+    public static func plainString(minorUnits: Int64) -> String {
         let sign = minorUnits < 0 ? "-" : ""
         let magnitude = abs(minorUnits)
         return "\(sign)\(magnitude / 100).\(String(format: "%02d", magnitude % 100))"
@@ -29,7 +32,7 @@ enum MoneyFormat {
     /// typed amount never picks up floating-point drift on the way in. Returns
     /// `nil` for anything that isn't a plain non-negative number with at most
     /// 2 fractional digits.
-    static func minorUnits(from input: String) -> Int64? {
+    public static func minorUnits(from input: String) -> Int64? {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
 

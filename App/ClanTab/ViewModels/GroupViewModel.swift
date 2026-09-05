@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import WidgetKit
 import ClanTabKit
 
 /// Drives Group Home: fetch-on-load / refetch-after-write per `DESIGN.md` §7 —
@@ -19,6 +20,11 @@ final class GroupViewModel {
     let groupId: String
     private let client: ClanTabClient
     private let auth: AuthViewModel
+    /// Backs the home-screen widget (`FEATURE_BACKLOG.md`) — written on every
+    /// successful refetch of *this* group, which is always the most recently
+    /// opened one by the time this view is on screen (`RootView.enterGroup`
+    /// bumps it first), i.e. exactly the "primary group" the widget shows.
+    private let widgetSnapshotStore: WidgetSnapshotStoring
 
     private(set) var state: GroupStateResponse?
     private(set) var isLoading = false
@@ -36,11 +42,18 @@ final class GroupViewModel {
     /// load. `RootView` watches this to bounce back to the start screen.
     private(set) var groupUnavailable = false
 
-    init(groupId: String, client: ClanTabClient, auth: AuthViewModel, accessToken: String? = nil) {
+    init(
+        groupId: String,
+        client: ClanTabClient,
+        auth: AuthViewModel,
+        accessToken: String? = nil,
+        widgetSnapshotStore: WidgetSnapshotStoring = UserDefaultsWidgetSnapshotStore(defaults: AppConfig.sharedDefaults)
+    ) {
         self.groupId = groupId
         self.client = client
         self.auth = auth
         self.accessToken = accessToken
+        self.widgetSnapshotStore = widgetSnapshotStore
     }
 
     /// After "Regenerate Link" mints a fresh token — update immediately
@@ -89,6 +102,7 @@ final class GroupViewModel {
         do {
             state = try await client.fetchGroupState(groupId: groupId, accessToken: accessToken)
             if let fresh = state?.group.accessToken { accessToken = fresh }
+            updateWidgetSnapshot()
         } catch {
             errorMessage = friendlyMessage(for: error)
             if Self.isGroupNotFound(error) {
@@ -110,12 +124,25 @@ final class GroupViewModel {
             state = try await client.fetchGroupState(groupId: groupId, accessToken: accessToken)
             if let fresh = state?.group.accessToken { accessToken = fresh }
             errorMessage = nil
+            updateWidgetSnapshot()
         } catch {
             if Self.isGroupNotFound(error) {
                 errorMessage = friendlyMessage(for: error)
                 groupUnavailable = true
             }
         }
+    }
+
+    /// Refresh the shared snapshot the widget reads, and nudge WidgetKit to
+    /// redraw now rather than waiting for its own reload budget
+    /// (`FEATURE_BACKLOG.md` "Home-screen widget"). Silently skipped without
+    /// a linked identity — nothing personal to show yet.
+    private func updateWidgetSnapshot() {
+        guard let state, let me = myIdentity else { return }
+        widgetSnapshotStore.save(
+            WidgetSnapshot(groupId: groupId, groupName: state.group.name, balances: balances(forMember: me.memberId), updatedAt: Date())
+        )
+        WidgetCenter.shared.reloadTimelines(ofKind: AppConfig.balanceWidgetKind)
     }
 
     /// A 404 for the group itself (`DESIGN.md` §2) — either a bare 404
