@@ -12,6 +12,7 @@ struct GroupHomeView: View {
     private let onSwitchGroup: (_ groupId: String) -> Void
     private let onLeaveGroup: () -> Void
     private let onGroupUnavailable: () -> Void
+    private let recurringTemplatesStore: RecurringTemplatesStoring = UserDefaultsRecurringTemplatesStore()
     @State private var viewModel: GroupViewModel
     @State private var nudgeError: String?
     @State private var mutationError: String?
@@ -24,6 +25,7 @@ struct GroupHomeView: View {
     @State private var isPresentingGroupSettings = false
     @State private var isPresentingGroupSwitcher = false
     @State private var isPresentingRecentlyDeleted = false
+    @State private var isPresentingRecurringReminders = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
     @State private var filter = ActivityFilter()
@@ -387,6 +389,22 @@ struct GroupHomeView: View {
                 )
             }
         }
+        .sheet(isPresented: $isPresentingRecurringReminders) {
+            NavigationStack {
+                RecurringRemindersView(
+                    groupId: viewModel.groupId,
+                    members: viewModel.state?.members ?? [],
+                    client: client,
+                    accessToken: viewModel.accessToken,
+                    store: recurringTemplatesStore,
+                    onLogged: {
+                        expenseAddedTrigger += 1
+                        Task { await viewModel.refetch() }
+                    },
+                    onDone: { isPresentingRecurringReminders = false }
+                )
+            }
+        }
         .overlay(alignment: .bottom) {
             if let undoBanner {
                 HStack {
@@ -502,6 +520,9 @@ struct GroupHomeView: View {
                 }
                 Button("Recently Deleted", systemImage: "trash") {
                     isPresentingRecentlyDeleted = true
+                }
+                Button("Recurring Reminders", systemImage: "repeat") {
+                    isPresentingRecurringReminders = true
                 }
                 Button("Group Settings", systemImage: "slider.horizontal.3") {
                     isPresentingGroupSettings = true

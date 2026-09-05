@@ -90,26 +90,41 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   Solves the recurring-cost itch (rent, groceries) for the common case
   without the correctness problems of auto-posting — see the
   recurring-reminders item below for why full auto-post stays off the table.
-- **Recurring reminders (not auto-post).** ~~Previously listed under
-  "Dropped" as a stated non-goal~~ — reopened 2026-09-05: Splitwise
-  paywalls this, it's a real feature migrating users will miss, so it's
-  worth building the cheap, correct version rather than skipping it
-  outright. A recurring *template* (amount, payer, split, cadence)
-  schedules a local iOS notification ("Log this month's rent?") that opens
-  `AddExpenseView` pre-filled — the user still confirms/adjusts and taps
-  Add, same as Duplicate above. Zero backend change, zero server push infra
-  (`UNUserNotificationCenter`, scheduled client-side). **Auto-post (silently
-  creating the expense with no confirmation) stays off the table** — not a
-  cost problem, a correctness one: a shared, no-hidden-owner ledger where
-  expenses can appear with nobody having actively added them is how you get
-  "wait, who added this" disputes, the exact trust problem the trash/
-  attribution item above exists to fix. Reminder-only gets the value
-  without the risk. **Edge case found by simulating real usage
-  (2026-09-05):** a template referencing a member who's since been
-  removed from the group needs to disable itself and prompt "this
-  reminder needs updating" rather than silently pre-filling with a
-  member who no longer exists — check membership validity when the
-  notification fires, not just when the template was created.
+- **Recurring reminders (not auto-post).** **Done 2026-09-05**, scoped down
+  in two ways agreed with the owner before building:
+  - **Equal split only, recomputed fresh each time**, not a stored custom
+    split — `RecurringTemplate` (ClanTabKit) holds amount/currency/payer/
+    description/category/cadence; whoever's *currently* a member gets an
+    equal share when a reminder becomes a real expense. Sidesteps the
+    stale-member problem for splits entirely, not just for the payer (which
+    *is* stored, and *is* validated — `RecurringTemplateValidation`; a row
+    for an ex-member shows "needs updating" in the reminders list and its
+    payer field re-defaults on open).
+  - **Tapping the notification just opens the app** (default OS behavior) —
+    it doesn't deep-link straight to the specific group/reminder. The
+    reminder already delivers its value (a nudge to come log something); a
+    few extra taps once inside the app (open the group → Group Options →
+    Recurring Reminders → tap the reminder) is minor friction, not a
+    correctness issue, and skipping the deep-link plumbing kept this a
+    same-day build instead of a multi-day one.
+
+  `UNUserNotificationCenter` only — zero backend change, zero server push
+  infra, matching the original ask. A "Recurring Reminders" entry in Group
+  Options lists templates (add/delete), each opening `AddExpenseView`
+  pre-filled (`recurringTemplate:`, alongside the existing `editing:`/
+  `duplicating:` prefill sources) — the user still confirms/adjusts and
+  taps Add, same as Duplicate. **Auto-post stays off the table**, same
+  reasoning as before: a shared, no-hidden-owner ledger where expenses
+  appear with nobody having actively added them is the exact trust problem
+  trash/attribution exists to fix.
+
+  **Verification:** `RecurringTemplateValidation`/`RecurringSchedule` (pure,
+  no `UNUserNotificationCenter` dependency) and the local store are unit
+  tested (ClanTabKit 120 → 127); App build + test green (63, unchanged —
+  view-layer only). **Not independently verified**: the actual permission
+  prompt, scheduled delivery timing, and tap-to-open flow all need a real
+  on-device pass — same caveat as Sign in with Apple/Google, `NEXT_STEPS.md`
+  Phase 8's TestFlight step covers it.
 - **Empty-state consistency.** `InsightsView`'s empty state already uses
   `ContentUnavailableView` (icon + title + subtitle); `GroupHomeView`'s
   empty activity feed is a plain `Text("No expenses yet.")` row. Bring the

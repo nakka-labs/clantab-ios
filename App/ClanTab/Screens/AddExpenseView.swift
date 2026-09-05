@@ -54,6 +54,14 @@ struct AddExpenseView: View {
         /// (`FEATURE_BACKLOG.md` "Duplicate an expense"). Mutually exclusive
         /// with `editing`; a caller never sets both.
         duplicating: Expense? = nil,
+        /// Pre-fill from a recurring reminder (`FEATURE_BACKLOG.md`) — amount,
+        /// description, category, and currency carry over; the split is
+        /// always a fresh equal split among *current* members (the template
+        /// doesn't store one, sidestepping the stale-member problem). The
+        /// payer pre-fills to `template.payerId` only if they're still a
+        /// member; otherwise falls back like a blank form would.
+        /// `editing` stays `nil`, same reasoning as `duplicating`.
+        recurringTemplate: RecurringTemplate? = nil,
         onSaved: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -66,6 +74,17 @@ struct AddExpenseView: View {
         self.editing = editing
         self.onSaved = onSaved
         self.onCancel = onCancel
+
+        if let template = recurringTemplate {
+            _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: template.amountMinor))
+            _description = State(initialValue: template.description)
+            let payerStillAMember = members.contains { $0.id == template.payerId }
+            _payerId = State(initialValue: payerStillAMember ? template.payerId : (currentMemberId ?? members.first?.id ?? ""))
+            _currency = State(initialValue: template.currency)
+            _category = State(initialValue: ExpenseCategory.resolve(name: template.category, symbolName: template.categoryIcon))
+            _includedMemberIds = State(initialValue: Set(members.map(\.id)))
+            return
+        }
 
         guard let expense = editing ?? duplicating else {
             _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
