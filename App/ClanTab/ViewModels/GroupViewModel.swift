@@ -18,7 +18,7 @@ final class GroupViewModel {
 
     let groupId: String
     private let client: ClanTabClient
-    private let identityStore: IdentityStoring
+    private let auth: AuthViewModel
 
     private(set) var state: GroupStateResponse?
     private(set) var isLoading = false
@@ -29,14 +29,19 @@ final class GroupViewModel {
     /// load. `RootView` watches this to bounce back to the start screen.
     private(set) var groupUnavailable = false
 
-    init(groupId: String, client: ClanTabClient, identityStore: IdentityStoring) {
+    init(groupId: String, client: ClanTabClient, auth: AuthViewModel) {
         self.groupId = groupId
         self.client = client
-        self.identityStore = identityStore
+        self.auth = auth
     }
 
-    var myIdentity: GroupIdentity? {
-        identityStore.identity(forGroup: groupId)
+    /// "Me" in this group — from the signed-in identity's authoritative group
+    /// list (`AuthViewModel.groups`), not local storage
+    /// (`MANDATORY_LOGIN_PLAN.md` Part 3). `nil` only transiently, before the
+    /// first `refreshGroups()` completes or if this membership was never
+    /// claimed on this identity.
+    var myIdentity: GroupMembershipSummary? {
+        auth.groups.first { $0.groupId == groupId }
     }
 
     /// The current member's net balance in every currency they have activity in

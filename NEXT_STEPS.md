@@ -72,8 +72,15 @@ again once the guest tier disappears.
       regression (see the plan's "Critical finding" callout). **Done
       2026-09-05:** "Add Someone" in `GroupSettingsView`; verified end to
       end against the deployed Worker (`MANDATORY_LOGIN_PLAN.md` Part 2.5).
-- [ ] **[CLI]** Part 3 — Remove the guest tier (`StartView`,
-      `JoinChoiceView`/`ClaimMemberView`, retire `IdentityStoring`).
+- [x] **[CLI]** Part 3 — Remove the guest tier (`StartView`,
+      `JoinChoiceView`/`ClaimMemberView`, retire `IdentityStoring`). **Done
+      2026-09-05** — see `MANDATORY_LOGIN_PLAN.md` Part 3 for the full
+      breakdown (incl. two gaps closed beyond its itemized list: gating
+      the "Your Groups" list / launch routing on sign-in, and claiming the
+      creator's own membership in `CreateGroupView`). iOS build + test
+      green (60/60); on-device TestFlight pass (Phase 8) is still the real
+      end-to-end check — Sign in with Apple/Google can't complete in the
+      Simulator.
 
 ## Phase 3 — Access token / credential decoupling
 

@@ -366,7 +366,12 @@ The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the acco
   screen for the rest; "Leave This Group" (device-local) + a context-menu
   remove on the start-screen list.
 - ~~A "merge my old entries" flow for someone who loses local storage and rejoins as a new member~~ — **partly addressed** by the claim flow (`ACCOUNTS_DESIGN.md` §6): a signed-in user opening an invite link picks "This is me" and links the existing placeholder member instead of creating a duplicate. A true merge of two already-separate members is still not built.
-- ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03). Optional Sign in with Apple; guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session tokens; `/api/auth/*` + `claim` routes (§13).
+- ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03), Sign in with
+  Apple only, guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session
+  tokens; `/api/auth/*` + `claim` routes (§13). **Superseded 2026-09-05:**
+  Google joins Apple and the guest tier is removed entirely
+  (`MANDATORY_LOGIN_PLAN.md`) — sign-in is now mandatory before creating,
+  joining, or viewing a group.
 - ~~**cross-group netting** ("settle across all groups with Bob")~~ — **shipped** (2026-09-04). `GET /api/auth/people` (§13): per linked person, the net per currency + per-group settle-up edges. Read-side only — "Settle All" is N ordinary `addSettlement` calls.
 - ~~Apple server-to-server token revocation on account deletion~~ — **code
   shipped** (2026-09-04). `POST /api/auth/apple` takes `authorizationCode`,
@@ -380,10 +385,15 @@ The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the acco
 
 ## 13. Accounts — auth surface
 
-Optional Sign in with Apple. The design rationale, threat model, and the three
-judgement calls live in **`ACCOUNTS_DESIGN.md`**; this section is the wire
-contract only. **The pre-accounts routes (§2) are unchanged** and still need no
-credential beyond `groupId` possession.
+Mandatory Apple or Google sign-in (`MANDATORY_LOGIN_PLAN.md`) — there's no
+guest tier as of 2026-09-05; every user signs in before creating, joining, or
+viewing a group. This is a **client-side gate only**: the design rationale,
+threat model, and judgement calls live in **`ACCOUNTS_DESIGN.md`** (written
+when sign-in was still optional — its placeholder-member/claim mechanics are
+unchanged, only the "optional" framing is superseded); this section is the
+wire contract. **The pre-accounts routes (§2) are unchanged** and still need
+no credential beyond `groupId` possession — the server's trust model didn't
+change, only which paths the app lets a signed-out user reach.
 
 ### Credentials
 
@@ -391,6 +401,7 @@ credential beyond `groupId` possession.
 |---|---|
 | `GET /api/groups/:groupId`, `POST .../expenses`, `POST .../settlements`, `POST .../members`, `GET /api/groups/resolve/:joinCode` | **`groupId` possession** (unchanged) |
 | `POST /api/auth/apple` | an Apple identity token |
+| `POST /api/auth/google` | a Google identity token |
 | `POST /api/auth/refresh`, `GET /api/auth/groups`, `DELETE /api/auth/account` | **session token** (`Authorization: Bearer`) |
 | `GET /api/groups/:groupId/claimable`, `POST /api/groups/:groupId/members/:memberId/claim` | **session token** + `groupId` possession |
 
@@ -400,10 +411,20 @@ credential beyond `groupId` possession.
 POST   /api/auth/apple      { identityToken, authorizationCode? }
        → 200 { sessionToken, expiresAt, groups: [{ groupId, memberId, displayName }] }
        Verifies the token against Apple's JWKS (iss = https://appleid.apple.com,
-       aud = com.clantab.app, not expired), then USER_DO.idFromName(sub).ensureExists(sub),
-       then mints a session (below). 401 INVALID_APPLE_TOKEN on any failure.
+       aud = com.clantab.app, not expired), then identity = "apple:" + sub,
+       USER_DO.idFromName(identity).ensureExists(identity), then mints a
+       session (below). 401 INVALID_APPLE_TOKEN on any failure.
        `authorizationCode`, when present + SIWA_* configured, is exchanged for a
        refresh token stored in the UserDO (for revocation on deletion).
+
+POST   /api/auth/google     { identityToken }
+       → 200 { sessionToken, expiresAt, groups: [{ groupId, memberId, displayName }] }
+       Mirrors /api/auth/apple: verifies against Google's JWKS
+       (https://www.googleapis.com/oauth2/v3/certs, aud = GOOGLE_AUDIENCE,
+       not expired), identity = "google:" + sub, same ensureExists +
+       session-mint path. 401 INVALID_GOOGLE_TOKEN on any failure. No
+       authorization-code exchange — Google's flow here requests no offline
+       access, so there's no refresh token to store.
 
 POST   /api/auth/refresh    (Bearer)  → 200 { sessionToken, expiresAt }
 GET    /api/auth/groups     (Bearer)  → 200 { groups: [{ groupId, memberId, displayName }] }
@@ -412,12 +433,14 @@ GET    /api/auth/people     (Bearer)  → 200 { people: [{ id, displayName,
                                         groups: [{ groupId, groupName, currency, amountMinor,
                                                    youPay, myMemberId, theirMemberId }] }] }
        Cross-group settling: the simplified settle-up edge between the caller and
-       every *linked* person, summed across shared groups, per currency. Guests
-       never appear; the Apple `sub` is never exposed (opaque `id`). The client
-       settles each edge with an ordinary POST .../settlements.
+       every *linked* person, summed across shared groups, per currency. An
+       unclaimed placeholder member never appears; the identity's `sub` is
+       never exposed (opaque `id`). The client settles each edge with an
+       ordinary POST .../settlements.
 DELETE /api/auth/account    (Bearer)  → 204
-       Revokes the Apple token first (best effort, SIWA_* configured), then
-       unclaims every membership and wipes the UserDO.
+       Revokes the Apple token first (best effort, Apple identities with
+       SIWA_* configured only — no equivalent for Google), then unclaims
+       every membership and wipes the UserDO.
        UserDO.listGroups() → GroupDO.unclaim(memberId, sub) for each → UserDO.deleteAll().
        Member rows, names, and all expenses/settlements stay; the member reverts to a
        placeholder.
@@ -428,11 +451,16 @@ POST   /api/groups/:groupId/members/:memberId/claim   (Bearer)
        → 200 { member }
        GroupDO.claim(memberId, sub) sets members.identity_sub, then
        UserDO.addMembership(...). 404 UNKNOWN_MEMBER, 409 ALREADY_CLAIMED /
-       IDENTITY_ALREADY_IN_GROUP.
+       IDENTITY_ALREADY_IN_GROUP. iOS calls this after every sign-in-gated
+       "join" outcome now (`MANDATORY_LOGIN_PLAN.md` Part 3) — both picking
+       an existing placeholder and adding yourself fresh (a plain
+       POST .../members immediately followed by a claim of the member it
+       returns) — and after creating a group, to claim the creator's own
+       membership.
 ```
 
-New error codes: `INVALID_APPLE_TOKEN` (401), `INVALID_SESSION` (401),
-`ALREADY_CLAIMED` (409), `IDENTITY_ALREADY_IN_GROUP` (409).
+New error codes: `INVALID_APPLE_TOKEN` (401), `INVALID_GOOGLE_TOKEN` (401),
+`INVALID_SESSION` (401), `ALREADY_CLAIMED` (409), `IDENTITY_ALREADY_IN_GROUP` (409).
 
 ### Session token
 
@@ -444,22 +472,27 @@ refetch on a `kid` miss), not KV.
 
 ### `UserDO`
 
-One per Apple `sub`, `idFromName(sub)`. A thin, self-healing index — `user_meta`
-+ `memberships` (§10). `GroupDO` is authoritative for the membership↔identity
-link; the Worker writes `GroupDO` first, then `UserDO`. A missed `UserDO` write
-just hides one group from `GET /api/auth/groups` until the next reconcile, which
-the app already tolerates.
+One per signed-in identity, `idFromName("<provider>:" + sub)` — `"apple:" +
+sub` or `"google:" + sub"` (`MANDATORY_LOGIN_PLAN.md` Part 2), so an Apple and
+a Google identity can never collide on the same underlying `sub` value. A
+thin, self-healing index — `user_meta` + `memberships` (§10). `GroupDO` is
+authoritative for the membership↔identity link; the Worker writes `GroupDO`
+first, then `UserDO`. A missed `UserDO` write just hides one group from
+`GET /api/auth/groups` until the next reconcile, which the app already
+tolerates.
 
 ### Config
 
 - `USER_DO` — Durable Object namespace binding (wrangler migration `v2`).
 - `APPLE_AUDIENCE` — `vars` (`com.clantab.app`).
+- `GOOGLE_AUDIENCE` — `vars`, the iOS OAuth client id from Google Cloud
+  Console (`MANDATORY_LOGIN_PLAN.md` Part 1).
 - `SESSION_SIGNING_KEY` — a real secret in prod (`wrangler secret put`); **never a
   `vars` entry** — a plain var overwrites a same-named secret on every deploy.
   Local: `worker/.dev.vars`. Tests: `vitest.workers.config.ts`.
 - `SIWA_SERVICES_ID` / `SIWA_TEAM_ID` / `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` — all
   four or none (`siwaConfigFromEnv`). Wired into `POST /api/auth/apple`
-  (code exchange) and `DELETE /api/auth/account` (revoke). ✅ set + deployed
-  2026-09-04.
+  (code exchange) and `DELETE /api/auth/account` (revoke) — Apple identities
+  only, no Google equivalent. ✅ set + deployed 2026-09-04.
 - The Sign in with Apple capability must be enabled on the App ID in the Apple
   Developer portal before a TestFlight build.

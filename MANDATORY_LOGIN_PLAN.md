@@ -112,28 +112,57 @@ flow, `ACCOUNTS_DESIGN.md` §6) — nothing about this is a dead end.
 
 ## Part 3 — Remove the guest tier (iOS)
 
-This is the biggest simplification in the plan, not just a removal — a lot
-of code exists solely to handle "no server-backed identity yet," and none of
-it is needed once every user is signed in.
+**Done 2026-09-05.** This was the biggest simplification in the plan, not
+just a removal — a lot of code existed solely to handle "no server-backed
+identity yet," and none of it was needed once every user is signed in.
+iOS build + test green (60/60, up from 56 — net of one dropped test whose
+premise no longer applies, plus five new ones); ClanTabKit's own suite green
+(113/113) after `IdentityStore.swift` + its tests were deleted. Verified
+live in the Simulator: the sign-in gate itself renders correctly (no "Your
+Groups" list, no Create/Join buttons, signed out) — completing an actual
+Apple/Google sign-in isn't possible in the Simulator (pre-existing
+limitation, `NEXT_STEPS.md` Phase 8), so the create/claim/join-fresh flows
+themselves are covered by `AuthViewModelTests` + `RootViewDeepLinkTests`
+only, pending the on-device TestFlight pass.
 
-1. **[CLI]** `StartView`: gate `Create a Group` / `Join with a Code` behind
+1. [x] **[CLI]** `StartView`: gate `Create a Group` / `Join with a Code` behind
    `auth.isSignedIn` — show only the Apple/Google sign-in buttons until
    signed in. `onOpenSettings` / "Signed in with Apple" row goes away (no
-   longer a status to check — everyone's signed in).
-2. **[CLI]** Collapse `JoinChoiceView` + `ClaimMemberView`'s guest branch
+   longer a status to check — everyone's signed in). Also closed a gap this
+   item implied but didn't spell out: the start screen's "Your Groups" list
+   (backed by the local `knownGroups` cache, which outlives a sign-out) and
+   `RootView`'s launch/deep-link routing were still reachable while signed
+   out — both are now gated on `auth.isSignedIn` too, with a pending-deep-link
+   resumed automatically once sign-in succeeds.
+2. [x] **[CLI]** Collapse `JoinChoiceView` + `ClaimMemberView`'s guest branch
    into one screen: pick which existing placeholder member is you, or add
    yourself as a new member — both branches now always claim with an
-   identity, there's no more "join as guest" outcome. Delete
-   `JoinGroupView`'s guest-join path (dead once nobody reaches it
-   unauthenticated).
-3. **[CLI]** Retire `IdentityStoring` / `UserDefaultsIdentityStore` (the
+   identity, there's no more "join as guest" outcome. Deleted
+   `JoinChoiceView.swift`; `JoinGroupView` now only resolves a join code to a
+   `groupId` and hands off to the merged `ClaimMemberView`.
+3. [x] **[CLI]** Retire `IdentityStoring` / `UserDefaultsIdentityStore` (the
    per-device `"clantab:" + groupId` local identity) entirely.
    `GroupViewModel.myIdentity` now derives "my member id in this group" from
    `auth.groups` (`GET /api/auth/groups` already returns `{ groupId,
    memberId, displayName }` per `DESIGN.md` §13) instead of local storage.
-4. **[CLI]** Update/remove tests that assumed a guest path (deep-link
-   resolution, `RootView.resolveDeepLink`'s guest branch); add Google
-   sign-in tests mirroring the Apple ones.
+   Necessary corollary not spelled out in this item: `CreateGroupView` now
+   calls `auth.claim(groupId:memberId:)` right after creating a group, so the
+   creator's own membership shows up in `auth.groups` too (best-effort — a
+   failure there doesn't block entering the just-created group, which is
+   still remembered locally either way).
+4. [x] **[CLI]** Update/remove tests that assumed a guest path (deep-link
+   resolution, `RootView.resolveDeepLink`'s guest branch — now a 3-way
+   `openGroup` / `claimMember` / `needsSignIn` split); add Google sign-in
+   tests mirroring the Apple ones (`testSignInWithGoogle*`,
+   `testLaunchDecisionGoogle*` — these were missing even after Part 1).
+
+**Deliberately left alone, flagged for a followup:** `AuthViewModel`'s
+"sync nudge" (`shouldShowSyncNudge` / `dismissSyncNudge` / `SyncNudgeCard` /
+`SyncNudgeStoring`, `ACCOUNTS_DESIGN.md` §10) only ever fires for a
+signed-out user — which, after this Part, can no longer reach Group Home at
+all. It's dead code now, but removing it wasn't itemized above and is a
+separable cleanup (its own files/tests) — left in place rather than folded
+into this diff.
 
 ## Part 4 — Hardening, now that the repo carries more weight
 

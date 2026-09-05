@@ -1,9 +1,11 @@
 import SwiftUI
 import ClanTabKit
 
-/// Account settings, reachable from the start screen and Group Home. The
-/// permanent home for "sign in to sync" (guests) and — Apple Guideline
-/// 5.1.1(v) — "Delete Account" (signed-in users). `ACCOUNTS_DESIGN.md` §10/§11.
+/// Account settings, reachable from the start screen and Group Home. Sign in
+/// is mandatory (`MANDATORY_LOGIN_PLAN.md` Part 3) — this screen still shows a
+/// sign-in prompt for the brief window between "signed out" and "signed back
+/// in," plus — Apple Guideline 5.1.1(v) — "Delete Account" once signed in.
+/// `ACCOUNTS_DESIGN.md` §10/§11.
 struct SettingsView: View {
     let auth: AuthViewModel
     let client: ClanTabClient

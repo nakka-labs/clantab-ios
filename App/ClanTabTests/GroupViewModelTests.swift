@@ -28,7 +28,7 @@ final class GroupViewModelTests: XCTestCase {
         let vm = GroupViewModel(
             groupId: "dead-group",
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: NotFoundTransport()),
-            identityStore: InMemoryIdentityStore()
+            auth: makeAuth()
         )
         await vm.refetch()
         XCTAssertTrue(vm.groupUnavailable)
@@ -40,7 +40,7 @@ final class GroupViewModelTests: XCTestCase {
         let vm = GroupViewModel(
             groupId: "g",
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: ServerErrorTransport()),
-            identityStore: InMemoryIdentityStore()
+            auth: makeAuth()
         )
         await vm.refetch()
         XCTAssertFalse(vm.groupUnavailable)
@@ -52,7 +52,7 @@ final class GroupViewModelTests: XCTestCase {
         let vm = GroupViewModel(
             groupId: "dead-group",
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: NotFoundTransport()),
-            identityStore: InMemoryIdentityStore()
+            auth: makeAuth()
         )
         await vm.autoRefetch()
         XCTAssertTrue(vm.groupUnavailable)
@@ -66,11 +66,23 @@ final class GroupViewModelTests: XCTestCase {
         let vm = GroupViewModel(
             groupId: "g",
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: ServerErrorTransport()),
-            identityStore: InMemoryIdentityStore()
+            auth: makeAuth()
         )
         await vm.autoRefetch()
         XCTAssertFalse(vm.groupUnavailable)
         XCTAssertNil(vm.errorMessage)
+    }
+
+    /// A minimal signed-out `AuthViewModel` — these tests exercise `refetch`/
+    /// `autoRefetch`, not `myIdentity`, so an empty `groups` list is fine.
+    @MainActor
+    private func makeAuth() -> AuthViewModel {
+        AuthViewModel(
+            client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: NotFoundTransport()),
+            sessionStore: InMemorySessionStore(),
+            knownGroups: InMemoryKnownGroupsStore(),
+            syncNudge: InMemorySyncNudgeStore()
+        )
     }
 }
 

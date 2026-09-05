@@ -3,14 +3,16 @@ import ClanTabKit
 
 struct RootView: View {
     let client: ClanTabClient
-    let identityStore: IdentityStoring
     let knownGroups: KnownGroupsStoring
     let auth: AuthViewModel
 
     @State private var route: AppRoute = .start
     @State private var showingSettings = false
+    /// A deep link opened while signed out (`MANDATORY_LOGIN_PLAN.md` Part 3 —
+    /// viewing a group requires signing in first). Resumed once sign-in succeeds.
+    @State private var pendingDeepLinkGroupId: String?
     /// Bumped when the local group list changes without an `auth.groups` change
-    /// (a guest removing a group), to recompute `yourGroups`.
+    /// (removing a group locally), to recompute `yourGroups`.
     @State private var knownGroupsRevision = 0
 
     var body: some View {
@@ -18,10 +20,19 @@ struct RootView: View {
             content
         }
         .task {
-            resolveInitialRoute()
             await auth.handleLaunch()
+            resolveInitialRoute()
         }
         .onOpenURL { url in handleDeepLink(url) }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            guard signedIn, let groupId = pendingDeepLinkGroupId else { return }
+            pendingDeepLinkGroupId = nil
+            if isMember(groupId) {
+                enterGroup(groupId)
+            } else {
+                route = .claimMember(groupId: groupId)
+            }
+        }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
                 SettingsView(auth: auth, client: client, onDone: { showingSettings = false })
@@ -29,13 +40,18 @@ struct RootView: View {
         }
     }
 
-    /// The start screen's "Your Groups" list. Reading `auth.groups` here keeps
-    /// this recomputing after a signed-in launch seeds new groups into
-    /// `knownGroups` (which isn't itself observable).
+    /// The start screen's "Your Groups" list — signed-in only
+    /// (`MANDATORY_LOGIN_PLAN.md` Part 3): every group is tied to an identity
+    /// now, so browsing a device's cached list while signed out isn't allowed.
     private var yourGroups: [KnownGroup] {
+        guard auth.isSignedIn else { return [] }
         _ = auth.groups
         _ = knownGroupsRevision
         return knownGroups.all()
+    }
+
+    private func isMember(_ groupId: String) -> Bool {
+        auth.groups.contains { $0.groupId == groupId }
     }
 
     @ViewBuilder
@@ -44,16 +60,14 @@ struct RootView: View {
         case .start:
             StartView(
                 onCreate: { route = .createGroup },
-                onJoinWithCode: { route = .joinGroup(groupId: nil) },
+                onJoinWithCode: { route = .joinGroup },
                 groups: yourGroups,
                 onOpenGroup: enterGroup,
                 onRemoveGroup: { groupId in
                     knownGroups.forget(groupId: groupId)
-                    identityStore.removeIdentity(forGroup: groupId)
                     knownGroupsRevision += 1
                 },
                 isSignedIn: auth.isSignedIn,
-                signedInProvider: auth.session?.provider,
                 isSigningIn: auth.isBusy,
                 authError: auth.errorMessage,
                 onSignIn: { identityToken, userID, authCode in
@@ -67,22 +81,14 @@ struct RootView: View {
         case .createGroup:
             CreateGroupView(
                 client: client,
-                identityStore: identityStore,
+                auth: auth,
                 onCreated: enterGroup,
                 onCancel: { route = .start }
             )
-        case .joinGroup(let groupId):
+        case .joinGroup:
             JoinGroupView(
-                groupId: groupId,
                 client: client,
-                identityStore: identityStore,
-                onJoined: enterGroup,
-                onCancel: { route = .start }
-            )
-        case .chooseJoin(let groupId):
-            JoinChoiceView(
-                onThisIsMe: { route = .claimMember(groupId: groupId) },
-                onJoinAsGuest: { route = .joinGroup(groupId: groupId) },
+                onResolved: { groupId in route = .claimMember(groupId: groupId) },
                 onCancel: { route = .start }
             )
         case .claimMember(let groupId):
@@ -91,18 +97,16 @@ struct RootView: View {
                 client: client,
                 auth: auth,
                 onClaimed: enterGroup,
-                onJoinAsGuest: { route = .joinGroup(groupId: groupId) },
-                onCancel: { route = .chooseJoin(groupId: groupId) }
+                onCancel: { route = .start }
             )
         case .group(let groupId):
             GroupHomeView(
                 groupId: groupId,
                 client: client,
-                identityStore: identityStore,
                 knownGroups: knownGroups,
                 auth: auth,
                 onOpenSettings: { showingSettings = true },
-                onLeaveGroup: { leaveGroup(groupId, forgetIdentity: true) },
+                onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
         }
@@ -110,25 +114,22 @@ struct RootView: View {
 
     /// On launch, skip straight back into the group this device was last active
     /// in — but only when there's exactly one, so a device that's seen several
-    /// groups lands on the start screen's list instead.
+    /// groups lands on the start screen's list instead. Runs after
+    /// `auth.handleLaunch()` so `auth.groups` is populated.
     private func resolveInitialRoute() {
-        guard route == .start else { return }
+        guard route == .start, auth.isSignedIn else { return }
         let known = knownGroups.all()
-        guard known.count == 1, let only = known.first,
-              identityStore.identity(forGroup: only.groupId) != nil
-        else { return }
+        guard known.count == 1, let only = known.first, isMember(only.groupId) else { return }
         route = .group(groupId: only.groupId)
     }
 
     private func handleDeepLink(_ url: URL) {
-        switch Self.resolveDeepLink(
-            url,
-            hasIdentity: { identityStore.identity(forGroup: $0) != nil },
-            isSignedIn: auth.isSignedIn
-        ) {
+        switch Self.resolveDeepLink(url, isMember: isMember, isSignedIn: auth.isSignedIn) {
         case .openGroup(let groupId): enterGroup(groupId)
-        case .chooseJoin(let groupId): route = .chooseJoin(groupId: groupId)
-        case .joinGroup(let groupId): route = .joinGroup(groupId: groupId)
+        case .claimMember(let groupId): route = .claimMember(groupId: groupId)
+        case .needsSignIn(let groupId):
+            pendingDeepLinkGroupId = groupId
+            route = .start
         case nil: break
         }
     }
@@ -138,36 +139,35 @@ struct RootView: View {
         route = .group(groupId: groupId)
     }
 
-    /// Drop a group from this device: on a 404 (its capability URL is gone) the
-    /// local identity is left in place — harmless, still valid if the group
-    /// becomes reachable again. On an explicit "Leave This Group"
-    /// (`forgetIdentity: true`) the identity is cleared too, so re-opening the
-    /// link starts a fresh join.
-    private func leaveGroup(_ groupId: String, forgetIdentity: Bool = false) {
+    /// Drop a group from this device's local list — on an explicit "Leave This
+    /// Group" or a 404 (its capability URL is gone) alike. Purely a local-list
+    /// removal: it doesn't unlink a claimed membership server-side, so a
+    /// signed-in member's next `refreshGroups()` can bring it right back
+    /// (pre-existing behavior, unchanged by `MANDATORY_LOGIN_PLAN.md` Part 3).
+    private func leaveGroup(_ groupId: String) {
         knownGroups.forget(groupId: groupId)
-        if forgetIdentity { identityStore.removeIdentity(forGroup: groupId) }
         route = .start
     }
 
     /// Where a `/g/:groupId` link should land. Pure so it can be tested without a
     /// hosting view:
-    /// - already a member on this device → straight into the group;
-    /// - no membership, signed in → the claim-or-join chooser (`ACCOUNTS_DESIGN.md` §6);
-    /// - no membership, guest → the join-as-guest flow.
+    /// - signed in and already a member → straight into the group;
+    /// - signed in, no membership yet → the claim-or-join-fresh screen (`ACCOUNTS_DESIGN.md` §6);
+    /// - signed out → nothing to do until they sign in (`MANDATORY_LOGIN_PLAN.md` Part 3).
     enum DeepLinkResolution: Equatable {
         case openGroup(String)
-        case chooseJoin(String)
-        case joinGroup(String)
+        case claimMember(String)
+        case needsSignIn(String)
     }
 
     nonisolated static func resolveDeepLink(
         _ url: URL,
-        hasIdentity: (String) -> Bool,
+        isMember: (String) -> Bool,
         isSignedIn: Bool
     ) -> DeepLinkResolution? {
         guard let groupId = extractGroupId(from: url) else { return nil }
-        if hasIdentity(groupId) { return .openGroup(groupId) }
-        return isSignedIn ? .chooseJoin(groupId) : .joinGroup(groupId)
+        guard isSignedIn else { return .needsSignIn(groupId) }
+        return isMember(groupId) ? .openGroup(groupId) : .claimMember(groupId)
     }
 
     /// Recognizes both a real capability link (`https://<host>/g/:groupId`, per

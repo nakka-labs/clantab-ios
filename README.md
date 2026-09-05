@@ -13,10 +13,10 @@ An open-source expense splitter for iOS. Built for small groups (trips, shared a
 
 ## What is ClanTab?
 
-ClanTab is a clean, private, and frictionless way for 5–10 friends to share expenses without a sign-up wall, bloated fintech apps, or advertising.
+ClanTab is a clean, private, and frictionless way for 5–10 friends to share expenses without bloated fintech apps or advertising.
 
-- **No Sign-Up Required**: Create a group, pick your display name, and share the link or 6-character code — no account needed, ever.
-- **Optional Sign in with Apple**: Only to sync your groups if you switch phones. Requests no name or email; guests get the full app without it.
+- **Sign in with Apple or Google**: Requests no name or email — just enough to sync your groups across devices and let you rediscover them on a new phone.
+- **No Extra Signup Per Group**: Once you're signed in, create a group and share the link or 6-character code; anyone who won't install the app can still be added by name alone, no account required.
 - **Exact Debt Simplification**: Collapses tangled pairwise IOUs down to the minimum possible number of settle-up transactions (at most $N-1$) using a greedy graph optimization algorithm.
 - **Integer Minor Units**: Guarantees zero floating-point rounding errors across all currencies (cents, paise, yen).
 - **One-Tap Settle Up**: Trust-based settlement recording.
@@ -43,10 +43,12 @@ lives in the core; the shell only presents it; the backend recomputes balances
 authoritatively. The sync model is deliberately simple — fetch-on-load,
 refetch-after-write, no optimistic UI, no WebSocket (`DESIGN.md` §7).
 
-**Identity is optional.** Guests use a per-device, per-group local identity and
-the group link as the credential — unchanged from day one. Sign in with Apple
-adds a stateless session token (`DESIGN.md` §13, `ACCOUNTS_DESIGN.md`) that only
-syncs *which groups you're in* across devices; it never gates the group routes.
+**Signing in (Apple or Google) is mandatory** (`MANDATORY_LOGIN_PLAN.md`) — a
+stateless session token (`DESIGN.md` §13, `ACCOUNTS_DESIGN.md`) that syncs
+*which groups you're in* across devices. It's a client-side gate only: the
+group routes themselves are still `groupId`-possession, unchanged from day
+one — a member row can be a placeholder (added by name alone, no account) or
+linked to a signed-in identity.
 
 ```mermaid
 flowchart TB
@@ -60,7 +62,7 @@ flowchart TB
         model["Model: Group, Member, Expense, Settlement, Balance"]
         logic["Logic: Balances, Simplify, Validation"]
         client["Network: ClanTabClient, async-await, no 3rd-party HTTP"]
-        store["Storage: Identity / KnownGroups / Session (Keychain) stores"]
+        store["Storage: KnownGroups / Session (Keychain) / SyncNudge stores"]
         export["Export: CSV / JSON, pure functions"]
     end
 
@@ -74,7 +76,7 @@ flowchart TB
         worker["Worker router, /api/* + /api/auth/*"]
         groupdo["GroupDO, SQLite - authoritative balances + simplify"]
         joincodes["Workers KV: joinCode to groupId, rate-limited"]
-        userdo["UserDO: per-Apple-identity group index"]
+        userdo["UserDO: per-identity (Apple or Google) group index"]
         worker --> groupdo
         worker --> joincodes
         worker --> userdo
@@ -104,7 +106,7 @@ clantab-ios/
 ├── docs/                # privacy policy, App Store metadata, screenshots
 ├── .githooks/pre-push   # local build/test gate (fast feedback, no CI wait) — `make hooks`
 ├── DESIGN.md            # the wire / storage / security contract (§13 = accounts)
-├── ACCOUNTS_DESIGN.md   # optional Sign in with Apple: rationale, threat model, build log
+├── ACCOUNTS_DESIGN.md   # accounts rationale, threat model, build log (superseded by MANDATORY_LOGIN_PLAN.md's "mandatory" framing)
 ├── NEXT_STEPS.md        # the running "what's left" checklist (index into the below)
 ├── PLAN.md · BACKEND_PLAN.md · SHIP_PLAN.md   # roadmaps: app · backend · shipping
 └── HANDOFF.md           # running status log

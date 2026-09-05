@@ -42,33 +42,32 @@ final class RootViewDeepLinkTests: XCTestCase {
 
     // MARK: - resolveDeepLink
 
-    func testResolvesToOpenGroupWhenIdentityExists() {
-        // A local membership always wins, signed in or not.
-        for signedIn in [true, false] {
-            let resolution = RootView.resolveDeepLink(
-                url("clantab://g/ABC123"), hasIdentity: { $0 == "ABC123" }, isSignedIn: signedIn
-            )
-            XCTAssertEqual(resolution, .openGroup("ABC123"))
-        }
+    func testResolvesToOpenGroupWhenSignedInAndAlreadyAMember() {
+        let resolution = RootView.resolveDeepLink(
+            url("clantab://g/ABC123"), isMember: { $0 == "ABC123" }, isSignedIn: true
+        )
+        XCTAssertEqual(resolution, .openGroup("ABC123"))
     }
 
-    func testResolvesToJoinGroupWhenNoIdentityAndGuest() {
+    func testResolvesToClaimMemberWhenSignedInButNotAMemberYet() {
         let resolution = RootView.resolveDeepLink(
-            url("clantab://g/ABC123"), hasIdentity: { _ in false }, isSignedIn: false
+            url("clantab://g/ABC123"), isMember: { _ in false }, isSignedIn: true
         )
-        XCTAssertEqual(resolution, .joinGroup("ABC123"))
+        XCTAssertEqual(resolution, .claimMember("ABC123"))
     }
 
-    func testResolvesToChooseJoinWhenNoIdentityButSignedIn() {
+    func testResolvesToNeedsSignInWhenSignedOut() {
+        // Even a known membership can't be verified without a session — signing
+        // in is the gate, not a per-link check (`MANDATORY_LOGIN_PLAN.md` Part 3).
         let resolution = RootView.resolveDeepLink(
-            url("clantab://g/ABC123"), hasIdentity: { _ in false }, isSignedIn: true
+            url("clantab://g/ABC123"), isMember: { _ in true }, isSignedIn: false
         )
-        XCTAssertEqual(resolution, .chooseJoin("ABC123"))
+        XCTAssertEqual(resolution, .needsSignIn("ABC123"))
     }
 
     func testResolvesToNilForUnparseableURL() {
         XCTAssertNil(RootView.resolveDeepLink(
-            url("https://clantab.example.com/"), hasIdentity: { _ in true }, isSignedIn: true
+            url("https://clantab.example.com/"), isMember: { _ in true }, isSignedIn: true
         ))
     }
 

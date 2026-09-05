@@ -40,6 +40,29 @@ final class AuthViewModelTests: XCTestCase {
         )
     }
 
+    /// Google has no client-side revocation check — `launchDecision` ignores
+    /// `standing` entirely for a Google session and goes by expiry alone
+    /// (mirrors the Apple `.authorized` case above, `MANDATORY_LOGIN_PLAN.md` Part 1).
+    func testLaunchDecisionGoogleIgnoresCredentialStandingKeepsFreshRefreshesNearExpiry() {
+        for standing: CredentialStanding in [.authorized, .revoked, .notFound, .noSession] {
+            XCTAssertEqual(
+                AuthViewModel.launchDecision(session: googleSession(expiresIn: 20 * day), standing: standing, now: .now),
+                .keep
+            )
+            XCTAssertEqual(
+                AuthViewModel.launchDecision(session: googleSession(expiresIn: 3 * day), standing: standing, now: .now),
+                .refresh
+            )
+        }
+    }
+
+    func testLaunchDecisionGoogleExpiredSessionIsDiscarded() {
+        XCTAssertEqual(
+            AuthViewModel.launchDecision(session: googleSession(expiresIn: -day), standing: .authorized, now: .now),
+            .discard
+        )
+    }
+
     // MARK: - signIn
 
     @MainActor
@@ -76,9 +99,45 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(vm.errorMessage, "That Apple sign-in couldn't be verified. Please try again.")
     }
 
+    // MARK: - signInWithGoogle (MANDATORY_LOGIN_PLAN.md Part 1, mirroring signIn above)
+
     @MainActor
-    func testSignInSeedsTheLocalGroupStoresFromTheServerList() async {
-        let identityStore = InMemoryIdentityStore()
+    func testSignInWithGoogleStoresTheSessionAndGroups() async {
+        let store = InMemorySessionStore()
+        let vm = makeVM(
+            store: store,
+            transport: StubTransport(statusCode: 200, json: """
+            {"sessionToken":"sess.tok","expiresAt":"2026-12-01T00:00:00Z",
+             "groups":[{"groupId":"g1","memberId":"m1","displayName":"Priya"}]}
+            """)
+        )
+
+        await vm.signInWithGoogle(identityToken: "google.jwt")
+
+        XCTAssertTrue(vm.isSignedIn)
+        XCTAssertEqual(vm.session?.token, "sess.tok")
+        XCTAssertEqual(vm.session?.provider, .google)
+        XCTAssertNil(vm.session?.appleUserID, "a Google session has no Apple user id to check credential state with")
+        XCTAssertEqual(vm.groups, [GroupMembershipSummary(groupId: "g1", memberId: "m1", displayName: "Priya")])
+        XCTAssertEqual(store.load()?.token, "sess.tok")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func testSignInWithGoogleSurfacesAFriendlyMessageOnAnUnverifiableToken() async {
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: StubTransport(statusCode: 401, json: #"{"error":{"code":"INVALID_GOOGLE_TOKEN","message":"nope"}}"#)
+        )
+
+        await vm.signInWithGoogle(identityToken: "junk")
+
+        XCTAssertFalse(vm.isSignedIn)
+        XCTAssertEqual(vm.errorMessage, "That Google sign-in couldn't be verified. Please try again.")
+    }
+
+    @MainActor
+    func testSignInSeedsKnownGroupsFromTheServerList() async {
         let knownGroups = InMemoryKnownGroupsStore()
         let vm = makeVM(
             store: InMemorySessionStore(),
@@ -87,33 +146,16 @@ final class AuthViewModelTests: XCTestCase {
              "groups":[{"groupId":"g1","memberId":"m1","displayName":"Priya"},
                        {"groupId":"g2","memberId":"m2","displayName":"Priya"}]}
             """),
-            identityStore: identityStore,
             knownGroups: knownGroups
         )
 
         await vm.signIn(identityToken: "apple.jwt", userID: "u")
 
         XCTAssertEqual(Set(knownGroups.all().map(\.groupId)), ["g1", "g2"])
-        XCTAssertEqual(identityStore.identity(forGroup: "g1"), GroupIdentity(memberId: "m1", displayName: "Priya"))
-        XCTAssertEqual(identityStore.identity(forGroup: "g2"), GroupIdentity(memberId: "m2", displayName: "Priya"))
-    }
-
-    @MainActor
-    func testSignInDoesNotOverwriteAnExistingLocalIdentity() async {
-        let identityStore = InMemoryIdentityStore()
-        identityStore.setIdentity(GroupIdentity(memberId: "guest-m", displayName: "Guest Me"), forGroup: "g1")
-        let vm = makeVM(
-            store: InMemorySessionStore(),
-            transport: StubTransport(statusCode: 200, json: """
-            {"sessionToken":"s","expiresAt":"2026-12-01T00:00:00Z",
-             "groups":[{"groupId":"g1","memberId":"m1","displayName":"Priya"}]}
-            """),
-            identityStore: identityStore
-        )
-
-        await vm.signIn(identityToken: "apple.jwt", userID: "u")
-
-        XCTAssertEqual(identityStore.identity(forGroup: "g1")?.memberId, "guest-m")
+        XCTAssertEqual(vm.groups, [
+            GroupMembershipSummary(groupId: "g1", memberId: "m1", displayName: "Priya"),
+            GroupMembershipSummary(groupId: "g2", memberId: "m2", displayName: "Priya"),
+        ])
     }
 
     @MainActor
@@ -232,8 +274,7 @@ final class AuthViewModelTests: XCTestCase {
     // MARK: - claim
 
     @MainActor
-    func testClaimSeedsTheIdentityAndRefreshesTheGroupList() async {
-        let identityStore = InMemoryIdentityStore()
+    func testClaimSeedsGroupsAndRefreshesTheList() async {
         let knownGroups = InMemoryKnownGroupsStore()
         let vm = makeVM(
             store: InMemorySessionStore(session(expiresIn: 20 * day)),
@@ -241,33 +282,49 @@ final class AuthViewModelTests: XCTestCase {
                 "/claim": (200, #"{"member":{"id":"m1","displayName":"Priya"}}"#),
                 "/api/auth/groups": (200, #"{"groups":[{"groupId":"g1","memberId":"m1","displayName":"Priya"}]}"#),
             ]),
-            identityStore: identityStore,
             knownGroups: knownGroups
         )
 
         let ok = await vm.claim(groupId: "g1", memberId: "m1")
 
         XCTAssertTrue(ok)
-        XCTAssertEqual(identityStore.identity(forGroup: "g1"), GroupIdentity(memberId: "m1", displayName: "Priya"))
+        XCTAssertEqual(vm.groups, [GroupMembershipSummary(groupId: "g1", memberId: "m1", displayName: "Priya")])
         XCTAssertEqual(knownGroups.all().map(\.groupId), ["g1"])
-        XCTAssertEqual(vm.groups.map(\.groupId), ["g1"])
         XCTAssertNil(vm.errorMessage)
+    }
+
+    /// `claim()` updates `groups` from the claim response itself, before the
+    /// follow-up `refreshGroups()` even runs — so Group Home greets the new
+    /// member immediately even if that follow-up call is transiently unreachable.
+    @MainActor
+    func testClaimUpdatesGroupsImmediatelyEvenIfTheFollowUpRefreshFails() async {
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: RoutingTransport(responses: [
+                "/claim": (200, #"{"member":{"id":"m1","displayName":"Priya"}}"#),
+                // No "/api/auth/groups" entry — RoutingTransport 404s it, which
+                // refreshGroups() treats as transient and ignores.
+            ])
+        )
+
+        let ok = await vm.claim(groupId: "g1", memberId: "m1")
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(vm.groups, [GroupMembershipSummary(groupId: "g1", memberId: "m1", displayName: "Priya")])
     }
 
     @MainActor
     func testClaimFailureSurfacesTheServerMessageAndSeedsNothing() async {
-        let identityStore = InMemoryIdentityStore()
         let vm = makeVM(
             store: InMemorySessionStore(session(expiresIn: 20 * day)),
-            transport: StubTransport(statusCode: 409, json: #"{"error":{"code":"ALREADY_CLAIMED","message":"Linked to another account."}}"#),
-            identityStore: identityStore
+            transport: StubTransport(statusCode: 409, json: #"{"error":{"code":"ALREADY_CLAIMED","message":"Linked to another account."}}"#)
         )
 
         let ok = await vm.claim(groupId: "g1", memberId: "m1")
 
         XCTAssertFalse(ok)
         XCTAssertEqual(vm.errorMessage, "Linked to another account.")
-        XCTAssertNil(identityStore.identity(forGroup: "g1"))
+        XCTAssertEqual(vm.groups, [])
     }
 
     @MainActor
@@ -409,6 +466,10 @@ final class AuthViewModelTests: XCTestCase {
         StoredSession(token: "stored.tok", provider: .apple, appleUserID: userID, expiresAt: Date(timeIntervalSinceNow: seconds))
     }
 
+    private func googleSession(expiresIn seconds: TimeInterval) -> StoredSession {
+        StoredSession(token: "stored.tok", provider: .google, expiresAt: Date(timeIntervalSinceNow: seconds))
+    }
+
     private func known(_ groupId: String, at date: Date) -> KnownGroup {
         KnownGroup(groupId: groupId, name: groupId, lastOpenedAt: date)
     }
@@ -418,14 +479,12 @@ final class AuthViewModelTests: XCTestCase {
         store: SessionStoring,
         transport: ClanTabTransport,
         standing: CredentialStanding = .authorized,
-        identityStore: IdentityStoring = InMemoryIdentityStore(),
         knownGroups: KnownGroupsStoring = InMemoryKnownGroupsStore(),
         syncNudge: SyncNudgeStoring = InMemorySyncNudgeStore()
     ) -> AuthViewModel {
         AuthViewModel(
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: transport),
             sessionStore: store,
-            identityStore: identityStore,
             knownGroups: knownGroups,
             syncNudge: syncNudge,
             credentialStanding: { _ in standing }

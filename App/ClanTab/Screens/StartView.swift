@@ -1,10 +1,10 @@
 import ClanTabKit
 import SwiftUI
 
-/// The very first screen for a device with no remembered group: open one of the
-/// groups this device already knows, create a new group, or join by code.
-/// Optionally sign in with Apple so claimed memberships sync across devices
-/// (`ACCOUNTS_DESIGN.md` §4) — entirely optional, guests get the full app.
+/// The very first screen for a device with no active group: open one of the
+/// groups this identity knows, create a new group, or join by code. Sign-in
+/// (Apple or Google) is mandatory before any of that — no guest tier
+/// (`MANDATORY_LOGIN_PLAN.md` Part 3).
 struct StartView: View {
     let onCreate: () -> Void
     let onJoinWithCode: () -> Void
@@ -12,9 +12,6 @@ struct StartView: View {
     var onOpenGroup: (_ groupId: String) -> Void = { _ in }
     var onRemoveGroup: (_ groupId: String) -> Void = { _ in }
     var isSignedIn: Bool = false
-    /// Which provider the current session used, for the signed-in label. `nil`
-    /// while signed out.
-    var signedInProvider: StoredSession.Provider? = nil
     var isSigningIn: Bool = false
     /// Error from exchanging the credential (network / verification), owned by
     /// `AuthViewModel`. The credential-sheet's own failures are handled locally.
@@ -37,24 +34,35 @@ struct StartView: View {
                     .multilineTextAlignment(.center)
             }
 
-            if !groups.isEmpty {
-                yourGroupsSection
-            }
-
-            Spacer()
-            VStack(spacing: 12) {
-                Button("Create a Group", action: onCreate)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                Button("Join with a Code", action: onJoinWithCode)
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-
+            if isSignedIn {
+                if !groups.isEmpty {
+                    yourGroupsSection
+                }
+                Spacer()
+                VStack(spacing: 12) {
+                    Button("Create a Group", action: onCreate)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                    Button("Join with a Code", action: onJoinWithCode)
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                Spacer()
                 signInSection
             }
-            .frame(maxWidth: .infinity)
         }
         .padding()
+        .toolbar {
+            if isSignedIn {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onOpenSettings) {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                }
+            }
+        }
     }
 
     private var yourGroupsSection: some View {
@@ -94,56 +102,41 @@ struct StartView: View {
         .padding(.horizontal, 4)
     }
 
-    @ViewBuilder
     private var signInSection: some View {
-        if isSignedIn {
-            Button(action: onOpenSettings) {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.seal.fill")
-                    Text(signedInProvider == .google ? "Signed in with Google" : "Signed in with Apple")
-                    Image(systemName: "chevron.right").font(.caption2)
-                }
-                .font(.footnote)
+        VStack(spacing: 8) {
+            AppleSignInButton(
+                onCredential: { token, userID, authCode in
+                    sheetError = nil
+                    onSignIn(token, userID, authCode)
+                },
+                onFailure: { sheetError = $0 }
+            )
+            .frame(height: 44)
+            .disabled(isSigningIn)
+            .opacity(isSigningIn ? 0.5 : 1)
+
+            GoogleSignInButton(
+                onCredential: { token in
+                    sheetError = nil
+                    onSignInWithGoogle(token)
+                },
+                onFailure: { sheetError = $0 }
+            )
+            .frame(height: 44)
+            .disabled(isSigningIn)
+            .opacity(isSigningIn ? 0.5 : 1)
+
+            Text("Sign in to create or join a group.")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
-        } else {
-            VStack(spacing: 8) {
-                AppleSignInButton(
-                    onCredential: { token, userID, authCode in
-                        sheetError = nil
-                        onSignIn(token, userID, authCode)
-                    },
-                    onFailure: { sheetError = $0 }
-                )
-                .frame(height: 44)
-                .disabled(isSigningIn)
-                .opacity(isSigningIn ? 0.5 : 1)
 
-                GoogleSignInButton(
-                    onCredential: { token in
-                        sheetError = nil
-                        onSignInWithGoogle(token)
-                    },
-                    onFailure: { sheetError = $0 }
-                )
-                .frame(height: 44)
-                .disabled(isSigningIn)
-                .opacity(isSigningIn ? 0.5 : 1)
-
-                Text("Optional — sync your groups across devices.")
+            if let message = authError ?? sheetError {
+                Text(message)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if let message = authError ?? sheetError {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                }
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
             }
-            .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity)
     }
 }

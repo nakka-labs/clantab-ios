@@ -3,7 +3,7 @@ import ClanTabKit
 
 struct CreateGroupView: View {
     let client: ClanTabClient
-    let identityStore: IdentityStoring
+    let auth: AuthViewModel
     let onCreated: (String) -> Void
     let onCancel: () -> Void
 
@@ -119,10 +119,11 @@ struct CreateGroupView: View {
             let response = try await client.createGroup(
                 CreateGroupRequest(name: groupName, currency: currency, creatorDisplayName: displayName)
             )
-            identityStore.setIdentity(
-                GroupIdentity(memberId: response.member.id, displayName: response.member.displayName),
-                forGroup: response.groupId
-            )
+            // Claim the creator's own membership right away so it shows up in
+            // `auth.groups` (`MANDATORY_LOGIN_PLAN.md` Part 3) — best-effort;
+            // the group is already created and locally remembered either way,
+            // so a transient failure here isn't worth blocking on.
+            _ = await auth.claim(groupId: response.groupId, memberId: response.member.id)
             stage = .created(response)
         } catch {
             errorMessage = friendlyMessage(for: error)

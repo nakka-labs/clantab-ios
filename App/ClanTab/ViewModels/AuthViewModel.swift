@@ -15,9 +15,11 @@ enum CredentialStanding: Equatable, Sendable {
     case noSession
 }
 
-/// Owns the optional "Sign in with Apple" identity layer. Guests never touch
-/// this — the app works exactly as before without a session. A session only
-/// unlocks cross-device group sync (`ACCOUNTS_DESIGN.md` §4, §7).
+/// Owns the mandatory Apple/Google identity layer (`MANDATORY_LOGIN_PLAN.md`) —
+/// every user signs in before they can create, join, or view a group. `groups`
+/// is the authoritative source for "which groups am I in, as which member"
+/// (`ACCOUNTS_DESIGN.md` §4, §7); there's no guest tier or separate local
+/// identity store to fall back to.
 @MainActor
 @Observable
 final class AuthViewModel {
@@ -29,7 +31,9 @@ final class AuthViewModel {
         case keep
         /// Token still valid but near expiry — trade it for a fresh one.
         case refresh
-        /// Expired, or the Apple credential was revoked / is gone — drop to guest.
+        /// Expired, or the Apple credential was revoked / is gone — sign out.
+        /// There's no guest fallback (`MANDATORY_LOGIN_PLAN.md` Part 3); the
+        /// sign-in gate is all that's left to do.
         case discard
     }
 
@@ -40,7 +44,6 @@ final class AuthViewModel {
 
     private let client: ClanTabClient
     private let sessionStore: SessionStoring
-    private let identityStore: IdentityStoring
     private let knownGroups: KnownGroupsStoring
     private let syncNudge: SyncNudgeStoring
     /// Injectable so tests don't need a real Apple credential. Returns `.noSession`
@@ -49,9 +52,11 @@ final class AuthViewModel {
 
     private(set) var session: StoredSession?
     /// The identity's groups from the last sign-in / `myGroups` fetch. The
-    /// authoritative list for a signed-in user (`ACCOUNTS_DESIGN.md` §7); also
-    /// mirrored into `knownGroups` / `identityStore` so the rest of the app reads
-    /// one set of local stores.
+    /// authoritative list for a signed-in user (`ACCOUNTS_DESIGN.md` §7) —
+    /// `GroupViewModel.myIdentity` reads this directly
+    /// (`MANDATORY_LOGIN_PLAN.md` Part 3; there's no separate local identity
+    /// store anymore). Also mirrored into `knownGroups` for the start screen's
+    /// offline-friendly list.
     private(set) var groups: [GroupMembershipSummary] = []
     private(set) var isBusy = false
     private(set) var errorMessage: String?
@@ -63,14 +68,12 @@ final class AuthViewModel {
     init(
         client: ClanTabClient,
         sessionStore: SessionStoring,
-        identityStore: IdentityStoring,
         knownGroups: KnownGroupsStoring,
         syncNudge: SyncNudgeStoring,
         credentialStanding: @escaping @Sendable (_ appleUserID: String) async -> CredentialStanding = AuthViewModel.liveCredentialStanding
     ) {
         self.client = client
         self.sessionStore = sessionStore
-        self.identityStore = identityStore
         self.knownGroups = knownGroups
         self.syncNudge = syncNudge
         self.credentialStanding = credentialStanding
@@ -79,6 +82,13 @@ final class AuthViewModel {
     }
 
     // MARK: - Sync nudge (ACCOUNTS_DESIGN.md §10)
+    //
+    // NOTE: unreachable since `MANDATORY_LOGIN_PLAN.md` Part 3 — `StartView`
+    // and `RootView` now gate every path into a group behind `isSignedIn`, so
+    // `!isSignedIn` below can no longer be true inside Group Home. Left as-is
+    // deliberately (out of Part 3's scope, itself harmless); worth deleting
+    // this whole apparatus (this method, `dismissSyncNudge`, `syncNudge`,
+    // `SyncNudgeCard`) in a followup rather than as a side effect of Part 3.
 
     /// Whether Group Home should show the one-time "sign in to keep your groups"
     /// card: only for a guest who hasn't dismissed it, once they've reached a
@@ -158,10 +168,11 @@ final class AuthViewModel {
     }
 
     /// Link a placeholder member in `groupId` to the signed-in identity
-    /// (`ACCOUNTS_DESIGN.md` §6). On success the member's identity is seeded
-    /// locally right away (so Group Home greets them immediately) and the
-    /// authoritative list is refreshed. Returns whether it succeeded; on failure
-    /// `errorMessage` carries the reason.
+    /// (`ACCOUNTS_DESIGN.md` §6). On success `groups` is updated locally right
+    /// away (so Group Home greets them immediately, even if the follow-up
+    /// refresh below is transiently unreachable) and the authoritative list is
+    /// then refreshed. Returns whether it succeeded; on failure `errorMessage`
+    /// carries the reason.
     func claim(groupId: String, memberId: String) async -> Bool {
         guard let token = session?.token else { return false }
         isBusy = true
@@ -169,10 +180,7 @@ final class AuthViewModel {
         defer { isBusy = false }
         do {
             let response = try await client.claimMember(groupId: groupId, memberId: memberId, token: token)
-            identityStore.setIdentity(
-                GroupIdentity(memberId: response.member.id, displayName: response.member.displayName),
-                forGroup: groupId
-            )
+            upsertGroup(GroupMembershipSummary(groupId: groupId, memberId: response.member.id, displayName: response.member.displayName))
             knownGroups.remember(groupId: groupId)
             await refreshGroups()
             return true
@@ -182,24 +190,28 @@ final class AuthViewModel {
         }
     }
 
-    /// Store the server list and fan it out to `knownGroups` (so it shows in the
-    /// start-screen list, even offline) and `identityStore` (so Group Home can
-    /// greet a claimed member on a device that never joined as a guest).
+    /// Store the server list and mirror the groupIds into `knownGroups` so the
+    /// start screen's list works even before the network round-trip resolves.
     private func applyGroups(_ summaries: [GroupMembershipSummary]) {
         groups = summaries
         for summary in summaries {
             knownGroups.remember(groupId: summary.groupId)
-            if identityStore.identity(forGroup: summary.groupId) == nil {
-                identityStore.setIdentity(
-                    GroupIdentity(memberId: summary.memberId, displayName: summary.displayName),
-                    forGroup: summary.groupId
-                )
-            }
         }
     }
 
-    /// Drop the local session — back to guest mode. There is no server-side
-    /// revocation (`ACCOUNTS_DESIGN.md` §3); the token simply expires on its own.
+    /// Insert or replace one entry in `groups` by `groupId`, for immediate
+    /// local feedback ahead of a full `refreshGroups()`.
+    private func upsertGroup(_ summary: GroupMembershipSummary) {
+        if let index = groups.firstIndex(where: { $0.groupId == summary.groupId }) {
+            groups[index] = summary
+        } else {
+            groups.insert(summary, at: 0)
+        }
+    }
+
+    /// Drop the local session — back to the sign-in gate (no guest fallback,
+    /// `MANDATORY_LOGIN_PLAN.md` Part 3). There is no server-side revocation
+    /// (`ACCOUNTS_DESIGN.md` §3); the token simply expires on its own.
     func signOut() {
         sessionStore.clear()
         session = nil
@@ -208,8 +220,9 @@ final class AuthViewModel {
 
     /// Delete the account (Apple Guideline 5.1.1(v), `ACCOUNTS_DESIGN.md` §11):
     /// every claimed membership reverts to a placeholder and the server-side
-    /// index is wiped. Groups, members, and expenses are untouched — the user
-    /// simply becomes a guest again. Returns whether it succeeded.
+    /// index is wiped. Groups, members, and expenses are untouched — signing
+    /// back in (same or different identity) is required to see them again,
+    /// same as any other sign-out. Returns whether it succeeded.
     func deleteAccount() async -> Bool {
         guard let token = session?.token else { return false }
         isBusy = true

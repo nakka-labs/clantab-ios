@@ -25,7 +25,6 @@ struct GroupHomeView: View {
     init(
         groupId: String,
         client: ClanTabClient,
-        identityStore: IdentityStoring,
         knownGroups: KnownGroupsStoring,
         auth: AuthViewModel,
         onOpenSettings: @escaping () -> Void = {},
@@ -38,7 +37,7 @@ struct GroupHomeView: View {
         self.onOpenSettings = onOpenSettings
         self.onLeaveGroup = onLeaveGroup
         self.onGroupUnavailable = onGroupUnavailable
-        _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, identityStore: identityStore))
+        _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, auth: auth))
     }
 
     var body: some View {
