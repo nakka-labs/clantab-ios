@@ -67,14 +67,21 @@ already satisfied since Apple stays offered alongside Google.
 
 ## Part 2 — `UserDO` keying (needed once two providers can both exist)
 
-1. **[CLI]** Change `UserDO`'s `idFromName(sub)` to `idFromName(provider +
-   ":" + sub)` — e.g. `"apple:" + sub`, `"google:" + sub` — so an Apple and a
-   Google identity can never collide on the same underlying `sub` value.
-   Depends on Part 0's second confirmation.
-2. **[CLI]** Update the Apple route's existing `UserDO` calls to the new
-   `"apple:" + sub` key for consistency.
-3. **[CLI]** Extend `USER_SCHEMA_VERSION` / `UserDO.migrate()` if a
-   migration path turns out to be needed (Part 0).
+**Already done, verified 2026-09-05 — no new code needed.** Built as part
+of Part 1's Google Sign-In work (`4c7fe7f`): `handleAuthApple` /
+`handleAuthGoogle` both build `identity = "<provider>:" + sub` and use it as
+`UserDO.idFromName`'s key, `mintSession`'s `sub` claim, and `GroupDO`'s
+`members.identity_sub` value — the same composite string end to end
+(`index.ts`'s "Every identity is addressed everywhere..." comment above
+`handleAuthApple`). An Apple and a Google identity can never collide on the
+same underlying `sub`.
+
+1. [x] Change `UserDO`'s addressing to `idFromName(provider + ":" + sub)`.
+2. [x] The Apple route already used the composite key from the start of the
+   Google Sign-In work — no separate follow-up needed.
+3. [x] No `USER_SCHEMA_VERSION` bump / `UserDO.migrate()` needed — Part 0's
+   "no real users" confirmation means there's no pre-existing bare-`sub`
+   data to migrate off of.
 
 ## Part 2.5 — Add Member by name (placeholder, no signup required)
 

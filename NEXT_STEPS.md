@@ -64,7 +64,9 @@ again once the guest tier disappears.
       side tested (145/145), iOS side built + tested (56/56) via
       `xcodegen generate` + `xcodebuild test`, committed (`ebb8a9e`) and
       pushed to `main`.
-- [ ] **[CLI]** Part 2 — `UserDO` re-keying to `provider:sub`.
+- [x] **[CLI]** Part 2 — `UserDO` re-keying to `provider:sub`. **Verified
+      2026-09-05 already done** — built alongside Part 1's Google Sign-In
+      work; no separate change needed (`MANDATORY_LOGIN_PLAN.md` Part 2).
 - [ ] **[CLI]** Part 2.5 — Add Member by name. **Hard prerequisite for Part
       3, not optional polish** — without it, removing guests is a real
       regression (see the plan's "Critical finding" callout).
