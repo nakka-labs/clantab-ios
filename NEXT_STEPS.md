@@ -111,9 +111,10 @@ sharing story is final, so the regenerate-link UI is designed once.
 standalone; moved here so `StartView` is touched once, on its final
 signed-in-only shape, not once now and again when guests are removed).
 
-- [ ] **[CLI]** Part 1 — fix group switching (`GroupsListView` extraction +
-      toolbar entry).
-- [ ] **[CLI]** Part 2 — Settings reorg (Account / App sections).
+- [x] **[CLI]** Part 1 — fix group switching (`GroupsListView` extraction +
+      toolbar entry). **Done 2026-09-05.**
+- [x] **[CLI]** Part 2 — Settings reorg (Account / App sections). **Done
+      2026-09-05.**
 - Part 3's cross-platform guardrails are ambient — apply throughout every
   phase above, not a scheduled step of their own.
 

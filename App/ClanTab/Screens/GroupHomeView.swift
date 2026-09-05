@@ -7,6 +7,9 @@ struct GroupHomeView: View {
     private let knownGroups: KnownGroupsStoring
     private let auth: AuthViewModel
     private let onOpenSettings: () -> Void
+    /// Switch straight to another known group — the same `enterGroup` path
+    /// `RootView` uses everywhere else (`NAV_POLISH_PLAN.md` Part 1).
+    private let onSwitchGroup: (_ groupId: String) -> Void
     private let onLeaveGroup: () -> Void
     private let onGroupUnavailable: () -> Void
     @State private var viewModel: GroupViewModel
@@ -18,6 +21,7 @@ struct GroupHomeView: View {
     @State private var isPresentingSettleUp = false
     @State private var isPresentingImport = false
     @State private var isPresentingGroupSettings = false
+    @State private var isPresentingGroupSwitcher = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
     @State private var filter = ActivityFilter()
@@ -29,6 +33,7 @@ struct GroupHomeView: View {
         auth: AuthViewModel,
         accessToken: String? = nil,
         onOpenSettings: @escaping () -> Void = {},
+        onSwitchGroup: @escaping (_ groupId: String) -> Void = { _ in },
         onLeaveGroup: @escaping () -> Void = {},
         onGroupUnavailable: @escaping () -> Void = {}
     ) {
@@ -36,9 +41,16 @@ struct GroupHomeView: View {
         self.knownGroups = knownGroups
         self.auth = auth
         self.onOpenSettings = onOpenSettings
+        self.onSwitchGroup = onSwitchGroup
         self.onLeaveGroup = onLeaveGroup
         self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, auth: auth, accessToken: accessToken))
+    }
+
+    /// Other groups this device knows about — when there are none, "Switch
+    /// Group" has nowhere to go, so the toolbar entry stays hidden.
+    private var otherKnownGroups: [KnownGroup] {
+        knownGroups.all().filter { $0.groupId != viewModel.groupId }
     }
 
     var body: some View {
@@ -189,6 +201,15 @@ struct GroupHomeView: View {
                     Label("Settings", systemImage: "gearshape")
                 }
             }
+            if !otherKnownGroups.isEmpty {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        isPresentingGroupSwitcher = true
+                    } label: {
+                        Label("Switch Group", systemImage: "square.on.square")
+                    }
+                }
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 if let state = viewModel.state, !state.expenses.isEmpty || !state.settlements.isEmpty {
                     activityFilterMenu(state: state)
@@ -290,6 +311,30 @@ struct GroupHomeView: View {
                         onLeave: { isPresentingGroupSettings = false; onLeaveGroup() },
                         onDone: { isPresentingGroupSettings = false }
                     )
+                }
+            }
+        }
+        .sheet(isPresented: $isPresentingGroupSwitcher) {
+            NavigationStack {
+                ScrollView {
+                    GroupsListView(
+                        groups: otherKnownGroups,
+                        onOpenGroup: { groupId in
+                            isPresentingGroupSwitcher = false
+                            onSwitchGroup(groupId)
+                        },
+                        onRemoveGroup: { groupId in
+                            knownGroups.forget(groupId: groupId)
+                        }
+                    )
+                    .padding()
+                }
+                .navigationTitle("Switch Group")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { isPresentingGroupSwitcher = false }
+                    }
                 }
             }
         }

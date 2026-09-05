@@ -117,6 +117,7 @@ struct RootView: View {
                 auth: auth,
                 accessToken: knownAccessToken(for: groupId),
                 onOpenSettings: { showingSettings = true },
+                onSwitchGroup: { enterGroup($0, accessToken: knownAccessToken(for: $0)) },
                 onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )

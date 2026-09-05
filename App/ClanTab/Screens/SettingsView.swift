@@ -19,7 +19,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Account") {
+            Section {
                 if auth.isSignedIn {
                     Label(
                         auth.session?.provider == .google ? "Signed in with Google" : "Signed in with Apple",
@@ -57,26 +57,26 @@ struct SettingsView: View {
                 if let message = auth.errorMessage ?? sheetError {
                     Text(message).font(.caption).foregroundStyle(.red)
                 }
-            }
 
-            if auth.isSignedIn {
-                Section {
+                if auth.isSignedIn {
                     NavigationLink("Settle Across Groups") {
                         PeopleView(auth: auth, client: client)
                     }
-                }
 
-                Section {
                     Button("Delete Account", role: .destructive) {
                         confirmingDelete = true
                     }
                     .disabled(auth.isBusy)
-                } footer: {
+                }
+            } header: {
+                Text("Account")
+            } footer: {
+                if auth.isSignedIn {
                     Text(deletionCaveat)
                 }
             }
 
-            Section {
+            Section("App") {
                 LabeledContent("Version", value: Self.appVersion)
             }
         }

@@ -17,42 +17,40 @@
 
 ## Part 1 — Fix group switching (do first)
 
-**[CLI] — no owner action needed, pure iOS code.**
+**Done 2026-09-05.** iOS build + test green (63/63, unchanged count —
+presentational only, no new pure-function surface to test; consistent with
+this repo's existing view-layer coverage boundary).
 
-**Problem:** `RootView.route` is a flat enum (`.start` / `.group(id)`, no
-back-stack). Once inside a group, `GroupHomeView`'s toolbar only has Settings
-+ filters — there is no way to reach another known group without leaving the
-current one (`onLeaveGroup`) or using a deep link. `StartView`'s "Your
-Groups" list is stranded on the start screen.
-
-1. Extract `StartView.yourGroupsSection` into a standalone reusable view
-   (e.g. `GroupsListView`) that takes `groups: [KnownGroup]`, `onOpenGroup`,
-   `onRemoveGroup` — same shape it already has, just not private to
-   `StartView`.
-2. Add a "Switch Group" entry to `GroupHomeView`'s toolbar (a `Menu` item
-   next to/inside the existing primaryAction group, or a second
-   `ToolbarItem`) that presents `GroupsListView` in a sheet.
-3. Wire selection so tapping a group in that sheet calls the same
-   `enterGroup(groupId)` path `RootView` already uses — sets
+1. [x] Extracted `StartView.yourGroupsSection` into a standalone reusable view
+   (`Components/GroupsListView.swift`) taking `groups: [KnownGroup]`,
+   `onOpenGroup`, `onRemoveGroup` — same shape it already had, just not
+   private to `StartView` anymore.
+2. [x] Added a "Switch Group" entry to `GroupHomeView`'s toolbar (a second
+   `topBarLeading` `ToolbarItem`, next to Settings) — hidden when there are
+   no *other* known groups to switch to — that presents `GroupsListView` in
+   a sheet.
+3. [x] Wired selection to the same `enterGroup(groupId)` path `RootView`
+   already uses everywhere else, via a new `onSwitchGroup` callback —
    `route = .group(newId)` directly, no forced pop through `.start`.
-4. No new `AppRoute` case needed — this is presentational (a sheet), not a
-   new app state. No `ClanTabKit` / wire / schema changes.
-5. Tests: only `App/ClanTabTests` if routing logic changes; add a UI-level
-   check that switching groups updates `route` correctly if there's a
-   precedent test to extend.
+4. [x] No new `AppRoute` case — purely presentational (a sheet). No
+   `ClanTabKit` / wire / schema changes.
+5. [x] No new tests — no pure routing logic changed (`enterGroup` isn't a
+   static/testable function, same as before this change); covered by the
+   existing build+test gate, not a dedicated unit test.
 
 ## Part 2 — Settings reorg (after Part 1 ships)
 
-**[CLI] — no owner action needed, pure iOS code.**
+**Done 2026-09-05.**
 
-1. Split `SettingsView`'s single "Account" `Form` section into two:
-   **Account** (sign in/out, Delete Account) and **App** (version; room for
-   future prefs like default currency).
-2. Keep Delete Account copy/behavior unchanged (Apple Guideline 5.1.1(v)
-   already handled — don't touch).
-3. Stretch, not required: a dedicated groups-management screen (rename/
-   reorder/remove) separate from the inline list — only if Part 1's sheet
-   feels too thin once it's live.
+1. [x] Split `SettingsView`'s sections into two: **Account** (sign in/out,
+   "Settle Across Groups", Delete Account, all in one section since they're
+   all signed-in-dependent) and **App** (version; room for future prefs
+   like default currency).
+2. [x] Delete Account copy/behavior unchanged (Apple Guideline 5.1.1(v)
+   already handled — not touched).
+3. [ ] Stretch, not required: a dedicated groups-management screen (rename/
+   reorder/remove) separate from the inline list — not built; Part 1's
+   sheet doesn't feel too thin yet.
 
 ## Part 3 — Cross-platform guardrails (no build — constraints only)
 
