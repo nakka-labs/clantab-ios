@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS members (
   id           TEXT PRIMARY KEY,
   display_name TEXT NOT NULL,
   created_at   INTEGER NOT NULL,
-  identity_sub TEXT
+  identity_sub TEXT,
+  upi_vpa      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
@@ -118,5 +119,8 @@ export const META_KEYS = {
  *          `deleted_at` set is excluded from balances/getState but stays in
  *          storage for "Recently Deleted" + Restore (`FEATURE_BACKLOG.md`).
  *          Plain `ALTER TABLE ... ADD COLUMN` — no rebuild.
+ *  - `7` → `members.upi_vpa` added (nullable). User-supplied, never verified —
+ *          `FEATURE_BACKLOG.md` "UPI deep link on Settle Up". Plain
+ *          `ALTER TABLE ... ADD COLUMN` — no rebuild.
  */
-export const SCHEMA_VERSION = "6";
+export const SCHEMA_VERSION = "7";

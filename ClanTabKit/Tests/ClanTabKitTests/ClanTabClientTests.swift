@@ -251,6 +251,31 @@ struct ClanTabClientTests {
         #expect(await remove.lastRequest?.httpMethod == "DELETE")
     }
 
+    // MARK: - UPI VPA (FEATURE_BACKLOG.md "UPI deep link on Settle Up")
+
+    @Test("renameMember decodes a member's upiVpa when the server sets one")
+    func testRenameMemberDecodesUpiVpa() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData(["member": ["id": "m2", "displayName": "Ben", "upiVpa": "ben@upi"]]))
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .renameMember(groupId: "g1", memberId: "m2", upiVpa: .set("ben@upi"))
+        #expect(response.member.upiVpa == "ben@upi")
+    }
+
+    @Test("UpdateMemberRequest encodes .unchanged as an absent key, .cleared as null, .set as the value")
+    func testUpdateMemberRequestEncoding() throws {
+        let encoder = JSONEncoder()
+
+        let unchanged = try JSONSerialization.jsonObject(with: encoder.encode(UpdateMemberRequest())) as! [String: Any]
+        #expect(unchanged["upiVpa"] == nil)
+
+        let clearedData = try encoder.encode(UpdateMemberRequest(upiVpa: .cleared))
+        let clearedObject = try JSONSerialization.jsonObject(with: clearedData) as! [String: Any]
+        #expect(clearedObject["upiVpa"] is NSNull)
+
+        let set = try JSONSerialization.jsonObject(with: encoder.encode(UpdateMemberRequest(upiVpa: .set("ben@upi")))) as! [String: Any]
+        #expect(set["upiVpa"] as? String == "ben@upi")
+    }
+
     @Test("removing a member in use surfaces .server(MEMBER_IN_USE)")
     func testRemoveMemberInUse() async {
         let transport = FakeTransport(

@@ -92,6 +92,42 @@ public struct JoinGroupResponse: Decodable, Sendable {
     public let member: Member
 }
 
+// MARK: - PATCH /api/groups/:groupId/members/:memberId
+
+/// Whether an optional request field should be left alone, cleared, or set to
+/// a new value — encodes as "omit the key" / explicit JSON `null` /
+/// the value, matching the worker's `optionalStringOrNull` (empty-string
+/// values are never valid here — `null` is the one unambiguous "clear").
+public enum FieldUpdate<Value: Sendable>: Sendable {
+    case unchanged
+    case cleared
+    case set(Value)
+}
+
+/// Rename a member and/or set their UPI VPA (`FEATURE_BACKLOG.md` "UPI deep
+/// link on Settle Up") — at least one of the two, enforced server-side.
+public struct UpdateMemberRequest: Encodable, Sendable {
+    public let displayName: String?
+    private let upiVpaUpdate: FieldUpdate<String>
+
+    public init(displayName: String? = nil, upiVpa: FieldUpdate<String> = .unchanged) {
+        self.displayName = displayName
+        self.upiVpaUpdate = upiVpa
+    }
+
+    private enum CodingKeys: String, CodingKey { case displayName, upiVpa }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        switch upiVpaUpdate {
+        case .unchanged: break
+        case .cleared: try container.encodeNil(forKey: .upiVpa)
+        case .set(let value): try container.encode(value, forKey: .upiVpa)
+        }
+    }
+}
+
 // MARK: - PATCH /api/groups/:groupId
 
 public struct UpdateGroupRequest: Encodable, Sendable {

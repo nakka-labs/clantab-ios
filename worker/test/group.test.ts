@@ -140,7 +140,7 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("6");
+      expect(version).toBe("7");
 
       // The legacy expense survived the v2 rebuild, gained null category columns,
       // had its currency backfilled from the group (USD), and gained null
@@ -156,11 +156,15 @@ describe("GroupDO", () => {
         .toArray()[0];
       expect(legacy).toEqual({ category: null, category_icon: null, currency: "USD", deleted_at: null, deleted_by: null });
 
-      // The legacy member gained a null identity_sub — i.e. it's a placeholder.
+      // The legacy member gained a null identity_sub (v5) — i.e. it's a
+      // placeholder — and a null upi_vpa (v7).
       const member = sql
-        .exec<{ identity_sub: string | null }>("SELECT identity_sub FROM members WHERE id = ?", ana.id)
+        .exec<{ identity_sub: string | null; upi_vpa: string | null }>(
+          "SELECT identity_sub, upi_vpa FROM members WHERE id = ?",
+          ana.id,
+        )
         .toArray()[0];
-      expect(member).toEqual({ identity_sub: null });
+      expect(member).toEqual({ identity_sub: null, upi_vpa: null });
     });
 
     // percentage (needs v2), category (needs v3), currency (needs v4) post-migration.

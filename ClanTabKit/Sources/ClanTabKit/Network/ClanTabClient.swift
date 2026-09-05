@@ -65,8 +65,20 @@ public actor ClanTabClient {
         try await patch("api/groups/\(groupId)", body: UpdateGroupRequest(name: name, currency: currency), accessToken: accessToken)
     }
 
-    public func renameMember(groupId: String, memberId: String, displayName: String, accessToken: String? = nil) async throws -> JoinGroupResponse {
-        try await patch("api/groups/\(groupId)/members/\(memberId)", body: JoinGroupRequest(displayName: displayName), accessToken: accessToken)
+    /// Rename a member and/or set their UPI VPA (`FEATURE_BACKLOG.md` "UPI
+    /// deep link on Settle Up") — at least one of the two, enforced server-side.
+    public func renameMember(
+        groupId: String,
+        memberId: String,
+        displayName: String? = nil,
+        upiVpa: FieldUpdate<String> = .unchanged,
+        accessToken: String? = nil
+    ) async throws -> JoinGroupResponse {
+        try await patch(
+            "api/groups/\(groupId)/members/\(memberId)",
+            body: UpdateMemberRequest(displayName: displayName, upiVpa: upiVpa),
+            accessToken: accessToken
+        )
     }
 
     /// Remove a member. Throws `.server(code: "MEMBER_IN_USE", …)` if they're on

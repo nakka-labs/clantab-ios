@@ -141,14 +141,29 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   2026-09-05.** Each split row with a nonzero entry turns red while the
   total's off, alongside the existing footer line — an untouched
   (blank/zero) row doesn't turn red just because others don't sum up yet.
-- **UPI deep link on Settle Up.** Optional per-member UPI ID (a new
-  nullable field, user-supplied, never verified/processed by ClanTab);
-  "Mark as Paid" builds a plain `upi://pay?pa=<vpa>&am=<amount>&...` link
-  that hands off to GPay/PhonePe/Paytm, the person pays there, then
-  confirms back in ClanTab. Doesn't touch the no-payment-processing
-  non-goal — ClanTab never sees or moves money, just constructs a URI the
-  OS opens. Real differentiation for the actual India-based audience this
-  app is for.
+- **UPI deep link on Settle Up.** **Done 2026-09-05.** Optional per-member
+  UPI ID (a new nullable field, user-supplied, never verified/processed by
+  ClanTab); "Mark as Paid" builds a plain
+  `upi://pay?pa=<vpa>&am=<amount>&...` link that hands off to
+  GPay/PhonePe/Paytm, the person pays there, then confirms back in
+  ClanTab. Doesn't touch the no-payment-processing non-goal — ClanTab
+  never sees or moves money, just constructs a URI the OS opens. Real
+  differentiation for the actual India-based audience this app is for.
+  Server: schema v7 (`members.upi_vpa`), `GroupDO.updateMember()`
+  replacing `renameMember()` with tri-state `displayName`/`upiVpa`
+  semantics (absent = unchanged, `null` = clear, string = set), a new
+  `optionalStringOrNull` parse helper distinguishing those three cases
+  (empty string still rejected as invalid). Worker suite 166/166 passing;
+  **not yet deployed** — bundled with the still-undeployed trash/schema-v6
+  work from the previous item. iOS: `ClanTabKit`'s `Member.upiVpa`,
+  `FieldUpdate<Value>` enum + `UpdateMemberRequest` on the wire types,
+  `ClanTabClient.renameMember(displayName:upiVpa:accessToken:)`; App's
+  Group Settings gained a "My UPI ID" section (blank clears it), and
+  Settle Up shows a "Pay via UPI" link per transaction whenever the payee
+  has a VPA set and the settlement is in INR (UPI's only currency) — built
+  from `settlement.amountMinor`/`payee.upiVpa`, never touches the
+  no-processing model. ClanTabKit 129/129 passing (was 127); App 63/63
+  passing (view-layer only, no new tests — matches the rest of Phase 5).
 - **Backup, in two tiers.** (1) Near-free: the CSV/JSON export already
   goes through `ShareLink`, whose share sheet already offers "Save to
   Files" — which already supports iCloud Drive and Google Drive today, if

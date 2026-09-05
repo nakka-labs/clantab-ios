@@ -19,6 +19,7 @@ import { SessionError, mintSession, verifySession } from "./lib/session.ts";
 import {
   assertPlainObject,
   optionalString,
+  optionalStringOrNull,
   readJsonObject,
   rejectUnknownKeys,
   requireArray,
@@ -201,11 +202,26 @@ async function handleRegenerateLink(request: Request, env: Env, params: Params):
   return json(200, await group.regenerateAccessToken());
 }
 
+/** Rename a member and/or set their UPI VPA (`FEATURE_BACKLOG.md` "UPI deep
+ * link on Settle Up") — at least one of the two fields is required. `upiVpa`
+ * is an explicit JSON `null` to clear a previously-set one (an empty string
+ * is rejected as invalid, same as everywhere else `optionalString` is used —
+ * `null` is the one unambiguous way to say "nothing" here). */
 async function handleRenameMember(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
   const body = await readJsonObject(request);
-  rejectUnknownKeys(body, ["displayName"]);
-  const result = await group.renameMember(params.memberId ?? "", requireString(body, "displayName"));
+  rejectUnknownKeys(body, ["displayName", "upiVpa"]);
+  const displayName = optionalString(body, "displayName");
+  const upiVpa = optionalStringOrNull(body, "upiVpa");
+  if (displayName === undefined && upiVpa === undefined) {
+    throw new BadRequestError('Provide "displayName" and/or "upiVpa".');
+  }
+  const result = await group.updateMember(params.memberId ?? "", {
+    displayName,
+    // GroupDO's own patch shape uses "" to mean clear — translate here so
+    // the wire's null-vs-absent distinction doesn't leak into the DO layer.
+    upiVpa: upiVpa === undefined ? undefined : (upiVpa ?? ""),
+  });
   return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
 }
 

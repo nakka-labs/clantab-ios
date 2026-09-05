@@ -13,6 +13,10 @@ struct GroupSettingsView: View {
     /// This group's capability-link credential (`ACCESS_TOKEN_PLAN.md`) — used
     /// to authorize "Regenerate Link" itself, same as any other group route.
     let accessToken: String?
+    /// The signed-in member's own row in `state.members`, if any — gates the
+    /// "My UPI ID" section (`FEATURE_BACKLOG.md` "UPI deep link on Settle
+    /// Up"). `nil` for a device that hasn't claimed a member yet.
+    let myMemberId: String?
     let onChanged: () -> Void
     /// Called with the fresh token right after a successful regenerate, so
     /// the caller (`GroupHomeView`'s `GroupViewModel`) can start using it
@@ -32,12 +36,15 @@ struct GroupSettingsView: View {
     @State private var confirmingLeave = false
     @State private var confirmingRegenerate = false
     @State private var isRegenerating = false
+    @State private var myUpiVpa = ""
+    @State private var isSavingUpiVpa = false
 
     init(
         groupId: String,
         state: GroupStateResponse,
         client: ClanTabClient,
         accessToken: String? = nil,
+        myMemberId: String? = nil,
         onChanged: @escaping () -> Void,
         onRegenerated: @escaping (String) -> Void = { _ in },
         onLeave: @escaping () -> Void,
@@ -47,13 +54,19 @@ struct GroupSettingsView: View {
         self.state = state
         self.client = client
         self.accessToken = accessToken
+        self.myMemberId = myMemberId
         self.onChanged = onChanged
         self.onRegenerated = onRegenerated
         self.onLeave = onLeave
         self.onDone = onDone
         _name = State(initialValue: state.group.name)
         _currency = State(initialValue: state.group.currency)
+        _myUpiVpa = State(initialValue: state.members.first(where: { $0.id == myMemberId })?.upiVpa ?? "")
     }
+
+    private var myMember: Member? { state.members.first(where: { $0.id == myMemberId }) }
+    private var trimmedMyUpiVpa: String { myUpiVpa.trimmingCharacters(in: .whitespaces) }
+    private var isUpiVpaDirty: Bool { trimmedMyUpiVpa != (myMember?.upiVpa ?? "") }
 
     private var currencyChoices: [String] {
         AppConfig.supportedCurrencies.contains(currency)
@@ -113,6 +126,25 @@ struct GroupSettingsView: View {
                 Text("Add Someone")
             } footer: {
                 Text("Adds them to the ledger by name alone — no app or account needed. They can sign in and claim this spot for themselves later.")
+            }
+
+            if myMember != nil {
+                Section {
+                    HStack {
+                        TextField("name@bank", text: $myUpiVpa)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        if isSavingUpiVpa {
+                            ProgressView()
+                        } else if isUpiVpaDirty {
+                            Button("Save") { Task { await saveMyUpiVpa() } }
+                        }
+                    }
+                } header: {
+                    Text("My UPI ID")
+                } footer: {
+                    Text("Shown to others as a \"Pay via UPI\" shortcut when they settle up with you. Leave blank to remove it.")
+                }
             }
 
             if let errorMessage {
@@ -228,6 +260,24 @@ struct GroupSettingsView: View {
         errorMessage = nil
         do {
             try await client.removeMember(groupId: groupId, memberId: member.id, accessToken: accessToken)
+            onChanged()
+        } catch {
+            errorMessage = friendlyMessage(for: error)
+        }
+    }
+
+    /// Set or clear the signed-in member's own UPI VPA
+    /// (`FEATURE_BACKLOG.md` "UPI deep link on Settle Up"). An empty field
+    /// clears it (`FieldUpdate.cleared`); worker rejects an actual empty
+    /// string, so blank-vs-clear is disambiguated here, not on the wire.
+    private func saveMyUpiVpa() async {
+        guard let myMemberId else { return }
+        errorMessage = nil
+        isSavingUpiVpa = true
+        defer { isSavingUpiVpa = false }
+        let update: FieldUpdate<String> = trimmedMyUpiVpa.isEmpty ? .cleared : .set(trimmedMyUpiVpa)
+        do {
+            _ = try await client.renameMember(groupId: groupId, memberId: myMemberId, upiVpa: update, accessToken: accessToken)
             onChanged()
         } catch {
             errorMessage = friendlyMessage(for: error)

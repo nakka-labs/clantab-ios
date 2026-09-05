@@ -47,6 +47,20 @@ export function optionalString(obj: Obj, key: string): string | undefined {
   return v;
 }
 
+/** Like `optionalString`, but an explicit JSON `null` is also accepted, to
+ * mean "clear this field" — distinct from the key being absent entirely
+ * ("leave it alone"). An empty string is still rejected either way; `null`
+ * is the one way to say "nothing," so it stays unambiguous. */
+export function optionalStringOrNull(obj: Obj, key: string): string | null | undefined {
+  const v = obj[key];
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v !== "string" || v.length === 0) {
+    throw new BadRequestError(`Field "${key}", if present, must be a non-empty string or null.`);
+  }
+  return v;
+}
+
 export function requireInteger(obj: Obj, key: string): number {
   const v = obj[key];
   if (typeof v !== "number" || !Number.isInteger(v)) {

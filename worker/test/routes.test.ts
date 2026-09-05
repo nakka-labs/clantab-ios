@@ -785,6 +785,27 @@ describe("group + member settings", () => {
     expect((json.error as Json).code).toBe("NOT_FOUND");
   });
 
+  it("PATCH sets a member's UPI VPA independently of displayName, and an explicit null clears it", async () => {
+    const { status, json } = await patch(`/api/groups/${groupId}/members/${b}`, { upiVpa: "ben@upi" }, token);
+    expect(status).toBe(200);
+    expect(json.member).toEqual({ id: b, displayName: "Ben", upiVpa: "ben@upi" });
+
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    expect((state.json.members as Json[]).find((m) => m.id === b)).toMatchObject({ upiVpa: "ben@upi" });
+
+    const cleared = await patch(`/api/groups/${groupId}/members/${b}`, { upiVpa: null }, token);
+    expect(cleared.json.member).toEqual({ id: b, displayName: "Ben" });
+  });
+
+  it("PATCH rejects an empty-string upiVpa (use null to clear)", async () => {
+    const { status } = await patch(`/api/groups/${groupId}/members/${b}`, { upiVpa: "" }, token);
+    expect(status).toBe(400);
+  });
+
+  it("PATCH with neither displayName nor upiVpa → 400", async () => {
+    expect((await patch(`/api/groups/${groupId}/members/${b}`, {}, token)).status).toBe(400);
+  });
+
   it("DELETE a member with no activity → 204", async () => {
     const c = await addMember(groupId, "Cara", token);
     expect((await del(`/api/groups/${groupId}/members/${c}`, token)).status).toBe(204);

@@ -355,6 +355,7 @@ struct GroupHomeView: View {
                         state: state,
                         client: client,
                         accessToken: viewModel.accessToken,
+                        myMemberId: viewModel.myIdentity?.memberId,
                         onChanged: { Task { await viewModel.refetch() } },
                         onRegenerated: { viewModel.updateAccessToken($0) },
                         onLeave: { isPresentingGroupSettings = false; onLeaveGroup() },

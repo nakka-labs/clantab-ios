@@ -5,6 +5,12 @@
 export interface Member {
   id: string;
   displayName: string;
+  /** UPI VPA (e.g. "name@bank"), user-supplied and never verified or
+   * processed by ClanTab — `FEATURE_BACKLOG.md` "UPI deep link on Settle
+   * Up" builds a plain `upi://pay?...` link from it that hands off to the
+   * payer's UPI app; ClanTab itself never sees or moves money. Absent for a
+   * member who hasn't set one. */
+  upiVpa?: string;
 }
 
 // `percentage` is a resolved label, not a stored basis — the iOS client turns

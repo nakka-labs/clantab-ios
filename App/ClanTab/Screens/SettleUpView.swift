@@ -76,32 +76,65 @@ struct SettleUpView: View {
         let payer = name(for: settlement.fromId)
         let payee = name(for: settlement.toId)
         let amount = MoneyFormat.string(minorUnits: settlement.amountMinor, currency: settlement.currency)
-        return HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(payer) pays \(payee)")
-                Text(amount)
-                    .font(.headline)
-            }
-            .accessibilityElement(children: .combine)
-            Spacer()
-            Button {
-                Task { await markPaid(settlement, rowId: rowId) }
-            } label: {
-                if pendingRowId == rowId {
-                    ProgressView()
-                } else {
-                    Text("Mark as Paid")
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(payer) pays \(payee)")
+                    Text(amount)
+                        .font(.headline)
                 }
+                .accessibilityElement(children: .combine)
+                Spacer()
+                Button {
+                    Task { await markPaid(settlement, rowId: rowId) }
+                } label: {
+                    if pendingRowId == rowId {
+                        ProgressView()
+                    } else {
+                        Text("Mark as Paid")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(pendingRowId != nil)
+                .accessibilityLabel("Mark \(payer)'s \(amount) payment to \(payee) as paid")
             }
-            .buttonStyle(.bordered)
-            .disabled(pendingRowId != nil)
-            .accessibilityLabel("Mark \(payer)'s \(amount) payment to \(payee) as paid")
+            if let upiURL = upiPayURL(for: settlement) {
+                Link(destination: upiURL) {
+                    Label("Pay via UPI", systemImage: "indianrupeesign.circle")
+                }
+                .font(.subheadline)
+                .accessibilityLabel("Open a UPI app to pay \(payee) \(amount)")
+            }
         }
         .padding(.vertical, 4)
     }
 
     private func name(for memberId: String) -> String {
         members.first { $0.id == memberId }?.displayName ?? "Someone"
+    }
+
+    /// A plain `upi://pay?...` deep link handing off to whichever UPI app the
+    /// payer has installed (`FEATURE_BACKLOG.md` "UPI deep link on Settle
+    /// Up") — ClanTab never sees or moves the money, just constructs the
+    /// URI. `nil` unless the payee has set a UPI VPA and the settlement is
+    /// actually in INR (UPI's only currency).
+    private func upiPayURL(for settlement: SimplifiedSettlement) -> URL? {
+        guard settlement.currency == "INR",
+              let payee = members.first(where: { $0.id == settlement.toId }),
+              let vpa = payee.upiVpa, !vpa.isEmpty
+        else { return nil }
+        var components = URLComponents()
+        components.scheme = "upi"
+        components.host = "pay"
+        let amount = Decimal(settlement.amountMinor) / 100
+        components.queryItems = [
+            URLQueryItem(name: "pa", value: vpa),
+            URLQueryItem(name: "pn", value: payee.displayName),
+            URLQueryItem(name: "am", value: NSDecimalNumber(decimal: amount).stringValue),
+            URLQueryItem(name: "cu", value: "INR"),
+            URLQueryItem(name: "tn", value: "ClanTab settle up"),
+        ]
+        return components.url
     }
 
     private func markPaid(_ settlement: SimplifiedSettlement, rowId: String) async {

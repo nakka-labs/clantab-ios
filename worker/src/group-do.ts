@@ -33,6 +33,7 @@ type MemberRow = Row<{
   id: string;
   display_name: string;
   identity_sub: string | null;
+  upi_vpa: string | null;
 }>;
 type ExpenseRow = Row<{
   id: string;
@@ -169,6 +170,14 @@ export class GroupDO extends DurableObject {
       this.setMeta(META_KEYS.schemaVersion, "6");
       current = "6";
     }
+
+    if (current === "6") {
+      // v7: add `members.upi_vpa` (nullable). Every existing member has none
+      // set — `FEATURE_BACKLOG.md` "UPI deep link on Settle Up".
+      this.sql.exec("ALTER TABLE members ADD COLUMN upi_vpa TEXT");
+      this.setMeta(META_KEYS.schemaVersion, "7");
+      current = "7";
+    }
   }
 
   /** Has this group been created (vs. just addressed)? Drives `GROUP_NOT_FOUND`. */
@@ -213,11 +222,20 @@ export class GroupDO extends DurableObject {
     return { group: this.groupSummary() };
   }
 
-  async renameMember(id: string, displayName: string): Promise<Result<{ member: Member }>> {
+  /** Update a member's display name and/or UPI VPA (`FEATURE_BACKLOG.md`
+   * "UPI deep link on Settle Up") — the caller (`index.ts`) enforces that at
+   * least one of the two is present. An empty-string `upiVpa` clears it. */
+  async updateMember(id: string, patch: { displayName?: string; upiVpa?: string }): Promise<Result<{ member: Member }>> {
     const found = this.sql.exec<MemberRow>("SELECT id FROM members WHERE id = ?", id).toArray();
     if (found.length === 0) return fail("NOT_FOUND", `Member "${id}" is not in this group.`);
-    this.sql.exec("UPDATE members SET display_name = ? WHERE id = ?", displayName, id);
-    return ok({ member: { id, displayName } });
+    if (patch.displayName !== undefined) {
+      this.sql.exec("UPDATE members SET display_name = ? WHERE id = ?", patch.displayName, id);
+    }
+    if (patch.upiVpa !== undefined) {
+      this.sql.exec("UPDATE members SET upi_vpa = ? WHERE id = ?", patch.upiVpa === "" ? null : patch.upiVpa, id);
+    }
+    const updated = this.sql.exec<MemberRow>("SELECT * FROM members WHERE id = ?", id).toArray()[0]!;
+    return ok({ member: this.toMember(updated) });
   }
 
   /** Remove a member — only if they have no activity, aren't linked to an
@@ -305,11 +323,9 @@ export class GroupDO extends DurableObject {
    * "this is me" picker shows. */
   async claimable(): Promise<{ members: Member[] }> {
     const rows = this.sql
-      .exec<MemberRow>(
-        "SELECT id, display_name FROM members WHERE identity_sub IS NULL ORDER BY created_at ASC, rowid ASC",
-      )
+      .exec<MemberRow>("SELECT * FROM members WHERE identity_sub IS NULL ORDER BY created_at ASC, rowid ASC")
       .toArray();
-    return { members: rows.map((r) => ({ id: r.id, displayName: r.display_name })) };
+    return { members: rows.map((r) => this.toMember(r)) };
   }
 
   /** Link a placeholder member to a signed-in identity — `sub` is the
@@ -685,9 +701,18 @@ export class GroupDO extends DurableObject {
 
   private readMembers(): Member[] {
     return this.sql
-      .exec<MemberRow>("SELECT id, display_name FROM members ORDER BY created_at ASC, rowid ASC")
+      .exec<MemberRow>("SELECT * FROM members ORDER BY created_at ASC, rowid ASC")
       .toArray()
-      .map((r) => ({ id: r.id, displayName: r.display_name }));
+      .map((r) => this.toMember(r));
+  }
+
+  /** Omits `upiVpa` entirely when unset, matching the `category?` wire shape. */
+  private toMember(row: MemberRow): Member {
+    return {
+      id: row.id,
+      displayName: row.display_name,
+      ...(row.upi_vpa != null ? { upiVpa: row.upi_vpa } : {}),
+    };
   }
 
   /** Active (non-trashed) expenses only — `getState`, balances, idempotent-add
