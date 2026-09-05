@@ -265,8 +265,8 @@ the `CLOUDFLARE_API_TOKEN` repo secret.
    already exists via Group Settings; report doesn't). **[OWNER]** Approve
    the moderation copy and the EULA's zero-tolerance UGC clause before
    submission.
-8. **[CLI] Foreground poll interval** — `GroupViewModel.pollInterval` is 5s;
-   drop it to ~20-30s. Same UX for a low-frequency app, and it directly cuts
+8. ✅ **Foreground poll interval** — done 2026-09-05. `GroupViewModel.pollInterval`
+   was 5s; dropped to 25s. Same UX for a low-frequency app, and it directly cuts
    the Workers request/row-read bill at scale (cost-modeled 2026-09-04).
 
 ---

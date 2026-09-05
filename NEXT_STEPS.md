@@ -44,8 +44,8 @@ so nothing downstream stalls waiting on you.
       **Not yet deployed** — `wrangler deploy` is still yours to run
       (`make worker-deploy`); no real users existed on the old `RegistryDO`
       data, so this is a clean cutover, not a migration.
-- [ ] **[CLI]** Foreground poll interval 5s → ~20-30s (`SHIP_PLAN.md` Track 3
-      §8).
+- [x] **[CLI]** Foreground poll interval 5s → ~20-30s (`SHIP_PLAN.md` Track 3
+      §8). **Done 2026-09-05:** `GroupViewModel.pollInterval` → 25s.
 - [ ] **[CLI]** Verify GitHub secret scanning + push protection are on
       (`MANDATORY_LOGIN_PLAN.md` Part 4).
 

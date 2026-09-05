@@ -12,7 +12,9 @@ import ClanTabKit
 @Observable
 final class GroupViewModel {
     /// How often `GroupHomeView` calls `autoRefetch()` while it's foregrounded.
-    static let pollInterval: Duration = .seconds(5)
+    /// 25s — same UX for a low-frequency app as the original 5s, but cuts the
+    /// Workers request/row-read bill at scale (`SHIP_PLAN.md` Track 3 §8).
+    static let pollInterval: Duration = .seconds(25)
 
     let groupId: String
     private let client: ClanTabClient
