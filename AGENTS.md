@@ -1,6 +1,6 @@
 # ClanTab (iOS)
 
-Open-source expense splitter for small groups. Native iOS application powered by a pure Swift core package (`ClanTabKit`). Guests need no account — the group link is the credential; Sign in with Apple is optional and only adds cross-device sync (`ACCOUNTS_DESIGN.md`). No payments, no ads.
+Open-source expense splitter for small groups. Native iOS application powered by a pure Swift core package (`ClanTabKit`). Every user signs in with Apple or Google before creating, joining, or viewing a group — there's no guest tier (`MANDATORY_LOGIN_PLAN.md`); the group link (`groupId`, optionally carrying an access token, `ACCESS_TOKEN_PLAN.md`) is still the underlying data-access credential. No payments, no ads.
 
 ## Commands
 - `make check` — run everything relevant (ClanTabKit + worker + iOS build/tests). Same as what the `pre-push` hook runs; `make hooks` installs it.
@@ -26,16 +26,16 @@ Open-source expense splitter for small groups. Native iOS application powered by
 - **Integer Minor Units**: All money amounts are stored and calculated in integer minor units (paise, cents, yen) as `Int` or `Int64`. Never use floating-point types (`Double`, `Float`) for monetary amounts or arithmetic. Convert to/from display units only at the UI formatting edge.
 - **Derived Balances**: Member balances are always derived on read from the collection of expenses and settlements; never cache or persist a mutable "balance" field.
 - **Capability Links**: Each group is addressed by an unguessable capability identifier (`groupId`) and an optional 6-character human-friendly `joinCode`. Possession of the `groupId` is the read/write credential — this is unchanged by accounts.
-- **Optional identity (`ACCOUNTS_DESIGN.md`)**: Sign in with Apple is opt-in and gates only identity-scoped endpoints (`/api/auth/*`, `claim`). A guest's identity is still stored locally per group (`UserDefaultsIdentityStore`); a signed-in user's group list is authoritative from the server. A `members` row gains a nullable `identity_sub` when claimed — nothing is reassigned, guests stay first-class forever. The change is strictly additive; never gate the group routes behind a session.
+- **Mandatory identity (`MANDATORY_LOGIN_PLAN.md`, supersedes the older optional-identity design in `ACCOUNTS_DESIGN.md`)**: every user signs in with Apple or Google (`/api/auth/*`) before creating, joining, or viewing a group — there's no guest tier or separate local identity store; `AuthViewModel.groups` is the authoritative "which groups am I in, as which member" source. Group *data* routes stay reachable by `groupId` (+ access token) possession alone, dual-authed against either the token or a claimed session (`ACCESS_TOKEN_PLAN.md`) — never gate those behind a session outright. A `members` row still gains a nullable `identity_sub` when claimed.
 - **Split Integrity**: Every split in an expense must sum up exactly to the total `amountMinor`. Remainder paise/cents from equal or percentage divisions are deterministically assigned (e.g., to the payer) before dispatch. `splitType` (`equal` / `exact` / `percentage`) is a descriptive label — `percentage` is resolved to minor-unit shares client-side (`Validation.percentageSplit`), never sent as raw percentages.
 
 ## Non-Goals — Do Not Add Without Explicit Request
-- No login systems or passwords. The only identity is optional Sign in with Apple (`ACCOUNTS_DESIGN.md`) — no email/password, no other providers, no profile data. Guests are never gated.
+- No passwords, ever. Identity is Sign in with Apple or Google only (`MANDATORY_LOGIN_PLAN.md`) — no other providers, no separate profile data beyond what each provider's credential carries.
 - No payment processing, banking integration, or money transfer — ever.
 - No FX conversion. A group can hold expenses in multiple currencies, but balances and settle-up are computed per currency and never blended — the group's `currency` is only the default for new expenses.
-- No recurring expenses or subscription models.
+- No recurring *expenses* or subscription models (recurring local *reminders* to add one manually are in scope, `FEATURE_BACKLOG.md` — the expense itself is never auto-posted).
 - No receipt OCR / paid cloud AI services in core v1.
-- No push notification servers or email collection. (Sign in with Apple is configured to request no scopes — no name, no email.)
+- No email collection beyond what Google's mandatory-login credential carries. (Push notifications *were* a non-goal — reversed 2026-09-05, now in v1 scope: `FEATURE_BACKLOG.md`, `NEXT_STEPS.md` Phase 6.)
 
 ## Conventions
 - Swift 6 language standard, strict concurrency checking.
