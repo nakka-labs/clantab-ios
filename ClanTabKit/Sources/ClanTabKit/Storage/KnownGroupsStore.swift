@@ -17,14 +17,21 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     /// doesn't return a token; the Bearer-session alternate credential covers
     /// that case server-side instead).
     public var accessToken: String?
+    /// The signed-in member's own balances in this group, last time it was
+    /// fetched — the "you owe / you're owed" line on the groups list. `nil`
+    /// means "never fetched yet," distinct from `[]` ("fetched, settled up")
+    /// — the list shows nothing for the former rather than a misleading
+    /// "Settled up" for a group that hasn't loaded once.
+    public var myBalances: [Balance]?
 
     public var id: String { groupId }
 
-    public init(groupId: String, name: String, lastOpenedAt: Date, accessToken: String? = nil) {
+    public init(groupId: String, name: String, lastOpenedAt: Date, accessToken: String? = nil, myBalances: [Balance]? = nil) {
         self.groupId = groupId
         self.name = name
         self.lastOpenedAt = lastOpenedAt
         self.accessToken = accessToken
+        self.myBalances = myBalances
     }
 }
 
@@ -44,6 +51,12 @@ public protocol KnownGroupsStoring: Sendable {
     /// Drop a group from the list (its capability URL now 404s, or the account
     /// was deleted).
     func forget(groupId: String)
+    /// Update the cached balance summary for an already-known group — a
+    /// no-op if the group isn't known (shouldn't happen: entering a group
+    /// always `remember`s it first). Deliberately separate from `remember`:
+    /// this fires on every refetch, including the ~25s background poll, and
+    /// shouldn't bump `lastOpenedAt` on every tick the way `remember` does.
+    func updateBalances(groupId: String, myBalances: [Balance])
 }
 
 public extension KnownGroupsStoring {
@@ -84,6 +97,14 @@ public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked 
     public func forget(groupId: String) {
         lock.lock(); defer { lock.unlock() }
         save(load().filter { $0.groupId != groupId })
+    }
+
+    public func updateBalances(groupId: String, myBalances: [Balance]) {
+        lock.lock(); defer { lock.unlock() }
+        var groups = load()
+        guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
+        groups[index].myBalances = myBalances
+        save(groups)
     }
 
     private func load() -> [KnownGroup] {
@@ -127,5 +148,11 @@ public final class InMemoryKnownGroupsStore: KnownGroupsStoring, @unchecked Send
     public func forget(groupId: String) {
         lock.lock(); defer { lock.unlock() }
         groups.removeAll { $0.groupId == groupId }
+    }
+
+    public func updateBalances(groupId: String, myBalances: [Balance]) {
+        lock.lock(); defer { lock.unlock() }
+        guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
+        groups[index].myBalances = myBalances
     }
 }

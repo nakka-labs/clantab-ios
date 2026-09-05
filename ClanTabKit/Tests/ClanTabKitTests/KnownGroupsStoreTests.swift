@@ -94,4 +94,54 @@ struct KnownGroupsStoreTests {
         store.remember(groupId: "g1", accessToken: "tok2", at: t0.addingTimeInterval(120))
         #expect(store.all().first?.accessToken == "tok2")
     }
+
+    // MARK: - myBalances (FEATURE_BACKLOG.md — groups list balance summary)
+
+    @Test("a freshly-remembered group has no balances yet")
+    func testMyBalancesNilUntilFetched() {
+        let store = InMemoryKnownGroupsStore()
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+        #expect(store.all().first?.myBalances == nil)
+    }
+
+    @Test("updateBalances sets the balance summary without touching lastOpenedAt")
+    func testUpdateBalances() {
+        let store = InMemoryKnownGroupsStore()
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+
+        store.updateBalances(groupId: "g1", myBalances: [Balance(memberId: "m1", currency: "INR", netMinor: -500)])
+
+        let group = store.all().first
+        #expect(group?.myBalances == [Balance(memberId: "m1", currency: "INR", netMinor: -500)])
+        #expect(group?.lastOpenedAt == t0) // unaffected — see updateBalances' doc comment
+    }
+
+    @Test("updateBalances can set an empty array — confirmed settled, distinct from nil (never fetched)")
+    func testUpdateBalancesSettled() {
+        let store = InMemoryKnownGroupsStore()
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+        store.updateBalances(groupId: "g1", myBalances: [])
+        #expect(store.all().first?.myBalances == [])
+    }
+
+    @Test("updateBalances is a no-op for an unknown group")
+    func testUpdateBalancesUnknownGroup() {
+        let store = InMemoryKnownGroupsStore()
+        store.updateBalances(groupId: "ghost", myBalances: [Balance(memberId: "m1", currency: "INR", netMinor: 100)])
+        #expect(store.all().isEmpty)
+    }
+
+    @Test("UserDefaults-backed store round-trips myBalances too")
+    func testUserDefaultsRoundTripsBalances() throws {
+        let suiteName = "com.clantab.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = UserDefaultsKnownGroupsStore(defaults: defaults)
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+        store.updateBalances(groupId: "g1", myBalances: [Balance(memberId: "m1", currency: "INR", netMinor: 250)])
+
+        let reloaded = UserDefaultsKnownGroupsStore(defaults: defaults)
+        #expect(reloaded.all().first?.myBalances == [Balance(memberId: "m1", currency: "INR", netMinor: 250)])
+    }
 }

@@ -22,8 +22,15 @@ struct GroupsListView: View {
                     onOpenGroup(group.groupId)
                 } label: {
                     HStack {
-                        Text(group.name.isEmpty ? "Group" : group.name)
-                            .foregroundStyle(.primary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(group.name.isEmpty ? "Group" : group.name)
+                                .foregroundStyle(.primary)
+                            if let balanceLine = Self.balanceLine(for: group) {
+                                Text(balanceLine)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.footnote.weight(.semibold))
@@ -45,5 +52,15 @@ struct GroupsListView: View {
             }
         }
         .padding(.horizontal, 4)
+    }
+
+    /// "You owe ₹500" / "You're owed ₹200" / "Settled up" — `nil` (no line
+    /// at all) only while `myBalances` hasn't loaded once yet, distinct
+    /// from a confirmed-empty `[]` (`KnownGroup.myBalances`'s doc comment).
+    static func balanceLine(for group: KnownGroup) -> String? {
+        guard let balances = group.myBalances else { return nil }
+        guard let headline = Balances.headline(balances) else { return "Settled up" }
+        let amount = MoneyFormat.string(minorUnits: abs(headline.netMinor), currency: headline.currency)
+        return headline.netMinor < 0 ? "You owe \(amount)" : "You're owed \(amount)"
     }
 }

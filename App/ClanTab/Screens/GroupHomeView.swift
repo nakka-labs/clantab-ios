@@ -10,6 +10,11 @@ struct GroupHomeView: View {
     /// Switch straight to another known group — the same `enterGroup` path
     /// `RootView` uses everywhere else (`NAV_POLISH_PLAN.md` Part 1).
     private let onSwitchGroup: (_ groupId: String) -> Void
+    /// Leave this group's screen for the create-group flow — the "Your
+    /// Groups" sheet's way out of the single-group dead end (there's no
+    /// other route back to `StartView` once `resolveInitialRoute()` has
+    /// skipped straight into one group).
+    private let onCreateNewGroup: () -> Void
     private let onLeaveGroup: () -> Void
     private let onGroupUnavailable: () -> Void
     private let recurringTemplatesStore: RecurringTemplatesStoring = UserDefaultsRecurringTemplatesStore()
@@ -51,6 +56,7 @@ struct GroupHomeView: View {
         accessToken: String? = nil,
         onOpenSettings: @escaping () -> Void = {},
         onSwitchGroup: @escaping (_ groupId: String) -> Void = { _ in },
+        onCreateNewGroup: @escaping () -> Void = {},
         onLeaveGroup: @escaping () -> Void = {},
         onGroupUnavailable: @escaping () -> Void = {}
     ) {
@@ -59,13 +65,15 @@ struct GroupHomeView: View {
         self.auth = auth
         self.onOpenSettings = onOpenSettings
         self.onSwitchGroup = onSwitchGroup
+        self.onCreateNewGroup = onCreateNewGroup
         self.onLeaveGroup = onLeaveGroup
         self.onGroupUnavailable = onGroupUnavailable
-        _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, auth: auth, accessToken: accessToken))
+        _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, auth: auth, knownGroups: knownGroups, accessToken: accessToken))
     }
 
-    /// Other groups this device knows about — when there are none, "Switch
-    /// Group" has nowhere to go, so the toolbar entry stays hidden.
+    /// Other groups this device knows about, for the "Your Groups" sheet's
+    /// list — hidden entirely when empty, leaving just "Create a Group"
+    /// (the toolbar entry to reach that sheet is always shown regardless).
     private var otherKnownGroups: [KnownGroup] {
         knownGroups.all().filter { $0.groupId != viewModel.groupId }
     }
@@ -242,13 +250,15 @@ struct GroupHomeView: View {
                     Label("Settings", systemImage: "gearshape")
                 }
             }
-            if !otherKnownGroups.isEmpty {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        isPresentingGroupSwitcher = true
-                    } label: {
-                        Label("Switch Group", systemImage: "square.on.square")
-                    }
+            ToolbarItem(placement: .topBarLeading) {
+                // Always shown, even with no other known groups — otherwise
+                // there's no way back to the create-group flow once
+                // `resolveInitialRoute()` has skipped straight into the
+                // device's one group.
+                Button {
+                    isPresentingGroupSwitcher = true
+                } label: {
+                    Label("Your Groups", systemImage: "square.on.square")
                 }
             }
             ToolbarItemGroup(placement: .primaryAction) {
@@ -378,19 +388,32 @@ struct GroupHomeView: View {
         .sheet(isPresented: $isPresentingGroupSwitcher) {
             NavigationStack {
                 ScrollView {
-                    GroupsListView(
-                        groups: otherKnownGroups,
-                        onOpenGroup: { groupId in
+                    VStack(alignment: .leading, spacing: 20) {
+                        Button {
                             isPresentingGroupSwitcher = false
-                            onSwitchGroup(groupId)
-                        },
-                        onRemoveGroup: { groupId in
-                            knownGroups.forget(groupId: groupId)
+                            onCreateNewGroup()
+                        } label: {
+                            Label("Create a Group", systemImage: "plus.circle.fill")
                         }
-                    )
+                        .buttonStyle(.borderedProminent)
+
+                        if !otherKnownGroups.isEmpty {
+                            GroupsListView(
+                                groups: otherKnownGroups,
+                                onOpenGroup: { groupId in
+                                    isPresentingGroupSwitcher = false
+                                    onSwitchGroup(groupId)
+                                },
+                                onRemoveGroup: { groupId in
+                                    knownGroups.forget(groupId: groupId)
+                                }
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
                 }
-                .navigationTitle("Switch Group")
+                .navigationTitle("Your Groups")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

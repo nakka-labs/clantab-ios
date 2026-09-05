@@ -106,10 +106,12 @@ final class GroupViewModelTests: XCTestCase {
     @MainActor
     func testRefetchWritesTheWidgetSnapshotForAClaimedMember() async {
         let snapshotStore = InMemoryWidgetSnapshotStore()
+        let knownGroups = InMemoryKnownGroupsStore([KnownGroup(groupId: "g", name: "Goa Trip", lastOpenedAt: Date())])
         let vm = GroupViewModel(
             groupId: "g",
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: GroupStateTransport()),
             auth: await makeSignedInAuth(memberId: "m1"),
+            knownGroups: knownGroups,
             widgetSnapshotStore: snapshotStore
         )
 
@@ -119,36 +121,44 @@ final class GroupViewModelTests: XCTestCase {
         XCTAssertEqual(snapshot?.groupId, "g")
         XCTAssertEqual(snapshot?.groupName, "Goa Trip")
         XCTAssertEqual(snapshot?.balances, [Balance(memberId: "m1", currency: "INR", netMinor: 100)])
+        // The groups-list balance cache (GroupsListView) gets the same update.
+        XCTAssertEqual(knownGroups.all().first?.myBalances, [Balance(memberId: "m1", currency: "INR", netMinor: 100)])
     }
 
     @MainActor
     func testRefetchSkipsTheWidgetSnapshotWithoutAClaimedIdentity() async {
         let snapshotStore = InMemoryWidgetSnapshotStore()
+        let knownGroups = InMemoryKnownGroupsStore([KnownGroup(groupId: "g", name: "Goa Trip", lastOpenedAt: Date())])
         let vm = GroupViewModel(
             groupId: "g",
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: GroupStateTransport()),
             auth: makeAuth(), // signed out — no claimed membership anywhere
+            knownGroups: knownGroups,
             widgetSnapshotStore: snapshotStore
         )
 
         await vm.refetch()
 
         XCTAssertNil(snapshotStore.snapshot())
+        XCTAssertNil(knownGroups.all().first?.myBalances)
     }
 
     @MainActor
     func testAutoRefetchAlsoWritesTheWidgetSnapshot() async {
         let snapshotStore = InMemoryWidgetSnapshotStore()
+        let knownGroups = InMemoryKnownGroupsStore([KnownGroup(groupId: "g", name: "Goa Trip", lastOpenedAt: Date())])
         let vm = GroupViewModel(
             groupId: "g",
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: GroupStateTransport()),
             auth: await makeSignedInAuth(memberId: "m2"),
+            knownGroups: knownGroups,
             widgetSnapshotStore: snapshotStore
         )
 
         await vm.autoRefetch()
 
         XCTAssertEqual(snapshotStore.snapshot()?.balances, [Balance(memberId: "m2", currency: "INR", netMinor: -100)])
+        XCTAssertEqual(knownGroups.all().first?.myBalances, [Balance(memberId: "m2", currency: "INR", netMinor: -100)])
     }
 }
 
