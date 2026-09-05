@@ -125,19 +125,22 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   prompt, scheduled delivery timing, and tap-to-open flow all need a real
   on-device pass — same caveat as Sign in with Apple/Google, `NEXT_STEPS.md`
   Phase 8's TestFlight step covers it.
-- **Empty-state consistency.** `InsightsView`'s empty state already uses
-  `ContentUnavailableView` (icon + title + subtitle); `GroupHomeView`'s
-  empty activity feed is a plain `Text("No expenses yet.")` row. Bring the
-  latter up to the same treatment — it's the first thing a brand-new group
-  shows.
-- **Amount-entry typography.** Apply `BalanceHeroView`'s SF Rounded
-  bold-numeral treatment (`DESIGN_BIBLE.md`'s "single highest-leverage
-  move") to `AddExpenseView`'s amount field too, for visual consistency.
-- **Select All / Select None on the equal-split member list.** Trivial,
-  saves taps once a group has more than a few people.
-- **Inline error highlighting on exact/percentage splits.** Right now
-  over/under is only a summary footer line; highlight the specific
-  offending row too.
+- **Empty-state consistency.** **Done 2026-09-05.** `GroupHomeView`'s empty
+  activity feed now uses `ContentUnavailableView`, same as `InsightsView` —
+  distinct copy/icon for "no expenses yet" vs. "no matches for the current
+  filter."
+- **Amount-entry typography.** **Done 2026-09-05.** `AddExpenseView`'s amount
+  field now uses SF Rounded too (`.title2.semibold` — sized for an inline
+  Form row rather than `BalanceHeroView`'s standalone `.title.bold` hero
+  display, same typeface treatment).
+- **Select All / Select None on the equal-split member list.** **Done
+  2026-09-05.** Shown once a group has more than 2 members (trivial with 1-2,
+  where there's nothing to save); each disables itself once it's already the
+  current state.
+- **Inline error highlighting on exact/percentage splits.** **Done
+  2026-09-05.** Each split row with a nonzero entry turns red while the
+  total's off, alongside the existing footer line — an untouched
+  (blank/zero) row doesn't turn red just because others don't sum up yet.
 - **UPI deep link on Settle Up.** Optional per-member UPI ID (a new
   nullable field, user-supplied, never verified/processed by ClanTab);
   "Mark as Paid" builds a plain `upi://pay?pa=<vpa>&am=<amount>&...` link

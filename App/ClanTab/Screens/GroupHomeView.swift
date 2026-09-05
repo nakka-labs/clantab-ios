@@ -128,8 +128,18 @@ struct GroupHomeView: View {
                 Section {
                     let items = activityFeed(state: state)
                     if items.isEmpty {
-                        Text(filter.isActive ? "Nothing matches your filters." : "No expenses yet.")
-                            .foregroundStyle(.secondary)
+                        // Same treatment as InsightsView's empty state
+                        // (`FEATURE_BACKLOG.md` "Empty-state consistency") —
+                        // this is the first thing a brand-new group shows.
+                        ContentUnavailableView(
+                            filter.isActive ? "No Matches" : "No Expenses Yet",
+                            systemImage: filter.isActive ? "line.3.horizontal.decrease.circle" : "tray",
+                            description: Text(
+                                filter.isActive
+                                    ? "Try a different search or clear your filters."
+                                    : "Add an expense to start splitting costs with the group."
+                            )
+                        )
                     } else {
                         ForEach(items) { item in
                             ActivityRow(item: item)

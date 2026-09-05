@@ -138,6 +138,12 @@ struct AddExpenseView: View {
                 HStack {
                     TextField("Amount", text: $amountText)
                         .keyboardType(.decimalPad)
+                        // Same SF Rounded bold-numeral treatment as
+                        // BalanceHeroView (`DESIGN_BIBLE.md`'s "single
+                        // highest-leverage move", `FEATURE_BACKLOG.md`
+                        // "Amount-entry typography") — the amount is the
+                        // most important thing on this screen.
+                        .font(.system(.title2, design: .rounded).weight(.semibold))
                     if currencyChoices.count > 1 {
                         Picker("Currency", selection: $currency) {
                             ForEach(currencyChoices, id: \.self) { code in Text(code).tag(code) }
@@ -214,12 +220,34 @@ struct AddExpenseView: View {
             ForEach(members) { member in
                 Toggle(member.displayName, isOn: includedBinding(for: member.id))
             }
+            // Saves taps once a group has more than a few people
+            // (`FEATURE_BACKLOG.md` "Select All / Select None").
+            if members.count > 2 {
+                HStack {
+                    Button("Select All") { includedMemberIds = Set(members.map(\.id)) }
+                        .disabled(includedMemberIds.count == members.count)
+                    Spacer()
+                    Button("Select None") { includedMemberIds = [] }
+                        .disabled(includedMemberIds.isEmpty)
+                }
+                .font(.footnote)
+            }
         case .exact:
             exactSplitRows
         case .percentage:
             percentSplitRows
         }
     }
+
+    /// `true` once the total's known and doesn't match the entered splits —
+    /// drives both the footer line and, per `FEATURE_BACKLOG.md` "Inline
+    /// error highlighting", the specific rows that have something entered.
+    private var exactMismatch: Bool {
+        guard let amountMinor else { return false }
+        return amountMinor != exactSplitsTotal
+    }
+
+    private var percentMismatch: Bool { percentTotal != 100 }
 
     @ViewBuilder
     private var exactSplitRows: some View {
@@ -231,6 +259,7 @@ struct AddExpenseView: View {
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 80)
+                    .foregroundStyle(exactMismatch && hasEntry(exactAmountText[member.id]) ? Color.red : Color.primary)
             }
         }
         if let amountMinor {
@@ -238,6 +267,13 @@ struct AddExpenseView: View {
                 .font(.footnote)
                 .foregroundStyle(amountMinor == exactSplitsTotal ? Color.secondary : Color.red)
         }
+    }
+
+    /// Whether a split's text field has anything meaningful typed in it — an
+    /// untouched (blank/zero) row shouldn't turn red just because *other*
+    /// rows don't sum up yet.
+    private func hasEntry(_ text: String?) -> Bool {
+        (MoneyFormat.minorUnits(from: text ?? "") ?? 0) > 0
     }
 
     @ViewBuilder
@@ -250,6 +286,7 @@ struct AddExpenseView: View {
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 56)
+                    .foregroundStyle(percentMismatch && percent(for: member.id) > 0 ? Color.red : Color.primary)
                 Text("%").foregroundStyle(.secondary)
             }
         }
