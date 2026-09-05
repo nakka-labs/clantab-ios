@@ -302,10 +302,35 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   practical unit-test path, matching this repo's treatment of other
   UIKit-glue code; verified instead by installing the built app in the
   Simulator and confirming the `.appex` embeds and validates correctly).
-- **Siri / App Intents.** **Moved into v1 scope 2026-09-05** — "Add a ₹500
-  expense to Flatmates" via Shortcuts/Siri. No ₹ cost, moderate-high
-  effort (disambiguating group/member/split by voice). Lowest-priority of
-  the three above within v1, build last.
+- **Siri / App Intents.** **Moved into v1 scope, done 2026-09-05.** "Add a
+  ₹500 expense to Flatmates" via Shortcuts/Siri. No ₹ cost. Lowest-priority
+  of the three above within v1, built last. Scoped down from "moderate-high
+  effort" (owner decision, 2026-09-05): the group is voice-disambiguated by
+  name — that's the actual value of "...to Flatmates" — but the payer
+  always defaults to you and the split is always equal among the group's
+  *current* members, no voice control over either. Matches the
+  equal-split-only precedent from Recurring Reminders; a second `AppEntity`
+  for voice-picking the payer is a reasonable follow-on, not needed for v1.
+  All in the App target, no new extension (unlike the widget) — App
+  Intents declared directly in the main app run in its process. New
+  `GroupEntity`/`GroupEntityQuery` (backed by the same on-device
+  `KnownGroupsStoring` the start screen's list uses, filtering out any
+  group whose name hasn't loaded yet — nothing to say for those), and
+  `AddExpenseIntent`, which — since Siri constructs a fresh intent per
+  invocation, with no live `AuthViewModel`/`GroupViewModel` to reuse — logs
+  in with the Keychain session exactly like the app's own launch path:
+  `myGroups` to resolve the caller's `memberId` in the named group,
+  `fetchGroupState` for its current members + currency (using a cached
+  access token from `KnownGroupsStoring` if one exists — a claimed
+  member's Bearer session alone already satisfies `requireGroup`'s
+  dual-auth either way), then `addExpense` with `Validation.equalSplit`
+  across everyone currently in it. `AddExpenseIntentLogic` (minor-unit
+  conversion + request-building) is pulled out as pure, unit-tested
+  functions — `perform()` itself is thin orchestration, untested like this
+  repo's other OS-integration glue (`AppDelegate`, etc.). App 75/75
+  passing (was 70); verified further by installing the built app in the
+  Simulator and confirming its `Metadata.appintents` (the App Intents
+  discovery data Siri/Shortcuts reads) was actually generated, not skipped.
 
 ## Shipped
 

@@ -157,8 +157,11 @@ soon-to-be-rekeyed identity risks rework.
       all).
 - [x] **[CLI]** Home-screen widget (WidgetKit) — **done 2026-09-05**
       (`FEATURE_BACKLOG.md`). Small size only, no group picker for v1.
-- [ ] **[CLI]** Siri / App Intents (build last of the three — lowest
-      priority within v1)
+- [x] **[CLI]** Siri / App Intents — **done 2026-09-05** (`FEATURE_BACKLOG.md`).
+      Group voice-disambiguated by name; payer = you, split = equal, no
+      voice control over either.
+
+Phase 6 is complete — every item shipped 2026-09-05.
 
 ## Phase 7 — Guideline 1.2 (user-generated content moderation)
 
