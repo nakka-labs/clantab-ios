@@ -123,18 +123,26 @@ signed-in-only shape, not once now and again when guests are removed).
 `FEATURE_BACKLOG.md` "In scope, next up" — no dependency on Phase 2, ships
 in any order relative to it, and order within this phase doesn't matter:
 
-- [ ] **[CLI]** Trash + attribution (soft delete, "Recently Deleted", undo
-      toast)
-- [ ] **[CLI]** Duplicate an expense
-- [ ] **[CLI]** Recurring reminders (not auto-post)
-- [ ] **[CLI]** Empty-state consistency
-- [ ] **[CLI]** Amount-entry typography
-- [ ] **[CLI]** Select All / Select None (equal split)
-- [ ] **[CLI]** Inline split-error highlighting
-- [ ] **[CLI]** UPI deep link on Settle Up
-- [ ] **[CLI]** Backup, two tiers (Save-to-Files nudge + CloudKit)
-- [ ] **[CLI]** Theme toggle (light/dark/system)
-- [ ] **[CLI]** Category pastel colors
+- [x] **[CLI]** Trash + attribution (soft delete, "Recently Deleted", undo
+      toast) — **done 2026-09-05.**
+- [x] **[CLI]** Duplicate an expense — **done 2026-09-05.**
+- [x] **[CLI]** Recurring reminders (not auto-post) — **done 2026-09-05.**
+- [x] **[CLI]** Empty-state consistency — **done 2026-09-05.**
+- [x] **[CLI]** Amount-entry typography — **done 2026-09-05.**
+- [x] **[CLI]** Select All / Select None (equal split) — **done
+      2026-09-05.**
+- [x] **[CLI]** Inline split-error highlighting — **done 2026-09-05.**
+- [x] **[CLI]** UPI deep link on Settle Up — **done 2026-09-05.** Worker
+      side (schema v7) committed but **not yet deployed**.
+- [ ] **[CLI]** Backup, two tiers (Save-to-Files nudge + CloudKit) — Tier
+      1 (Save-to-Files nudge) **done 2026-09-05**; Tier 2 (CloudKit
+      automatic backup) still open.
+- [x] **[CLI]** Theme toggle (light/dark/system) — **done 2026-09-05.**
+- [x] **[CLI]** Category pastel colors — **done 2026-09-05.**
+
+Phase 5 is otherwise complete — see `FEATURE_BACKLOG.md` for each item's
+scope and test counts. Only Tier 2 backup remains before moving on to
+Phase 6.
 
 ## Phase 6 — Feature backlog, identity-dependent
 
