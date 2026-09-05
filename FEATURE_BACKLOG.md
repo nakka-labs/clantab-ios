@@ -192,12 +192,17 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   regardless of sign-in state (backup applies to everyone, unlike the
   sync nudge). ClanTabKit 134/134 passing (was 129); App 66/66 passing
   (was 63).
-- **Explicit light/dark/system theme toggle.** Dark mode already works
-  today — SwiftUI's automatic system-appearance adaptation, reviewed in
-  `HANDOFF.md`'s Phase 6 checklist. What's missing is a manual override in
-  Settings (a `Picker` + `.preferredColorScheme()` at the root, persisted
-  via `@AppStorage`) for someone who wants to pin the app's look
-  independent of their system setting. Cheap — hours, not days.
+- **Explicit light/dark/system theme toggle.** **Done 2026-09-05.** Dark
+  mode already works today — SwiftUI's automatic system-appearance
+  adaptation, reviewed in `HANDOFF.md`'s Phase 6 checklist. What's missing
+  is a manual override in Settings (a `Picker` + `.preferredColorScheme()`
+  at the root, persisted via `@AppStorage`) for someone who wants to pin
+  the app's look independent of their system setting. Cheap — hours, not
+  days. `AppTheme` enum (`.system`/`.light`/`.dark`, `nil` `colorScheme`
+  for system) shared between a `Picker` in Settings' "App" section and
+  `.preferredColorScheme()` on `ClanTabApp`'s `WindowGroup` content, both
+  reading the same `@AppStorage("clantab.theme")` key so the picker takes
+  effect immediately. App 69/69 tests passing (was 66).
 - **Category colors, formula-driven, not hand-picked.** Categories already
   have name + SF Symbol icon (shipped 2026-09-01); add a color. Rather than
   free-picking colors (inconsistent, risks poor contrast), extend

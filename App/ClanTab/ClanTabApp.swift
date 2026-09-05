@@ -6,6 +6,7 @@ struct ClanTabApp: App {
     private let client: ClanTabClient
     private let knownGroups: KnownGroupsStoring
     @State private var auth: AuthViewModel
+    @AppStorage("clantab.theme") private var theme = AppTheme.system
 
     init() {
         let client = ClanTabClient(baseURL: AppConfig.apiBaseURL)
@@ -24,6 +25,7 @@ struct ClanTabApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(client: client, knownGroups: knownGroups, auth: auth)
+                .preferredColorScheme(theme.colorScheme)
         }
     }
 }

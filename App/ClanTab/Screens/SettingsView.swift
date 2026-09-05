@@ -13,6 +13,7 @@ struct SettingsView: View {
 
     @State private var confirmingDelete = false
     @State private var sheetError: String?
+    @AppStorage("clantab.theme") private var theme = AppTheme.system
 
     private let deletionCaveat =
         "Your groups and expenses stay. You'll lose cross-device sync and can't recover this account."
@@ -77,6 +78,9 @@ struct SettingsView: View {
             }
 
             Section("App") {
+                Picker("Appearance", selection: $theme) {
+                    ForEach(AppTheme.allCases) { Text($0.label).tag($0) }
+                }
                 LabeledContent("Version", value: Self.appVersion)
             }
         }
