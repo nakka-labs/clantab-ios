@@ -203,19 +203,31 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   `.preferredColorScheme()` on `ClanTabApp`'s `WindowGroup` content, both
   reading the same `@AppStorage("clantab.theme")` key so the picker takes
   effect immediately. App 69/69 tests passing (was 66).
-- **Category colors, formula-driven, not hand-picked.** Categories already
-  have name + SF Symbol icon (shipped 2026-09-01); add a color. Rather than
-  free-picking colors (inconsistent, risks poor contrast), extend
-  `DESIGN_BIBLE.md`'s existing `oklch(55% 0.16 H)` accent formula — the one
-  brand blue stays the app's primary/action color everywhere it is today;
-  categories get a *pastel* variant of the same formula (higher lightness,
-  lower chroma, hue varies per category), generated systematically rather
-  than art-directed one at a time. Directly answers "the UI reads a bit
-  dull" — one accent color across every screen is the actual cause, and a
-  curated multi-hue category palette fixes it without abandoning the
-  single-accent brand discipline. A full custom-color-picker for
-  user-created categories is a reasonable follow-on once the curated
-  palette ships — not needed for v1 of this.
+- **Category colors, formula-driven, not hand-picked.** **Done
+  2026-09-05.** Categories already have name + SF Symbol icon (shipped
+  2026-09-01); add a color. Rather than free-picking colors (inconsistent,
+  risks poor contrast), extend `DESIGN_BIBLE.md`'s existing
+  `oklch(55% 0.16 H)` accent formula — the one brand blue stays the app's
+  primary/action color everywhere it is today; categories get a *pastel*
+  variant of the same formula (higher lightness, lower chroma, hue varies
+  per category), generated systematically rather than art-directed one at
+  a time. Directly answers "the UI reads a bit dull" — one accent color
+  across every screen is the actual cause, and a curated multi-hue
+  category palette fixes it without abandoning the single-accent brand
+  discipline. A full custom-color-picker for user-created categories is a
+  reasonable follow-on once the curated palette ships — not needed for v1
+  of this.
+  ClanTabKit's `CategoryColor` is pure OKLCH→sRGB math (Björn Ottosson's
+  OKLab formulas), `oklch(88% 0.07 H)`, with `H` a deterministic djb2 hash
+  of the category name mod 360 — same name always gets the same color on
+  every device, including free-form user-typed categories, with no shared
+  name→color table to keep in sync. No UIKit/SwiftUI dependency, per the
+  cross-platform guardrail; the App target's `ExpenseCategory.pastelColor`
+  converts the resulting components into a `Color`. New shared
+  `CategoryIconBadge` (icon on its pastel circle) used in the activity
+  feed (`ActivityRow`, expenses only — settlements keep their neutral
+  gray marker) and `CategoryPickerView`'s rows. ClanTabKit 141/141 passing
+  (was 134); App 69/69 passing (view-layer wiring, no new App tests).
 
 - **Push notifications.** **Moved into v1 scope 2026-09-05** — the single
   highest-engagement feature on this list; "Priya added ₹500" landing on a

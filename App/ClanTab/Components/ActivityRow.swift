@@ -63,6 +63,18 @@ struct ActivityItem: Identifiable {
         }
     }
 
+    /// The expense's resolved category, for its pastel badge
+    /// (`FEATURE_BACKLOG.md` "Category colors, formula-driven"). `nil` for a
+    /// settlement — those keep the neutral gray marker, there's no category.
+    var category: ExpenseCategory? {
+        switch kind {
+        case .expense(let expense):
+            return ExpenseCategory.resolve(name: expense.category, symbolName: expense.categoryIcon)
+        case .settlement:
+            return nil
+        }
+    }
+
     /// When this was soft-deleted (`FEATURE_BACKLOG.md` "Recently Deleted") —
     /// `nil` for anything in the normal, active feed.
     var deletedAt: Date? {
@@ -97,10 +109,14 @@ struct ActivityRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: item.icon)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
+            if let category = item.category {
+                CategoryIconBadge(category: category)
+            } else {
+                Image(systemName: item.icon)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, height: 32)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                 HStack(spacing: 4) {

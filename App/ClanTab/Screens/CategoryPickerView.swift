@@ -63,8 +63,9 @@ struct CategoryPickerView: View {
             selection = category
             dismiss()
         } label: {
-            HStack {
-                Label(category.name, systemImage: category.symbolName)
+            HStack(spacing: 12) {
+                CategoryIconBadge(category: category, size: 28)
+                Text(category.name)
                 Spacer()
                 if selection == category {
                     Image(systemName: "checkmark").foregroundStyle(.tint)
