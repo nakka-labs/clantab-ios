@@ -235,17 +235,17 @@ the `CLOUDFLARE_API_TOKEN` repo secret.
    a web client is out of scope), or (b) lower the zone's Browser Integrity
    Check / Bot Fight Mode for `clantab.nakka.dev` if a web client is ever
    planned. Document the decision.
-3. **Rate-limit review, and the bigger fix underneath it** — the Registry
-   limiter is in-memory (resets on DO eviction), and `RegistryDO` itself is a
-   **singleton**: every group creation and every join-code lookup for the
-   entire app serializes through one Durable Object (`DESIGN.md` §3). Fine at
-   today's volume; becomes the one real architectural ceiling at production
-   scale (cost-modeled 2026-09-04, see project memory `production_priority`).
-   **[CLI]** Move code→groupId resolution to Workers KV (write-once on
-   create, read-many on lookup) and replace the in-memory counter with a
-   Cloudflare Rate Limiting rule on `/api/groups/resolve/*`. Do this before a
-   real traffic spike, not after — it's cheap now and likely lowers the bill
-   too.
+3. ✅ **Rate-limit review, and the bigger fix underneath it** — done
+   2026-09-05. The old Registry limiter was in-memory (reset on DO eviction),
+   and `RegistryDO` itself was a **singleton**: every group creation and
+   every join-code lookup for the entire app serialized through one Durable
+   Object (`DESIGN.md` §3). Moved code→groupId resolution to a `JOIN_CODES`
+   Workers KV namespace (write-once on create, read-many on lookup,
+   `worker/src/lib/join-codes.ts`) and replaced the in-memory counter with a
+   Cloudflare Rate Limiting binding (`RESOLVE_RATE_LIMITER`, 20/min) on
+   `GET /api/groups/resolve/*`. `RegistryDO` deleted (`wrangler.jsonc` `v3`
+   migration). Tests green (145/145); **not yet deployed** —
+   `wrangler deploy` / `make worker-deploy` is still yours to run.
 4. **Data durability** — DO SQLite is backed up by Cloudflare, but there's no
    user-facing "export the whole group" beyond the CSV/JSON the app already
    does. Consider a periodic `GET`-and-archive job if any group matters.

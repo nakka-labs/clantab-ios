@@ -46,14 +46,6 @@ CREATE TABLE IF NOT EXISTS settlements (
 );
 `;
 
-export const REGISTRY_SCHEMA = `
-CREATE TABLE IF NOT EXISTS join_codes (
-  code       TEXT PRIMARY KEY,
-  group_id   TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-);
-`;
-
 /**
  * `UserDO` — one per signed-in identity, addressed by
  * `idFromName("<provider>:<sub>")` (`apple:…` or `google:…`,

@@ -28,8 +28,11 @@ async function del(path: string): Promise<{ status: number; json: Json }> {
   return { status: res.status, json: text ? (JSON.parse(text) as Json) : {} };
 }
 
-async function get(path: string): Promise<{ status: number; text: string; json: Json; robots: string | null }> {
-  const res = await SELF.fetch(`${BASE}${path}`);
+async function get(
+  path: string,
+  headers?: Record<string, string>,
+): Promise<{ status: number; text: string; json: Json; robots: string | null }> {
+  const res = await SELF.fetch(`${BASE}${path}`, { headers });
   const text = await res.text();
   return {
     status: res.status,
@@ -129,9 +132,14 @@ describe("GET /api/groups/resolve/:joinCode", () => {
 
   it("rate-limits after 20 lookups in a window", async () => {
     await makeGroup();
+    // A dedicated IP, distinct from the other tests in this file — the
+    // Rate Limiting binding's budget is keyed per-IP and, unlike Durable
+    // Object storage, isn't reset between tests by vitest-pool-workers'
+    // isolated-storage feature.
+    const ip = "203.0.113.1";
     const statuses: number[] = [];
     for (let i = 0; i < 22; i++) {
-      statuses.push((await get("/api/groups/resolve/ABCDEF")).status);
+      statuses.push((await get("/api/groups/resolve/ABCDEF", { "CF-Connecting-IP": ip })).status);
     }
     expect(statuses.slice(0, 20).every((s) => s === 404)).toBe(true);
     expect(statuses.at(-1)).toBe(429);

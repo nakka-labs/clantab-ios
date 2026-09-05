@@ -65,8 +65,9 @@ Revised effort estimate after reading the actual code: **~1.5-2.5 days**
 
 ## Part 3 — Join-by-code stays evergreen
 
-1. **[CLI]** `RegistryDO`'s join-code resolution (`registry-do.ts`) already
-   maps code → groupId; extend it to also return the *current*
+1. **[CLI]** `resolveJoinCode` (`worker/src/lib/join-codes.ts`, Workers KV —
+   moved off `RegistryDO` in `SHIP_PLAN.md` Track 3 §3) already maps code →
+   groupId; extend it to also return the *current*
    `access_token`, so a 6-character code keeps working across a link
    rotation (codes are typed fresh each time, not bookmarked — direct links
    are the thing that goes stale on rotation). Confirm this matches the

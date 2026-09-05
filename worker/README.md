@@ -13,7 +13,6 @@ since 2026-09-04 (`SESSION_SIGNING_KEY` is a real secret).
 src/
 ├── index.ts        Worker entry + URLPattern router (DESIGN.md §2 incl.
 │                   PUT/DELETE edit-delete, + §13 accounts)
-├── registry-do.ts  RegistryDO  — joinCode ↔ groupId, per-IP rate limit
 ├── group-do.ts     GroupDO     — one group's SQLite ledger; server-computed balances;
 │                                 claim / unclaim (schema v5, members.identity_sub)
 ├── user-do.ts      UserDO      — one per Apple sub; thin self-healing group index
@@ -21,8 +20,10 @@ src/
 └── lib/            balances / simplify / validation (ports of ClanTabKit Logic/),
                     apple-auth (Apple JWKS verify), apple-oauth (code exchange +
                     token revocation), session (HS256 session JWT), base64url,
-                    ids, schema (SQL DDL), parse, errors, result
-test/               logic + validation (Node) · registry/group/routes/user/auth/
+                    ids, join-codes (joinCode ↔ groupId in Workers KV, rate-limit
+                    binding — SHIP_PLAN.md Track 3 §3), schema (SQL DDL), parse,
+                    errors, result
+test/               logic + validation (Node) · join-codes/group/routes/user/auth/
                     apple-oauth (workers pool)
 ```
 
@@ -46,7 +47,9 @@ test/               logic + validation (Node) · registry/group/routes/user/auth
   `throw` — a thrown error loses its prototype across the RPC boundary.
 - Storage: the DO SQLite API (`ctx.storage.sql`), schema in `src/lib/schema.ts`.
   `GroupDO` is at schema v5; `UserDO` at v1. wrangler migrations: `v1`
-  (`GroupDO` + `RegistryDO`), `v2` (`UserDO`).
+  (`GroupDO` + `RegistryDO`), `v2` (`UserDO`), `v3` (`RegistryDO` deleted —
+  its one job, joinCode↔groupId, moved to the `JOIN_CODES` KV namespace so
+  it's no longer a singleton chokepoint; `src/lib/join-codes.ts`).
 - **Accounts config** (`DESIGN.md` §13): `APPLE_AUDIENCE` is a `vars` entry.
   `SESSION_SIGNING_KEY` is **not** — a plain var overwrites a same-named secret on
   every `wrangler deploy`, so it's a real secret in prod

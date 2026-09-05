@@ -21,7 +21,6 @@
   "durable_objects": {
     "bindings": [
       { "name": "GROUP_DO", "class_name": "GroupDO" },
-      { "name": "REGISTRY_DO", "class_name": "RegistryDO" },
       { "name": "USER_DO", "class_name": "UserDO" }
     ]
   },
@@ -33,6 +32,34 @@
     {
       "tag": "v2",
       "new_sqlite_classes": ["UserDO"]
+    },
+    {
+      // RegistryDO retired (SHIP_PLAN.md Track 3 §3): its one job — the
+      // `joinCode -> groupId` index — moved to Workers KV (`JOIN_CODES`
+      // below), which has no singleton chokepoint. No real users existed
+      // yet (Phase 0, NEXT_STEPS.md), so this is a clean cutover: no
+      // migration of pre-existing join codes out of the DO's SQLite storage.
+      "tag": "v3",
+      "deleted_classes": ["RegistryDO"]
     }
-  ]
+  ],
+  "kv_namespaces": [
+    // `joinCode -> groupId`, write-once at group creation, read-many on
+    // lookup (`src/lib/join-codes.ts`).
+    { "binding": "JOIN_CODES", "id": "77e548b600ef46f190955c4aa5e4f6aa" }
+  ],
+  "unsafe": {
+    "bindings": [
+      // Per-IP cap on GET /api/groups/resolve/:joinCode, replacing
+      // RegistryDO's in-memory counter (durable across the Worker's
+      // lifecycle, not reset on DO eviction). Still "unsafe"-namespaced in
+      // wrangler 4.35; that's just where this binding type currently lives.
+      {
+        "name": "RESOLVE_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": { "limit": 20, "period": 60 }
+      }
+    ]
+  }
 }

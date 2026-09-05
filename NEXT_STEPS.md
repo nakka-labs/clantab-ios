@@ -33,9 +33,17 @@ so nothing downstream stalls waiting on you.
 
 ## Phase 1 — Cheap infra hardening (no dependencies — do now)
 
-- [ ] **[CLI]** `RegistryDO` singleton → Workers KV (`SHIP_PLAN.md` Track 3
+- [x] **[CLI]** `RegistryDO` singleton → Workers KV (`SHIP_PLAN.md` Track 3
       §3) — the one real architectural scaling ceiling; cheap now, likely
-      lowers the bill.
+      lowers the bill. **Done 2026-09-05:** `RegistryDO` deleted
+      (`wrangler.jsonc` `v3` migration, `deleted_classes`); join-code
+      resolution moved to a `JOIN_CODES` KV namespace
+      (`worker/src/lib/join-codes.ts`), rate limiting moved to a Cloudflare
+      Rate Limiting binding (`RESOLVE_RATE_LIMITER`, 20/min). Worker tests
+      green (145/145), `wrangler deploy --dry-run` validates the config.
+      **Not yet deployed** — `wrangler deploy` is still yours to run
+      (`make worker-deploy`); no real users existed on the old `RegistryDO`
+      data, so this is a clean cutover, not a migration.
 - [ ] **[CLI]** Foreground poll interval 5s → ~20-30s (`SHIP_PLAN.md` Track 3
       §8).
 - [ ] **[CLI]** Verify GitHub secret scanning + push protection are on
@@ -48,12 +56,11 @@ structural rework left in the app — everything after this phase should be
 built once, against the final post-login shape, not built now and reworked
 again once the guest tier disappears.
 
-- [ ] **[CLI]** Part 1 — Google Sign-In (worker route + iOS button + view
-      model). Needs Phase 0's OAuth client. **Status 2026-09-05:** worker
-      side done, tested (145/145), committed (`4c7fe7f`), not pushed. iOS
-      side code-complete but uncommitted and unverified — no Swift
-      toolchain in the cloud sandbox that wrote it; needs an Xcode
-      build + test pass before it's committed.
+- [x] **[CLI]** Part 1 — Google Sign-In (worker route + iOS button + view
+      model). Needs Phase 0's OAuth client. **Done 2026-09-05:** worker
+      side tested (145/145), iOS side built + tested (56/56) via
+      `xcodegen generate` + `xcodebuild test`, committed (`ebb8a9e`) and
+      pushed to `main`.
 - [ ] **[CLI]** Part 2 — `UserDO` re-keying to `provider:sub`.
 - [ ] **[CLI]** Part 2.5 — Add Member by name. **Hard prerequisite for Part
       3, not optional polish** — without it, removing guests is a real

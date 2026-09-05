@@ -73,10 +73,10 @@ flowchart TB
     subgraph backend["worker/ - Cloudflare Worker + Durable Objects (deployed)"]
         worker["Worker router, /api/* + /api/auth/*"]
         groupdo["GroupDO, SQLite - authoritative balances + simplify"]
-        registrydo["RegistryDO: joinCode to groupId, rate-limited"]
+        joincodes["Workers KV: joinCode to groupId, rate-limited"]
         userdo["UserDO: per-Apple-identity group index"]
         worker --> groupdo
-        worker --> registrydo
+        worker --> joincodes
         worker --> userdo
     end
 ```
@@ -97,7 +97,7 @@ clantab-ios/
 │   └── ClanTabTests/    #   deep-link routing, group-not-found, AuthViewModel
 │
 ├── worker/              # Cloudflare Worker + Durable Objects backend — see worker/README.md
-│   ├── src/             #   index.ts (router) · registry-do · group-do · user-do · lib/
+│   ├── src/             #   index.ts (router) · group-do · user-do · lib/ (incl. join-codes, KV)
 │   └── test/            #   pure logic + @cloudflare/vitest-pool-workers integration
 │
 ├── test-fixtures/       # Language-neutral golden vectors run by ClanTabKit AND worker

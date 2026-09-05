@@ -4,7 +4,7 @@ export default defineWorkersProject({
   test: {
     name: "worker",
     include: [
-      "test/registry.test.ts",
+      "test/join-codes.test.ts",
       "test/group.test.ts",
       "test/routes.test.ts",
       "test/user.test.ts",

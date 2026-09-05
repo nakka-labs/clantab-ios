@@ -183,7 +183,9 @@ CREATE TABLE settlements (
 ```
 All money as `INTEGER` minor units (paise/cents) — never `REAL`. This is the same rule as `AGENTS.md`, just enforced at the schema level too.
 
-### `RegistryDO` (the one singleton instance)
+### `joinCode → groupId` index — Workers KV, not a Durable Object
+
+Originally a singleton `RegistryDO` with this SQLite table:
 ```sql
 CREATE TABLE join_codes (
   code       TEXT PRIMARY KEY,
@@ -191,6 +193,14 @@ CREATE TABLE join_codes (
   created_at INTEGER NOT NULL
 );
 ```
+Retired (`SHIP_PLAN.md` Track 3 §3): every group creation and every join-code
+lookup for the entire app serialized through that one Durable Object instance
+— the one real architectural scaling ceiling. Replaced with a plain
+`JOIN_CODES` Workers KV namespace (`worker/src/lib/join-codes.ts`): `code →
+groupId`, written once at group creation, read on lookup, no shared instance
+to serialize through. KV's eventual consistency (propagation up to ~60s) is a
+non-issue — a code is always looked up well after the creator shares it, never
+in the same request that minted it.
 
 ---
 
@@ -209,14 +219,14 @@ What this does **not** give you, and what v1 doesn't need: cross-group transacti
 sequenceDiagram
     participant A as Creator (iOS app)
     participant W as Worker
-    participant R as RegistryDO
+    participant K as Workers KV (JOIN_CODES)
     participant G as GroupDO (new)
     participant B as Friend (iOS app)
 
     A->>W: POST /api/groups {name, currency, creatorDisplayName}
     W->>G: idFromName(new groupId) -> init
     G-->>W: group created, creator added as member
-    W->>R: put(joinCode -> groupId)
+    W->>K: put(joinCode -> groupId)
     W-->>A: {groupId, joinCode, member}
     A->>B: shares link /g/:groupId
 
@@ -235,12 +245,12 @@ sequenceDiagram
 sequenceDiagram
     participant B as Friend (iOS app)
     participant W as Worker
-    participant R as RegistryDO
+    participant K as Workers KV (JOIN_CODES)
     participant G as GroupDO
 
     B->>W: GET /api/groups/resolve/ABC123
-    W->>R: lookup(ABC123)
-    R-->>W: groupId
+    W->>K: get(ABC123)
+    K-->>W: groupId
     W-->>B: {groupId}
     B->>W: POST /api/groups/:groupId/members {displayName}
     Note over B,W: same as the link-based join from here
@@ -293,7 +303,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 
 - **No accounts means the link is the only credential.** Anyone with the `groupId` (via link or resolved code) can read and write that group's data. This is a documented trust model (§ `PLAN.md` §6 risks), not an oversight — same as Spliit, same as sharing a Splitwise group invite.
 - **Never let a group page get indexed.** Serve `X-Robots-Tag: noindex` on all `/api/groups/*` responses and `<meta name="robots" content="noindex">` on the group HTML page. A capability URL that ends up in a search index defeats its own security model.
-- **Rate-limit the Registry DO's lookup route specifically** — it's the one shared surface across every group, so it's the one place someone could attempt to enumerate join codes. A simple per-IP counter (e.g. 20 lookups/minute) inside `RegistryDO` is enough; the keyspace (32^6) already makes brute-forcing impractical, this is defense in depth, not the primary control.
+- **Rate-limit the join-code lookup route specifically** — it's the one shared surface across every group, so it's the one place someone could attempt to enumerate join codes. A per-IP cap (20 lookups/minute, a Cloudflare Rate Limiting binding — `RESOLVE_RATE_LIMITER` in `wrangler.jsonc`) is enough; the keyspace (32^6) already makes brute-forcing impractical, this is defense in depth, not the primary control.
 - **CORS:** the Worker serves both the frontend and the API from the same origin, so CORS can stay locked to same-origin — no need to open it up.
 - **No PII beyond a display name the user chose themselves.** No emails, no phone numbers, no payment details ever collected — consistent with `PLAN.md`'s non-goals. Sign in with Apple (below) requests no scopes, so not even a name or a relay email reaches the server — only Apple's opaque `sub`.
 - **Accounts don't widen the group trust model, and add one bounded exposure (`ACCOUNTS_DESIGN.md` §4/§15.2).** The session token is a stateless 30-day HMAC-signed JWT (`{sub, iat, exp}`, `env.SESSION_SIGNING_KEY`), verified locally with no DO hit and no server-side revocation. Its only power is "list the groupIds this identity has claimed" (`GET /api/auth/groups`) — it grants no access the `groupId` itself doesn't already grant. Worst case from a leaked token: someone enumerates your claimed groupIds and reads those ledgers (display names + integer amounts, no PII). Bounded by the 30-day cap and by account deletion wiping the index. This is strictly smaller than the N per-device local link stores that already hold the same groupIds. "Remotely sign out a phone I can't reach" is explicitly not supported; `getCredentialState` on the device plus account deletion cover the realistic cases.

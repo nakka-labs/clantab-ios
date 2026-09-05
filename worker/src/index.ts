@@ -1,5 +1,4 @@
 import { GroupDO } from "./group-do.ts";
-import { RegistryDO } from "./registry-do.ts";
 import { UserDO } from "./user-do.ts";
 import { AppleAuthError, verifyAppleIdentityToken } from "./lib/apple-auth.ts";
 import { GoogleAuthError, verifyGoogleIdentityToken } from "./lib/google-auth.ts";
@@ -14,6 +13,7 @@ import {
   UnauthorizedError,
 } from "./lib/errors.ts";
 import { newGroupId } from "./lib/ids.ts";
+import { reserveJoinCode, resolveJoinCode } from "./lib/join-codes.ts";
 import { SessionError, mintSession, verifySession } from "./lib/session.ts";
 import {
   assertPlainObject,
@@ -27,12 +27,17 @@ import {
 import { ValidationFailure } from "./lib/validation.ts";
 import type { AddExpenseRequest, AddSettlementRequest } from "./types.ts";
 
-export { GroupDO, RegistryDO, UserDO };
+export { GroupDO, UserDO };
 
 interface Env {
   GROUP_DO: DurableObjectNamespace<GroupDO>;
-  REGISTRY_DO: DurableObjectNamespace<RegistryDO>;
   USER_DO: DurableObjectNamespace<UserDO>;
+  /** `joinCode → groupId` index (`SHIP_PLAN.md` Track 3 §3, `src/lib/join-codes.ts`). */
+  JOIN_CODES: KVNamespace;
+  /** Per-IP cap on `GET /api/groups/resolve/:joinCode` — 20/min, configured in
+   * `wrangler.jsonc`'s `unsafe.bindings` (Workers Rate Limiting is still
+   * `unsafe`-namespaced as of wrangler 4.35). */
+  RESOLVE_RATE_LIMITER: RateLimit;
   /** HMAC key for session tokens (`ACCOUNTS_DESIGN.md` §3). A `vars` entry for
    * dev/tests; `wrangler secret put SESSION_SIGNING_KEY` overrides it in prod. */
   SESSION_SIGNING_KEY: string;
@@ -131,7 +136,7 @@ async function handleCreateGroup(request: Request, env: Env): Promise<Response> 
   const creatorDisplayName = requireString(body, "creatorDisplayName");
 
   const groupId = newGroupId();
-  const joinCode = await registry(env).reserve(groupId);
+  const joinCode = await reserveJoinCode(env.JOIN_CODES, groupId);
   const { member, group } = await env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId)).initGroup(
     name,
     currency,
@@ -144,7 +149,7 @@ async function handleCreateGroup(request: Request, env: Env): Promise<Response> 
 
 async function handleResolveJoinCode(request: Request, env: Env, params: Params): Promise<Response> {
   const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  const result = await registry(env).resolve(params.joinCode ?? "", ip);
+  const result = await resolveJoinCode(env.JOIN_CODES, env.RESOLVE_RATE_LIMITER, params.joinCode ?? "", ip);
   if (result.rateLimited) throw new RateLimitedError();
   if (result.groupId === null) throw new BareNotFoundError();
   return json(200, { groupId: result.groupId });
@@ -554,10 +559,6 @@ async function handleClaim(request: Request, env: Env, params: Params): Promise<
 }
 
 // --- helpers ------------------------------------------------------------
-
-function registry(env: Env) {
-  return env.REGISTRY_DO.get(env.REGISTRY_DO.idFromName("registry"));
-}
 
 /** Extract the `Authorization: Bearer <token>` value or throw a 401. */
 function bearerToken(request: Request): string {
