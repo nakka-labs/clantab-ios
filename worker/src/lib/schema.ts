@@ -89,6 +89,12 @@ export const META_KEYS = {
   joinCode: "join_code",
   createdAt: "created_at",
   schemaVersion: "schema_version",
+  /** The rotatable capability-link credential (`ACCESS_TOKEN_PLAN.md`) —
+   * separate from `groupId`, which permanently identifies the DO. Written at
+   * creation for every group from here on; absent on a group created before
+   * this feature shipped (`requireGroup` treats "no row" as open access,
+   * unchanged from before — a deliberate backward-compat choice, not a bug). */
+  accessToken: "access_token",
 } as const;
 
 /**

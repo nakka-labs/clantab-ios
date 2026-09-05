@@ -15,11 +15,15 @@ function token(sub: string): Promise<string> {
 async function call(
   method: string,
   path: string,
-  opts: { bearer?: string; body?: unknown } = {},
+  opts: { bearer?: string; body?: unknown; token?: string } = {},
 ): Promise<{ status: number; json: Json }> {
   const headers: Record<string, string> = {};
   if (opts.bearer !== undefined) headers.Authorization = `Bearer ${opts.bearer}`;
-  const res = await SELF.fetch(`${BASE}${path}`, {
+  const url =
+    opts.token === undefined
+      ? `${BASE}${path}`
+      : `${BASE}${path}${path.includes("?") ? "&" : "?"}token=${opts.token}`;
+  const res = await SELF.fetch(url, {
     method,
     headers,
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
@@ -27,15 +31,19 @@ async function call(
   return { status: res.status, json: res.status === 204 ? {} : ((await res.json()) as Json) };
 }
 
-async function makeGroup(): Promise<{ groupId: string; creatorId: string }> {
+async function makeGroup(): Promise<{ groupId: string; creatorId: string; token: string }> {
   const { json } = await call("POST", "/api/groups", {
     body: { name: "Goa Trip", currency: "INR", creatorDisplayName: "Indra" },
   });
-  return { groupId: json.groupId as string, creatorId: (json.member as Json).id as string };
+  return {
+    groupId: json.groupId as string,
+    creatorId: (json.member as Json).id as string,
+    token: (json.group as Json).accessToken as string,
+  };
 }
 
-async function addMember(groupId: string, displayName: string): Promise<string> {
-  const { json } = await call("POST", `/api/groups/${groupId}/members`, { body: { displayName } });
+async function addMember(groupId: string, displayName: string, token: string): Promise<string> {
+  const { json } = await call("POST", `/api/groups/${groupId}/members`, { body: { displayName }, token });
   return (json.member as Json).id as string;
 }
 
@@ -110,22 +118,26 @@ describe("GET /api/auth/groups", () => {
 
 describe("claim flow", () => {
   let groupId: string;
+  let groupToken: string;
   let placeholderId: string;
   const sub = "000123.claim.0001";
   let bearer: string;
 
   beforeEach(async () => {
-    ({ groupId } = await makeGroup());
-    placeholderId = await addMember(groupId, "Priya");
+    ({ groupId, token: groupToken } = await makeGroup());
+    placeholderId = await addMember(groupId, "Priya", groupToken);
     bearer = await token(sub);
   });
 
   it("lists placeholders, claims one, and reflects it in /api/auth/groups", async () => {
-    const claimable = await call("GET", `/api/groups/${groupId}/claimable`, { bearer });
+    const claimable = await call("GET", `/api/groups/${groupId}/claimable`, { bearer, token: groupToken });
     expect(claimable.status).toBe(200);
     expect((claimable.json.members as Json[]).map((m) => m.id)).toContain(placeholderId);
 
-    const claim = await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer });
+    const claim = await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, {
+      bearer,
+      token: groupToken,
+    });
     expect(claim.status).toBe(200);
     expect(claim.json.member).toMatchObject({ id: placeholderId, displayName: "Priya" });
 
@@ -134,14 +146,20 @@ describe("claim flow", () => {
       { groupId, memberId: placeholderId, displayName: "Priya" },
     ]);
 
-    // The claimed member is no longer a placeholder.
+    // The claimed member is no longer a placeholder. Note: no `token` needed
+    // here — the caller is now a claimed member, the Bearer-session
+    // alternate credential in `requireGroup` (`ACCESS_TOKEN_PLAN.md`).
     const after = await call("GET", `/api/groups/${groupId}/claimable`, { bearer });
     expect((after.json.members as Json[]).map((m) => m.id)).not.toContain(placeholderId);
   });
 
   it("re-claiming the same member with the same identity is idempotent", async () => {
-    await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer });
-    const again = await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer });
+    await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer, token: groupToken });
+    const again = await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, {
+      bearer,
+      // No token this time — already a claimed member of this group, so the
+      // Bearer-session alternate credential covers it.
+    });
     expect(again.status).toBe(200);
   });
 
@@ -149,27 +167,29 @@ describe("claim flow", () => {
     const { status, json } = await call(
       "POST",
       `/api/groups/${groupId}/members/ghost/claim`,
-      { bearer },
+      { bearer, token: groupToken },
     );
     expect(status).toBe(404);
     expect((json.error as Json).code).toBe("UNKNOWN_MEMBER");
   });
 
   it("409s a claim on a member another identity already holds", async () => {
-    await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer });
+    await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer, token: groupToken });
     const other = await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, {
       bearer: await token("000123.other.0002"),
+      token: groupToken,
     });
     expect(other.status).toBe(409);
     expect((other.json.error as Json).code).toBe("ALREADY_CLAIMED");
   });
 
   it("409s when the identity already holds another membership in the group", async () => {
-    const secondPlaceholder = await addMember(groupId, "Priya's phone");
-    await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer });
+    const secondPlaceholder = await addMember(groupId, "Priya's phone", groupToken);
+    await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer, token: groupToken });
     const dup = await call(
       "POST",
       `/api/groups/${groupId}/members/${secondPlaceholder}/claim`,
+      // No token — already claimed in this group via `placeholderId`.
       { bearer },
     );
     expect(dup.status).toBe(409);
@@ -179,6 +199,13 @@ describe("claim flow", () => {
   it("404s claimable / claim for an unknown group", async () => {
     expect((await call("GET", "/api/groups/nope12345/claimable", { bearer })).status).toBe(404);
     expect((await call("POST", "/api/groups/nope12345/members/x/claim", { bearer })).status).toBe(404);
+  });
+
+  it("403s claimable / claim on a real group with no token from an unclaimed identity", async () => {
+    expect((await call("GET", `/api/groups/${groupId}/claimable`, { bearer })).status).toBe(403);
+    expect(
+      (await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer })).status,
+    ).toBe(403);
   });
 });
 
@@ -200,11 +227,13 @@ describe("GET /api/auth/people (cross-group settling)", () => {
       body: { name, currency: "INR", creatorDisplayName: "x" },
     });
     const groupId = json.groupId as string;
-    const a = await addMember(groupId, "Alice");
-    const b = await addMember(groupId, "Bob");
-    await call("POST", `/api/groups/${groupId}/members/${a}/claim`, { bearer: aliceBearer });
-    await call("POST", `/api/groups/${groupId}/members/${b}/claim`, { bearer: bobBearer });
+    const groupToken = (json.group as Json).accessToken as string;
+    const a = await addMember(groupId, "Alice", groupToken);
+    const b = await addMember(groupId, "Bob", groupToken);
+    await call("POST", `/api/groups/${groupId}/members/${a}/claim`, { bearer: aliceBearer, token: groupToken });
+    await call("POST", `/api/groups/${groupId}/members/${b}/claim`, { bearer: bobBearer, token: groupToken });
     await call("POST", `/api/groups/${groupId}/expenses`, {
+      token: groupToken,
       body: {
         payerId: a, amountMinor: debt * 2, description: "e", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: debt }, { memberId: b, amountMinor: debt }],
@@ -243,11 +272,13 @@ describe("GET /api/auth/people (cross-group settling)", () => {
       body: { name: "Flat", currency: "INR", creatorDisplayName: "x" },
     });
     const g2 = json.groupId as string;
-    const a2 = await addMember(g2, "Alice");
-    const b2 = await addMember(g2, "Bob");
-    await call("POST", `/api/groups/${g2}/members/${a2}/claim`, { bearer: aliceBearer });
-    await call("POST", `/api/groups/${g2}/members/${b2}/claim`, { bearer: bobBearer });
+    const g2Token = (json.group as Json).accessToken as string;
+    const a2 = await addMember(g2, "Alice", g2Token);
+    const b2 = await addMember(g2, "Bob", g2Token);
+    await call("POST", `/api/groups/${g2}/members/${a2}/claim`, { bearer: aliceBearer, token: g2Token });
+    await call("POST", `/api/groups/${g2}/members/${b2}/claim`, { bearer: bobBearer, token: g2Token });
     await call("POST", `/api/groups/${g2}/expenses`, {
+      token: g2Token,
       body: {
         payerId: b2, amountMinor: 400, description: "e", date: "2026-01-02T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a2, amountMinor: 200 }, { memberId: b2, amountMinor: 200 }],
@@ -266,10 +297,12 @@ describe("GET /api/auth/people (cross-group settling)", () => {
       body: { name: "G", currency: "INR", creatorDisplayName: "x" },
     });
     const groupId = json.groupId as string;
-    const a = await addMember(groupId, "Alice");
-    const cara = await addMember(groupId, "Cara");
-    await call("POST", `/api/groups/${groupId}/members/${a}/claim`, { bearer: aliceBearer });
+    const groupToken = (json.group as Json).accessToken as string;
+    const a = await addMember(groupId, "Alice", groupToken);
+    const cara = await addMember(groupId, "Cara", groupToken);
+    await call("POST", `/api/groups/${groupId}/members/${a}/claim`, { bearer: aliceBearer, token: groupToken });
     await call("POST", `/api/groups/${groupId}/expenses`, {
+      token: groupToken,
       body: {
         payerId: a, amountMinor: 200, description: "e", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: 100 }, { memberId: cara, amountMinor: 100 }],
@@ -280,9 +313,9 @@ describe("GET /api/auth/people (cross-group settling)", () => {
   });
 
   it("is empty for someone with no linked co-members", async () => {
-    const groupId = (await makeGroup()).groupId;
-    const a = await addMember(groupId, "Solo");
-    await call("POST", `/api/groups/${groupId}/members/${a}/claim`, { bearer: aliceBearer });
+    const { groupId, token: groupToken } = await makeGroup();
+    const a = await addMember(groupId, "Solo", groupToken);
+    await call("POST", `/api/groups/${groupId}/members/${a}/claim`, { bearer: aliceBearer, token: groupToken });
     expect((await call("GET", "/api/auth/people", { bearer: aliceBearer })).json.people).toEqual([]);
   });
 
@@ -293,11 +326,11 @@ describe("GET /api/auth/people (cross-group settling)", () => {
 
 describe("DELETE /api/auth/account", () => {
   it("releases every claimed membership and empties the index", async () => {
-    const { groupId } = await makeGroup();
-    const placeholderId = await addMember(groupId, "Priya");
+    const { groupId, token: groupToken } = await makeGroup();
+    const placeholderId = await addMember(groupId, "Priya", groupToken);
     const bearer = await token("000123.delete.0001");
 
-    await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer });
+    await call("POST", `/api/groups/${groupId}/members/${placeholderId}/claim`, { bearer, token: groupToken });
     expect((await call("GET", "/api/auth/groups", { bearer })).json.groups).toHaveLength(1);
 
     const del = await call("DELETE", "/api/auth/account", { bearer });
@@ -305,8 +338,9 @@ describe("DELETE /api/auth/account", () => {
 
     // Index gone…
     expect((await call("GET", "/api/auth/groups", { bearer })).json.groups).toEqual([]);
-    // …and the membership is a claimable placeholder again.
-    const claimable = await call("GET", `/api/groups/${groupId}/claimable`, { bearer });
+    // …and the membership is a claimable placeholder again — no longer a
+    // claimed member, so the token is needed again to see it.
+    const claimable = await call("GET", `/api/groups/${groupId}/claimable`, { bearer, token: groupToken });
     expect((claimable.json.members as Json[]).map((m) => m.id)).toContain(placeholderId);
   });
 });

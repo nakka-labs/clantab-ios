@@ -40,18 +40,37 @@ Revised effort estimate after reading the actual code: **~1.5-2.5 days**
 
 ## Part 1 — Server: separate the token from the groupId
 
-1. **[CLI]** `initGroup` generates a random `access_token` (e.g. 22-char
-   base62) and stores it in `group_meta` alongside creation.
-2. **[CLI]** `requireGroup` accepts the token (query param or header)
-   alongside `groupId`; compares against the stored value. `groupId` alone,
-   with no token or the wrong one, → 403. (Existing Bearer-session auth for
-   claimed members stays a valid alternate path — this is additive, not a
-   replacement.)
-3. **[CLI]** `AppConfig.groupShareURL` / capability-link generation
-   includes the token in the generated link.
-4. **[CLI]** A "Regenerate Link" action: worker endpoint rotates
-   `access_token` in `group_meta`; every previously shared link/code stops
-   working immediately.
+**Done 2026-09-05.** Confirmed with the user before building: query-param
+transport (`?token=`) and the Bearer-fallback for claimed members, both as
+described below. Worker tests green (153/153, up from 145 — `group.test.ts`
+gets a dedicated "access token" suite, `routes.test.ts` and
+`auth-routes.test.ts` updated throughout to carry the token now that every
+group they create has one). `wrangler deploy --dry-run` validates.
+
+1. [x] **[CLI]** `initGroup` generates a random `access_token` (22 chars over
+   the existing 64-symbol id alphabet, ~132 bits — `newAccessToken()`,
+   `lib/ids.ts`) and stores it in `group_meta` alongside creation
+   (`META_KEYS.accessToken`). Returned from both `initGroup` and `getState`
+   via `GroupSummary.accessToken` — nullable, `null` only for a group that
+   predates this feature (see Part 4).
+2. [x] **[CLI]** `requireGroup` accepts the token as a `?token=` query param
+   alongside `groupId`; compares against `GroupDO.currentAccessToken()`.
+   `groupId` alone, with no token or the wrong one, → 403 `FORBIDDEN` — but
+   *only once a group actually has a stored token*; a group with none
+   (pre-existing) stays open, unchanged. Existing Bearer-session auth is a
+   valid alternate path for a **claimed member**: `optionalSessionSub` +
+   `GroupDO.hasClaimedMember(sub)` — additive, not a replacement, and the
+   reason a second device that only ever synced via `GET /api/auth/groups`
+   (never saw the original link/code) still works.
+3. [ ] **[CLI]** `AppConfig.groupShareURL` / capability-link generation
+   includes the token in the generated link. **Deferred to Part 2 (iOS).**
+4. [x] **[CLI]** A "Regenerate Link" action: `POST
+   /api/groups/:groupId/regenerate-link` (`requireGroup`-gated, same flat
+   trust model as every other group route — no special "owner" tier) calls
+   `GroupDO.regenerateAccessToken()`, which rotates `access_token` in
+   `group_meta` — every previously shared link/code stops working
+   immediately. Also the lazy-mint path for Part 4's backward-compatible
+   groups. iOS UI for this is Part 2.
 
 ## Part 2 — iOS: carry + regenerate
 
@@ -76,13 +95,13 @@ Revised effort estimate after reading the actual code: **~1.5-2.5 days**
 
 ## Part 4 — Migration for existing groups
 
-1. **[OWNER]** Pick one — trivial either way given today's near-zero real
-   user count:
-   - Backward-compatible: a missing `access_token` in `group_meta` means
-     "open access" (today's behavior) until the group owner visits
-     `GroupSettingsView` once, which lazily mints one; or
-   - A one-time deploy-time pass that mints tokens for every existing group
-     up front.
+1. [x] **[OWNER → decided 2026-09-05]** Backward-compatible, per the plan's
+   own framing ("trivial either way given today's near-zero real user
+   count") — implemented as part of Part 1, not a separate step: a missing
+   `access_token` in `group_meta` means "open access" (today's behavior,
+   `requireGroup` skips the check entirely) until the group visits
+   "Regenerate Link" once, which lazily mints one via the same
+   `regenerateAccessToken()` call. No deploy-time backfill script.
 
 ## Explicitly not doing here
 

@@ -259,4 +259,55 @@ describe("GroupDO", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("SPLIT_MISMATCH");
   });
+
+  describe("access token (ACCESS_TOKEN_PLAN.md)", () => {
+    it("initGroup mints a token, returned from both initGroup and getState", async () => {
+      const g = group("g-token-init");
+      const { group: created } = await g.initGroup("Trip", "USD", "Ana", "TOK234");
+      expect(created.accessToken).toMatch(/^[0-9A-Za-z_-]{22}$/);
+      expect(await g.currentAccessToken()).toBe(created.accessToken);
+
+      const state = await g.getState();
+      expect(state.group.accessToken).toBe(created.accessToken);
+    });
+
+    it("regenerateAccessToken replaces the token", async () => {
+      const g = group("g-token-regen");
+      const { group: created } = await g.initGroup("Trip", "USD", "Ana", "RGN234");
+      const { accessToken: fresh } = await g.regenerateAccessToken();
+      expect(fresh).not.toBe(created.accessToken);
+      expect(await g.currentAccessToken()).toBe(fresh);
+    });
+
+    it("currentAccessToken is null for a group predating this feature, and regenerateAccessToken lazy-mints one", async () => {
+      const g = group("g-token-legacy");
+      await g.initGroup("Trip", "USD", "Ana", "LEG234");
+      // Simulate a group created before ACCESS_TOKEN_PLAN.md shipped — no
+      // `access_token` row at all (`initGroup` always writes one now).
+      await runInDurableObject(g, (_instance, state) => {
+        state.storage.sql.exec("DELETE FROM group_meta WHERE key = 'access_token'");
+      });
+
+      expect(await g.currentAccessToken()).toBeNull();
+      const state = await g.getState();
+      expect(state.group.accessToken).toBeNull();
+
+      const { accessToken: minted } = await g.regenerateAccessToken();
+      expect(minted).toMatch(/^[0-9A-Za-z_-]{22}$/);
+      expect(await g.currentAccessToken()).toBe(minted);
+    });
+
+    it("hasClaimedMember reflects claim() / unclaim()", async () => {
+      const g = group("g-token-claimed");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "HCM234");
+      expect(await g.hasClaimedMember("sub-a")).toBe(false);
+
+      await g.claim(ana.id, "sub-a");
+      expect(await g.hasClaimedMember("sub-a")).toBe(true);
+      expect(await g.hasClaimedMember("sub-someone-else")).toBe(false);
+
+      await g.unclaim(ana.id, "sub-a");
+      expect(await g.hasClaimedMember("sub-a")).toBe(false);
+    });
+  });
 });

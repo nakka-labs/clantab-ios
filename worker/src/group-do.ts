@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { computeBalances } from "./lib/balances.ts";
-import { newMemberId, newRecordId } from "./lib/ids.ts";
+import { newAccessToken, newMemberId, newRecordId } from "./lib/ids.ts";
 import { simplify } from "./lib/simplify.ts";
 import { type Result, fail, ok } from "./lib/result.ts";
 import { GROUP_SCHEMA, META_KEYS, SCHEMA_VERSION } from "./lib/schema.ts";
@@ -170,14 +170,16 @@ export class GroupDO extends DurableObject {
     const now = Date.now();
     const createdAt = isoSeconds(now);
 
+    const accessToken = newAccessToken();
     this.setMeta(META_KEYS.name, name);
     this.setMeta(META_KEYS.currency, currency);
     this.setMeta(META_KEYS.joinCode, joinCode);
     this.setMeta(META_KEYS.createdAt, createdAt);
     this.setMeta(META_KEYS.schemaVersion, SCHEMA_VERSION);
+    this.setMeta(META_KEYS.accessToken, accessToken);
 
     const member = this.insertMember(creatorDisplayName, now);
-    return { member, group: { name, currency, createdAt, joinCode } };
+    return { member, group: { name, currency, createdAt, joinCode, accessToken } };
   }
 
   async addMember(displayName: string): Promise<{ member: Member }> {
@@ -240,7 +242,38 @@ export class GroupDO extends DurableObject {
       currency: this.requireMeta(META_KEYS.currency),
       createdAt: this.requireMeta(META_KEYS.createdAt),
       joinCode: this.requireMeta(META_KEYS.joinCode),
+      accessToken: this.meta(META_KEYS.accessToken),
     };
+  }
+
+  // --- access token (ACCESS_TOKEN_PLAN.md) --------------------------------
+
+  /** The current `access_token`, or `null` for a group created before this
+   * feature shipped and never regenerated since. `requireGroup` in
+   * `index.ts` treats `null` as "open access" — unchanged pre-existing
+   * behavior, not a bypass. */
+  async currentAccessToken(): Promise<string | null> {
+    return this.meta(META_KEYS.accessToken);
+  }
+
+  /** Mint a fresh token, overwriting any existing one — every previously
+   * shared link/code stops working immediately. Also the lazy-mint path for
+   * a pre-existing group that never had one. */
+  async regenerateAccessToken(): Promise<{ accessToken: string }> {
+    const accessToken = newAccessToken();
+    this.setMeta(META_KEYS.accessToken, accessToken);
+    return { accessToken };
+  }
+
+  /** Whether `sub` (the composite `"<provider>:<sub>"` identity string) has a
+   * claimed member in this group — the Bearer-session alternate credential
+   * for a device that never saw the link/code itself (e.g. synced only via
+   * `GET /api/auth/groups`). */
+  async hasClaimedMember(sub: string): Promise<boolean> {
+    const rows = this.sql
+      .exec<{ id: string }>("SELECT id FROM members WHERE identity_sub = ? LIMIT 1", sub)
+      .toArray();
+    return rows.length > 0;
   }
 
   // --- accounts / claim flow (ACCOUNTS_DESIGN.md §6) ----------------------

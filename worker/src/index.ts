@@ -7,6 +7,7 @@ import { b64urlEncode } from "./lib/base64url.ts";
 import {
   BadRequestError,
   BareNotFoundError,
+  ForbiddenError,
   GroupNotFoundError,
   HttpError,
   RateLimitedError,
@@ -72,6 +73,7 @@ const ROUTES: Route[] = [
   route("DELETE", "/api/groups/:groupId/members/:memberId", handleRemoveMember),
   route("GET", "/api/groups/:groupId", handleGetState),
   route("PATCH", "/api/groups/:groupId", handleUpdateGroup),
+  route("POST", "/api/groups/:groupId/regenerate-link", handleRegenerateLink),
   route("POST", "/api/groups/:groupId/expenses", handleAddExpense),
   route("PUT", "/api/groups/:groupId/expenses/:expenseId", handleUpdateExpense),
   route("DELETE", "/api/groups/:groupId/expenses/:expenseId", handleDeleteExpense),
@@ -156,20 +158,20 @@ async function handleResolveJoinCode(request: Request, env: Env, params: Params)
 }
 
 async function handleJoinGroup(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+  const group = await requireGroup(request, env, params.groupId ?? "");
   const body = await readJsonObject(request);
   rejectUnknownKeys(body, ["displayName"]);
   const { member } = await group.addMember(requireString(body, "displayName"));
   return json(201, { member });
 }
 
-async function handleGetState(_request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+async function handleGetState(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
   return json(200, await group.getState());
 }
 
 async function handleUpdateGroup(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+  const group = await requireGroup(request, env, params.groupId ?? "");
   const body = await readJsonObject(request);
   rejectUnknownKeys(body, ["name", "currency"]);
   const name = optionalString(body, "name");
@@ -180,16 +182,28 @@ async function handleUpdateGroup(request: Request, env: Env, params: Params): Pr
   return json(200, await group.updateGroup({ name, currency }));
 }
 
+/**
+ * Rotate the group's `access_token` (`ACCESS_TOKEN_PLAN.md`) — every
+ * previously shared link/code stops working immediately. No special
+ * "owner" tier: same flat trust model as every other group-data route
+ * (`DESIGN.md` §8) — whoever currently has valid access can regenerate it.
+ * Also the lazy-mint path for a group that predates this feature.
+ */
+async function handleRegenerateLink(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  return json(200, await group.regenerateAccessToken());
+}
+
 async function handleRenameMember(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+  const group = await requireGroup(request, env, params.groupId ?? "");
   const body = await readJsonObject(request);
   rejectUnknownKeys(body, ["displayName"]);
   const result = await group.renameMember(params.memberId ?? "", requireString(body, "displayName"));
   return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
 }
 
-async function handleRemoveMember(_request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+async function handleRemoveMember(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
   const result = await group.removeMember(params.memberId ?? "");
   return result.ok ? new Response(null, { status: 204 }) : domainErrorResponse(result.error);
 }
@@ -254,21 +268,21 @@ function domainErrorResponse(error: { code: string; message: string }): Response
 }
 
 async function handleAddExpense(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+  const group = await requireGroup(request, env, params.groupId ?? "");
   const req = parseExpenseBody(await readJsonObject(request), true);
   const result = await group.addExpense(req);
   return result.ok ? json(201, result.value) : domainErrorResponse(result.error);
 }
 
 async function handleUpdateExpense(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+  const group = await requireGroup(request, env, params.groupId ?? "");
   const req = parseExpenseBody(await readJsonObject(request), false);
   const result = await group.updateExpense(params.expenseId ?? "", req);
   return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
 }
 
-async function handleDeleteExpense(_request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+async function handleDeleteExpense(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
   await group.deleteExpense(params.expenseId ?? "");
   return new Response(null, { status: 204 });
 }
@@ -323,21 +337,21 @@ function handleRoot(): Promise<Response> {
 }
 
 async function handleAddSettlement(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+  const group = await requireGroup(request, env, params.groupId ?? "");
   const req = parseSettlementBody(await readJsonObject(request), true);
   const result = await group.addSettlement(req);
   return result.ok ? json(201, result.value) : domainErrorResponse(result.error);
 }
 
 async function handleUpdateSettlement(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+  const group = await requireGroup(request, env, params.groupId ?? "");
   const req = parseSettlementBody(await readJsonObject(request), false);
   const result = await group.updateSettlement(params.settlementId ?? "", req);
   return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
 }
 
-async function handleDeleteSettlement(_request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(env, params.groupId ?? "");
+async function handleDeleteSettlement(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
   await group.deleteSettlement(params.settlementId ?? "");
   return new Response(null, { status: 204 });
 }
@@ -536,14 +550,14 @@ async function handleAuthDeleteAccount(request: Request, env: Env): Promise<Resp
 
 async function handleClaimable(request: Request, env: Env, params: Params): Promise<Response> {
   await requireSession(request, env);
-  const group = await requireGroup(env, params.groupId ?? "");
+  const group = await requireGroup(request, env, params.groupId ?? "");
   return json(200, await group.claimable());
 }
 
 async function handleClaim(request: Request, env: Env, params: Params): Promise<Response> {
   const sub = await requireSession(request, env);
   const groupId = params.groupId ?? "";
-  const group = await requireGroup(env, groupId);
+  const group = await requireGroup(request, env, groupId);
 
   const result = await group.claim(params.memberId ?? "", sub);
   if (!result.ok) {
@@ -579,10 +593,44 @@ async function requireSession(request: Request, env: Env): Promise<string> {
   }
 }
 
-async function requireGroup(env: Env, groupId: string) {
+/**
+ * `groupId` possession is necessary but no longer always sufficient
+ * (`ACCESS_TOKEN_PLAN.md`): once a group has an `access_token`, a request
+ * also needs either a matching `?token=` or a valid session Bearer token for
+ * an identity already claimed in that group (the alternate path for a device
+ * that only ever synced via `GET /api/auth/groups`, never saw the original
+ * link/code). A group created before this feature shipped has no stored
+ * token and stays open, unchanged.
+ */
+async function requireGroup(request: Request, env: Env, groupId: string) {
   const stub = env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId));
   if (!(await stub.exists())) throw new GroupNotFoundError();
+
+  const required = await stub.currentAccessToken();
+  if (required !== null) {
+    const token = new URL(request.url).searchParams.get("token");
+    const tokenMatches = token !== null && token === required;
+    if (!tokenMatches) {
+      const sub = await optionalSessionSub(request, env);
+      const memberMatches = sub !== undefined && (await stub.hasClaimedMember(sub));
+      if (!memberMatches) throw new ForbiddenError();
+    }
+  }
   return stub;
+}
+
+/** Best-effort session check for a route where a Bearer token is an
+ * *optional* alternate credential, not a requirement — unlike
+ * `requireSession`, a missing or invalid token here is not an error, just
+ * "no identity to check." */
+async function optionalSessionSub(request: Request, env: Env): Promise<string | undefined> {
+  if (request.headers.get("Authorization") === null) return undefined;
+  try {
+    const { sub } = await verifySession(bearerToken(request), env.SESSION_SIGNING_KEY);
+    return sub;
+  } catch {
+    return undefined;
+  }
 }
 
 function json(status: number, data: unknown): Response {

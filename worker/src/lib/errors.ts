@@ -19,6 +19,19 @@ export class GroupNotFoundError extends HttpError {
   }
 }
 
+/**
+ * A group has an `access_token` (`ACCESS_TOKEN_PLAN.md`) but the request
+ * carried neither a matching `?token=` nor a session Bearer token for an
+ * identity already claimed in that group → 403. A group with no stored
+ * token at all (created before this feature) never throws this — `groupId`
+ * possession alone still suffices there, unchanged.
+ */
+export class ForbiddenError extends HttpError {
+  constructor() {
+    super(403, "FORBIDDEN", "This link is no longer valid. Ask for a fresh invite.");
+  }
+}
+
 /** Registry lookup rate limit tripped (`DESIGN.md` §8) → 429. */
 export class RateLimitedError extends HttpError {
   constructor() {

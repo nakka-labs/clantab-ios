@@ -31,6 +31,14 @@ export function newJoinCode(): string {
   return randomString(JOIN_CODE_ALPHABET, 6);
 }
 
+/** 22 chars over 64 symbols ≈ 132 bits — the rotatable capability-link
+ * credential (`ACCESS_TOKEN_PLAN.md`), deliberately higher-entropy than
+ * `groupId` itself since unlike `groupId` this is *meant* to be revoked and
+ * reissued, never guessed. */
+export function newAccessToken(): string {
+  return randomString(GROUP_ID_ALPHABET, 22);
+}
+
 /** Server-assigned member id. Not user-facing; just needs to be unique per group. */
 export function newMemberId(): string {
   return randomString(GROUP_ID_ALPHABET, 12);

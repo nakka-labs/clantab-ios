@@ -16,12 +16,20 @@ export type { Balance, Expense, Member, Settlement, SimplifiedSettlement, SplitT
  * The subset of a group returned alongside its state. `joinCode` is included per
  * the decision recorded in `DESIGN.md` §12 (returned from `GET /api/groups/:groupId`
  * so it can be re-shared, not only shown once at creation).
+ *
+ * `accessToken` (`ACCESS_TOKEN_PLAN.md`) is likewise re-shareable, and for the
+ * same reason: whoever's asking already holds a valid credential for this
+ * group, so returning the *current* one exposes nothing they don't already
+ * have. `null` only for a group created before this feature shipped and
+ * never regenerated since — `requireGroup` treats that as open access, same
+ * as before.
  */
 export interface GroupSummary {
   name: string;
   currency: string;
   createdAt: string; // ISO 8601, seconds precision
   joinCode: string;
+  accessToken: string | null;
 }
 
 // POST /api/groups
