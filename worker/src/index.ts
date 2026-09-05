@@ -2,6 +2,7 @@ import { GroupDO } from "./group-do.ts";
 import { RegistryDO } from "./registry-do.ts";
 import { UserDO } from "./user-do.ts";
 import { AppleAuthError, verifyAppleIdentityToken } from "./lib/apple-auth.ts";
+import { GoogleAuthError, verifyGoogleIdentityToken } from "./lib/google-auth.ts";
 import { exchangeAuthorizationCode, revokeToken, siwaConfigFromEnv } from "./lib/apple-oauth.ts";
 import { b64urlEncode } from "./lib/base64url.ts";
 import {
@@ -37,6 +38,9 @@ interface Env {
   SESSION_SIGNING_KEY: string;
   /** The `aud` an Apple identity token must carry — the app's bundle id. */
   APPLE_AUDIENCE: string;
+  /** The `aud` a Google identity token must carry — the iOS OAuth client id
+   * from Google Cloud Console (`MANDATORY_LOGIN_PLAN.md` Part 1). */
+  GOOGLE_AUDIENCE: string;
   /** Sign in with Apple OAuth secrets, for token revocation on account deletion
    * (`ACCOUNTS_DESIGN.md` §11). All four or none — revocation is a no-op until
    * they're set. */
@@ -72,6 +76,7 @@ const ROUTES: Route[] = [
   route("GET", "/api/groups/:groupId/claimable", handleClaimable),
   route("POST", "/api/groups/:groupId/members/:memberId/claim", handleClaim),
   route("POST", "/api/auth/apple", handleAuthApple),
+  route("POST", "/api/auth/google", handleAuthGoogle),
   route("POST", "/api/auth/refresh", handleAuthRefresh),
   route("GET", "/api/auth/groups", handleAuthGroups),
   route("GET", "/api/auth/people", handleAuthPeople),
@@ -334,6 +339,13 @@ async function handleDeleteSettlement(_request: Request, env: Env, params: Param
 
 // --- accounts / auth (ACCOUNTS_DESIGN.md §5–§7, §11) --------------------
 
+// Every identity is addressed everywhere (session tokens, `UserDO.idFromName`,
+// `GroupDO.members.identity_sub`) by a provider-prefixed composite string —
+// `"apple:" + sub` / `"google:" + sub` — never the bare provider `sub`. Two
+// providers' subject ids are independent opaque strings with no cross-provider
+// uniqueness guarantee; prefixing is what keeps an Apple and a Google identity
+// from ever colliding (`MANDATORY_LOGIN_PLAN.md` Part 2).
+
 async function handleAuthApple(request: Request, env: Env): Promise<Response> {
   const body = await readJsonObject(request);
   rejectUnknownKeys(body, ["identityToken", "authorizationCode"]);
@@ -349,13 +361,16 @@ async function handleAuthApple(request: Request, env: Env): Promise<Response> {
     }
     throw err;
   }
+  const identity = `apple:${sub}`;
 
-  const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
-  await user.ensureExists(sub);
+  const user = env.USER_DO.get(env.USER_DO.idFromName(identity));
+  await user.ensureExists(identity);
 
   // If the client sent an authorization code and the SIWA secrets are set,
   // trade it for a refresh token and stash it for revocation on deletion
   // (`ACCOUNTS_DESIGN.md` §11). Best-effort — a failure here never blocks sign-in.
+  // Apple-only: Google's OAuth flow here doesn't request offline access, so
+  // there's no equivalent refresh token to store for a Google identity.
   const siwa = siwaConfigFromEnv(env);
   if (authorizationCode !== undefined && siwa !== null) {
     try {
@@ -367,7 +382,33 @@ async function handleAuthApple(request: Request, env: Env): Promise<Response> {
   }
 
   const [{ token, expiresAt }, { groups }] = await Promise.all([
-    mintSession(sub, env.SESSION_SIGNING_KEY),
+    mintSession(identity, env.SESSION_SIGNING_KEY),
+    user.listGroups(),
+  ]);
+  return json(200, { sessionToken: token, expiresAt, groups });
+}
+
+async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["identityToken"]);
+  const identityToken = requireString(body, "identityToken");
+
+  let sub: string;
+  try {
+    ({ sub } = await verifyGoogleIdentityToken(identityToken, { audience: env.GOOGLE_AUDIENCE }));
+  } catch (err) {
+    if (err instanceof GoogleAuthError) {
+      throw new UnauthorizedError("INVALID_GOOGLE_TOKEN", "That Google sign-in could not be verified.");
+    }
+    throw err;
+  }
+  const identity = `google:${sub}`;
+
+  const user = env.USER_DO.get(env.USER_DO.idFromName(identity));
+  await user.ensureExists(identity);
+
+  const [{ token, expiresAt }, { groups }] = await Promise.all([
+    mintSession(identity, env.SESSION_SIGNING_KEY),
     user.listGroups(),
   ]);
   return json(200, { sessionToken: token, expiresAt, groups });
@@ -457,7 +498,7 @@ async function handleAuthPeople(request: Request, env: Env): Promise<Response> {
 }
 
 /** A stable, non-reversible client-facing id for a person — never expose the
- * Apple `sub`. */
+ * underlying identity string. */
 async function opaquePersonId(sub: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`clantab-person:${sub}`));
   return b64urlEncode(new Uint8Array(digest).slice(0, 9));
@@ -525,7 +566,8 @@ function bearerToken(request: Request): string {
   return match[1]!;
 }
 
-/** Verify the session token on an identity-scoped route → the Apple `sub`. */
+/** Verify the session token on an identity-scoped route → the composite
+ * `"<provider>:<sub>"` identity string (`MANDATORY_LOGIN_PLAN.md` Part 2). */
 async function requireSession(request: Request, env: Env): Promise<string> {
   try {
     const { sub } = await verifySession(bearerToken(request), env.SESSION_SIGNING_KEY);

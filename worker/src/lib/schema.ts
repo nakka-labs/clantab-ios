@@ -55,9 +55,11 @@ CREATE TABLE IF NOT EXISTS join_codes (
 `;
 
 /**
- * `UserDO` — one per Apple identity (`idFromName(appleSub)`). A thin per-identity
- * index of "which groups, as which member" (`ACCOUNTS_DESIGN.md` §1). At most one
- * membership per group per identity (PK on `group_id`).
+ * `UserDO` — one per signed-in identity, addressed by
+ * `idFromName("<provider>:<sub>")` (`apple:…` or `google:…`,
+ * `MANDATORY_LOGIN_PLAN.md` Part 2). A thin per-identity index of "which
+ * groups, as which member" (`ACCOUNTS_DESIGN.md` §1). At most one membership
+ * per group per identity (PK on `group_id`).
  */
 export const USER_SCHEMA = `
 CREATE TABLE IF NOT EXISTS user_meta (
@@ -74,12 +76,15 @@ CREATE TABLE IF NOT EXISTS memberships (
 `;
 
 export const USER_META_KEYS = {
-  appleSub: "apple_sub",
+  /** The composite `"<provider>:<sub>"` identity string this DO was created
+   * for — the same value `idFromName` addressed it by. */
+  identity: "identity",
   createdAt: "created_at",
   schemaVersion: "schema_version",
   /** Apple refresh token, from the sign-in `authorizationCode` exchange — used
    * to revoke on account deletion (Apple Guideline 5.1.1(v)). Only present when
-   * the `SIWA_*` config is configured. */
+   * the identity is Apple's and the `SIWA_*` config is configured — Google's
+   * flow requests no offline access, so this stays unset for Google identities. */
   appleRefreshToken: "apple_refresh_token",
 } as const;
 

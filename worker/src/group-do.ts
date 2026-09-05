@@ -258,8 +258,10 @@ export class GroupDO extends DurableObject {
     return { members: rows.map((r) => ({ id: r.id, displayName: r.display_name })) };
   }
 
-  /** Link a placeholder member to an Apple identity. Idempotent: re-claiming
-   * the same member with the same `sub` is a no-op success. */
+  /** Link a placeholder member to a signed-in identity — `sub` is the
+   * composite `"<provider>:<sub>"` string (`MANDATORY_LOGIN_PLAN.md` Part 2),
+   * not a bare provider subject id. Idempotent: re-claiming the same member
+   * with the same `sub` is a no-op success. */
   async claim(memberId: string, sub: string): Promise<Result<{ member: Member }>> {
     const rows = this.sql
       .exec<MemberRow>("SELECT id, display_name, identity_sub FROM members WHERE id = ?", memberId)

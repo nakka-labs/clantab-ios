@@ -54,6 +54,21 @@ describe("POST /api/auth/apple", () => {
   });
 });
 
+describe("POST /api/auth/google", () => {
+  it("rejects an unverifiable identity token with INVALID_GOOGLE_TOKEN", async () => {
+    const { status, json } = await call("POST", "/api/auth/google", {
+      body: { identityToken: "not.a.real-token" },
+    });
+    expect(status).toBe(401);
+    expect((json.error as Json).code).toBe("INVALID_GOOGLE_TOKEN");
+  });
+
+  it("rejects a missing identityToken with 400", async () => {
+    const { status } = await call("POST", "/api/auth/google", { body: {} });
+    expect(status).toBe(400);
+  });
+});
+
 describe("Bearer-gated routes reject a missing / bad token", () => {
   it.each([
     ["POST", "/api/auth/refresh"],

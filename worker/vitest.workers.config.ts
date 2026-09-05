@@ -9,6 +9,7 @@ export default defineWorkersProject({
       "test/routes.test.ts",
       "test/user.test.ts",
       "test/auth.test.ts",
+      "test/google-auth.test.ts",
       "test/auth-routes.test.ts",
       "test/apple-oauth.test.ts",
     ],

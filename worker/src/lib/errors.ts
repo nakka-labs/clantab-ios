@@ -36,11 +36,12 @@ export class BadRequestError extends HttpError {
 /**
  * A missing, malformed, or expired credential on an identity-scoped route
  * (`ACCOUNTS_DESIGN.md` §4) → 401. `INVALID_APPLE_TOKEN` for `POST /api/auth/apple`,
- * `INVALID_SESSION` for every Bearer route.
+ * `INVALID_GOOGLE_TOKEN` for `POST /api/auth/google`, `INVALID_SESSION` for
+ * every Bearer route.
  */
 export class UnauthorizedError extends HttpError {
   constructor(
-    code: "INVALID_SESSION" | "INVALID_APPLE_TOKEN" = "INVALID_SESSION",
+    code: "INVALID_SESSION" | "INVALID_APPLE_TOKEN" | "INVALID_GOOGLE_TOKEN" = "INVALID_SESSION",
     message = "Your session has expired. Please sign in again.",
   ) {
     super(401, code, message);

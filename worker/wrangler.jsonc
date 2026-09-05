@@ -7,7 +7,10 @@
   "observability": { "enabled": true },
   "vars": {
     // The `aud` an Apple identity token must carry — the app's bundle id.
-    "APPLE_AUDIENCE": "com.clantab.app"
+    "APPLE_AUDIENCE": "com.clantab.app",
+    // The `aud` a Google identity token must carry — the iOS OAuth client id
+    // (`MANDATORY_LOGIN_PLAN.md` Part 1). Created 2026-09-05.
+    "GOOGLE_AUDIENCE": "785063933196-ieaukpoat5r6v5jjr65315o9rniaaahn.apps.googleusercontent.com"
     // SESSION_SIGNING_KEY is deliberately NOT here. `wrangler deploy` applies
     // `vars` and a plain var overwrites a same-named secret, so putting it here
     // clobbers the production secret on every deploy. Instead:

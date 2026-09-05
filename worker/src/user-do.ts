@@ -9,8 +9,9 @@ export interface Membership {
 }
 
 /**
- * One per Apple identity, addressed by `idFromName(appleSub)`. Holds a thin
- * index — "which groups, as which member" — and nothing else
+ * One per signed-in identity — Apple or Google — addressed by
+ * `idFromName("<provider>:<sub>")` (`MANDATORY_LOGIN_PLAN.md` Part 2). Holds a
+ * thin index — "which groups, as which member" — and nothing else
  * (`ACCOUNTS_DESIGN.md` §1). `GroupDO` is authoritative for the membership↔identity
  * link; this DO is a self-healing cache the Worker updates *after* the `GroupDO`
  * write (`ACCOUNTS_DESIGN.md` §2). A group's *contents* are never stored here —
@@ -27,12 +28,13 @@ export class UserDO extends DurableObject {
     });
   }
 
-  /** Create the identity record on first sign-in. Idempotent — safe to call on
-   * every sign-in. Returns whether this call created it. */
-  async ensureExists(appleSub: string): Promise<{ created: boolean }> {
-    if (this.meta(USER_META_KEYS.appleSub) !== null) return { created: false };
+  /** Create the identity record on first sign-in. `identity` is the composite
+   * `"<provider>:<sub>"` string this DO was addressed by. Idempotent — safe to
+   * call on every sign-in. Returns whether this call created it. */
+  async ensureExists(identity: string): Promise<{ created: boolean }> {
+    if (this.meta(USER_META_KEYS.identity) !== null) return { created: false };
     const now = Date.now();
-    this.setMeta(USER_META_KEYS.appleSub, appleSub);
+    this.setMeta(USER_META_KEYS.identity, identity);
     this.setMeta(USER_META_KEYS.createdAt, String(now));
     this.setMeta(USER_META_KEYS.schemaVersion, USER_SCHEMA_VERSION);
     return { created: true };
@@ -41,7 +43,7 @@ export class UserDO extends DurableObject {
   /** Whether this identity has ever signed in (drives whether the Worker mints a
    * fresh session vs. treats the token as stale after account deletion). */
   async exists(): Promise<boolean> {
-    return this.meta(USER_META_KEYS.appleSub) !== null;
+    return this.meta(USER_META_KEYS.identity) !== null;
   }
 
   /** Store the Apple refresh token from the sign-in code exchange, for
