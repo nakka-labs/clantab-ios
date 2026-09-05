@@ -92,12 +92,18 @@ Not a hard dependency on Phase 2 — today's Bearer+claimed-member auth
 already works — but cheapest done once Part 2.5's "Add Member by name"
 sharing story is final, so the regenerate-link UI is designed once.
 
-- [ ] **[CLI]** Parts 1-3 — server token issuance/verification (the
+- [x] **[CLI]** Parts 1-3 — server token issuance/verification (the
       `requireGroup` chokepoint in `worker/src/index.ts`, a new
       `access_token` key in `group_meta`), iOS carry + regenerate, the
-      join-code path.
-- [ ] **[OWNER]** Part 4 — pick a migration strategy for existing groups
-      (trivial either way given today's user count).
+      join-code path. **Done 2026-09-05** — see `ACCESS_TOKEN_PLAN.md` for
+      the full breakdown. Worker 145 → 153 tests, ClanTabKit 113 → 117, App
+      60 → 63, all green; `wrangler deploy --dry-run` validates. **Not yet
+      deployed** — same as the `RegistryDO`→KV change, `wrangler deploy` /
+      `make worker-deploy` is still yours to run, and the two should
+      probably go out together.
+- [x] **[OWNER → decided 2026-09-05]** Part 4 — backward-compatible: a
+      missing `access_token` means open access (today's behavior) until a
+      group's "Regenerate Link" lazily mints one — no deploy-time backfill.
 
 ## Phase 4 — Nav polish
 
