@@ -5,7 +5,7 @@ import Foundation
 @Suite("SessionStore")
 struct SessionStoreTests {
     private func session(expiresAt: Date) -> StoredSession {
-        StoredSession(token: "t.o.k", appleUserID: "000123.abc.0001", expiresAt: expiresAt)
+        StoredSession(token: "t.o.k", provider: .apple, appleUserID: "000123.abc.0001", expiresAt: expiresAt)
     }
 
     @Test("InMemorySessionStore round-trips and clears")

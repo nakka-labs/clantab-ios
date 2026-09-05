@@ -4,19 +4,31 @@ import Foundation
 /// token plus the bits the app needs to manage it. Stored in the Keychain on
 /// device — never `UserDefaults`.
 public struct StoredSession: Codable, Sendable, Equatable {
+    /// Which identity provider minted this session (`MANDATORY_LOGIN_PLAN.md`
+    /// Part 1) — Apple and Google need different launch-time handling below.
+    public enum Provider: String, Codable, Sendable, Equatable {
+        case apple
+        case google
+    }
+
     /// The session JWT. Sent as `Authorization: Bearer <token>` on identity
     /// endpoints; verified server-side with no DO round-trip.
     public let token: String
-    /// Apple's stable, app-scoped user id (`ASAuthorizationAppleIDCredential.user`).
-    /// Needed for the `getCredentialState(forUserID:)` launch check that lets
-    /// "revoke in iOS Settings" end the session with no server plumbing.
-    public let appleUserID: String
+    public let provider: Provider
+    /// Apple's stable, app-scoped user id (`ASAuthorizationAppleIDCredential.user`),
+    /// present only when `provider == .apple`. Needed for the
+    /// `getCredentialState(forUserID:)` launch check that lets "revoke in iOS
+    /// Settings" end the session with no server plumbing. Google has no
+    /// equivalent client-side revocation check — a Google session relies on
+    /// token expiry alone.
+    public let appleUserID: String?
     /// When `token` stops verifying. The server enforces this too — it's here so
     /// the app can refresh ahead of time.
     public let expiresAt: Date
 
-    public init(token: String, appleUserID: String, expiresAt: Date) {
+    public init(token: String, provider: Provider, appleUserID: String? = nil, expiresAt: Date) {
         self.token = token
+        self.provider = provider
         self.appleUserID = appleUserID
         self.expiresAt = expiresAt
     }

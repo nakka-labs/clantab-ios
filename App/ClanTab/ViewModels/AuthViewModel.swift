@@ -112,9 +112,29 @@ final class AuthViewModel {
             )
             let session = StoredSession(
                 token: response.sessionToken,
+                provider: .apple,
                 appleUserID: userID,
                 expiresAt: response.expiresAt
             )
+            sessionStore.save(session)
+            self.session = session
+            applyGroups(response.groups ?? [])
+        } catch {
+            errorMessage = Self.friendlyMessage(for: error)
+        }
+    }
+
+    /// Exchange a verified Google credential for a session
+    /// (`MANDATORY_LOGIN_PLAN.md` Part 1). No `userID` to store — Google has no
+    /// client-side revocation check equivalent to Apple's `getCredentialState`,
+    /// so a Google session relies on token expiry alone (see `handleLaunch`).
+    func signInWithGoogle(identityToken: String) async {
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+        do {
+            let response = try await client.signInWithGoogle(identityToken: identityToken)
+            let session = StoredSession(token: response.sessionToken, provider: .google, expiresAt: response.expiresAt)
             sessionStore.save(session)
             self.session = session
             applyGroups(response.groups ?? [])
@@ -218,7 +238,12 @@ final class AuthViewModel {
         session = sessionStore.load()
         guard let current = session else { return }
 
-        let standing = await credentialStanding(current.appleUserID)
+        // Google has no client-side revocation check — `.noSession` here is a
+        // harmless placeholder; `launchDecision` ignores `standing` entirely for
+        // a Google session and goes by expiry alone.
+        let standing = current.provider == .apple
+            ? await credentialStanding(current.appleUserID ?? "")
+            : .noSession
         switch Self.launchDecision(session: current, standing: standing, now: Date()) {
         case .none, .keep:
             break
@@ -238,11 +263,17 @@ final class AuthViewModel {
     nonisolated static func launchDecision(session: StoredSession?, standing: CredentialStanding, now: Date) -> LaunchDecision {
         guard let session else { return .none }
         if session.isExpired(now: now) { return .discard }
-        switch standing {
-        case .revoked, .notFound:
-            return .discard
-        case .noSession, .authorized:
+        switch session.provider {
+        case .google:
+            // No client-side revocation check for Google — expiry is the only signal.
             return session.needsRefresh(now: now) ? .refresh : .keep
+        case .apple:
+            switch standing {
+            case .revoked, .notFound:
+                return .discard
+            case .noSession, .authorized:
+                return session.needsRefresh(now: now) ? .refresh : .keep
+            }
         }
     }
 
@@ -252,6 +283,7 @@ final class AuthViewModel {
             let response = try await client.refreshSession(token: current.token)
             let updated = StoredSession(
                 token: response.sessionToken,
+                provider: current.provider,
                 appleUserID: current.appleUserID,
                 expiresAt: response.expiresAt
             )
@@ -269,9 +301,14 @@ final class AuthViewModel {
     nonisolated static func friendlyMessage(for error: Error) -> String {
         switch error as? ClanTabClientError {
         case .server(let code, let message):
-            return code == "INVALID_APPLE_TOKEN"
-                ? "That Apple sign-in couldn't be verified. Please try again."
-                : message
+            switch code {
+            case "INVALID_APPLE_TOKEN":
+                return "That Apple sign-in couldn't be verified. Please try again."
+            case "INVALID_GOOGLE_TOKEN":
+                return "That Google sign-in couldn't be verified. Please try again."
+            default:
+                return message
+            }
         case .notFound, .invalidResponse, .decodingFailed, .none:
             return "Couldn't reach ClanTab. Check your connection and try again."
         }

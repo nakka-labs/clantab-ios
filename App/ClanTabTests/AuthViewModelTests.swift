@@ -135,7 +135,7 @@ final class AuthViewModelTests: XCTestCase {
 
     @MainActor
     func testSignOutClearsTheSessionEverywhere() async {
-        let store = InMemorySessionStore(StoredSession(token: "t", appleUserID: "u", expiresAt: Date(timeIntervalSinceNow: day)))
+        let store = InMemorySessionStore(StoredSession(token: "t", provider: .apple, appleUserID: "u", expiresAt: Date(timeIntervalSinceNow: day)))
         let vm = makeVM(store: store, transport: StubTransport(statusCode: 200, json: "{}"))
 
         vm.signOut()
@@ -406,7 +406,7 @@ final class AuthViewModelTests: XCTestCase {
     private let day: TimeInterval = 24 * 60 * 60
 
     private func session(expiresIn seconds: TimeInterval, userID: String = "u") -> StoredSession {
-        StoredSession(token: "stored.tok", appleUserID: userID, expiresAt: Date(timeIntervalSinceNow: seconds))
+        StoredSession(token: "stored.tok", provider: .apple, appleUserID: userID, expiresAt: Date(timeIntervalSinceNow: seconds))
     }
 
     private func known(_ groupId: String, at date: Date) -> KnownGroup {

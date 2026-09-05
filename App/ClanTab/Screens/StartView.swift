@@ -12,11 +12,15 @@ struct StartView: View {
     var onOpenGroup: (_ groupId: String) -> Void = { _ in }
     var onRemoveGroup: (_ groupId: String) -> Void = { _ in }
     var isSignedIn: Bool = false
+    /// Which provider the current session used, for the signed-in label. `nil`
+    /// while signed out.
+    var signedInProvider: StoredSession.Provider? = nil
     var isSigningIn: Bool = false
     /// Error from exchanging the credential (network / verification), owned by
     /// `AuthViewModel`. The credential-sheet's own failures are handled locally.
     var authError: String? = nil
     var onSignIn: (_ identityToken: String, _ userID: String, _ authorizationCode: String?) -> Void = { _, _, _ in }
+    var onSignInWithGoogle: (_ identityToken: String) -> Void = { _ in }
     var onOpenSettings: () -> Void = {}
 
     @State private var sheetError: String?
@@ -96,7 +100,7 @@ struct StartView: View {
             Button(action: onOpenSettings) {
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.seal.fill")
-                    Text("Signed in with Apple")
+                    Text(signedInProvider == .google ? "Signed in with Google" : "Signed in with Apple")
                     Image(systemName: "chevron.right").font(.caption2)
                 }
                 .font(.footnote)
@@ -110,6 +114,17 @@ struct StartView: View {
                     onCredential: { token, userID, authCode in
                         sheetError = nil
                         onSignIn(token, userID, authCode)
+                    },
+                    onFailure: { sheetError = $0 }
+                )
+                .frame(height: 44)
+                .disabled(isSigningIn)
+                .opacity(isSigningIn ? 0.5 : 1)
+
+                GoogleSignInButton(
+                    onCredential: { token in
+                        sheetError = nil
+                        onSignInWithGoogle(token)
                     },
                     onFailure: { sheetError = $0 }
                 )

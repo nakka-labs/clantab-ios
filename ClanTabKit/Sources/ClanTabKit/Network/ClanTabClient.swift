@@ -112,6 +112,12 @@ public actor ClanTabClient {
         )
     }
 
+    /// Exchange a Google identity token for a session token + the identity's
+    /// group list. Called once per sign-in (`MANDATORY_LOGIN_PLAN.md` Part 1).
+    public func signInWithGoogle(identityToken: String) async throws -> SessionResponse {
+        try await post("api/auth/google", body: GoogleSignInRequest(identityToken: identityToken))
+    }
+
     /// Trade a still-valid session token for a fresh one (§3). The app calls this
     /// on launch when the current token is within ~7 days of expiry.
     public func refreshSession(token: String) async throws -> SessionResponse {

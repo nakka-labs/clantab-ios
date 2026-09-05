@@ -53,10 +53,14 @@ struct RootView: View {
                     knownGroupsRevision += 1
                 },
                 isSignedIn: auth.isSignedIn,
+                signedInProvider: auth.session?.provider,
                 isSigningIn: auth.isBusy,
                 authError: auth.errorMessage,
                 onSignIn: { identityToken, userID, authCode in
                     Task { await auth.signIn(identityToken: identityToken, userID: userID, authorizationCode: authCode) }
+                },
+                onSignInWithGoogle: { identityToken in
+                    Task { await auth.signInWithGoogle(identityToken: identityToken) }
                 },
                 onOpenSettings: { showingSettings = true }
             )

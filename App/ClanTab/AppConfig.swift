@@ -18,4 +18,14 @@ enum AppConfig {
     static func groupShareURL(groupId: String) -> URL {
         URL(string: "g/\(groupId)", relativeTo: apiBaseURL)!
     }
+
+    /// The iOS OAuth client id from Google Cloud Console
+    /// (`MANDATORY_LOGIN_PLAN.md` Part 1) — the `aud` the worker's
+    /// `POST /api/auth/google` checks a Google identity token against.
+    static let googleClientID = "785063933196-ieaukpoat5r6v5jjr65315o9rniaaahn.apps.googleusercontent.com"
+
+    /// `googleClientID` with its dot-delimited fields reversed — the redirect
+    /// scheme Google's "iOS" OAuth client type expects, registered as a
+    /// `CFBundleURLTypes` entry in `App/project.yml`.
+    static let googleReversedClientID = "com.googleusercontent.apps.785063933196-ieaukpoat5r6v5jjr65315o9rniaaahn"
 }

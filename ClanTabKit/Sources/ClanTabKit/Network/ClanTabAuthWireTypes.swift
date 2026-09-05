@@ -29,6 +29,21 @@ public struct AppleSignInRequest: Encodable, Sendable {
     }
 }
 
+// MARK: - POST /api/auth/google
+
+/// `MANDATORY_LOGIN_PLAN.md` Part 1 — no `authorizationCode` equivalent: the
+/// Google flow here requests no offline access, so there's no refresh token to
+/// exchange.
+public struct GoogleSignInRequest: Encodable, Sendable {
+    /// The ID token from the Authorization Code + PKCE exchange
+    /// (`GoogleSignInButton`), not the official Google Sign-In SDK.
+    public let identityToken: String
+
+    public init(identityToken: String) {
+        self.identityToken = identityToken
+    }
+}
+
 /// One of the signed-in identity's group memberships, as the server's identity
 /// index knows it (`ACCOUNTS_DESIGN.md` §7). `displayName` is denormalised from
 /// the group at claim time.

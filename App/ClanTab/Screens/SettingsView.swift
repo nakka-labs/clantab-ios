@@ -19,20 +19,31 @@ struct SettingsView: View {
         Form {
             Section("Account") {
                 if auth.isSignedIn {
-                    Label("Signed in with Apple", systemImage: "checkmark.seal.fill")
-                        .foregroundStyle(.secondary)
+                    Label(
+                        auth.session?.provider == .google ? "Signed in with Google" : "Signed in with Apple",
+                        systemImage: "checkmark.seal.fill"
+                    )
+                    .foregroundStyle(.secondary)
                     Button("Sign Out") { auth.signOut() }
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Sync your groups across devices")
                             .font(.subheadline.weight(.medium))
-                        Text("Sign in with Apple so you don't lose your groups if you switch phones.")
+                        Text("Sign in so you don't lose your groups if you switch phones.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         AppleSignInButton(
                             onCredential: { token, userID, authCode in
                                 sheetError = nil
                                 Task { await auth.signIn(identityToken: token, userID: userID, authorizationCode: authCode) }
+                            },
+                            onFailure: { sheetError = $0 }
+                        )
+                        .frame(height: 40)
+                        GoogleSignInButton(
+                            onCredential: { token in
+                                sheetError = nil
+                                Task { await auth.signInWithGoogle(identityToken: token) }
                             },
                             onFailure: { sheetError = $0 }
                         )

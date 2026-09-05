@@ -69,6 +69,11 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLSchemes: [clantab]
             CFBundleURLName: com.clantab.app
+          # Google Sign-In redirect (MANDATORY_LOGIN_PLAN.md Part 1) — the
+          # reversed form of AppConfig.googleClientID. Required for
+          # ASWebAuthenticationSession's callback; no Google SDK involved.
+          - CFBundleURLSchemes: [com.googleusercontent.apps.785063933196-ieaukpoat5r6v5jjr65315o9rniaaahn]
+            CFBundleURLName: com.clantab.app.google
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.clantab.app
