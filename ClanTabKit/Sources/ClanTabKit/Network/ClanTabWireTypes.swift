@@ -231,3 +231,14 @@ extension AddSettlementRequest: Encodable {
 public struct AddSettlementResponse: Decodable, Sendable {
     public let settlement: Settlement
 }
+
+// MARK: - GET /api/groups/:groupId/trash
+// POST /api/groups/:groupId/{expenses,settlements}/:id/restore
+// (restore decodes into AddExpenseResponse/AddSettlementResponse — same shape)
+
+/// Soft-deleted expenses/settlements, newest-deleted first
+/// (`FEATURE_BACKLOG.md` "Delete goes to trash, with attribution").
+public struct TrashResponse: Decodable, Sendable {
+    public let expenses: [Expense]
+    public let settlements: [Settlement]
+}

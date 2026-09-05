@@ -93,22 +93,50 @@ public actor ClanTabClient {
         try await put("api/groups/\(groupId)/expenses/\(expenseId)", body: request, accessToken: accessToken)
     }
 
-    /// Remove an expense (and its splits). Idempotent — deleting one that's
-    /// already gone still succeeds.
-    public func deleteExpense(groupId: String, expenseId: String, accessToken: String? = nil) async throws {
-        var request = URLRequest(url: url(for: "api/groups/\(groupId)/expenses/\(expenseId)", accessToken: accessToken))
+    /// Soft-delete an expense (`FEATURE_BACKLOG.md` "trash, with attribution")
+    /// — splits are kept so `restoreExpense` reconstructs it exactly.
+    /// Idempotent — deleting one that's already trashed still succeeds.
+    /// - Parameter deletedBy: the acting member's id, for the trash listing's
+    ///   attribution — client-supplied, not cryptographically verified.
+    public func deleteExpense(groupId: String, expenseId: String, accessToken: String? = nil, deletedBy: String? = nil) async throws {
+        let extra = deletedBy.map { [URLQueryItem(name: "deletedBy", value: $0)] } ?? []
+        var request = URLRequest(
+            url: url(for: "api/groups/\(groupId)/expenses/\(expenseId)", accessToken: accessToken, extraQueryItems: extra)
+        )
         request.httpMethod = "DELETE"
         try await performNoContent(request)
+    }
+
+    /// Undo a soft delete — the "Undo" toast and "Recently Deleted" screen's
+    /// Restore both call this. Throws `.notFound` if the id doesn't exist or
+    /// isn't currently trashed.
+    public func restoreExpense(groupId: String, expenseId: String, accessToken: String? = nil) async throws -> AddExpenseResponse {
+        try await send("POST", "api/groups/\(groupId)/expenses/\(expenseId)/restore", bearer: nil, accessToken: accessToken)
     }
 
     public func updateSettlement(groupId: String, settlementId: String, _ request: AddSettlementRequest, accessToken: String? = nil) async throws -> AddSettlementResponse {
         try await put("api/groups/\(groupId)/settlements/\(settlementId)", body: request, accessToken: accessToken)
     }
 
-    public func deleteSettlement(groupId: String, settlementId: String, accessToken: String? = nil) async throws {
-        var request = URLRequest(url: url(for: "api/groups/\(groupId)/settlements/\(settlementId)", accessToken: accessToken))
+    /// Soft-delete a settlement — see `deleteExpense` for the full semantics.
+    public func deleteSettlement(groupId: String, settlementId: String, accessToken: String? = nil, deletedBy: String? = nil) async throws {
+        let extra = deletedBy.map { [URLQueryItem(name: "deletedBy", value: $0)] } ?? []
+        var request = URLRequest(
+            url: url(for: "api/groups/\(groupId)/settlements/\(settlementId)", accessToken: accessToken, extraQueryItems: extra)
+        )
         request.httpMethod = "DELETE"
         try await performNoContent(request)
+    }
+
+    /// Undo a soft delete — see `restoreExpense`.
+    public func restoreSettlement(groupId: String, settlementId: String, accessToken: String? = nil) async throws -> AddSettlementResponse {
+        try await send("POST", "api/groups/\(groupId)/settlements/\(settlementId)/restore", bearer: nil, accessToken: accessToken)
+    }
+
+    /// This group's soft-deleted expenses/settlements, newest-deleted first —
+    /// the "Recently Deleted" screen (`FEATURE_BACKLOG.md`).
+    public func trash(groupId: String, accessToken: String? = nil) async throws -> TrashResponse {
+        try await get("api/groups/\(groupId)/trash", accessToken: accessToken)
     }
 
     // MARK: - Accounts (ACCOUNTS_DESIGN.md §5–§7, §11)
@@ -217,16 +245,20 @@ public actor ClanTabClient {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
-    /// - Parameter accessToken: appended as `?token=` (`ACCESS_TOKEN_PLAN.md`)
-    ///   — `nil` omits it entirely, for routes that don't need one.
-    private func url(for path: String, accessToken: String? = nil) -> URL {
-        guard let accessToken else {
+    /// - Parameters:
+    ///   - accessToken: appended as `?token=` (`ACCESS_TOKEN_PLAN.md`) — `nil`
+    ///     omits it entirely, for routes that don't need one.
+    ///   - extraQueryItems: any other query params a specific call needs (e.g.
+    ///     `deletedBy` on a delete, `FEATURE_BACKLOG.md`).
+    private func url(for path: String, accessToken: String? = nil, extraQueryItems: [URLQueryItem] = []) -> URL {
+        var items: [URLQueryItem] = []
+        if let accessToken { items.append(URLQueryItem(name: "token", value: accessToken)) }
+        items.append(contentsOf: extraQueryItems)
+        guard !items.isEmpty else {
             return URL(string: path, relativeTo: baseURL)!
         }
         var components = URLComponents(string: path)!
-        var items = components.queryItems ?? []
-        items.append(URLQueryItem(name: "token", value: accessToken))
-        components.queryItems = items
+        components.queryItems = (components.queryItems ?? []) + items
         return components.url(relativeTo: baseURL)!
     }
 

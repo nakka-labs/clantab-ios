@@ -302,6 +302,57 @@ struct ClanTabClientTests {
         #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/expenses/e1")
     }
 
+    @Test("deleteExpense appends deletedBy and accessToken as query params together")
+    func testDeleteExpenseCarriesDeletedByAndToken() async throws {
+        let transport = FakeTransport(statusCode: 204, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        try await client.deleteExpense(groupId: "g1", expenseId: "e1", accessToken: "tok1", deletedBy: "m2")
+
+        let url = await transport.lastRequest?.url
+        let query = Set(URLComponents(url: url!, resolvingAgainstBaseURL: false)!.queryItems!)
+        #expect(query == [URLQueryItem(name: "token", value: "tok1"), URLQueryItem(name: "deletedBy", value: "m2")])
+    }
+
+    @Test("restoreExpense POSTs to the restore path and decodes the expense")
+    func testRestoreExpense() async throws {
+        let responseBody = jsonData([
+            "expense": [
+                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "INR",
+                "description": "x", "date": "2026-01-01T00:00:00Z", "splitType": "equal",
+                "splits": [["memberId": "m1", "amountMinor": 100]],
+            ],
+        ])
+        let transport = FakeTransport(statusCode: 200, body: responseBody)
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .restoreExpense(groupId: "g1", expenseId: "e1", accessToken: "tok1")
+
+        #expect(response.expense.id == "e1")
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "POST")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/expenses/e1/restore?token=tok1")
+    }
+
+    @Test("trash decodes both soft-deleted expenses and settlements, incl. deletedAt/deletedBy")
+    func testTrash() async throws {
+        let responseBody = jsonData([
+            "expenses": [[
+                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "INR",
+                "description": "x", "date": "2026-01-01T00:00:00Z", "splitType": "equal",
+                "splits": [["memberId": "m1", "amountMinor": 100]],
+                "deletedAt": "2026-01-02T00:00:00Z", "deletedBy": "m2",
+            ]],
+            "settlements": [] as [Any],
+        ])
+        let transport = FakeTransport(statusCode: 200, body: responseBody)
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport).trash(groupId: "g1")
+
+        #expect(response.expenses.count == 1)
+        #expect(response.expenses[0].deletedBy == "m2")
+        #expect(response.expenses[0].deletedAt != nil)
+        #expect(response.settlements.isEmpty)
+    }
+
     @Test("a PUT to an unknown expense surfaces .server(NOT_FOUND)")
     func testUpdateExpenseNotFound() async {
         let transport = FakeTransport(

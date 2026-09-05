@@ -45,6 +45,14 @@ public struct Expense: Identifiable, Codable, Sendable {
     /// The SF Symbol chosen for `category` (`ExpenseCategory.symbolName`). Stored
     /// per expense so any client renders the same icon without a shared table.
     public let categoryIcon: String?
+    /// Present only in a "Recently Deleted" listing (`FEATURE_BACKLOG.md`) — a
+    /// soft-deleted expense is otherwise excluded everywhere else (group
+    /// state, balances). `nil` for every expense in the normal ledger.
+    public let deletedAt: Date?
+    /// The memberId attributed with the delete — client-supplied, trusted at
+    /// face value like every other id in this trust model, not
+    /// cryptographically verified against a session.
+    public let deletedBy: String?
 
     public init(
         id: String,
@@ -56,7 +64,9 @@ public struct Expense: Identifiable, Codable, Sendable {
         splitType: SplitType,
         splits: [ExpenseSplit],
         category: String? = nil,
-        categoryIcon: String? = nil
+        categoryIcon: String? = nil,
+        deletedAt: Date? = nil,
+        deletedBy: String? = nil
     ) {
         self.id = id
         self.payerId = payerId
@@ -68,5 +78,7 @@ public struct Expense: Identifiable, Codable, Sendable {
         self.splits = splits
         self.category = category
         self.categoryIcon = categoryIcon
+        self.deletedAt = deletedAt
+        self.deletedBy = deletedBy
     }
 }

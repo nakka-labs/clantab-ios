@@ -68,12 +68,17 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   `created_by`/`edited_by` deliberately not built in this pass — the
   headline "anyone with the link can delete anything" gap is `deleted_by`;
   the other two are a separable follow-up, not bundled in just because the
-  schema was open. **Still to do (iOS):** a "Recently Deleted" screen per
-  group with Restore, and the in-the-moment swipe-to-delete's "Undo" toast
-  (~5s) as the fast path to the same restore action. No purge job needed for
-  v1 — SQLite storage is cheap enough (`production_priority` project
-  memory's cost model) to just keep trash forever until there's a reason
-  not to.
+  schema was open. **iOS side done 2026-09-05** too: swipe-to-delete now
+  shows a bottom "Deleted '<description>' [Undo]" banner for ~5s
+  (`GroupHomeView`), and a "Recently Deleted" entry in Group Options opens a
+  full listing (reusing `ActivityRow`/`ActivityItem`, extended with a
+  `deletedAt` accessor) with a per-row Restore button, no expiry. Both call
+  the same `restoreExpense`/`restoreSettlement` client methods. ClanTabKit
+  117 → 120 tests, App 63 (unchanged — view-layer only, no new
+  pure-function surface). No purge job needed for v1 — SQLite storage is
+  cheap enough (`production_priority` project memory's cost model) to just
+  keep trash forever until there's a reason not to. Not yet deployed
+  (server side).
 - **Duplicate an expense.** Swipe/context action on an activity row that
   opens `AddExpenseView` pre-filled with the same payer/split/category and
   today's date, amount blank. Reuses the existing `editing:` prefill

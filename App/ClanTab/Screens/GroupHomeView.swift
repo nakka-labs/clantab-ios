@@ -22,9 +22,22 @@ struct GroupHomeView: View {
     @State private var isPresentingImport = false
     @State private var isPresentingGroupSettings = false
     @State private var isPresentingGroupSwitcher = false
+    @State private var isPresentingRecentlyDeleted = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
     @State private var filter = ActivityFilter()
+    @State private var undoBanner: UndoBanner?
+
+    /// The fast-path "Undo" toast after a swipe-to-delete (`FEATURE_BACKLOG.md`
+    /// "Delete goes to trash") — the same restore action `RecentlyDeletedView`
+    /// offers indefinitely after, just quick access for ~5s.
+    private struct UndoBanner: Equatable {
+        enum Kind { case expense, settlement }
+        let id = UUID()
+        let kind: Kind
+        let itemId: String
+        let label: String
+    }
 
     init(
         groupId: String,
@@ -338,6 +351,34 @@ struct GroupHomeView: View {
                 }
             }
         }
+        .sheet(isPresented: $isPresentingRecentlyDeleted) {
+            NavigationStack {
+                RecentlyDeletedView(
+                    groupId: viewModel.groupId,
+                    client: client,
+                    accessToken: viewModel.accessToken,
+                    members: viewModel.state?.members ?? [],
+                    onRestored: { Task { await viewModel.refetch() } },
+                    onDone: { isPresentingRecentlyDeleted = false }
+                )
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let undoBanner {
+                HStack {
+                    Text("Deleted \"\(undoBanner.label)\"")
+                        .lineLimit(1)
+                    Spacer()
+                    Button("Undo") { Task { await undo() } }
+                        .fontWeight(.semibold)
+                }
+                .padding()
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .padding()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.default, value: undoBanner)
         .sensoryFeedback(.success, trigger: expenseAddedTrigger)
         .sensoryFeedback(.success, trigger: settlementMarkedTrigger)
     }
@@ -357,12 +398,50 @@ struct GroupHomeView: View {
 
     private func performDelete(_ item: ActivityItem) async {
         mutationError = nil
+        let deletedBy = viewModel.myIdentity?.memberId
         do {
+            let banner: UndoBanner
             switch item.kind {
             case .expense(let expense):
-                try await client.deleteExpense(groupId: viewModel.groupId, expenseId: expense.id, accessToken: viewModel.accessToken)
+                try await client.deleteExpense(
+                    groupId: viewModel.groupId, expenseId: expense.id,
+                    accessToken: viewModel.accessToken, deletedBy: deletedBy
+                )
+                banner = UndoBanner(kind: .expense, itemId: expense.id, label: expense.description)
             case .settlement(let settlement):
-                try await client.deleteSettlement(groupId: viewModel.groupId, settlementId: settlement.id, accessToken: viewModel.accessToken)
+                try await client.deleteSettlement(
+                    groupId: viewModel.groupId, settlementId: settlement.id,
+                    accessToken: viewModel.accessToken, deletedBy: deletedBy
+                )
+                banner = UndoBanner(kind: .settlement, itemId: settlement.id, label: "Settlement")
+            }
+            await viewModel.refetch()
+            showUndo(banner)
+        } catch {
+            mutationError = friendlyMessage(for: error)
+        }
+    }
+
+    /// Shows the "Undo" toast for ~5s, then dismisses it — unless a newer
+    /// delete has already replaced it (compares by `id`, not just nil-ness).
+    private func showUndo(_ banner: UndoBanner) {
+        undoBanner = banner
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            if undoBanner?.id == banner.id { undoBanner = nil }
+        }
+    }
+
+    private func undo() async {
+        guard let banner = undoBanner else { return }
+        undoBanner = nil
+        mutationError = nil
+        do {
+            switch banner.kind {
+            case .expense:
+                _ = try await client.restoreExpense(groupId: viewModel.groupId, expenseId: banner.itemId, accessToken: viewModel.accessToken)
+            case .settlement:
+                _ = try await client.restoreSettlement(groupId: viewModel.groupId, settlementId: banner.itemId, accessToken: viewModel.accessToken)
             }
             await viewModel.refetch()
         } catch {
@@ -396,6 +475,9 @@ struct GroupHomeView: View {
                 Divider()
                 Button("Import from CSV", systemImage: "square.and.arrow.down") {
                     isPresentingImport = true
+                }
+                Button("Recently Deleted", systemImage: "trash") {
+                    isPresentingRecentlyDeleted = true
                 }
                 Button("Group Settings", systemImage: "slider.horizontal.3") {
                     isPresentingGroupSettings = true

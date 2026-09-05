@@ -63,6 +63,15 @@ struct ActivityItem: Identifiable {
         }
     }
 
+    /// When this was soft-deleted (`FEATURE_BACKLOG.md` "Recently Deleted") —
+    /// `nil` for anything in the normal, active feed.
+    var deletedAt: Date? {
+        switch kind {
+        case .expense(let expense): return expense.deletedAt
+        case .settlement(let settlement): return settlement.deletedAt
+        }
+    }
+
     /// The category label, shown as a caption on expense rows when set.
     var categoryName: String? {
         switch kind {

@@ -11,13 +11,28 @@ public struct Settlement: Identifiable, Codable, Sendable {
     /// can't net ₹500 owed against $45 owed.
     public let currency: String
     public let date: Date
+    /// See `Expense.deletedAt`/`deletedBy` — same "Recently Deleted"-only shape
+    /// (`FEATURE_BACKLOG.md`).
+    public let deletedAt: Date?
+    public let deletedBy: String?
 
-    public init(id: String, fromId: String, toId: String, amountMinor: Int64, currency: String, date: Date) {
+    public init(
+        id: String,
+        fromId: String,
+        toId: String,
+        amountMinor: Int64,
+        currency: String,
+        date: Date,
+        deletedAt: Date? = nil,
+        deletedBy: String? = nil
+    ) {
         self.id = id
         self.fromId = fromId
         self.toId = toId
         self.amountMinor = amountMinor
         self.currency = currency
         self.date = date
+        self.deletedAt = deletedAt
+        self.deletedBy = deletedBy
     }
 }
