@@ -92,13 +92,23 @@ one-trip acquaintance who'll never install the app. That person can sign
 in and claim their placeholder later if they ever want to (existing claim
 flow, `ACCOUNTS_DESIGN.md` §6) — nothing about this is a dead end.
 
-1. **[CLI]** A simple "Add Member" action in `GroupSettingsView` (and
+1. [x] **[CLI]** A simple "Add Member" action in `GroupSettingsView` (and
    optionally as a step in `CreateGroupView`, so a group can be pre-seeded
    with everyone's names at creation) — a name field, calls the same
    `POST .../members` endpoint the join flow already uses, no identity
-   attached.
-2. **[CLI]** Test coverage: adding a placeholder, then claiming it later
-   via the existing claim flow, still works end to end.
+   attached. **Done 2026-09-05:** an "Add Someone" section in
+   `GroupSettingsView`, calling `client.joinGroup` (the same
+   `JoinGroupRequest`/endpoint the guest-join path already used). Verified
+   against the real deployed Worker in the simulator — added and removed a
+   placeholder member end to end. `CreateGroupView` pre-seeding skipped —
+   explicitly optional, and the group-settings entry point already covers
+   the regression the plan is worried about.
+2. [x] **[CLI]** Test coverage: adding a placeholder, then claiming it later
+   via the existing claim flow, still works end to end. **Already covered**
+   — `worker/test/auth-routes.test.ts`'s "claim flow" suite adds a
+   placeholder via the same `POST .../members` endpoint this feature calls,
+   then claims it; no separate iOS UI-test harness exists in this repo for
+   view-layer coverage (view models / pure logic are the tested layer here).
 
 ## Part 3 — Remove the guest tier (iOS)
 

@@ -18,6 +18,8 @@ struct GroupSettingsView: View {
     @State private var currency: String
     @State private var renamingMember: Member?
     @State private var renameText = ""
+    @State private var newMemberName = ""
+    @State private var isAddingMember = false
     @State private var errorMessage: String?
     @State private var isBusy = false
     @State private var confirmingLeave = false
@@ -48,6 +50,7 @@ struct GroupSettingsView: View {
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
     private var isDirty: Bool { trimmedName != state.group.name || currency != state.group.currency }
+    private var trimmedNewMemberName: String { newMemberName.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
         Form {
@@ -83,6 +86,20 @@ struct GroupSettingsView: View {
                 Text("Members")
             } footer: {
                 Text("A member can only be removed if they have no expenses or settlements and aren't signed in.")
+            }
+
+            Section {
+                HStack {
+                    TextField("Name", text: $newMemberName)
+                        .submitLabel(.done)
+                        .onSubmit { Task { await addMember() } }
+                    Button("Add") { Task { await addMember() } }
+                        .disabled(isAddingMember || trimmedNewMemberName.isEmpty)
+                }
+            } header: {
+                Text("Add Someone")
+            } footer: {
+                Text("Adds them to the ledger by name alone — no app or account needed. They can sign in and claim this spot for themselves later.")
             }
 
             if let errorMessage {
@@ -146,6 +163,26 @@ struct GroupSettingsView: View {
         errorMessage = nil
         do {
             _ = try await client.renameMember(groupId: groupId, memberId: member.id, displayName: newName)
+            onChanged()
+        } catch {
+            errorMessage = friendlyMessage(for: error)
+        }
+    }
+
+    /// Add a placeholder member by name alone (`MANDATORY_LOGIN_PLAN.md`
+    /// Part 2.5) — the same `POST .../members` endpoint the join-by-link flow
+    /// already uses, just triggered by an existing member instead of the
+    /// person themselves. No identity attached; they can claim this spot
+    /// later via the existing claim flow (`ACCOUNTS_DESIGN.md` §6).
+    private func addMember() async {
+        let trimmed = trimmedNewMemberName
+        guard !trimmed.isEmpty else { return }
+        errorMessage = nil
+        isAddingMember = true
+        defer { isAddingMember = false }
+        do {
+            _ = try await client.joinGroup(groupId: groupId, JoinGroupRequest(displayName: trimmed))
+            newMemberName = ""
             onChanged()
         } catch {
             errorMessage = friendlyMessage(for: error)

@@ -67,9 +67,11 @@ again once the guest tier disappears.
 - [x] **[CLI]** Part 2 — `UserDO` re-keying to `provider:sub`. **Verified
       2026-09-05 already done** — built alongside Part 1's Google Sign-In
       work; no separate change needed (`MANDATORY_LOGIN_PLAN.md` Part 2).
-- [ ] **[CLI]** Part 2.5 — Add Member by name. **Hard prerequisite for Part
+- [x] **[CLI]** Part 2.5 — Add Member by name. **Hard prerequisite for Part
       3, not optional polish** — without it, removing guests is a real
-      regression (see the plan's "Critical finding" callout).
+      regression (see the plan's "Critical finding" callout). **Done
+      2026-09-05:** "Add Someone" in `GroupSettingsView`; verified end to
+      end against the deployed Worker (`MANDATORY_LOGIN_PLAN.md` Part 2.5).
 - [ ] **[CLI]** Part 3 — Remove the guest tier (`StartView`,
       `JoinChoiceView`/`ClaimMemberView`, retire `IdentityStoring`).
 
