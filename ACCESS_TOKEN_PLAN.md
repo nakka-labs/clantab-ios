@@ -84,14 +84,18 @@ group they create has one). `wrangler deploy --dry-run` validates.
 
 ## Part 3 — Join-by-code stays evergreen
 
-1. **[CLI]** `resolveJoinCode` (`worker/src/lib/join-codes.ts`, Workers KV —
+**Done 2026-09-05.** `worker/test/routes.test.ts` gets 2 more cases (returns
+the current token; still current after a regenerate). 154/154 green.
+
+1. [x] **[CLI]** `resolveJoinCode` (`worker/src/lib/join-codes.ts`, Workers KV —
    moved off `RegistryDO` in `SHIP_PLAN.md` Track 3 §3) already maps code →
-   groupId; extend it to also return the *current*
-   `access_token`, so a 6-character code keeps working across a link
+   groupId; the lib itself is unchanged — `handleResolveJoinCode` in
+   `index.ts` (which already holds `env.GROUP_DO`) fetches
+   `GroupDO.currentAccessToken()` for the resolved `groupId` and includes it
+   in the response, so a 6-character code keeps working across a link
    rotation (codes are typed fresh each time, not bookmarked — direct links
-   are the thing that goes stale on rotation). Confirm this matches the
-   intent before building: codes as the "always current" fallback, links as
-   the revocable one.
+   are the thing that goes stale on rotation) — codes as the "always
+   current" fallback, links as the revocable one, confirmed as the intent.
 
 ## Part 4 — Migration for existing groups
 

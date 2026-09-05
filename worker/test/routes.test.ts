@@ -159,11 +159,20 @@ describe("POST /api/groups/:groupId/regenerate-link", () => {
 });
 
 describe("GET /api/groups/resolve/:joinCode", () => {
-  it("resolves a real code (case-insensitively) to its groupId", async () => {
-    const { groupId, joinCode } = await makeGroup();
+  it("resolves a real code (case-insensitively) to its groupId and current accessToken", async () => {
+    const { groupId, joinCode, token } = await makeGroup();
     const { status, json } = await get(`/api/groups/resolve/${joinCode.toLowerCase()}`);
     expect(status).toBe(200);
     expect(json.groupId).toBe(groupId);
+    expect(json.accessToken).toBe(token);
+  });
+
+  it("returns the *current* accessToken even after a regenerate", async () => {
+    const { groupId, joinCode, token: oldToken } = await makeGroup();
+    const { json: regen } = await post(`/api/groups/${groupId}/regenerate-link`, {}, oldToken);
+    const { json } = await get(`/api/groups/resolve/${joinCode}`);
+    expect(json.accessToken).toBe(regen.accessToken);
+    expect(json.accessToken).not.toBe(oldToken);
   });
 
   it("returns a bare 404 (no body) for an unknown code", async () => {

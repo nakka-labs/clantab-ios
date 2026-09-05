@@ -154,7 +154,11 @@ async function handleResolveJoinCode(request: Request, env: Env, params: Params)
   const result = await resolveJoinCode(env.JOIN_CODES, env.RESOLVE_RATE_LIMITER, params.joinCode ?? "", ip);
   if (result.rateLimited) throw new RateLimitedError();
   if (result.groupId === null) throw new BareNotFoundError();
-  return json(200, { groupId: result.groupId });
+  // The *current* access_token, not whatever was live when the code was
+  // reserved (ACCESS_TOKEN_PLAN.md Part 3) — a code is typed fresh each
+  // time, not bookmarked, so it stays evergreen across a link rotation.
+  const accessToken = await env.GROUP_DO.get(env.GROUP_DO.idFromName(result.groupId)).currentAccessToken();
+  return json(200, { groupId: result.groupId, accessToken });
 }
 
 async function handleJoinGroup(request: Request, env: Env, params: Params): Promise<Response> {

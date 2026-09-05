@@ -48,6 +48,11 @@ export interface CreateGroupResponse {
 // GET /api/groups/resolve/:joinCode
 export interface ResolveJoinCodeResponse {
   groupId: string;
+  /** The group's *current* access token (`ACCESS_TOKEN_PLAN.md` Part 3) —
+   * always up to date even across a link rotation, since a code is resolved
+   * fresh each time rather than bookmarked. `null` for a group that
+   * predates this feature and has never regenerated its link. */
+  accessToken: string | null;
 }
 
 // POST /api/groups/:groupId/members
