@@ -1,6 +1,17 @@
-.PHONY: all test check hooks clean worker-dev worker-test worker-typecheck worker-deploy
+.PHONY: all test check hooks clean worker-dev worker-test worker-typecheck worker-deploy bump-build
 
 all: test
+
+# Bump the iOS build number (App/project.yml's single, project-wide
+# CURRENT_PROJECT_VERSION — see its own comment) by one. Run this before
+# every Xcode Archive; MARKETING_VERSION is a separate, deliberate decision
+# this never touches.
+bump-build:
+	@current=$$(grep -m1 'CURRENT_PROJECT_VERSION:' App/project.yml | grep -oE '[0-9]+'); \
+	next=$$((current + 1)); \
+	sed -i '' "s/CURRENT_PROJECT_VERSION: \"$$current\"/CURRENT_PROJECT_VERSION: \"$$next\"/" App/project.yml; \
+	cd App && xcodegen generate > /dev/null; \
+	echo "Bumped CURRENT_PROJECT_VERSION: $$current -> $$next"
 
 test:
 	swift test --package-path ClanTabKit

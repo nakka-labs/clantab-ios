@@ -20,6 +20,26 @@ options:
   deploymentTarget:
     iOS: "17.0"
 
+# Project-wide defaults, inherited by every target below unless a target's
+# own `settings.base` overrides a key (`PRODUCT_BUNDLE_IDENTIFIER` always
+# does). MARKETING_VERSION/CURRENT_PROJECT_VERSION used to be duplicated
+# separately in ClanTab's and ClanTabWidgetExtension's own settings blocks —
+# a real App Store requirement is that an extension's version matches its
+# container app's, and nothing enforced that beyond remembering to bump both
+# lines by hand. One value here can't drift.
+#
+# Bump CURRENT_PROJECT_VERSION with `make bump-build` before every Xcode
+# Archive (never by hand — it's arithmetic on a string, easy to fat-finger).
+# MARKETING_VERSION is a deliberate version-number decision, not touched by
+# that target.
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "4"
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: UK652GNPP7
+    CODE_SIGN_STYLE: Automatic
+
 packages:
   ClanTabKit:
     path: ../ClanTabKit
@@ -93,14 +113,13 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.clantab.app
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "3"
-        SWIFT_VERSION: "6.0"
+        # iPhone only. Doesn't hoist to the project-wide settings above —
+        # xcodegen silently widens it back to "1,2" (universal) there,
+        # apparently applying its own per-target iOS default *after* project
+        # settings but before target settings, so it has to live here.
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        DEVELOPMENT_TEAM: UK652GNPP7
-        CODE_SIGN_STYLE: Automatic
 
   # Home-screen widget (`FEATURE_BACKLOG.md`) — glanceable "you owe / you're
   # owed" for the most-recently-opened group. Reads a snapshot the app
@@ -136,13 +155,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.clantab.app.widget
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "3"
-        SWIFT_VERSION: "6.0"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1" # see ClanTab's own settings comment
         SKIP_INSTALL: "YES"
-        DEVELOPMENT_TEAM: UK652GNPP7
-        CODE_SIGN_STYLE: Automatic
 
   # App-level unit tests (deep-link parsing, group-not-found handling). Pure
   # XCTest, no Simulator UI — runs anywhere, including `ios-build.yml`.
@@ -157,7 +171,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.clantab.app.tests
-        SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: "YES"
 
 schemes:
