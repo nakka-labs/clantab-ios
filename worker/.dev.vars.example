@@ -18,3 +18,9 @@ SESSION_SIGNING_KEY=dev-only-not-a-secret
 # APNS_PRIVATE_KEY=
 # APNS_TOPIC=com.clantab.app
 # APNS_ENVIRONMENT=sandbox
+
+# GET /api/admin/reports (SHIP_PLAN.md Track 3 §7, Apple Guideline 1.2) —
+# the content-report review endpoint. Unset means it 404s for everyone,
+# never wide open by default. Production sets this as a real secret
+# (`wrangler secret put ADMIN_TOKEN`) — pick any strong random value.
+# ADMIN_TOKEN=

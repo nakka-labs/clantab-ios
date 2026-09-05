@@ -21,7 +21,8 @@
   "durable_objects": {
     "bindings": [
       { "name": "GROUP_DO", "class_name": "GroupDO" },
-      { "name": "USER_DO", "class_name": "UserDO" }
+      { "name": "USER_DO", "class_name": "UserDO" },
+      { "name": "REPORTS_DO", "class_name": "ReportsDO" }
     ]
   },
   "migrations": [
@@ -41,6 +42,13 @@
       // migration of pre-existing join codes out of the DO's SQLite storage.
       "tag": "v3",
       "deleted_classes": ["RegistryDO"]
+    },
+    {
+      // ReportsDO: the content-report log (SHIP_PLAN.md Track 3 §7, Apple
+      // Guideline 1.2). A global singleton, not per-group — see its own
+      // doc comment.
+      "tag": "v4",
+      "new_sqlite_classes": ["ReportsDO"]
     }
   ],
   "kv_namespaces": [

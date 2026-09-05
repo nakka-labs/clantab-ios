@@ -838,6 +838,74 @@ describe("group + member settings", () => {
   });
 });
 
+describe("POST /api/groups/:groupId/report (Apple Guideline 1.2, SHIP_PLAN.md Track 3 §7)", () => {
+  let groupId: string;
+  let token: string;
+  let memberId: string;
+
+  beforeEach(async () => {
+    const g = await makeGroup();
+    groupId = g.groupId;
+    token = g.token;
+    memberId = g.creatorId;
+  });
+
+  it("files a group-level report", async () => {
+    const { status, json } = await post(
+      `/api/groups/${groupId}/report`,
+      { targetType: "group", reason: "spam", details: "This whole group looks fake." },
+      token,
+    );
+    expect(status).toBe(201);
+    const report = json.report as Json;
+    expect(report.groupId).toBe(groupId);
+    expect(report.targetType).toBe("group");
+    expect(report.targetId).toBeNull();
+    expect(report.reason).toBe("spam");
+    expect(report.details).toBe("This whole group looks fake.");
+    expect(typeof report.id).toBe("string");
+    expect(typeof report.createdAt).toBe("string");
+  });
+
+  it("files a member-level report", async () => {
+    const { status, json } = await post(
+      `/api/groups/${groupId}/report`,
+      { targetType: "member", targetId: memberId, reason: "harassment" },
+      token,
+    );
+    expect(status).toBe(201);
+    const report = json.report as Json;
+    expect(report.targetType).toBe("member");
+    expect(report.targetId).toBe(memberId);
+    expect(report.details).toBeNull();
+  });
+
+  it("requires targetId when targetType is member", async () => {
+    const { status } = await post(`/api/groups/${groupId}/report`, { targetType: "member", reason: "spam" }, token);
+    expect(status).toBe(400);
+  });
+
+  it("rejects an unknown targetType", async () => {
+    const { status } = await post(`/api/groups/${groupId}/report`, { targetType: "banana", reason: "spam" }, token);
+    expect(status).toBe(400);
+  });
+
+  it("requires a reason", async () => {
+    const { status } = await post(`/api/groups/${groupId}/report`, { targetType: "group" }, token);
+    expect(status).toBe(400);
+  });
+
+  it("404s an unknown group", async () => {
+    const { status } = await post("/api/groups/does-not-exist/report", { targetType: "group", reason: "spam" });
+    expect(status).toBe(404);
+  });
+
+  it("requires the group's token like any other group route", async () => {
+    const { status } = await post(`/api/groups/${groupId}/report`, { targetType: "group", reason: "spam" });
+    expect(status).toBe(403);
+  });
+});
+
 describe("routing", () => {
   it("404s an unknown route", async () => {
     const { status } = await get("/api/nonsense");

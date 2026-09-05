@@ -378,6 +378,57 @@ struct ClanTabClientTests {
         #expect(response.settlements.isEmpty)
     }
 
+    @Test("report POSTs a group-level report and decodes the response")
+    func testReportGroup() async throws {
+        let responseBody = jsonData([
+            "report": [
+                "id": "rep1", "groupId": "g1", "targetType": "group",
+                "reason": "spam", "details": "looks fake",
+                "createdAt": "2026-01-01T00:00:00Z",
+            ],
+        ])
+        let transport = FakeTransport(statusCode: 201, body: responseBody)
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .report(groupId: "g1", target: .group, reason: "spam", details: "looks fake", accessToken: "tok1")
+
+        #expect(response.report.id == "rep1")
+        #expect(response.report.targetType == "group")
+        #expect(response.report.targetId == nil)
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "POST")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/report?token=tok1")
+        let body = try #require(await transport.lastRequest?.httpBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        #expect(json?["targetType"] as? String == "group")
+        #expect(json?["targetId"] == nil)
+        #expect(json?["reason"] as? String == "spam")
+        #expect(json?["details"] as? String == "looks fake")
+    }
+
+    @Test("report POSTs a member-level report with the member's id")
+    func testReportMember() async throws {
+        let responseBody = jsonData([
+            "report": [
+                "id": "rep2", "groupId": "g1", "targetType": "member", "targetId": "m2",
+                "reason": "harassment",
+                "createdAt": "2026-01-01T00:00:00Z",
+            ],
+        ])
+        let transport = FakeTransport(statusCode: 201, body: responseBody)
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .report(groupId: "g1", target: .member(id: "m2"), reason: "harassment")
+
+        #expect(response.report.targetType == "member")
+        #expect(response.report.targetId == "m2")
+
+        let body = try #require(await transport.lastRequest?.httpBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        #expect(json?["targetType"] as? String == "member")
+        #expect(json?["targetId"] as? String == "m2")
+        #expect(json?["details"] == nil)
+    }
+
     @Test("a PUT to an unknown expense surfaces .server(NOT_FOUND)")
     func testUpdateExpenseNotFound() async {
         let transport = FakeTransport(

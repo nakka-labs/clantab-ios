@@ -128,3 +128,24 @@ export interface RestoreSettlementResponse {
 export interface ErrorEnvelope {
   error: { code: string; message: string };
 }
+
+// POST /api/groups/:groupId/report — Apple Guideline 1.2, `SHIP_PLAN.md` Track 3 §7.
+export interface ReportRequest {
+  targetType: "group" | "member";
+  /** Required when `targetType` is `"member"`; omitted for `"group"`. */
+  targetId?: string;
+  reason: string;
+  details?: string;
+}
+export interface ReportResponse {
+  report: {
+    id: string;
+    groupId: string;
+    targetType: "group" | "member";
+    targetId: string | null;
+    reason: string;
+    details: string | null;
+    reportedBy: string | null;
+    createdAt: string;
+  };
+}

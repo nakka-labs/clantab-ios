@@ -38,6 +38,11 @@ struct GroupSettingsView: View {
     @State private var isRegenerating = false
     @State private var myUpiVpa = ""
     @State private var isSavingUpiVpa = false
+    /// Drives the "Report a Problem" sheet (`FEATURE_BACKLOG.md`,
+    /// `SHIP_PLAN.md` Track 3 §7) — set from either a member row's swipe
+    /// action or the general entry point below.
+    @State private var reportingTarget: (target: ReportTarget, label: String)?
+    @State private var reportConfirmation: String?
 
     init(
         groupId: String,
@@ -106,6 +111,8 @@ struct GroupSettingsView: View {
                     }
                     .swipeActions {
                         Button("Remove", role: .destructive) { Task { await remove(member) } }
+                        Button("Report") { reportingTarget = (.member(id: member.id), member.displayName) }
+                            .tint(.orange)
                     }
                 }
             } header: {
@@ -149,6 +156,15 @@ struct GroupSettingsView: View {
 
             if let errorMessage {
                 Section { Text(errorMessage).foregroundStyle(.red) }
+            }
+            if let reportConfirmation {
+                Section { Text(reportConfirmation).foregroundStyle(.secondary) }
+            }
+
+            Section {
+                Button("Report a Problem") { reportingTarget = (.group, state.group.name) }
+            } footer: {
+                Text("Report this group's name or content — Apple requires this for apps with shared user-generated content.")
             }
 
             Section {
@@ -202,6 +218,22 @@ struct GroupSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The old link and join code stop working immediately, for anyone still holding them. Not undoable.")
+        }
+        .sheet(isPresented: Binding(get: { reportingTarget != nil }, set: { if !$0 { reportingTarget = nil } })) {
+            if let reportingTarget {
+                ReportContentView(
+                    groupId: groupId,
+                    target: reportingTarget.target,
+                    targetLabel: reportingTarget.label,
+                    client: client,
+                    accessToken: accessToken,
+                    onSubmitted: {
+                        self.reportingTarget = nil
+                        reportConfirmation = "Thanks — we'll take a look."
+                    },
+                    onCancel: { self.reportingTarget = nil }
+                )
+            }
         }
     }
 

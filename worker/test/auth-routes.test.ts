@@ -369,3 +369,39 @@ describe("DELETE /api/auth/account", () => {
     expect((claimable.json.members as Json[]).map((m) => m.id)).toContain(placeholderId);
   });
 });
+
+describe("GET /api/admin/reports (Apple Guideline 1.2, SHIP_PLAN.md Track 3 §7)", () => {
+  // Matches ADMIN_TOKEN in vitest.workers.config.ts's miniflare bindings.
+  const adminToken = "test-only-admin-token";
+
+  it("401s without a bearer token", async () => {
+    const { status } = await call("GET", "/api/admin/reports");
+    expect(status).toBe(401);
+  });
+
+  it("401s the wrong bearer token", async () => {
+    const { status } = await call("GET", "/api/admin/reports", { bearer: "not-the-admin-token" });
+    expect(status).toBe(401);
+  });
+
+  it("lists reports across different groups, newest first, given the right token", async () => {
+    const g1 = await makeGroup();
+    const g2 = await makeGroup();
+    await call("POST", `/api/groups/${g1.groupId}/report`, {
+      token: g1.token,
+      body: { targetType: "group", reason: "spam" },
+    });
+    await call("POST", `/api/groups/${g2.groupId}/report`, {
+      token: g2.token,
+      body: { targetType: "group", reason: "harassment" },
+    });
+
+    const { status, json } = await call("GET", "/api/admin/reports", { bearer: adminToken });
+    expect(status).toBe(200);
+    const groupIds = (json.reports as Json[]).map((r) => r.groupId);
+    expect(groupIds).toContain(g1.groupId);
+    expect(groupIds).toContain(g2.groupId);
+    // Newest first: g2's report was filed after g1's.
+    expect(groupIds.indexOf(g2.groupId)).toBeLessThan(groupIds.indexOf(g1.groupId));
+  });
+});

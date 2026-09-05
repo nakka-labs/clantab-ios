@@ -168,9 +168,15 @@ Phase 6 is complete — every item shipped 2026-09-05.
 Real App Store requirement for a public listing, not optional
 (`SHIP_PLAN.md` Track 3 §7).
 
-- [ ] **[CLI]** Report-content action + block/remove-member path (remove
-      already exists via Group Settings; report doesn't).
+- [x] **[CLI]** Report-content action + block/remove-member path — **done
+      2026-09-05.** Remove already existed via Group Settings; report is
+      new (`SHIP_PLAN.md` Track 3 §7 for the full scope).
 - [ ] **[OWNER]** Approve moderation copy + EULA zero-tolerance UGC clause.
+      Also yours: `wrangler secret put ADMIN_TOKEN` to actually enable
+      `GET /api/admin/reports` (a no-op/404 until then) — pick any strong
+      random value, then `curl -H "Authorization: Bearer <token>"
+      https://clantab.nakka-labs.workers.dev/api/admin/reports` to review
+      filed reports periodically.
 
 ## Phase 8 — App Store submission track
 

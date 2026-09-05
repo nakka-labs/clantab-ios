@@ -99,6 +99,30 @@ export const USER_META_KEYS = {
 
 export const USER_SCHEMA_VERSION = "1";
 
+/**
+ * `ReportsDO` — one global singleton (`idFromName("global")`), the content-
+ * report log required by Apple Guideline 1.2 for any app with shared
+ * user-generated content (`SHIP_PLAN.md` Track 3 §7): group names, member
+ * names, and expense descriptions are all user-typed and shared between
+ * whoever holds a group's link. Deliberately a singleton — unlike the
+ * retired `RegistryDO` (a chokepoint on every group creation/join-code
+ * lookup, real request volume), reports are rare by design, and the owner
+ * needs one place to see all of them rather than polling every group's own
+ * unguessable `groupId`.
+ */
+export const REPORTS_SCHEMA = `
+CREATE TABLE IF NOT EXISTS reports (
+  id           TEXT PRIMARY KEY,
+  group_id     TEXT NOT NULL,
+  target_type  TEXT NOT NULL CHECK (target_type IN ('group','member')),
+  target_id    TEXT,
+  reason       TEXT NOT NULL,
+  details      TEXT,
+  reported_by  TEXT,
+  created_at   INTEGER NOT NULL
+);
+`;
+
 /** `group_meta` keys written at creation (`DESIGN.md` §3 + §10). */
 export const META_KEYS = {
   name: "name",

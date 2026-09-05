@@ -278,3 +278,58 @@ public struct TrashResponse: Decodable, Sendable {
     public let expenses: [Expense]
     public let settlements: [Settlement]
 }
+
+// MARK: - POST /api/groups/:groupId/report
+
+/// A group's name/content in general, or one specific member — Apple
+/// Guideline 1.2 requires a report mechanism for shared user-generated
+/// content (`SHIP_PLAN.md` Track 3 §7). "Block" is the existing "Remove"
+/// member action in `GroupSettingsView`; this is the other half.
+public enum ReportTarget: Sendable, Equatable {
+    case group
+    case member(id: String)
+}
+
+public struct ReportRequest: Encodable, Sendable {
+    public let targetType: String
+    public let targetId: String?
+    public let reason: String
+    public let details: String?
+
+    public init(target: ReportTarget, reason: String, details: String? = nil) {
+        switch target {
+        case .group:
+            self.targetType = "group"
+            self.targetId = nil
+        case .member(let id):
+            self.targetType = "member"
+            self.targetId = id
+        }
+        self.reason = reason
+        self.details = details
+    }
+
+    private enum CodingKeys: String, CodingKey { case targetType, targetId, reason, details }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(targetType, forKey: .targetType)
+        try container.encodeIfPresent(targetId, forKey: .targetId)
+        try container.encode(reason, forKey: .reason)
+        try container.encodeIfPresent(details, forKey: .details)
+    }
+}
+
+public struct ReportResponse: Decodable, Sendable {
+    public struct Report: Decodable, Sendable, Equatable {
+        public let id: String
+        public let groupId: String
+        public let targetType: String
+        public let targetId: String?
+        public let reason: String
+        public let details: String?
+        public let reportedBy: String?
+        public let createdAt: Date
+    }
+    public let report: Report
+}

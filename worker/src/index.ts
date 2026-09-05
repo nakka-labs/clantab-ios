@@ -1,5 +1,6 @@
 import { GroupDO } from "./group-do.ts";
 import { UserDO } from "./user-do.ts";
+import { ReportsDO } from "./reports-do.ts";
 import { AppleAuthError, verifyAppleIdentityToken } from "./lib/apple-auth.ts";
 import { GoogleAuthError, verifyGoogleIdentityToken } from "./lib/google-auth.ts";
 import { exchangeAuthorizationCode, revokeToken, siwaConfigFromEnv } from "./lib/apple-oauth.ts";
@@ -13,7 +14,7 @@ import {
   RateLimitedError,
   UnauthorizedError,
 } from "./lib/errors.ts";
-import { newGroupId } from "./lib/ids.ts";
+import { newGroupId, newRecordId } from "./lib/ids.ts";
 import { reserveJoinCode, resolveJoinCode } from "./lib/join-codes.ts";
 import { newExpensePayload, notifyGroup, settlementPayload } from "./lib/notify.ts";
 import { SessionError, mintSession, verifySession } from "./lib/session.ts";
@@ -30,11 +31,12 @@ import {
 import { ValidationFailure } from "./lib/validation.ts";
 import type { AddExpenseRequest, AddSettlementRequest } from "./types.ts";
 
-export { GroupDO, UserDO };
+export { GroupDO, UserDO, ReportsDO };
 
 interface Env {
   GROUP_DO: DurableObjectNamespace<GroupDO>;
   USER_DO: DurableObjectNamespace<UserDO>;
+  REPORTS_DO: DurableObjectNamespace<ReportsDO>;
   /** `joinCode → groupId` index (`SHIP_PLAN.md` Track 3 §3, `src/lib/join-codes.ts`). */
   JOIN_CODES: KVNamespace;
   /** Per-IP cap on `GET /api/groups/resolve/:joinCode` — 20/min, configured in
@@ -64,6 +66,12 @@ interface Env {
   APNS_PRIVATE_KEY?: string;
   APNS_TOPIC?: string;
   APNS_ENVIRONMENT?: string;
+  /** Gates `GET /api/admin/reports` (`SHIP_PLAN.md` Track 3 §7, Apple
+   * Guideline 1.2) — a bearer shared secret, not a real auth system; there's
+   * exactly one owner. Unset means the endpoint refuses every request
+   * (never "wide open by default"), same "safe until configured" posture
+   * as `APNS_*`. `wrangler secret put ADMIN_TOKEN`. */
+  ADMIN_TOKEN?: string;
 }
 
 type Params = Record<string, string>;
@@ -95,6 +103,7 @@ const ROUTES: Route[] = [
   route("GET", "/api/groups/:groupId/trash", handleTrash),
   route("GET", "/api/groups/:groupId/claimable", handleClaimable),
   route("POST", "/api/groups/:groupId/members/:memberId/claim", handleClaim),
+  route("POST", "/api/groups/:groupId/report", handleReport),
   route("POST", "/api/auth/apple", handleAuthApple),
   route("POST", "/api/auth/google", handleAuthGoogle),
   route("POST", "/api/auth/refresh", handleAuthRefresh),
@@ -103,6 +112,7 @@ const ROUTES: Route[] = [
   route("DELETE", "/api/auth/devices/:token", handleUnregisterDevice),
   route("GET", "/api/auth/people", handleAuthPeople),
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
+  route("GET", "/api/admin/reports", handleAdminReports),
   route("GET", "/g/:groupId", handleCapabilityPage),
   route("GET", "/", handleRoot),
 ];
@@ -705,6 +715,48 @@ async function handleClaim(request: Request, env: Env, params: Params): Promise<
     .get(env.USER_DO.idFromName(sub))
     .addMembership(groupId, result.value.member.id, result.value.member.displayName);
   return json(200, result.value);
+}
+
+/**
+ * File a content report (Apple Guideline 1.2, `SHIP_PLAN.md` Track 3 §7) —
+ * a group's name/content in general (`targetType: "group"`, no `targetId`),
+ * or one specific member (`targetType: "member"`, that member's id). Same
+ * groupId-possession trust model as every other group route; reporting
+ * doesn't itself require being signed in, so `reportedBy` is best-effort
+ * attribution, not a requirement.
+ */
+async function handleReport(request: Request, env: Env, params: Params): Promise<Response> {
+  const groupId = params.groupId ?? "";
+  await requireGroup(request, env, groupId);
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["targetType", "targetId", "reason", "details"]);
+  const targetType = requireString(body, "targetType");
+  if (targetType !== "group" && targetType !== "member") {
+    throw new BadRequestError('Field "targetType" must be "group" or "member".');
+  }
+  const targetId = optionalString(body, "targetId") ?? null;
+  if (targetType === "member" && targetId === null) {
+    throw new BadRequestError('Field "targetId" is required when targetType is "member".');
+  }
+  const reason = requireString(body, "reason");
+  const details = optionalString(body, "details") ?? null;
+
+  const reportedBy = (await optionalSessionSub(request, env)) ?? null;
+  const report = await env.REPORTS_DO
+    .get(env.REPORTS_DO.idFromName("global"))
+    .file({ groupId, targetType, targetId, reason, details, reportedBy }, newRecordId());
+  return json(201, { report });
+}
+
+/** The owner's one place to see every report across every group — gated by
+ * a shared-secret bearer token, not a real auth system (there's exactly one
+ * owner). Refuses every request, not just unauthorized ones, until
+ * `ADMIN_TOKEN` is actually set — never "wide open by default". */
+async function handleAdminReports(request: Request, env: Env): Promise<Response> {
+  if (!env.ADMIN_TOKEN) throw new BareNotFoundError();
+  if (bearerToken(request) !== env.ADMIN_TOKEN) throw new UnauthorizedError();
+  const reports = await env.REPORTS_DO.get(env.REPORTS_DO.idFromName("global")).list();
+  return json(200, reports);
 }
 
 // --- helpers ------------------------------------------------------------

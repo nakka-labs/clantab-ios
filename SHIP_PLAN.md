@@ -253,18 +253,34 @@ the `CLOUDFLARE_API_TOKEN` repo secret.
    will ever see. Add a billing alert anyway.
 6. **`compatibility_date`** — `wrangler.jsonc` pins `2025-09-01`; bump
    deliberately when adopting new runtime behaviour, not drift.
-7. **Abuse / content — now a real App Store requirement, not just a
-   documented risk.** A capability URL that leaks (posted publicly) exposes
-   that group; documented trust model (`DESIGN.md` §8). Beyond the leak
-   scenario: group names, member names, and expense descriptions are all
-   user-generated and shared between whoever holds the link — Apple's
-   Guideline 1.2 requires a report mechanism and a way to block/remove a bad
-   actor for any app with shared user-generated content. Not optional once
-   this is a public App Store listing (priority bumped 2026-09-04). **[CLI]**
-   Scaffold a report-content action + a block/remove-member path (remove
-   already exists via Group Settings; report doesn't). **[OWNER]** Approve
-   the moderation copy and the EULA's zero-tolerance UGC clause before
-   submission.
+7. ✅ **Abuse / content — now a real App Store requirement, not just a
+   documented risk.** **CLI half done 2026-09-05.** A capability URL that
+   leaks (posted publicly) exposes that group; documented trust model
+   (`DESIGN.md` §8). Beyond the leak scenario: group names, member names,
+   and expense descriptions are all user-generated and shared between
+   whoever holds the link — Apple's Guideline 1.2 requires a report
+   mechanism and a way to block/remove a bad actor for any app with shared
+   user-generated content. Not optional once this is a public App Store
+   listing (priority bumped 2026-09-04).
+   **[CLI] done:** `ReportsDO` — a global singleton (`idFromName("global")`,
+   deliberately not per-group: the owner needs one place to see every
+   report, not a reason to poll each group's own unguessable `groupId`),
+   `new_sqlite_classes` migration `v4`. `POST /api/groups/:groupId/report`
+   (same groupId-possession trust model as any other group route; doesn't
+   itself require sign-in) files a report against a group's content in
+   general or one specific member — "block" is the existing "Remove"
+   member action in `GroupSettingsView`, this is the report half.
+   `GET /api/admin/reports` lists everything, newest first, gated by a
+   bearer `ADMIN_TOKEN` shared secret (unset → refuses every request, never
+   wide open by default). iOS: `ReportContentView` (a reason picker +
+   optional details), reachable from a member row's swipe actions
+   ("Report", alongside "Remove") and a general "Report a Problem" entry in
+   Group Settings. Worker suite 207/207 passing (was 193); ClanTabKit
+   154/154 (was 152); App 75/75 (the sheet itself is untested view-layer
+   code, matching the rest of this repo's UI).
+   **[OWNER] still needed:** `wrangler secret put ADMIN_TOKEN` (the
+   endpoint 404s until set) and approve the moderation copy + the EULA's
+   zero-tolerance UGC clause before submission.
 8. ✅ **Foreground poll interval** — done 2026-09-05. `GroupViewModel.pollInterval`
    was 5s; dropped to 25s. Same UX for a low-frequency app, and it directly cuts
    the Workers request/row-read bill at scale (cost-modeled 2026-09-04).

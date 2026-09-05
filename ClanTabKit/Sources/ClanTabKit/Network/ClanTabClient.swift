@@ -151,6 +151,13 @@ public actor ClanTabClient {
         try await get("api/groups/\(groupId)/trash", accessToken: accessToken)
     }
 
+    /// File a content report — Apple Guideline 1.2's report mechanism for
+    /// shared user-generated content (`SHIP_PLAN.md` Track 3 §7). Doesn't
+    /// require being signed in, same trust model as any other group route.
+    public func report(groupId: String, target: ReportTarget, reason: String, details: String? = nil, accessToken: String? = nil) async throws -> ReportResponse {
+        try await post("api/groups/\(groupId)/report", body: ReportRequest(target: target, reason: reason, details: details), accessToken: accessToken)
+    }
+
     // MARK: - Accounts (ACCOUNTS_DESIGN.md §5–§7, §11)
 
     /// Exchange an Apple identity token for a session token + the identity's
