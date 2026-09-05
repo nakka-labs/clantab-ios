@@ -13,6 +13,9 @@ enum AppRoute: Equatable {
     /// No membership yet in this group — arrived via a deep link or a resolved
     /// join code: pick which placeholder member is you, or add yourself as a
     /// new member (`ACCOUNTS_DESIGN.md` §6, `MANDATORY_LOGIN_PLAN.md` Part 3).
-    case claimMember(groupId: String)
+    /// `accessToken` (`ACCESS_TOKEN_PLAN.md`) rides along from wherever this
+    /// route was reached from — the link, the resolved code, or `nil` for a
+    /// group that predates the feature.
+    case claimMember(groupId: String, accessToken: String?)
     case group(groupId: String)
 }

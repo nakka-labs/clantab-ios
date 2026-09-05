@@ -10,7 +10,7 @@ struct RootView: View {
     @State private var showingSettings = false
     /// A deep link opened while signed out (`MANDATORY_LOGIN_PLAN.md` Part 3 —
     /// viewing a group requires signing in first). Resumed once sign-in succeeds.
-    @State private var pendingDeepLinkGroupId: String?
+    @State private var pendingDeepLink: (groupId: String, accessToken: String?)?
     /// Bumped when the local group list changes without an `auth.groups` change
     /// (removing a group locally), to recompute `yourGroups`.
     @State private var knownGroupsRevision = 0
@@ -25,12 +25,12 @@ struct RootView: View {
         }
         .onOpenURL { url in handleDeepLink(url) }
         .onChange(of: auth.isSignedIn) { _, signedIn in
-            guard signedIn, let groupId = pendingDeepLinkGroupId else { return }
-            pendingDeepLinkGroupId = nil
-            if isMember(groupId) {
-                enterGroup(groupId)
+            guard signedIn, let pending = pendingDeepLink else { return }
+            pendingDeepLink = nil
+            if isMember(pending.groupId) {
+                enterGroup(pending.groupId, accessToken: pending.accessToken)
             } else {
-                route = .claimMember(groupId: groupId)
+                route = .claimMember(groupId: pending.groupId, accessToken: pending.accessToken)
             }
         }
         .sheet(isPresented: $showingSettings) {
@@ -54,6 +54,13 @@ struct RootView: View {
         auth.groups.contains { $0.groupId == groupId }
     }
 
+    /// The locally cached access token for a group already in `knownGroups`
+    /// (`ACCESS_TOKEN_PLAN.md`) — used when entering `.group` from the start
+    /// screen's list, where the token isn't otherwise in hand.
+    private func knownAccessToken(for groupId: String) -> String? {
+        knownGroups.all().first { $0.groupId == groupId }?.accessToken
+    }
+
     @ViewBuilder
     private var content: some View {
         switch route {
@@ -62,7 +69,7 @@ struct RootView: View {
                 onCreate: { route = .createGroup },
                 onJoinWithCode: { route = .joinGroup },
                 groups: yourGroups,
-                onOpenGroup: enterGroup,
+                onOpenGroup: { enterGroup($0) },
                 onRemoveGroup: { groupId in
                     knownGroups.forget(groupId: groupId)
                     knownGroupsRevision += 1
@@ -82,21 +89,24 @@ struct RootView: View {
             CreateGroupView(
                 client: client,
                 auth: auth,
-                onCreated: enterGroup,
+                onCreated: { enterGroup($0, accessToken: $1) },
                 onCancel: { route = .start }
             )
         case .joinGroup:
             JoinGroupView(
                 client: client,
-                onResolved: { groupId in route = .claimMember(groupId: groupId) },
+                onResolved: { groupId, accessToken in
+                    route = .claimMember(groupId: groupId, accessToken: accessToken)
+                },
                 onCancel: { route = .start }
             )
-        case .claimMember(let groupId):
+        case .claimMember(let groupId, let accessToken):
             ClaimMemberView(
                 groupId: groupId,
                 client: client,
+                accessToken: accessToken,
                 auth: auth,
-                onClaimed: enterGroup,
+                onClaimed: { enterGroup($0, accessToken: accessToken) },
                 onCancel: { route = .start }
             )
         case .group(let groupId):
@@ -105,6 +115,7 @@ struct RootView: View {
                 client: client,
                 knownGroups: knownGroups,
                 auth: auth,
+                accessToken: knownAccessToken(for: groupId),
                 onOpenSettings: { showingSettings = true },
                 onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
@@ -125,17 +136,17 @@ struct RootView: View {
 
     private func handleDeepLink(_ url: URL) {
         switch Self.resolveDeepLink(url, isMember: isMember, isSignedIn: auth.isSignedIn) {
-        case .openGroup(let groupId): enterGroup(groupId)
-        case .claimMember(let groupId): route = .claimMember(groupId: groupId)
-        case .needsSignIn(let groupId):
-            pendingDeepLinkGroupId = groupId
+        case .openGroup(let groupId, let accessToken): enterGroup(groupId, accessToken: accessToken)
+        case .claimMember(let groupId, let accessToken): route = .claimMember(groupId: groupId, accessToken: accessToken)
+        case .needsSignIn(let groupId, let accessToken):
+            pendingDeepLink = (groupId, accessToken)
             route = .start
         case nil: break
         }
     }
 
-    private func enterGroup(_ groupId: String) {
-        knownGroups.remember(groupId: groupId, name: nil, at: Date())
+    private func enterGroup(_ groupId: String, accessToken: String? = nil) {
+        knownGroups.remember(groupId: groupId, name: nil, accessToken: accessToken, at: Date())
         route = .group(groupId: groupId)
     }
 
@@ -154,10 +165,13 @@ struct RootView: View {
     /// - signed in and already a member → straight into the group;
     /// - signed in, no membership yet → the claim-or-join-fresh screen (`ACCOUNTS_DESIGN.md` §6);
     /// - signed out → nothing to do until they sign in (`MANDATORY_LOGIN_PLAN.md` Part 3).
+    ///
+    /// Each case carries the link's `accessToken` (`ACCESS_TOKEN_PLAN.md`), if
+    /// any, straight through to wherever it's needed next.
     enum DeepLinkResolution: Equatable {
-        case openGroup(String)
-        case claimMember(String)
-        case needsSignIn(String)
+        case openGroup(groupId: String, accessToken: String?)
+        case claimMember(groupId: String, accessToken: String?)
+        case needsSignIn(groupId: String, accessToken: String?)
     }
 
     nonisolated static func resolveDeepLink(
@@ -166,8 +180,11 @@ struct RootView: View {
         isSignedIn: Bool
     ) -> DeepLinkResolution? {
         guard let groupId = extractGroupId(from: url) else { return nil }
-        guard isSignedIn else { return .needsSignIn(groupId) }
-        return isMember(groupId) ? .openGroup(groupId) : .claimMember(groupId)
+        let accessToken = extractAccessToken(from: url)
+        guard isSignedIn else { return .needsSignIn(groupId: groupId, accessToken: accessToken) }
+        return isMember(groupId)
+            ? .openGroup(groupId: groupId, accessToken: accessToken)
+            : .claimMember(groupId: groupId, accessToken: accessToken)
     }
 
     /// Recognizes both a real capability link (`https://<host>/g/:groupId`, per
@@ -182,5 +199,14 @@ struct RootView: View {
             return components[index + 1]
         }
         return nil
+    }
+
+    /// The `?token=` query item (`ACCESS_TOKEN_PLAN.md`) — `nil` for a link to
+    /// a group that predates the feature and was never regenerated.
+    nonisolated static func extractAccessToken(from url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first { $0.name == "token" }?
+            .value
     }
 }

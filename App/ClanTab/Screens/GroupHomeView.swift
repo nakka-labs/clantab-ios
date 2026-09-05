@@ -27,6 +27,7 @@ struct GroupHomeView: View {
         client: ClanTabClient,
         knownGroups: KnownGroupsStoring,
         auth: AuthViewModel,
+        accessToken: String? = nil,
         onOpenSettings: @escaping () -> Void = {},
         onLeaveGroup: @escaping () -> Void = {},
         onGroupUnavailable: @escaping () -> Void = {}
@@ -37,7 +38,7 @@ struct GroupHomeView: View {
         self.onOpenSettings = onOpenSettings
         self.onLeaveGroup = onLeaveGroup
         self.onGroupUnavailable = onGroupUnavailable
-        _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, auth: auth))
+        _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, auth: auth, accessToken: accessToken))
     }
 
     var body: some View {
@@ -169,6 +170,14 @@ struct GroupHomeView: View {
                 knownGroups.remember(groupId: viewModel.groupId, name: name, at: Date())
             }
         }
+        .onChange(of: viewModel.accessToken) { _, token in
+            // Keep the local cache current — picks up a rotation from
+            // another device (via a refetch) or this one's own "Regenerate
+            // Link" (`ACCESS_TOKEN_PLAN.md`).
+            if let token {
+                knownGroups.remember(groupId: viewModel.groupId, accessToken: token, at: Date())
+            }
+        }
         .overlay {
             if viewModel.isLoading && viewModel.state == nil {
                 ProgressView()
@@ -201,6 +210,7 @@ struct GroupHomeView: View {
                     defaultCurrency: viewModel.lastUsedCurrency,
                     currentMemberId: viewModel.myIdentity?.memberId,
                     client: client,
+                    accessToken: viewModel.accessToken,
                     onSaved: {
                         isPresentingAddExpense = false
                         expenseAddedTrigger += 1
@@ -215,6 +225,7 @@ struct GroupHomeView: View {
                 SettleUpView(
                     groupId: viewModel.groupId,
                     client: client,
+                    accessToken: viewModel.accessToken,
                     viewModel: viewModel,
                     onSettled: { settlementMarkedTrigger += 1 },
                     onDone: { isPresentingSettleUp = false }
@@ -227,6 +238,7 @@ struct GroupHomeView: View {
                     groupId: viewModel.groupId,
                     existingMembers: viewModel.state?.members ?? [],
                     client: client,
+                    accessToken: viewModel.accessToken,
                     onImported: {
                         isPresentingImport = false
                         expenseAddedTrigger += 1
@@ -244,6 +256,7 @@ struct GroupHomeView: View {
                     defaultCurrency: expense.currency,
                     currentMemberId: viewModel.myIdentity?.memberId,
                     client: client,
+                    accessToken: viewModel.accessToken,
                     editing: expense,
                     onSaved: {
                         editingExpense = nil
@@ -271,7 +284,9 @@ struct GroupHomeView: View {
                         groupId: viewModel.groupId,
                         state: state,
                         client: client,
+                        accessToken: viewModel.accessToken,
                         onChanged: { Task { await viewModel.refetch() } },
+                        onRegenerated: { viewModel.updateAccessToken($0) },
                         onLeave: { isPresentingGroupSettings = false; onLeaveGroup() },
                         onDone: { isPresentingGroupSettings = false }
                     )
@@ -300,9 +315,9 @@ struct GroupHomeView: View {
         do {
             switch item.kind {
             case .expense(let expense):
-                try await client.deleteExpense(groupId: viewModel.groupId, expenseId: expense.id)
+                try await client.deleteExpense(groupId: viewModel.groupId, expenseId: expense.id, accessToken: viewModel.accessToken)
             case .settlement(let settlement):
-                try await client.deleteSettlement(groupId: viewModel.groupId, settlementId: settlement.id)
+                try await client.deleteSettlement(groupId: viewModel.groupId, settlementId: settlement.id, accessToken: viewModel.accessToken)
             }
             await viewModel.refetch()
         } catch {
@@ -314,7 +329,7 @@ struct GroupHomeView: View {
     private var shareMenu: some View {
         if let state = viewModel.state {
             Menu {
-                ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: viewModel.groupId))
+                ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: viewModel.groupId, accessToken: viewModel.accessToken))
                 ShareLink("Share Join Code (\(state.group.joinCode))", item: state.group.joinCode)
 
                 let filenameBase = ExportFile.sanitizedFilename(state.group.name)

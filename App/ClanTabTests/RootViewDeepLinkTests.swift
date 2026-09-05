@@ -46,14 +46,14 @@ final class RootViewDeepLinkTests: XCTestCase {
         let resolution = RootView.resolveDeepLink(
             url("clantab://g/ABC123"), isMember: { $0 == "ABC123" }, isSignedIn: true
         )
-        XCTAssertEqual(resolution, .openGroup("ABC123"))
+        XCTAssertEqual(resolution, .openGroup(groupId: "ABC123", accessToken: nil))
     }
 
     func testResolvesToClaimMemberWhenSignedInButNotAMemberYet() {
         let resolution = RootView.resolveDeepLink(
             url("clantab://g/ABC123"), isMember: { _ in false }, isSignedIn: true
         )
-        XCTAssertEqual(resolution, .claimMember("ABC123"))
+        XCTAssertEqual(resolution, .claimMember(groupId: "ABC123", accessToken: nil))
     }
 
     func testResolvesToNeedsSignInWhenSignedOut() {
@@ -62,13 +62,31 @@ final class RootViewDeepLinkTests: XCTestCase {
         let resolution = RootView.resolveDeepLink(
             url("clantab://g/ABC123"), isMember: { _ in true }, isSignedIn: false
         )
-        XCTAssertEqual(resolution, .needsSignIn("ABC123"))
+        XCTAssertEqual(resolution, .needsSignIn(groupId: "ABC123", accessToken: nil))
     }
 
     func testResolvesToNilForUnparseableURL() {
         XCTAssertNil(RootView.resolveDeepLink(
             url("https://clantab.example.com/"), isMember: { _ in true }, isSignedIn: true
         ))
+    }
+
+    // MARK: - extractAccessToken (ACCESS_TOKEN_PLAN.md)
+
+    func testExtractsAccessTokenFromTheTokenQueryParam() {
+        XCTAssertEqual(RootView.extractAccessToken(from: url("https://clantab.example.com/g/ABC123?token=tok1")), "tok1")
+        XCTAssertEqual(RootView.extractAccessToken(from: url("clantab://g/ABC123?token=tok2")), "tok2")
+    }
+
+    func testExtractAccessTokenIsNilWhenAbsent() {
+        XCTAssertNil(RootView.extractAccessToken(from: url("clantab://g/ABC123")))
+    }
+
+    func testResolveDeepLinkCarriesTheAccessTokenThrough() {
+        let resolution = RootView.resolveDeepLink(
+            url("https://clantab.example.com/g/ABC123?token=tok3"), isMember: { _ in false }, isSignedIn: true
+        )
+        XCTAssertEqual(resolution, .claimMember(groupId: "ABC123", accessToken: "tok3"))
     }
 
     private func url(_ string: String) -> URL {

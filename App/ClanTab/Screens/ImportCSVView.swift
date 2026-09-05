@@ -10,6 +10,7 @@ struct ImportCSVView: View {
     let groupId: String
     let existingMembers: [Member]
     let client: ClanTabClient
+    let accessToken: String?
     let onImported: () -> Void
     let onCancel: () -> Void
 
@@ -205,7 +206,7 @@ struct ImportCSVView: View {
                 idByName[name.lowercased()] = memberId
             case .create:
                 do {
-                    let joined = try await client.joinGroup(groupId: groupId, JoinGroupRequest(displayName: name))
+                    let joined = try await client.joinGroup(groupId: groupId, JoinGroupRequest(displayName: name), accessToken: accessToken)
                     idByName[name.lowercased()] = joined.member.id
                 } catch {
                     stage = .finished(imported: 0, failed: 0, message: "Couldn't add member \"\(name)\": \(friendlyMessage(for: error))")
@@ -240,7 +241,7 @@ struct ImportCSVView: View {
                     splits: draft.splits.map { ExpenseSplit(memberId: id($0.memberName)!, amountMinor: $0.amountMinor) },
                     category: draft.category,
                     categoryIcon: draft.category == nil ? nil : "tag"
-                ))
+                ), accessToken: accessToken)
             } catch {
                 failed += 1
             }
@@ -256,7 +257,7 @@ struct ImportCSVView: View {
                     toId: id(draft.toName)!,
                     amountMinor: draft.amountMinor,
                     currency: draft.currency
-                ))
+                ), accessToken: accessToken)
             } catch {
                 failed += 1
             }

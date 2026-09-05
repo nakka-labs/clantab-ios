@@ -11,6 +11,9 @@ import ClanTabKit
 struct ClaimMemberView: View {
     let groupId: String
     let client: ClanTabClient
+    /// This group's capability-link credential (`ACCESS_TOKEN_PLAN.md`), from
+    /// wherever this screen was reached — the link, or a resolved join code.
+    let accessToken: String?
     let auth: AuthViewModel
     let onClaimed: (_ groupId: String) -> Void
     let onCancel: () -> Void
@@ -89,14 +92,14 @@ struct ClaimMemberView: View {
     private func loadMembers() async {
         guard members == nil, let token = auth.session?.token else { return }
         do {
-            members = try await client.claimableMembers(groupId: groupId, token: token).members
+            members = try await client.claimableMembers(groupId: groupId, token: token, accessToken: accessToken).members
         } catch {
             loadError = friendlyMessage(for: error)
         }
     }
 
     private func claim(_ member: Member) async {
-        if await auth.claim(groupId: groupId, memberId: member.id) {
+        if await auth.claim(groupId: groupId, memberId: member.id, accessToken: accessToken) {
             onClaimed(groupId)
         }
     }
@@ -110,8 +113,8 @@ struct ClaimMemberView: View {
         isJoiningFresh = true
         defer { isJoiningFresh = false }
         do {
-            let response = try await client.joinGroup(groupId: groupId, JoinGroupRequest(displayName: name))
-            if await auth.claim(groupId: groupId, memberId: response.member.id) {
+            let response = try await client.joinGroup(groupId: groupId, JoinGroupRequest(displayName: name), accessToken: accessToken)
+            if await auth.claim(groupId: groupId, memberId: response.member.id, accessToken: accessToken) {
                 onClaimed(groupId)
             }
         } catch {

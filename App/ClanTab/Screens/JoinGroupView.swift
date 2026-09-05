@@ -7,7 +7,10 @@ import ClanTabKit
 /// fresh there; this screen's only job is the code lookup.
 struct JoinGroupView: View {
     let client: ClanTabClient
-    let onResolved: (String) -> Void
+    /// `accessToken` is the group's *current* capability-link credential
+    /// (`ACCESS_TOKEN_PLAN.md` Part 3) — a resolved code always returns the
+    /// live one, evergreen across a link rotation.
+    let onResolved: (_ groupId: String, _ accessToken: String?) -> Void
     let onCancel: () -> Void
 
     @State private var joinCode = ""
@@ -55,7 +58,7 @@ struct JoinGroupView: View {
         defer { isSubmitting = false }
         do {
             let response = try await client.resolveJoinCode(joinCode.uppercased())
-            onResolved(response.groupId)
+            onResolved(response.groupId, response.accessToken)
         } catch {
             errorMessage = friendlyMessage(for: error)
         }

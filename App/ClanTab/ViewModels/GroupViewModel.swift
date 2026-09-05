@@ -23,16 +23,31 @@ final class GroupViewModel {
     private(set) var state: GroupStateResponse?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
+    /// This group's capability-link credential (`ACCESS_TOKEN_PLAN.md`),
+    /// carried alongside `groupId` on every group-data call. Kept in sync
+    /// with the server on every successful fetch (`state?.group.accessToken`)
+    /// so a rotation from another device — or this one's own "Regenerate
+    /// Link" via `updateAccessToken` — is picked up automatically. `nil` for
+    /// a group that predates this feature and was never regenerated.
+    private(set) var accessToken: String?
 
     /// Set when the server says this group doesn't exist (a 404 on its
     /// capability URL) — the pointer to it is stale and Group Home can never
     /// load. `RootView` watches this to bounce back to the start screen.
     private(set) var groupUnavailable = false
 
-    init(groupId: String, client: ClanTabClient, auth: AuthViewModel) {
+    init(groupId: String, client: ClanTabClient, auth: AuthViewModel, accessToken: String? = nil) {
         self.groupId = groupId
         self.client = client
         self.auth = auth
+        self.accessToken = accessToken
+    }
+
+    /// After "Regenerate Link" mints a fresh token — update immediately
+    /// (before the caller's next request), rather than waiting on a `refetch()`
+    /// that would otherwise still use the now-invalid old one.
+    func updateAccessToken(_ token: String) {
+        accessToken = token
     }
 
     /// "Me" in this group — from the signed-in identity's authoritative group
@@ -72,7 +87,8 @@ final class GroupViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            state = try await client.fetchGroupState(groupId: groupId)
+            state = try await client.fetchGroupState(groupId: groupId, accessToken: accessToken)
+            if let fresh = state?.group.accessToken { accessToken = fresh }
         } catch {
             errorMessage = friendlyMessage(for: error)
             if Self.isGroupNotFound(error) {
@@ -91,7 +107,8 @@ final class GroupViewModel {
     func autoRefetch() async {
         guard !isLoading else { return }
         do {
-            state = try await client.fetchGroupState(groupId: groupId)
+            state = try await client.fetchGroupState(groupId: groupId, accessToken: accessToken)
+            if let fresh = state?.group.accessToken { accessToken = fresh }
             errorMessage = nil
         } catch {
             if Self.isGroupNotFound(error) {

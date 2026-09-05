@@ -74,29 +74,40 @@ group they create has one). `wrangler deploy --dry-run` validates.
 
 ## Part 2 — iOS: carry + regenerate
 
-**In progress 2026-09-05, split into smaller commits.** Foundation done: the
-network layer that will carry the token, committed and tested (ClanTabKit
-116 → 117 tests). Still to do: actually wiring it through `RootView`'s
-screens/view models, and the `GroupSettingsView` "Regenerate Link" UI.
+**Done 2026-09-05.** iOS build + test green (63/63, up from 60).
 
-1. [x] **[CLI, foundation]** `ClanTabClient`'s group-data methods
-   (`fetchGroupState`, `joinGroup`, `addExpense`/`addSettlement`,
+1. [x] **[CLI]** `ClanTabClient`'s group-data methods (`fetchGroupState`,
+   `joinGroup`, `addExpense`/`addSettlement`,
    `updateGroup`/`renameMember`/`removeMember`, the edit/delete methods,
    `claimableMembers`/`claimMember`) all gain an `accessToken: String? = nil`
    parameter, appended as `?token=`; a new `regenerateLink(groupId:accessToken:)`
    method. `GroupSummary`/`ResolveJoinCodeResponse` carry `accessToken` on the
-   wire. `KnownGroup` gains an `accessToken` field — `remember(...)` updates it
-   only when given a non-nil value, so a caller without the current token
-   (e.g. mirroring `GET /api/auth/groups`, which doesn't return one) never
-   clobbers one learned elsewhere. `AppConfig.groupShareURL` embeds it.
-   [ ] **Not yet done:** actually threading it through `RootView` /
-   `GroupViewModel` / `CreateGroupView` / `JoinGroupView` / `ClaimMemberView`
-   / `GroupHomeView` so a real request ever carries a real token.
-2. [ ] **[CLI]** `GroupSettingsView` gains "Regenerate Link" with a clear
-   warning dialog — this is destructive to anyone still holding the old
-   link/code, not undoable.
-3. [ ] **[CLI]** `RootView.resolveDeepLink` / `extractGroupId` parse the token
-   portion of a shared URL, not just the groupId.
+   wire. `KnownGroup` gains an `accessToken` field. `AppConfig.groupShareURL`
+   embeds it. Threaded the rest of the way through: `GroupViewModel` now owns
+   the token (kept in sync from every `getState()` response, so a rotation
+   from another device — or this one's own regenerate — is picked up
+   automatically) and passes it to every `ClanTabClient` call `GroupHomeView`
+   and its sheets (`AddExpenseView`, `SettleUpView`, `ImportCSVView`,
+   `GroupSettingsView`) make. `AuthViewModel.claim` gains an `accessToken`
+   parameter, used by the creator's own post-creation claim
+   (`CreateGroupView`) and by `ClaimMemberView`'s two outcomes.
+2. [x] **[CLI]** `GroupSettingsView` gains "Regenerate Link" with a
+   confirmation dialog spelling out that it's destructive to anyone still
+   holding the old link/code and not undoable. Calls
+   `client.regenerateLink`, then `onRegenerated(newToken)` so
+   `GroupViewModel.updateAccessToken` picks it up immediately — before its
+   own next `refetch()` would otherwise notice.
+3. [x] **[CLI]** `RootView.resolveDeepLink` gained `extractAccessToken`
+   (reads `?token=`) alongside `extractGroupId`; `DeepLinkResolution`'s three
+   cases all carry the token through to wherever they land next — including
+   the signed-out `pendingDeepLink` resume path.
+
+**Not independently verified against a real deployed backend** — the
+worker's access-token changes (Part 1/3) aren't deployed yet either (same as
+`RegistryDO`→KV), so there was nothing live to test the dual-auth enforcement
+against end-to-end; this rode entirely on the worker's 153 tests + the iOS
+client's 117 + the App's 63, not a Simulator walkthrough (which also can't
+complete a real Apple/Google sign-in, `NEXT_STEPS.md` Phase 8).
 
 ## Part 3 — Join-by-code stays evergreen
 

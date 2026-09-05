@@ -173,15 +173,15 @@ final class AuthViewModel {
     /// refresh below is transiently unreachable) and the authoritative list is
     /// then refreshed. Returns whether it succeeded; on failure `errorMessage`
     /// carries the reason.
-    func claim(groupId: String, memberId: String) async -> Bool {
+    func claim(groupId: String, memberId: String, accessToken: String? = nil) async -> Bool {
         guard let token = session?.token else { return false }
         isBusy = true
         errorMessage = nil
         defer { isBusy = false }
         do {
-            let response = try await client.claimMember(groupId: groupId, memberId: memberId, token: token)
+            let response = try await client.claimMember(groupId: groupId, memberId: memberId, token: token, accessToken: accessToken)
             upsertGroup(GroupMembershipSummary(groupId: groupId, memberId: response.member.id, displayName: response.member.displayName))
-            knownGroups.remember(groupId: groupId)
+            knownGroups.remember(groupId: groupId, accessToken: accessToken)
             await refreshGroups()
             return true
         } catch {

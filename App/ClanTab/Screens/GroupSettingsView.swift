@@ -10,7 +10,14 @@ struct GroupSettingsView: View {
     /// `onChanged` triggers a refetch.
     let state: GroupStateResponse
     let client: ClanTabClient
+    /// This group's capability-link credential (`ACCESS_TOKEN_PLAN.md`) — used
+    /// to authorize "Regenerate Link" itself, same as any other group route.
+    let accessToken: String?
     let onChanged: () -> Void
+    /// Called with the fresh token right after a successful regenerate, so
+    /// the caller (`GroupHomeView`'s `GroupViewModel`) can start using it
+    /// immediately — before its own next `refetch()` would otherwise notice.
+    let onRegenerated: (String) -> Void
     let onLeave: () -> Void
     let onDone: () -> Void
 
@@ -23,19 +30,25 @@ struct GroupSettingsView: View {
     @State private var errorMessage: String?
     @State private var isBusy = false
     @State private var confirmingLeave = false
+    @State private var confirmingRegenerate = false
+    @State private var isRegenerating = false
 
     init(
         groupId: String,
         state: GroupStateResponse,
         client: ClanTabClient,
+        accessToken: String? = nil,
         onChanged: @escaping () -> Void,
+        onRegenerated: @escaping (String) -> Void = { _ in },
         onLeave: @escaping () -> Void,
         onDone: @escaping () -> Void
     ) {
         self.groupId = groupId
         self.state = state
         self.client = client
+        self.accessToken = accessToken
         self.onChanged = onChanged
+        self.onRegenerated = onRegenerated
         self.onLeave = onLeave
         self.onDone = onDone
         _name = State(initialValue: state.group.name)
@@ -107,6 +120,21 @@ struct GroupSettingsView: View {
             }
 
             Section {
+                Button {
+                    confirmingRegenerate = true
+                } label: {
+                    if isRegenerating {
+                        ProgressView()
+                    } else {
+                        Text("Regenerate Link")
+                    }
+                }
+                .disabled(isRegenerating)
+            } footer: {
+                Text("Makes a fresh invite link and code; the old ones stop working immediately, for anyone still holding them. Not undoable.")
+            }
+
+            Section {
                 Button("Leave This Group", role: .destructive) { confirmingLeave = true }
             } footer: {
                 Text("Removes this group from this device. Your expenses stay for everyone else.")
@@ -137,6 +165,12 @@ struct GroupSettingsView: View {
         } message: {
             Text("It'll be removed from this device. Your expenses stay for everyone else.")
         }
+        .confirmationDialog("Regenerate the invite link?", isPresented: $confirmingRegenerate, titleVisibility: .visible) {
+            Button("Regenerate", role: .destructive) { Task { await regenerateLink() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The old link and join code stop working immediately, for anyone still holding them. Not undoable.")
+        }
     }
 
     private func save() async {
@@ -147,7 +181,8 @@ struct GroupSettingsView: View {
             _ = try await client.updateGroup(
                 groupId: groupId,
                 name: trimmedName != state.group.name ? trimmedName : nil,
-                currency: currency != state.group.currency ? currency : nil
+                currency: currency != state.group.currency ? currency : nil,
+                accessToken: accessToken
             )
             onChanged()
             onDone()
@@ -162,7 +197,7 @@ struct GroupSettingsView: View {
         guard !newName.isEmpty, newName != member.displayName else { return }
         errorMessage = nil
         do {
-            _ = try await client.renameMember(groupId: groupId, memberId: member.id, displayName: newName)
+            _ = try await client.renameMember(groupId: groupId, memberId: member.id, displayName: newName, accessToken: accessToken)
             onChanged()
         } catch {
             errorMessage = friendlyMessage(for: error)
@@ -181,7 +216,7 @@ struct GroupSettingsView: View {
         isAddingMember = true
         defer { isAddingMember = false }
         do {
-            _ = try await client.joinGroup(groupId: groupId, JoinGroupRequest(displayName: trimmed))
+            _ = try await client.joinGroup(groupId: groupId, JoinGroupRequest(displayName: trimmed), accessToken: accessToken)
             newMemberName = ""
             onChanged()
         } catch {
@@ -192,8 +227,22 @@ struct GroupSettingsView: View {
     private func remove(_ member: Member) async {
         errorMessage = nil
         do {
-            try await client.removeMember(groupId: groupId, memberId: member.id)
+            try await client.removeMember(groupId: groupId, memberId: member.id, accessToken: accessToken)
             onChanged()
+        } catch {
+            errorMessage = friendlyMessage(for: error)
+        }
+    }
+
+    /// Rotate the group's access token (`ACCESS_TOKEN_PLAN.md` Part 1) —
+    /// every previously shared link/code stops working immediately.
+    private func regenerateLink() async {
+        errorMessage = nil
+        isRegenerating = true
+        defer { isRegenerating = false }
+        do {
+            let response = try await client.regenerateLink(groupId: groupId, accessToken: accessToken)
+            onRegenerated(response.accessToken)
         } catch {
             errorMessage = friendlyMessage(for: error)
         }

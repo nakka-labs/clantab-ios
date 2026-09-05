@@ -4,7 +4,10 @@ import ClanTabKit
 struct CreateGroupView: View {
     let client: ClanTabClient
     let auth: AuthViewModel
-    let onCreated: (String) -> Void
+    /// `accessToken` is the new group's capability-link credential
+    /// (`ACCESS_TOKEN_PLAN.md`) — `nil` only if creation somehow raced a
+    /// worker that predates the feature entirely.
+    let onCreated: (_ groupId: String, _ accessToken: String?) -> Void
     let onCancel: () -> Void
 
     /// `CreateGroupResponse` is the *only* place the 6-character join code is
@@ -85,7 +88,7 @@ struct CreateGroupView: View {
     }
 
     private func createdConfirmation(_ response: CreateGroupResponse) -> some View {
-        let shareURL = AppConfig.groupShareURL(groupId: response.groupId)
+        let shareURL = AppConfig.groupShareURL(groupId: response.groupId, accessToken: response.group.accessToken)
         return Form {
             Section("Join Code") {
                 Text(response.joinCode)
@@ -99,7 +102,7 @@ struct CreateGroupView: View {
             }
             Section {
                 Button("Continue") {
-                    onCreated(response.groupId)
+                    onCreated(response.groupId, response.group.accessToken)
                 }
             }
         }
@@ -123,7 +126,7 @@ struct CreateGroupView: View {
             // `auth.groups` (`MANDATORY_LOGIN_PLAN.md` Part 3) — best-effort;
             // the group is already created and locally remembered either way,
             // so a transient failure here isn't worth blocking on.
-            _ = await auth.claim(groupId: response.groupId, memberId: response.member.id)
+            _ = await auth.claim(groupId: response.groupId, memberId: response.member.id, accessToken: response.group.accessToken)
             stage = .created(response)
         } catch {
             errorMessage = friendlyMessage(for: error)

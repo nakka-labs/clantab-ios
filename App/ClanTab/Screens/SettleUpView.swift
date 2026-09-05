@@ -13,6 +13,7 @@ import ClanTabKit
 struct SettleUpView: View {
     let groupId: String
     let client: ClanTabClient
+    let accessToken: String?
     let viewModel: GroupViewModel
     let onSettled: () -> Void
     let onDone: () -> Void
@@ -117,7 +118,8 @@ struct SettleUpView: View {
                     toId: settlement.toId,
                     amountMinor: settlement.amountMinor,
                     currency: settlement.currency
-                )
+                ),
+                accessToken: accessToken
             )
             onSettled()
             await viewModel.refetch()

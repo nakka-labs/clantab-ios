@@ -14,6 +14,7 @@ struct AddExpenseView: View {
     let defaultCurrency: String
     let currentMemberId: String?
     let client: ClanTabClient
+    let accessToken: String?
     /// When set, the form edits this expense (`PUT`) instead of adding a new one.
     let editing: Expense?
     let onSaved: () -> Void
@@ -45,6 +46,7 @@ struct AddExpenseView: View {
         defaultCurrency: String,
         currentMemberId: String?,
         client: ClanTabClient,
+        accessToken: String? = nil,
         editing: Expense? = nil,
         onSaved: @escaping () -> Void,
         onCancel: @escaping () -> Void
@@ -54,6 +56,7 @@ struct AddExpenseView: View {
         self.defaultCurrency = defaultCurrency
         self.currentMemberId = currentMemberId
         self.client = client
+        self.accessToken = accessToken
         self.editing = editing
         self.onSaved = onSaved
         self.onCancel = onCancel
@@ -348,9 +351,9 @@ struct AddExpenseView: View {
                 categoryIcon: isCategorised ? category.symbolName : nil
             )
             if let editing {
-                _ = try await client.updateExpense(groupId: groupId, expenseId: editing.id, request)
+                _ = try await client.updateExpense(groupId: groupId, expenseId: editing.id, request, accessToken: accessToken)
             } else {
-                _ = try await client.addExpense(groupId: groupId, request)
+                _ = try await client.addExpense(groupId: groupId, request, accessToken: accessToken)
             }
             onSaved()
         } catch {
