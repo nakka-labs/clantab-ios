@@ -46,8 +46,11 @@ so nothing downstream stalls waiting on you.
       data, so this is a clean cutover, not a migration.
 - [x] **[CLI]** Foreground poll interval 5s → ~20-30s (`SHIP_PLAN.md` Track 3
       §8). **Done 2026-09-05:** `GroupViewModel.pollInterval` → 25s.
-- [ ] **[CLI]** Verify GitHub secret scanning + push protection are on
-      (`MANDATORY_LOGIN_PLAN.md` Part 4).
+- [x] **[CLI]** Verify GitHub secret scanning + push protection are on
+      (`MANDATORY_LOGIN_PLAN.md` Part 4). **Done 2026-09-05:** both were
+      actually **off** — enabled via the repo API
+      (`security_and_analysis.secret_scanning` /
+      `.secret_scanning_push_protection`, both now `enabled`).
 
 ## Phase 2 — Mandatory login (Apple + Google, guests removed)
 

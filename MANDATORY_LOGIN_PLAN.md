@@ -120,9 +120,10 @@ it is needed once every user is signed in.
 
 ## Part 4 — Hardening, now that the repo carries more weight
 
-- [ ] **[CLI]** Verify GitHub secret scanning + push protection are on for
+- [x] **[CLI]** Verify GitHub secret scanning + push protection are on for
       the repo (free on public repos) — cheap safeguard now that there are
-      two OAuth providers' worth of secrets in play, not just one.
+      two OAuth providers' worth of secrets in play, not just one. **Done
+      2026-09-05:** both were off; enabled via the repo API.
 
 ## What sequences after this plan
 
