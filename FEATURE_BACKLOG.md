@@ -169,7 +169,8 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   Files" — which already supports iCloud Drive and Google Drive today, if
   the Drive app is installed, with zero new code. The gap is just
   visibility — add an occasional gentle nudge to actually do it (reuses
-  `Export.swift` entirely). (2) Medium: real automatic backup via CloudKit
+  `Export.swift` entirely). **Tier 1 done 2026-09-05**, tier 2 (below)
+  still open. (2) Medium: real automatic backup via CloudKit
   (iOS/iCloud only — no ₹ cost, the container comes with the Apple
   Developer Program already paid for) — a periodic silent snapshot, not a
   second source of truth, so no sync/conflict-resolution complexity
@@ -179,6 +180,18 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   not money) and there's no Android client yet to justify it; revisit if
   `NAV_POLISH_PLAN.md` Part 3's cross-platform guardrails ever turn into an
   actual Android build.
+  Tier 1 scope: `ClanTabKit`'s `BackupNudge` (pure `shouldShow(now:lastShownAt:firstLaunchAt:)`)
+  plus `BackupNudgeStoring`/`UserDefaultsBackupNudgeStore`/`InMemoryBackupNudgeStore`
+  — unlike the one-time `SyncNudgeStoring` this recurs every 30 days
+  (after a first week of grace), no permanent dismiss. `AuthViewModel`
+  gained `shouldShowBackupNudge(now:)`/`recordBackupNudgeShown(now:)`,
+  reusing `syncNudge.firstLaunchAt()` rather than a second first-launch
+  timestamp. App: a new `BackupNudgeCard` on Group Home (below the
+  balance hero) offering the existing CSV export as a `ShareLink`
+  directly, with a "Not now" dismiss for the current session; shown
+  regardless of sign-in state (backup applies to everyone, unlike the
+  sync nudge). ClanTabKit 134/134 passing (was 129); App 66/66 passing
+  (was 63).
 - **Explicit light/dark/system theme toggle.** Dark mode already works
   today — SwiftUI's automatic system-appearance adaptation, reviewed in
   `HANDOFF.md`'s Phase 6 checklist. What's missing is a manual override in

@@ -46,6 +46,7 @@ final class AuthViewModel {
     private let sessionStore: SessionStoring
     private let knownGroups: KnownGroupsStoring
     private let syncNudge: SyncNudgeStoring
+    private let backupNudge: BackupNudgeStoring
     /// Injectable so tests don't need a real Apple credential. Returns `.noSession`
     /// when there's nothing stored to check.
     private let credentialStanding: @Sendable (_ appleUserID: String) async -> CredentialStanding
@@ -70,12 +71,14 @@ final class AuthViewModel {
         sessionStore: SessionStoring,
         knownGroups: KnownGroupsStoring,
         syncNudge: SyncNudgeStoring,
+        backupNudge: BackupNudgeStoring = UserDefaultsBackupNudgeStore(),
         credentialStanding: @escaping @Sendable (_ appleUserID: String) async -> CredentialStanding = AuthViewModel.liveCredentialStanding
     ) {
         self.client = client
         self.sessionStore = sessionStore
         self.knownGroups = knownGroups
         self.syncNudge = syncNudge
+        self.backupNudge = backupNudge
         self.credentialStanding = credentialStanding
         self.session = sessionStore.load()
         self.syncNudgeDismissed = syncNudge.isDismissed()
@@ -104,6 +107,24 @@ final class AuthViewModel {
     func dismissSyncNudge() {
         syncNudge.dismiss()
         syncNudgeDismissed = true
+    }
+
+    // MARK: - Backup nudge (FEATURE_BACKLOG.md "Backup, in two tiers")
+
+    /// Whether Group Home should show the occasional "back up your data"
+    /// card — recurring, unlike the sync nudge above: a week after first
+    /// launch, then every `BackupNudge.interval` since it was last shown.
+    /// Reuses `syncNudge.firstLaunchAt()` rather than tracking a second
+    /// first-launch timestamp.
+    func shouldShowBackupNudge(now: Date = Date()) -> Bool {
+        BackupNudge.shouldShow(now: now, lastShownAt: backupNudge.lastShownAt(), firstLaunchAt: syncNudge.firstLaunchAt())
+    }
+
+    /// Reset the nudge's clock — called whichever way the card goes away
+    /// (backed up, or "Not now"), so it stays quiet for a full interval
+    /// either way.
+    func recordBackupNudgeShown(now: Date = Date()) {
+        backupNudge.recordShown(now)
     }
 
     // MARK: - Sign in / out

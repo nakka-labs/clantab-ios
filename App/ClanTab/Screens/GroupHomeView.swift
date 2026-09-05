@@ -30,6 +30,7 @@ struct GroupHomeView: View {
     @State private var settlementMarkedTrigger = 0
     @State private var filter = ActivityFilter()
     @State private var undoBanner: UndoBanner?
+    @State private var backupNudgeDismissed = false
 
     /// The fast-path "Undo" toast after a swipe-to-delete (`FEATURE_BACKLOG.md`
     /// "Delete goes to trash") — the same restore action `RecentlyDeletedView`
@@ -85,6 +86,16 @@ struct GroupHomeView: View {
                         Text(message).font(.caption).foregroundStyle(.red)
                     }
                 }
+            }
+
+            if let state = viewModel.state, auth.shouldShowBackupNudge(), !backupNudgeDismissed {
+                Section {
+                    BackupNudgeCard(
+                        csvURL: backupCSVURL(state),
+                        onDismiss: { backupNudgeDismissed = true }
+                    )
+                }
+                .onAppear { auth.recordBackupNudgeShown() }
             }
 
             if viewModel.state != nil {
@@ -500,6 +511,14 @@ struct GroupHomeView: View {
         } catch {
             mutationError = friendlyMessage(for: error)
         }
+    }
+
+    /// The same CSV export `shareMenu`'s "Export CSV" item builds, reused by
+    /// `BackupNudgeCard` (`FEATURE_BACKLOG.md` "Backup, in two tiers").
+    private func backupCSVURL(_ state: GroupStateResponse) -> URL? {
+        let filenameBase = ExportFile.sanitizedFilename(state.group.name)
+        let csv = Export.csv(members: state.members, expenses: state.expenses, settlements: state.settlements)
+        return ExportFile.write(csv, filename: "\(filenameBase)-export.csv")
     }
 
     @ViewBuilder

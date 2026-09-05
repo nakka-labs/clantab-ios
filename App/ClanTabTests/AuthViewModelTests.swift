@@ -258,6 +258,53 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertFalse(vm.shouldShowSyncNudge(now: firstLaunch.addingTimeInterval(30 * day)))
     }
 
+    // MARK: - backup nudge (FEATURE_BACKLOG.md "Backup, in two tiers")
+
+    @MainActor
+    func testBackupNudgeHiddenBeforeFirstWeek() async {
+        let firstLaunch = Date(timeIntervalSince1970: 1_000_000)
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: FailingTransport(),
+            syncNudge: InMemorySyncNudgeStore(firstLaunchAt: firstLaunch)
+        )
+        XCTAssertFalse(vm.shouldShowBackupNudge(now: firstLaunch.addingTimeInterval(6 * day)))
+        XCTAssertTrue(vm.shouldShowBackupNudge(now: firstLaunch.addingTimeInterval(7 * day)))
+    }
+
+    @MainActor
+    func testBackupNudgeShownWhileSignedIn() async {
+        // Unlike the sync nudge, backup applies to everyone, signed in or not.
+        let firstLaunch = Date(timeIntervalSince1970: 1_000_000)
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: FailingTransport(),
+            syncNudge: InMemorySyncNudgeStore(firstLaunchAt: firstLaunch)
+        )
+        XCTAssertTrue(vm.isSignedIn)
+        XCTAssertTrue(vm.shouldShowBackupNudge(now: firstLaunch.addingTimeInterval(7 * day)))
+    }
+
+    @MainActor
+    func testBackupNudgeRecursAfterThirtyDays() async {
+        let firstLaunch = Date(timeIntervalSince1970: 1_000_000)
+        let backupNudge = InMemoryBackupNudgeStore()
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: FailingTransport(),
+            syncNudge: InMemorySyncNudgeStore(firstLaunchAt: firstLaunch),
+            backupNudge: backupNudge
+        )
+        let shownAt = firstLaunch.addingTimeInterval(7 * day)
+        XCTAssertTrue(vm.shouldShowBackupNudge(now: shownAt))
+
+        vm.recordBackupNudgeShown(now: shownAt)
+        XCTAssertEqual(backupNudge.lastShownAt(), shownAt)
+
+        XCTAssertFalse(vm.shouldShowBackupNudge(now: shownAt.addingTimeInterval(29 * day)))
+        XCTAssertTrue(vm.shouldShowBackupNudge(now: shownAt.addingTimeInterval(30 * day)))
+    }
+
     @MainActor
     func testHandleLaunchRecordsFirstLaunchOnce() async {
         let nudge = InMemorySyncNudgeStore()
@@ -480,13 +527,15 @@ final class AuthViewModelTests: XCTestCase {
         transport: ClanTabTransport,
         standing: CredentialStanding = .authorized,
         knownGroups: KnownGroupsStoring = InMemoryKnownGroupsStore(),
-        syncNudge: SyncNudgeStoring = InMemorySyncNudgeStore()
+        syncNudge: SyncNudgeStoring = InMemorySyncNudgeStore(),
+        backupNudge: BackupNudgeStoring = InMemoryBackupNudgeStore()
     ) -> AuthViewModel {
         AuthViewModel(
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: transport),
             sessionStore: store,
             knownGroups: knownGroups,
             syncNudge: syncNudge,
+            backupNudge: backupNudge,
             credentialStanding: { _ in standing }
         )
     }
