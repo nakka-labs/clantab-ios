@@ -26,8 +26,10 @@ so nothing downstream stalls waiting on you.
       keying — **confirmed 2026-09-04: app has never left internal
       TestFlight testing, no real users.** Phase 2's re-keying is a clean
       cutover, no migration script needed (`MANDATORY_LOGIN_PLAN.md` Part 0).
-- [ ] **[OWNER]** Create the Google Cloud OAuth client
-      (`MANDATORY_LOGIN_PLAN.md` Part 1).
+- [x] **[OWNER]** Create the Google Cloud OAuth client — **done
+      2026-09-05**, client ID wired into `worker/wrangler.jsonc`
+      (`GOOGLE_AUDIENCE`) and `AppConfig.swift` (`MANDATORY_LOGIN_PLAN.md`
+      Part 1).
 
 ## Phase 1 — Cheap infra hardening (no dependencies — do now)
 
@@ -47,7 +49,11 @@ built once, against the final post-login shape, not built now and reworked
 again once the guest tier disappears.
 
 - [ ] **[CLI]** Part 1 — Google Sign-In (worker route + iOS button + view
-      model). Needs Phase 0's OAuth client.
+      model). Needs Phase 0's OAuth client. **Status 2026-09-05:** worker
+      side done, tested (145/145), committed (`4c7fe7f`), not pushed. iOS
+      side code-complete but uncommitted and unverified — no Swift
+      toolchain in the cloud sandbox that wrote it; needs an Xcode
+      build + test pass before it's committed.
 - [ ] **[CLI]** Part 2 — `UserDO` re-keying to `provider:sub`.
 - [ ] **[CLI]** Part 2.5 — Add Member by name. **Hard prerequisite for Part
       3, not optional polish** — without it, removing guests is a real
