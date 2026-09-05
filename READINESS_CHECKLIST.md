@@ -27,7 +27,8 @@
   `https://nakka-labs.github.io/clantab-ios/support.html` and set as the App
   Store Support URL. Move to `clantab.nakka.dev/support` once the domain is
   wired (Track 1). Still needs: Pages "GitHub Actions" source confirmed live,
-  and a dedicated support email to replace `id0399@gmail.com`.
+  and a dedicated support email to replace `id0399@gmail.com` — **done
+  2026-09-05: `indra@nakka.dev`** (Cloudflare + Resend, forwards to Gmail).
 
 ## v1 App Store track (already tracked, still open — see `SHIP_PLAN.md`)
 
@@ -85,8 +86,9 @@ target). Quick pointers:
 - **[OWNER]** Trademark + reverse-image clearance (USPTO TESS) on the
   "ClanTab" name and icon — not done in a cloud session, needs real tools.
   `LOGO_BRIEF.md` checklist.
-- **[OWNER]** Move the public support contact off personal Gmail
-  (`id0399@gmail.com`) to a dedicated alias before App Store submission.
+- ~~**[OWNER]** Move the public support contact off personal Gmail~~ —
+  **done 2026-09-05**: `indra@nakka.dev` (Cloudflare + Resend, forwards to
+  Gmail), live in `docs/privacy-policy.md` + `docs/support.html`.
 - **[OWNER]** Conscious decision on monetization — "no ads, no fees" is
   locked, but the Cloudflare bill grows with users and there's currently no
   revenue offset. Not urgent; shouldn't happen by default either.

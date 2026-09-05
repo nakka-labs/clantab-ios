@@ -64,5 +64,5 @@ where practical, a note will appear in the app.
 
 ## Contact
 
-Questions or deletion requests: **id0399@gmail.com**
+Questions or deletion requests: **indra@nakka.dev**
 <!-- TODO: replace with a dedicated support address once a domain exists. -->

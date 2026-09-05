@@ -131,8 +131,11 @@ Real App Store requirement for a public listing, not optional
       before submission, not scrambled at the end.
 - [ ] **[OWNER]** Trademark + reverse-image checks (USPTO TESS) on the
       "ClanTab" name/icon.
-- [ ] **[OWNER]** Move the support contact off personal Gmail to a
-      dedicated alias.
+- [x] **[OWNER]** Move the support contact off personal Gmail to a
+      dedicated alias — **done 2026-09-05: `indra@nakka.dev`** (Cloudflare
+      + Resend, forwards to Gmail). Live in `docs/privacy-policy.md` +
+      `docs/support.html`. Still needs: update App Store Connect's public
+      support-contact field to match once submission starts.
 - [ ] **[CLI to draft, OWNER to approve]** Privacy policy + App Privacy
       answers — update to describe Apple+Google mandatory login and UGC
       moderation (currently describes the no-login model).
