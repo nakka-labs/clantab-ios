@@ -33,3 +33,6 @@ Thumbs.db
 
 # Apple signing keys — NEVER commit
 *.p8
+
+# Local device screenshots (not for repo)
+local screenshots/

@@ -44,6 +44,16 @@ Picking a hue for the next app: use the same formula, pick whichever
 unused hue angle best fits that app's feel — don't eyeball a new color
 from scratch. That's it; this isn't a bigger system than that.
 
+The same construction generalizes past app-level branding: within an app
+that has many like things a person needs to tell apart at a glance, hash a
+stable identifier to a hue and reuse the formula at a different
+lightness/chroma band per use, rather than hand-picking colors one at a
+time. ClanTab's per-category colors (`CategoryColor`, pastel band) and
+per-member identity colors (`MemberColor`, a higher-chroma band, proposed
+`FEATURE_BACKLOG.md` 2026-09-06) are the same formula at two bands, not two
+separate systems — treat any future "N things need distinct colors" problem
+in any app the same way before reaching for anything hand-picked.
+
 ## 3. App icons
 
 Flat, geometric, single strong silhouette, no gradients/bevels/photoreal,

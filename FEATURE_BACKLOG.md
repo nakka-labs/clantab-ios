@@ -332,6 +332,89 @@ All unshipped items below are **[CLI]** — time/effort cost only, no ₹ cost, 
   Simulator and confirming its `Metadata.appintents` (the App Intents
   discovery data Siri/Shortcuts reads) was actually generated, not skipped.
 
+## UI/UX polish pass — proposed 2026-09-06, not yet built
+
+Surfaced from a screenshot review + a persona walkthrough (trip, household,
+couple, one-off/casual, and large-friend-group use cases). All **[CLI]**,
+no ₹ cost, unless noted.
+
+- **Member identity color/avatar.** No avatar concept exists anywhere in the
+  app today (checked — every member is plain name text, or a single generic
+  `person.crop.circle` in Insights "By member," identical for everyone).
+  Extend `CategoryColor`'s exact pattern (djb2 hash of a stable identifier →
+  `oklch` hue) to members: a `MemberColor` swatch (higher chroma than the
+  category pastel, so it reads as "identity" rather than "category") behind
+  initials, used everywhere a member appears — member rows, activity feed,
+  split toggles, Insights. Zero cost, reuses existing pure math almost
+  verbatim; single biggest visual-polish lever available right now.
+- **Profile pictures — parked, not dropped (decided 2026-09-06).** Same
+  R2-needs-a-card problem as the existing "Plain photo attachment on an
+  expense" idea below — adding real photo upload means breaking the
+  zero-card invariant. Decided to ship the initials/color avatar above
+  instead for now. If the invariant is ever deliberately broken, revisit
+  this and the expense-photo idea together — same R2 infra decision serves
+  both.
+- **Insights: pie/donut chart, spend by member.** Current "By member" and
+  "By category" (`InsightsView`, shipped 2026-09-01) are horizontal
+  proportional bars, not a pie chart. A donut using each member's
+  `MemberColor` (once it exists, see above) communicates "who's spending
+  the most in this group" in one glance — the single most-requested new
+  chart.
+- **Group visual identity (emoji/color per group).** `Group` (ClanTabKit
+  model) carries no color or icon field today — every group is a plain name
+  in the groups list, so "Home" (opened weekly) and "Goa trip" (opened
+  twice, ever) look identical. An emoji or an `oklch`-formula color per
+  group, shown in the groups list and as the Group Home header, fixes
+  scan-ability once someone has more than 2-3 groups. Needs one additive
+  schema field, same `ADD COLUMN` pattern used for every other field added
+  so far.
+- **Shareable settle-up / recap card.** Render the settle-up state (or an
+  Insights summary) as a `ShareLink`-able image, entirely client-side — no
+  backend involved, reuses the existing pure `Balances`/`Insights` output.
+  Solves the actual moment a trip group wants: "here's who owes what,"
+  sendable straight into a group chat instead of a screenshot of the app.
+- **Currency display: drop trailing `.00`.** `MoneyFormat.string` always
+  renders 2 decimals via `NumberFormatter`'s currency style (checked — a
+  round ₹1,500 expense displays as "₹1,500.00" everywhere). A
+  round-amount-aware variant reads cleaner; cosmetic, touches one function.
+- **Add Expense submit button contrast.** The bottom "Add Expense" button
+  currently renders in the same flat grey as disabled/empty fields — no
+  visual distinction between "form incomplete" and "ready to submit."
+- **Category picker icon weight.** The category row's tag icon renders
+  outlined where the rest of the app's iconography (gear, chart glyphs) is
+  filled — a minor SF Symbol weight inconsistency, likely a one-line fix.
+- **Root screen / "Your Groups" sheet layout.** Both screens center their
+  content in the middle third with large dead space above and below — reads
+  as an unstyled default `VStack`, not a designed sparse-content state.
+- **Settings sheet chrome — worth a deliberate look.** One captured
+  screenshot showed the status-bar strip rendering light while the sheet
+  body was dark. Possibly just a transition-frame capture artifact, not
+  confirmed as a real bug — flagging so it gets a deliberate check instead
+  of being assumed away.
+- **Onboarding walkthrough.** A short first-run flow (add a group → add an
+  expense → settle up) — none exists today; first-run currently drops
+  straight into "Create a Group / Join with a Code" cold. Most valuable for
+  the casual/one-off persona (see `production_priority` project memory's
+  "Add Member by name" finding — same persona, same underlying friction).
+- **Home Screen quick action.** `AddExpenseIntent` / `GroupEntity` (Siri /
+  App Intents, shipped 2026-09-05) already model "add an expense to a named
+  group" — a `UIApplicationShortcutItems` long-press quick action ("Add
+  Expense to <primary group>") is a thin wrapper over infra that already
+  exists, not a new subsystem.
+- **Dynamic Type / VoiceOver audit.** SF Symbols are auto-correct per
+  `DESIGN_BIBLE.md` §4, but that doesn't guarantee the surrounding
+  `Form`/`List` layouts scale cleanly at larger accessibility text sizes —
+  worth an actual on-device pass now that the feature surface is this
+  large, rather than assuming it's fine.
+
+**Corrections to the initial walkthrough, for the record:** filter-by-member
+and filter-by-category (first flagged as missing) were already shipped
+2026-09-01 (`ActivityFiltering`); Duplicate + Recurring Reminders (shipped
+2026-09-05) already cover the "trip/household repeat expense" gap first
+flagged as open. The Entertainment activity icon's beige tone is the
+shipped formula-driven category pastel working as designed, not a
+Design-Bible violation as first suspected.
+
 ## Shipped
 
 - ~~**Edit / delete an expense or settlement; rename a group / member; remove a
