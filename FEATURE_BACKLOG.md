@@ -347,6 +347,8 @@ no ₹ cost, unless noted.
   initials, used everywhere a member appears — member rows, activity feed,
   split toggles, Insights. Zero cost, reuses existing pure math almost
   verbatim; single biggest visual-polish lever available right now.
+  Confirmed category-standard, not just a stylistic preference — see
+  "Competitive scan" below.
 - **Profile pictures — parked, not dropped (decided 2026-09-06).** Same
   R2-needs-a-card problem as the existing "Plain photo attachment on an
   expense" idea below — adding real photo upload means breaking the
@@ -367,7 +369,7 @@ no ₹ cost, unless noted.
   group, shown in the groups list and as the Group Home header, fixes
   scan-ability once someone has more than 2-3 groups. Needs one additive
   schema field, same `ADD COLUMN` pattern used for every other field added
-  so far.
+  so far. Also confirmed category-standard — see "Competitive scan" below.
 - **Shareable settle-up / recap card.** Render the settle-up state (or an
   Insights summary) as a `ShareLink`-able image, entirely client-side — no
   backend involved, reuses the existing pure `Balances`/`Insights` output.
@@ -414,6 +416,95 @@ and filter-by-category (first flagged as missing) were already shipped
 flagged as open. The Entertainment activity icon's beige tone is the
 shipped formula-driven category pastel working as designed, not a
 Design-Bible violation as first suspected.
+
+## Competitive scan — proposed 2026-09-06, not yet built
+
+A feature scan across the four real competitors — Splitwise, Tricount,
+Settle Up, Splid — grounded in primary sources only (their own Pro/feature
+pages, official App Store listings); most "best splitting app 2026" search
+results were SEO/AI blogspam from lookalike domains and were discarded, not
+cited.
+
+**Absorb — real gaps, not busywork:**
+
+- **Itemized expense entry, manual (no camera/OCR).** Type line items +
+  prices within one expense, assign each item to specific people, app
+  computes per-person totals. Not the receipt-OCR non-goal
+  (`DESIGN.md` §12) — pure split-math on data the user typed, zero AI
+  cost, extends the existing `.exact`/`.percentage` split types already
+  shipped. (Splitwise Pro does this via OCR; this is the same end result
+  without the camera/AI step or its cost.)
+- **Default split config per group.** Splitwise ("default split
+  settings") and Settle Up ("default shares") both let a group save a
+  standing split — e.g. a recurring 70/30 roommate arrangement — instead
+  of re-toggling every time. Pairs with the existing Duplicate feature.
+- **Read-only web link for balances (Settle Up's move).** A non-member —
+  cash-only friend, relative who'll never install the app — sees "who
+  owes what" via a plain browser link, no login. A read surface, not a
+  write path; doesn't reopen `MANDATORY_LOGIN_PLAN.md`'s decision. Eases
+  the exact casual/one-off friction `production_priority` project memory
+  already flags as the top open risk.
+- **Offline queueing for adding an expense.** Tricount markets this
+  explicitly (add offline, syncs when back online). Needs an actual
+  engineering check on this project's side — `GroupDO`'s direct-to-worker
+  write model may require a live connection today, which is a real
+  problem for the trip persona standing in a patchy-signal spot.
+- **Balance-aging nudge.** Settle Up pings "you've owed ₹500 for 12
+  days." Distinct from the existing Recurring Reminders (which nudge to
+  *add* an expense) — this nudges to *settle* one that's gone stale.
+- **PDF export of a settle-up/insights summary.** Splid does plain PDF
+  summaries. Complements the existing CSV/JSON export and the
+  shareable-recap-card idea above — a printable/shareable one-pager
+  alongside the image-card format.
+- **Inline calculator on the amount field.** Type `450+120`, it resolves.
+  Tricount has it; cheap, no downside.
+- **Archive a group.** Settle Up feature. Distinct from the existing
+  Leave/Remove/Delete — a soft "done with this one, don't delete it"
+  state.
+
+**Considered and rejected, with reasoning:**
+
+- Receipt OCR / camera itemization — already a non-goal
+  (`DESIGN.md` §12, `PLAN.md` "Non-Goals", `AGENTS.md`); the competitor
+  scan doesn't change that math (Splitwise Pro's own paid-tier cost +
+  the review/correction UI it would need to maintain).
+- Currency auto-conversion — already a hard non-goal (`DESIGN.md` §12);
+  Splitwise gates this behind Pro for the same reason it's expensive to
+  do right (stale-rate liability) — correctly parked here too.
+- No-login/no-signup groups (Splid's entire product pitch) — conflicts
+  with `MANDATORY_LOGIN_PLAN.md`'s already-made decision; not
+  re-litigating it. Worth noting as market pressure: a serious
+  competitor's whole identity is "zero friction, no signup," which
+  raises the stakes on actually shipping "Add Member by name"
+  (`production_priority` project memory already flags this as
+  blocking) rather than letting it slip.
+- Bank/card transaction import (Splitwise Pro) — needs a Plaid-style
+  aggregator, real recurring cost and compliance weight, and is US-only
+  in Splitwise's own implementation. Doesn't fit an India-first,
+  UPI-native app.
+- eSIM/roaming partnership (Tricount) — an affiliate monetization
+  feature; contradicts the no-ads/no-monetization stance already
+  decided (`production_priority` project memory, item 9 "Monetization
+  stance — not urgent, still open" notwithstanding — this specific
+  mechanism isn't in the running either way).
+
+**Market positioning, not a feature.** Splitwise's free tier now caps at
+4 expenses/day (`kb.splitwise.com/pro/what-is-splitwise-pro-and-who-can-use-it`),
+visibly driving "Splitwise alternative" search volume. Zero-ads/zero-fee
+plus the UPI deep link (already shipped — "UPI deep link on Settle Up"
+above) is a combination none of Splitwise/Tricount/Settle Up/Splid have.
+Worth stating directly in App Store copy rather than left as one bullet
+among many.
+
+**Design/UI — corroborates, doesn't add new asks.** Member identity
+(avatar/initials) and per-group visual identity are both already proposed
+in the "UI/UX polish pass" section above; this scan confirms both are
+category-standard — Splitwise, Tricount, and Settle Up all support a
+per-member photo — rather than just a stylistic preference. Raises their
+priority; doesn't change the ask. (Notable: Splitwise's own users have
+long complained about its generic default avatar — see its public
+feedback board — so initials-first beats the category leader's own weak
+spot, for zero cost.)
 
 ## Shipped
 
