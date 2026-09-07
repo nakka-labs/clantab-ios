@@ -170,10 +170,14 @@ one-off/casual, large-friend-group):
       grid in `CategoryPickerView` — so their small outline strokes carry
       the same visual weight as the app's chrome symbols. Verified in the
       Simulator. app 80.
-- [ ] **Root screen / "Your Groups" sheet layout.** `~25k tokens` (CLI)
-      1. Rework the empty/sparse-content layout so it doesn't center in
-         a large dead `VStack`.
-      2. Check both the zero-groups and few-groups states.
+- [x] **Root screen / "Your Groups" sheet layout.** Done 2026-09-07.
+      `StartView` reworked — no more centered title with the buttons shoved
+      to the bottom by a `Spacer`. Signed out: a centered welcome unit
+      (tinted "=" mark + wordmark + tagline + the two sign-in buttons).
+      Signed in: a standard nav-bar large "ClanTab" title with the groups
+      list from the top, or a centered "No groups yet" get-started message;
+      Create / Join dock full-width to the bottom safe area with a `.bar`
+      backing. Verified all three states in the Simulator. app 80.
 - [ ] **Settings sheet chrome check.** `~12k tokens` (CLI)
       1. Reproduce the captured screenshot's status-bar-light-on-dark
          moment.
