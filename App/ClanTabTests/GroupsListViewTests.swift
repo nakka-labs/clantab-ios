@@ -19,7 +19,7 @@ final class GroupsListViewTests: XCTestCase {
 
     func testYouOwe() {
         let line = GroupsListView.balanceLine(for: group(myBalances: [Balance(memberId: "me", currency: "INR", netMinor: -50000)]))
-        XCTAssertEqual(line, "You owe ₹500.00")
+        XCTAssertEqual(line, "You owe ₹500") // round amount → no trailing .00
     }
 
     func testYoureOwed() {
@@ -32,6 +32,6 @@ final class GroupsListViewTests: XCTestCase {
             Balance(memberId: "me", currency: "INR", netMinor: 100),
             Balance(memberId: "me", currency: "USD", netMinor: -2000),
         ]))
-        XCTAssertEqual(line, "You owe $20.00")
+        XCTAssertEqual(line, "You owe $20")
     }
 }

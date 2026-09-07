@@ -15,7 +15,21 @@ public enum MoneyFormat {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currency
+        // A round amount drops the pointless ".00" — "₹1,200", not
+        // "₹1,200.00" (`CHECKLIST.md` "Currency display"). A non-round amount
+        // still shows both places ("₹1,200.50", never "₹1,200.5"), which is
+        // the `.currency` style's default.
+        if isRoundAmount(minorUnits: minorUnits) {
+            formatter.minimumFractionDigits = 0
+            formatter.maximumFractionDigits = 0
+        }
         return formatter.string(from: NSNumber(value: major)) ?? "\(currency) \(major)"
+    }
+
+    /// Whether an amount has no paise/cents — the amounts we render without a
+    /// trailing ".00". Negative round amounts count too (`-500 % 100 == 0`).
+    public static func isRoundAmount(minorUnits: Int64) -> Bool {
+        minorUnits % 100 == 0
     }
 
     /// A plain, editable decimal string (`"12.34"`, `"12.00"`, `"0.05"`) — no

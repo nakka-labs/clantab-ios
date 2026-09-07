@@ -149,9 +149,14 @@ one-off/casual, large-friend-group):
       toolbars, re-rendered on plan/currency change. Verified in the
       Simulator: both card designs + the share sheet showing the rendered
       image. kit 171 · app 80.
-- [ ] **Currency display — drop trailing `.00`.** `~10k tokens` (CLI)
-      1. Add a round-amount-aware branch to `MoneyFormat.string`.
-      2. Add a unit test for a round amount and a non-round amount.
+- [x] **Currency display — drop trailing `.00`.** Done 2026-09-07.
+      `MoneyFormat.string` drops the fraction digits when
+      `isRoundAmount` (`minorUnits % 100 == 0`) — "₹1,200", not "₹1,200.00";
+      a non-round amount still shows both places. Applies everywhere money
+      is rendered (app + widget + recap card); `plainString` (edit fields,
+      CSV/JSON export) is untouched. Tests: `isRoundAmount`, a
+      locale-independent digit-count check, and Darwin-only exact strings.
+      kit 174 · app 80.
 - [ ] **Add Expense submit button contrast.** `~8k tokens` (CLI)
       1. Give the enabled state its own fill color distinct from the
          disabled/empty-field grey.
