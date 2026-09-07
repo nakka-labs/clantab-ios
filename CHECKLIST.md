@@ -123,12 +123,12 @@ one-off/casual, large-friend-group):
       Insights "By member" (rows + per-member bar tint). Menu pickers left
       as plain text — SwiftUI won't render a custom icon there. Verified in
       the Simulator, light + dark.
-- [ ] **Insights donut chart, spend by member.** `~40k tokens` (CLI,
-      after `MemberColor` above)
-      1. Add a donut/pie layout to `InsightsView` using SwiftUI Charts'
-         `SectorMark`.
-      2. Color each slice with `MemberColor`.
-      3. Verify it renders correctly with 1, 2, and 6+ members.
+- [x] **Insights donut chart, spend by member.** Done 2026-09-07.
+      `SectorMark` donut in `InsightsView`'s "By member" section, each slice
+      in that member's `MemberColor` (matching the row avatar + bar tint);
+      the rows are the legend, chart legend hidden. Shown only with 2+
+      spending members — one slice is just a filled ring. Verified in the
+      Simulator with 1, 2, and 7 members.
 - [ ] **Group visual identity.** `~55k tokens` (CLI)
       1. Add a nullable `emoji`/color field to the `Group` model +
          worker schema (`ADD COLUMN`, same pattern as prior additions).

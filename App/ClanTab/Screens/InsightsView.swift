@@ -66,6 +66,9 @@ struct InsightsView: View {
                     }
 
                     Section("By member") {
+                        if spendingMembers.count > 1 {
+                            memberDonut
+                        }
                         ForEach(byMember) { entry in
                             breakdownRow(
                                 title: entry.member.displayName,
@@ -105,6 +108,42 @@ struct InsightsView: View {
         }
         .frame(height: 180)
         .padding(.vertical, 4)
+    }
+
+    /// Members with a nonzero share of the spend in the selected currency —
+    /// the donut's slices (and the check for whether a donut is worth showing:
+    /// one slice is just a filled ring).
+    private var spendingMembers: [MemberSpend] {
+        byMember.filter { $0.totalMinor > 0 }
+    }
+
+    /// Spend-by-member as a donut (`CHECKLIST.md` "Insights donut chart, spend
+    /// by member") — each slice in that member's `MemberColor`, matching the
+    /// avatar and bar tint on the rows just below. The rows are the legend, so
+    /// the chart's own is hidden.
+    private var memberDonut: some View {
+        Chart(spendingMembers) { entry in
+            SectorMark(
+                angle: .value("Spent", entry.totalMinor),
+                innerRadius: .ratio(0.6),
+                angularInset: 1.5
+            )
+            .cornerRadius(3)
+            .foregroundStyle(by: .value("Member", entry.member.displayName))
+        }
+        .chartForegroundStyleScale(
+            domain: spendingMembers.map { $0.member.displayName },
+            range: spendingMembers.map { MemberColor.color(for: $0.member.displayName) }
+        )
+        .chartLegend(.hidden)
+        .frame(height: 200)
+        .padding(.vertical, 8)
+        .accessibilityLabel("Spending by member")
+        .accessibilityValue(
+            spendingMembers
+                .map { "\($0.member.displayName) \(money($0.totalMinor))" }
+                .joined(separator: ", ")
+        )
     }
 
     private var chartUnit: Calendar.Component {
