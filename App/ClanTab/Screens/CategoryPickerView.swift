@@ -28,7 +28,10 @@ struct CategoryPickerView: View {
                 LazyVGrid(columns: iconColumns, spacing: 12) {
                     ForEach(ExpenseCategory.iconChoices, id: \.self) { icon in
                         Image(systemName: icon)
-                            .font(.title3)
+                            // Match `CategoryIconBadge`'s weight so the grid
+                            // and the selected badge look like one set
+                            // (`CHECKLIST.md` "Category picker icon weight").
+                            .font(.title3.weight(.semibold))
                             .frame(width: 44, height: 44)
                             .background(
                                 customIcon == icon ? Color.accentColor.opacity(0.2) : Color.clear,

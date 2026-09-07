@@ -19,7 +19,11 @@ struct CategoryIconBadge: View {
 
     var body: some View {
         Image(systemName: category.symbolName)
-            .font(.system(size: size * 0.45))
+            // `.semibold` so the small glyph carries the same visual weight
+            // as the app's chrome symbols — the outline strokes at this size
+            // read thin at the default weight (`CHECKLIST.md` "Category
+            // picker icon weight").
+            .font(.system(size: size * 0.45, weight: .semibold))
             .foregroundStyle(.black.opacity(0.6))
             .frame(width: size, height: size)
             .background(category.pastelColor, in: Circle())

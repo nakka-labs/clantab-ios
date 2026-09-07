@@ -164,9 +164,12 @@ one-off/casual, large-friend-group):
       Verified in the Simulator (both states). app 80. (`CreateGroupView`'s
       submit has the same weak pattern — left for the "primary buttons"
       polish item.)
-- [ ] **Category picker icon weight.** `~5k tokens` (CLI)
-      1. Match the SF Symbol weight to the filled icons used elsewhere
-         (gear, chart glyphs).
+- [x] **Category picker icon weight.** Done 2026-09-07. The category
+      glyphs render at `.semibold` now — `CategoryIconBadge` (the pastel
+      badge, used in the picker list + activity feed) and the custom-icon
+      grid in `CategoryPickerView` — so their small outline strokes carry
+      the same visual weight as the app's chrome symbols. Verified in the
+      Simulator. app 80.
 - [ ] **Root screen / "Your Groups" sheet layout.** `~25k tokens` (CLI)
       1. Rework the empty/sparse-content layout so it doesn't center in
          a large dead `VStack`.
