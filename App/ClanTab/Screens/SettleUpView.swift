@@ -20,6 +20,9 @@ struct SettleUpView: View {
 
     @State private var pendingRowId: String?
     @State private var errorMessage: String?
+    /// The shareable recap card (`CHECKLIST.md`), rendered off-screen once the
+    /// plan is in hand and re-rendered whenever it changes.
+    @State private var shareCard: Image?
 
     private var members: [Member] {
         viewModel.state?.members ?? []
@@ -68,8 +71,28 @@ struct SettleUpView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Done", action: onDone)
             }
+            if let shareCard {
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(
+                        item: shareCard,
+                        preview: SharePreview("\(groupName) — settle up", image: shareCard)
+                    ) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
+        .task(id: settlements) {
+            shareCard = RecapCard.render(RecapCard(
+                groupName: groupName,
+                groupEmoji: viewModel.state?.group.emoji,
+                members: members,
+                content: .settleUp(settlements)
+            ))
         }
     }
+
+    private var groupName: String { viewModel.state?.group.name ?? "Your group" }
 
     private func settlementRow(_ settlement: SimplifiedSettlement) -> some View {
         let rowId = "\(settlement.currency):\(settlement.fromId)->\(settlement.toId)"

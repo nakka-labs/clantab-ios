@@ -137,7 +137,12 @@ struct GroupHomeView: View {
             if let state = viewModel.state, !state.expenses.isEmpty {
                 Section {
                     NavigationLink {
-                        InsightsView(expenses: state.expenses, members: state.members)
+                        InsightsView(
+                            expenses: state.expenses,
+                            members: state.members,
+                            groupName: state.group.name,
+                            groupEmoji: state.group.emoji
+                        )
                     } label: {
                         Label("Spending Insights", systemImage: "chart.bar")
                     }

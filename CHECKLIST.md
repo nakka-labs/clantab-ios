@@ -140,11 +140,15 @@ one-off/casual, large-friend-group):
       groups list and prefixed on the Group Home nav title. Verified in the
       Simulator (pick → save → header + list update). worker 209 · kit
       171 · app 80.
-- [ ] **Shareable settle-up / recap card.** `~50k tokens` (CLI)
-      1. Build a `View` that renders the settle-up/Insights summary as a
-         card layout.
-      2. Use `ImageRenderer` to turn it into an image, client-side only.
-      3. Wire a `ShareLink` from Settle Up and/or Insights.
+- [x] **Shareable settle-up / recap card.** Done 2026-09-07. `RecapCard`
+      — a 4:5 card on `DESIGN_BIBLE.md` §3's one sanctioned brand gradient,
+      with two modes (`.settleUp` = the simplified plan, `.recap` = total
+      spent + per-member with `MemberColor` bars), the group emoji + name
+      in the header. `ImageRenderer` → `Image` (client-side only, no
+      worker), handed to a `ShareLink` in both the Settle Up and Insights
+      toolbars, re-rendered on plan/currency change. Verified in the
+      Simulator: both card designs + the share sheet showing the rendered
+      image. kit 171 · app 80.
 - [ ] **Currency display — drop trailing `.00`.** `~10k tokens` (CLI)
       1. Add a round-amount-aware branch to `MoneyFormat.string`.
       2. Add a unit test for a round amount and a non-round amount.

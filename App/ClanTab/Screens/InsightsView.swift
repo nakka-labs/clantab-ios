@@ -9,9 +9,14 @@ import ClanTabKit
 struct InsightsView: View {
     let expenses: [Expense]
     let members: [Member]
+    /// For the shareable recap card's header (`CHECKLIST.md`).
+    var groupName: String = "Your group"
+    var groupEmoji: String?
 
     @State private var granularity: SpendGranularity = .month
     @State private var currency: String = ""
+    /// The shareable recap card, rendered off-screen for the current currency.
+    @State private var shareCard: Image?
 
     private var currencies: [String] { Insights.currencies(in: expenses) }
     private var total: Int64 { Insights.totalSpend(expenses, currency: currency) }
@@ -83,8 +88,29 @@ struct InsightsView: View {
         }
         .navigationTitle("Insights")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let shareCard, !expenses.isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(
+                        item: shareCard,
+                        preview: SharePreview("\(groupName) — spending recap", image: shareCard)
+                    ) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
         .onAppear {
             if currency.isEmpty { currency = currencies.first ?? "" }
+        }
+        .task(id: currency) {
+            guard !currency.isEmpty else { return }
+            shareCard = RecapCard.render(RecapCard(
+                groupName: groupName,
+                groupEmoji: groupEmoji,
+                members: members,
+                content: .recap(totalMinor: total, byMember: byMember, currency: currency)
+            ))
         }
     }
 
