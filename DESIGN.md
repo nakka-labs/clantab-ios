@@ -1,6 +1,8 @@
 # ClanTab — Technical Design Doc
 
-This goes deeper than `PLAN.md` on the parts that need to be exact before Phase 2 gets built: the wire contract, the storage schema, the concurrency model, and the security model. `PLAN.md` remains the source of truth for product scope, the v1 feature list, and non-goals — nothing here overrides it. Read that first if you haven't.
+The technical contract for ClanTab's backend: the wire contract, the storage schema, the concurrency model, and the security model. This is the living source of truth for how the system actually works — when the code and this doc disagree, fix whichever one is wrong, don't assume either is right by default.
+
+**Non-goals (still true, kept here so nobody mistakes an absence for an oversight):** no payment processing (settling is a manual "I paid outside the app" click); no FX conversion (a group can hold multiple currencies, never converted or blended); no recurring *expenses* (recurring local reminders to add one manually are in scope — the expense itself is never auto-posted); no paid cloud AI / receipt OCR; no passwords — identity is Apple or Google sign-in only, requesting no scopes (no name, no email, no profile).
 
 ---
 
@@ -10,6 +12,7 @@ This needs to be decided explicitly, because using one identifier for both jobs 
 
 - **`groupId`** — a long, high-entropy string (nanoid, 16 chars, ~95 bits of randomness). This is what's in the shareable link (`/g/:groupId`) and it is the literal name used to address the group's Durable Object (`env.GROUP_DO.idFromName(groupId)`). Security here is "capability URL" style, the same model Google Docs share links use: unguessable, not indexed, not enumerable. Nobody without the link can find a group.
 - **`joinCode`** — a short, human-typeable code (6 chars, alphabet excluding visually ambiguous characters — no `0/O/1/I/l`), meant for reading aloud or typing on a phone keyboard. Low entropy by design (there are only ~2 billion possible codes at 6 chars from a 32-char alphabet) — **it must never be usable to derive or brute-force a `groupId`.**
+- **`access_token`** — an optional, rotatable secret (22 chars, ~132 bits) stored in `group_meta` alongside the group, added 2026-09-05 so a leaked or shared link can be revoked without losing the group's permanent `groupId` identity. Carried as a `?token=` query param on every group-data route (§2, §8); "Regenerate Link" mints a new one and immediately invalidates the old. A group created before this existed has none and stays open until it first regenerates.
 
 Because of that entropy gap, `joinCode` cannot simply encode or hash to `groupId` — that would leak the high-entropy identifier through the low-entropy one. Instead:
 
@@ -73,7 +76,7 @@ Renaming is cosmetic — every record keys off `memberId`. A member can only be
 removed once they have zero activity.
 
 ### `GET /api/groups/:groupId`
-The single "give me everything" endpoint. Called on load and after every mutation — this is the entire sync model (§ per `PLAN.md` §0: fetch-on-load/refetch, no WebSocket in v1). Balances and the simplified settle-up list are computed **server-side**, inside the DO, so that logic exists in exactly one place (`worker/lib/balances.ts` and `simplify.ts`) and the client never reimplements it.
+The single "give me everything" endpoint. Called on load and after every mutation — this is the entire sync model (fetch-on-load/refetch, no WebSocket in v1). Balances and the simplified settle-up list are computed **server-side**, inside the DO, so that logic exists in exactly one place (`worker/lib/balances.ts` and `simplify.ts`) and the client never reimplements it.
 ```
 Response: 200 {
   group: { name, currency, createdAt, joinCode },
@@ -134,6 +137,21 @@ Response: 204  (idempotent — deleting an id that's already gone still 204s)
 Removes the row (and an expense's splits). Same trust model as every other §2
 route: possession of the `groupId` is the only credential.
 
+### `POST /api/groups/:groupId/regenerate-link`
+```
+Response: 200 { accessToken: string }
+```
+Rotates the group's `access_token` (§1, §8) — every previously shared
+link/code stops working immediately for anyone relying on the old token; a
+claimed member's Bearer session is unaffected. Same flat trust model as
+every other route here — no special "owner" tier, anyone who can currently
+reach the group can regenerate its link.
+
+**Every route above also accepts `?token=<access_token>`** once a group has
+one (§1) — omitted or wrong when a token exists → 403 `FORBIDDEN`, except
+for a request authenticated instead by a claimed member's Bearer session
+(§13), which is always a valid alternate path.
+
 ---
 
 ## 3. Storage schema (SQLite, inside each Durable Object)
@@ -143,13 +161,16 @@ route: possession of the `groupId` is the only credential.
 CREATE TABLE group_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
-);  -- rows: name, currency, join_code, schema_version, created_at
+);  -- rows: name, currency, join_code, schema_version, created_at,
+    -- access_token (nullable, added 2026-09-05 — a new key, not a
+    -- schema-version bump; see §1/§2/§8)
 
 CREATE TABLE members (
   id           TEXT PRIMARY KEY,
   display_name TEXT NOT NULL,
   created_at   INTEGER NOT NULL,
-  identity_sub TEXT           -- nullable; the Apple `sub` this member is claimed by, added in v5. NULL = placeholder (ACCOUNTS_DESIGN.md)
+  identity_sub TEXT,          -- nullable; the "provider:sub" this member is claimed by (§13), added in v5. NULL = placeholder
+  upi_vpa      TEXT           -- nullable; user-supplied UPI ID, added in v7 — never verified or processed by ClanTab
 );
 
 CREATE TABLE expenses (
@@ -162,7 +183,9 @@ CREATE TABLE expenses (
   created_at    INTEGER NOT NULL,
   category      TEXT,          -- nullable; added in schema v3
   category_icon TEXT,          -- nullable; SF Symbol name
-  currency      TEXT           -- nullable in DDL; added + backfilled in v4, always written since
+  currency      TEXT,          -- nullable in DDL; added + backfilled in v4, always written since
+  deleted_at    INTEGER,       -- nullable; soft-delete timestamp, added in v6
+  deleted_by    TEXT           -- nullable; memberId that deleted it, added in v6 — client-supplied, trusted like every other id here
 );
 
 CREATE TABLE expense_splits (
@@ -178,7 +201,9 @@ CREATE TABLE settlements (
   to_id        TEXT NOT NULL REFERENCES members(id),
   amount_minor INTEGER NOT NULL,
   settled_at   INTEGER NOT NULL,
-  currency     TEXT           -- nullable in DDL; added + backfilled in v4
+  currency     TEXT,          -- nullable in DDL; added + backfilled in v4
+  deleted_at   INTEGER,       -- nullable; soft-delete timestamp, added in v6
+  deleted_by   TEXT           -- nullable; memberId that deleted it, added in v6
 );
 ```
 All money as `INTEGER` minor units (paise/cents) — never `REAL`. This is the same rule as `AGENTS.md`, just enforced at the schema level too.
@@ -193,7 +218,7 @@ CREATE TABLE join_codes (
   created_at INTEGER NOT NULL
 );
 ```
-Retired (`SHIP_PLAN.md` Track 3 §3): every group creation and every join-code
+Retired (2026-09-05): every group creation and every join-code
 lookup for the entire app serialized through that one Durable Object instance
 — the one real architectural scaling ceiling. Replaced with a plain
 `JOIN_CODES` Workers KV namespace (`worker/src/lib/join-codes.ts`): `code →
@@ -206,9 +231,9 @@ in the same request that minted it.
 
 ## 4. Concurrency & consistency model
 
-This is the load-bearing assumption behind "correctness for free" in `PLAN.md` §0, so it's worth stating explicitly rather than leaving implicit: **Cloudflare guarantees a single Durable Object instance processes one request to completion before starting the next** (its input/output gate serializes access). Two members submitting expenses to the same group at the "same" wall-clock moment are still handled strictly one-after-another inside that group's DO — there is no read-modify-write race on balances, because nothing runs concurrently against the same instance in the first place.
+This is the load-bearing assumption behind "correctness for free," so it's worth stating explicitly rather than leaving implicit: **Cloudflare guarantees a single Durable Object instance processes one request to completion before starting the next** (its input/output gate serializes access). Two members submitting expenses to the same group at the "same" wall-clock moment are still handled strictly one-after-another inside that group's DO — there is no read-modify-write race on balances, because nothing runs concurrently against the same instance in the first place.
 
-What this does **not** give you, and what v1 doesn't need: cross-group transactions (each group is a fully independent DO, there's never a reason for two groups to coordinate), or protection against a client showing stale data between its last fetch and its next one (that's just the fetch-on-load/refetch model working as designed — see `PLAN.md` §0).
+What this does **not** give you, and what v1 doesn't need: cross-group transactions (each group is a fully independent DO, there's never a reason for two groups to coordinate), or protection against a client showing stale data between its last fetch and its next one (that's just the fetch-on-load/refetch model working as designed).
 
 ---
 
@@ -293,20 +318,20 @@ The UI should prevent invalid input, but the DO validates independently — neve
 
 *(This section originally sketched a hypothetical web client; the client actually built in this repo is the native iOS app in `App/`, described below — no web client exists here.)*
 
-`ClanTabKit.ClanTabClient` is a plain async/await HTTP client — **no third-party networking library**, consistent with the zero-third-party-dependency rule in `AGENTS.md`. The app's `GroupViewModel` (`App/ClanTab/ViewModels/GroupViewModel.swift`) wraps it and exposes `{ state, isLoading, errorMessage }` plus `load()`/`refetch()`/`autoRefetch()`. Every mutation (`addExpense`, `addSettlement`, `joinGroup`) is a plain async call that POSTs, then the caller invokes `refetch()` on success — no optimistic UI in v1 (optimistic updates add real complexity for a low-frequency app where a half-second round trip is a non-issue). Group Home also runs a lightweight foreground poll — `autoRefetch()` every `GroupViewModel.pollInterval` while the view is on screen, plus an immediate refresh when the app returns to the foreground — so another device's expenses and settlements appear without a manual pull-to-refresh. It's a silent GET that keeps the last good `state` on a transient failure; full WebSocket push is still the eventual upgrade (`SHIP_PLAN.md` Track 4). `ClanTabKit.UserDefaultsIdentityStore` reads/writes `UserDefaults` under the key `"clantab:" + groupId` to remember `{ memberId, displayName }` per device per group — the iOS equivalent of a web client's `localStorage`-backed `identity.ts`.
+`ClanTabKit.ClanTabClient` is a plain async/await HTTP client — **no third-party networking library**, consistent with the zero-third-party-dependency rule in `AGENTS.md`. The app's `GroupViewModel` (`App/ClanTab/ViewModels/GroupViewModel.swift`) wraps it and exposes `{ state, isLoading, errorMessage }` plus `load()`/`refetch()`/`autoRefetch()`. Every mutation (`addExpense`, `addSettlement`, `joinGroup`) is a plain async call that POSTs, then the caller invokes `refetch()` on success — no optimistic UI in v1 (optimistic updates add real complexity for a low-frequency app where a half-second round trip is a non-issue). Group Home also runs a lightweight foreground poll — `autoRefetch()` every `GroupViewModel.pollInterval` while the view is on screen, plus an immediate refresh when the app returns to the foreground — so another device's expenses and settlements appear without a manual pull-to-refresh. It's a silent GET that keeps the last good `state` on a transient failure; full WebSocket push is still the eventual, not-yet-built upgrade. `ClanTabKit.UserDefaultsIdentityStore` reads/writes `UserDefaults` under the key `"clantab:" + groupId` to remember `{ memberId, displayName }` per device per group — the iOS equivalent of a web client's `localStorage`-backed `identity.ts`.
 
-**Optional identity layer (accounts, `ACCOUNTS_DESIGN.md`).** Sign in with Apple is opt-in. When signed in, `ClanTabClient` also calls `/api/auth/*` (§13) and carries `Authorization: Bearer <session token>` on those calls only — never on the group routes, which stay `groupId`-possession. The app's `AuthViewModel` owns the session (`KeychainSessionStore`, `kSecAttrAccessibleAfterFirstUnlock`), a launch-time `getCredentialState` check that drops to guest mode on revoke, and a near-expiry token refresh. The single-group `@AppStorage("clantab.lastGroupId")` became a list: `KnownGroupsStore` (guest source of truth + signed-in offline cache), into which a signed-in user's authoritative `GET /api/auth/groups` list is fanned out (also seeding `IdentityStore` so a claimed member is greeted on a fresh device). Guests are unaffected by all of this.
+**Identity layer (accounts, §13).** Sign in with Apple or Google is mandatory as of 2026-09-05 — there's no guest mode to drop to. `ClanTabClient` calls `/api/auth/*` (§13) and carries `Authorization: Bearer <session token>` on those calls only — never on the group routes, which stay `groupId` (+ optional access-token) possession, per §8. The app's `AuthViewModel` owns the session (`KeychainSessionStore`, `kSecAttrAccessibleAfterFirstUnlock`), a launch-time `getCredentialState` check, and a near-expiry token refresh. `KnownGroupsStore` holds the signed-in user's groups, fanned out from the authoritative `GET /api/auth/groups` list (also seeding `IdentityStore` so a claimed member is greeted on a fresh device).
 
 ---
 
 ## 8. Security considerations
 
-- **No accounts means the link is the only credential.** Anyone with the `groupId` (via link or resolved code) can read and write that group's data. This is a documented trust model (§ `PLAN.md` §6 risks), not an oversight — same as Spliit, same as sharing a Splitwise group invite.
+- **`groupId` (+ an optional access token) is the credential, not an account.** Anyone holding the `groupId` (via link or resolved code) — and the group's current `access_token`, once one exists — can read and write that group's data. This is a documented trust model, not an oversight — same as Spliit, same as sharing a Splitwise group invite. A leaked or shared link can be revoked without losing the group's data identity: "Regenerate Link" (`POST .../regenerate-link`, §2) rotates the `access_token` in `group_meta`, and every previously shared link/code stops working immediately — a claimed member's Bearer session is unaffected (dual-auth, not a replacement). A group created before 2026-09-05 has no token yet and stays open until it first regenerates, which lazily mints one — no deploy-time backfill.
 - **Never let a group page get indexed.** Serve `X-Robots-Tag: noindex` on all `/api/groups/*` responses and `<meta name="robots" content="noindex">` on the group HTML page. A capability URL that ends up in a search index defeats its own security model.
 - **Rate-limit the join-code lookup route specifically** — it's the one shared surface across every group, so it's the one place someone could attempt to enumerate join codes. A per-IP cap (20 lookups/minute, a Cloudflare Rate Limiting binding — `RESOLVE_RATE_LIMITER` in `wrangler.jsonc`) is enough; the keyspace (32^6) already makes brute-forcing impractical, this is defense in depth, not the primary control.
 - **CORS:** the Worker serves both the frontend and the API from the same origin, so CORS can stay locked to same-origin — no need to open it up.
-- **No PII beyond a display name the user chose themselves.** No emails, no phone numbers, no payment details ever collected — consistent with `PLAN.md`'s non-goals. Sign in with Apple (below) requests no scopes, so not even a name or a relay email reaches the server — only Apple's opaque `sub`.
-- **Accounts don't widen the group trust model, and add one bounded exposure (`ACCOUNTS_DESIGN.md` §4/§15.2).** The session token is a stateless 30-day HMAC-signed JWT (`{sub, iat, exp}`, `env.SESSION_SIGNING_KEY`), verified locally with no DO hit and no server-side revocation. Its only power is "list the groupIds this identity has claimed" (`GET /api/auth/groups`) — it grants no access the `groupId` itself doesn't already grant. Worst case from a leaked token: someone enumerates your claimed groupIds and reads those ledgers (display names + integer amounts, no PII). Bounded by the 30-day cap and by account deletion wiping the index. This is strictly smaller than the N per-device local link stores that already hold the same groupIds. "Remotely sign out a phone I can't reach" is explicitly not supported; `getCredentialState` on the device plus account deletion cover the realistic cases.
+- **No PII beyond a display name the user chose themselves.** No emails, no phone numbers, no payment details ever collected. Sign in with Apple (below) requests no scopes, so not even a name or a relay email reaches the server — only Apple's opaque `sub`.
+- **Accounts don't widen the group trust model, and add one bounded exposure.** The session token is a stateless 30-day HMAC-signed JWT (`{sub, iat, exp}`, `env.SESSION_SIGNING_KEY`), verified locally with no DO hit and no server-side revocation. Its only power is "list the groupIds this identity has claimed" (`GET /api/auth/groups`) — it grants no access the `groupId` itself doesn't already grant. Worst case from a leaked token: someone enumerates your claimed groupIds and reads those ledgers (display names + integer amounts, no PII). Bounded by the 30-day cap and by account deletion wiping the index. This is strictly smaller than the N per-device local link stores that already hold the same groupIds. "Remotely sign out a phone I can't reach" is explicitly not supported; `getCredentialState` on the device plus account deletion cover the realistic cases.
 
 ---
 
@@ -326,15 +351,19 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`2`** — `expenses.split_type`'s `CHECK` widened to allow `'percentage'`. SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table (rename → recreate → copy → drop); `expense_splits` has no real FK so nothing cascades. A group that hasn't been created yet has no `schema_version` row and is skipped — `GROUP_SCHEMA` already builds the current shape.
 - **`3`** — `expenses.category` + `expenses.category_icon` added (both nullable). Plain `ALTER TABLE ... ADD COLUMN`, in place, no rebuild. Migrations run in sequence, so a v1 DO walks 1→2→3 on its next instantiation.
 - **`4`** — `expenses.currency` + `settlements.currency` added (both nullable), then backfilled from the group's currency (`UPDATE ... WHERE currency IS NULL`) — before v4 a group was single-currency, so that's exact. In-place, no rebuild.
-- **`5`** — `members.identity_sub` added (nullable). Every existing member becomes a placeholder (`NULL`); claiming links it to an Apple identity. In-place, no rebuild. Accounts are additive — the capability-link model is unchanged. See §13 and `ACCOUNTS_DESIGN.md`.
+- **`5`** — `members.identity_sub` added (nullable). Every existing member becomes a placeholder (`NULL`); claiming links it to an Apple or Google identity. In-place, no rebuild. Accounts are additive — the capability-link model is unchanged. See §13.
+- **`6`** — `expenses.deleted_at`/`deleted_by` + `settlements.deleted_at`/`deleted_by` added (all nullable). Plain `ADD COLUMN`s, in place. `DELETE` now soft-deletes rather than removing the row; a trashed expense/settlement is excluded from balances and the activity feed but stays restorable (`POST .../restore`).
+- **`7`** — `members.upi_vpa` added (nullable, user-supplied). Plain `ADD COLUMN`, in place. Powers the optional "Pay via UPI" deep link on Settle Up — ClanTab never verifies or processes it, just builds a `upi://pay?...` URI the OS opens.
 
-The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the accounts phase) carries its own `USER_SCHEMA_VERSION` (currently `1`): a `user_meta` key/value table and a `memberships` table (`group_id` PK, `member_id`, `display_name`, `added_at`). It's a self-healing index the Worker updates *after* the authoritative `GroupDO` write — never the source of truth for the membership↔identity link. No migrations yet; a `UserDO` is created fresh on first sign-in.
+`group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8) — a new key in an existing key/value table, not a schema-version bump; a pre-existing group simply has none until it first regenerates its link.
+
+The **`UserDO`** (one per signed-in identity, `idFromName("<provider>:" + sub)`, added with the accounts phase) carries its own `USER_SCHEMA_VERSION` (currently `1`): a `user_meta` key/value table and a `memberships` table (`group_id` PK, `member_id`, `display_name`, `added_at`). It's a self-healing index the Worker updates *after* the authoritative `GroupDO` write — never the source of truth for the membership↔identity link. No migrations yet; a `UserDO` is created fresh on first sign-in.
 
 ---
 
 ## 11. Testing strategy
 
-- **Unit (Vitest, no Cloudflare involved):** `balances.ts`, `simplify.ts` — the tests already specified in `PLAN.md` §2. These are the tests that matter most; they're pure functions and should be exhaustively covered.
+- **Unit (Vitest, no Cloudflare involved):** `balances.ts`, `simplify.ts` — triangle-collapse and single-payer-N-1 cases, rounding/remainder allocation, idempotency, and random fuzz testing (sum of payments equals sum of positive balances). These are the tests that matter most; they're pure functions and should be exhaustively covered.
 - **Integration (`wrangler dev` / Miniflare):** exercise the actual HTTP routes against a real (local) Durable Object — covers request parsing, validation, persistence, and the Registry lookup flow end-to-end.
 - **What can't be meaningfully tested locally:** the single-writer serialization guarantee in §4 is a property of Cloudflare's production runtime, not something Miniflare can prove under real concurrent load. Trust the platform guarantee rather than trying to simulate a race condition locally — if this ever needs verifying, it'd be a small production load test, not a unit test.
 
@@ -351,11 +380,12 @@ The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the acco
   it from the state endpoint adds no new exposure and lets Group Home re-share
   it. The Worker was built with this from the start; the iOS `GroupSummary`
   carries the field.
-- WebSocket live updates (upgrade path exists — same DO, add a WebSocket handler alongside the HTTP one — but not built until Phase 6+ per `PLAN.md`, and only if usage shows people actually have the app open simultaneously)
+- WebSocket live updates (upgrade path exists — same DO, add a WebSocket handler alongside the HTTP one — but not built yet, and only if usage shows people actually have the app open simultaneously)
 - Optimistic UI updates on mutation
 - ~~**percentage/shares splitting**~~ — **shipped** (2026-09-01). `splitType` now includes `"percentage"`; the client resolves percentages to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.percentageSplit`), so it's a UI/label change only — the wire contract and balance math are unchanged. See §2, §6, §10 (schema v2).
 - ~~**multi-currency**~~ — **shipped** (2026-09-01). A group holds expenses in any currency; balances and the settle-up plan are computed per currency and never blended (no FX conversion — that stays a hard non-goal). `currency` on expenses/settlements (schema v4), on `Balance`/`SimplifiedSettlement`; the group's `currency` is now just the default for new expenses. See §2, §3, §10.
-- FX conversion, recurring expenses, receipt OCR — still out of scope per `PLAN.md` §1, listed here only so nobody mistakes their absence in this doc for an oversight
+- FX conversion, recurring expenses, receipt OCR — still out of scope (see the non-goals list at the top), listed here only so nobody mistakes their absence in this doc for an oversight
+- ~~**Access token / credential decoupling**~~ — **shipped** (2026-09-05). `group_meta.access_token` (§1), `?token=` on every group route, `POST .../regenerate-link` (§2), dual-auth against a claimed member's Bearer session as an always-valid alternate path (§8). Backward-compatible: a group with no token stays open until it first regenerates.
 - ~~**No way to edit or delete an expense / settlement; no way to rename a
   group / member or remove a member**~~ — **shipped** (2026-09-04). `PUT`
   (full replacement, preserves feed order) + `DELETE` (idempotent) on
@@ -365,35 +395,33 @@ The **`UserDO`** (one per Apple identity, `idFromName(sub)`, added with the acco
   swipe-to-delete + tap-to-edit on the activity feed; a "Group Settings"
   screen for the rest; "Leave This Group" (device-local) + a context-menu
   remove on the start-screen list.
-- ~~A "merge my old entries" flow for someone who loses local storage and rejoins as a new member~~ — **partly addressed** by the claim flow (`ACCOUNTS_DESIGN.md` §6): a signed-in user opening an invite link picks "This is me" and links the existing placeholder member instead of creating a duplicate. A true merge of two already-separate members is still not built.
+- ~~A "merge my old entries" flow for someone who loses local storage and rejoins as a new member~~ — **partly addressed** by the claim flow: a signed-in user opening an invite link picks "This is me" and links the existing placeholder member instead of creating a duplicate. A true merge of two already-separate members is still not built.
 - ~~**accounts / cross-device sync**~~ — **shipped** (2026-09-03), Sign in with
   Apple only, guests unchanged. `GroupDO` schema v5 + a new `UserDO`; session
   tokens; `/api/auth/*` + `claim` routes (§13). **Superseded 2026-09-05:**
-  Google joins Apple and the guest tier is removed entirely
-  (`MANDATORY_LOGIN_PLAN.md`) — sign-in is now mandatory before creating,
-  joining, or viewing a group.
+  Google joins Apple and the guest tier is removed entirely — sign-in is
+  now mandatory before creating, joining, or viewing a group.
 - ~~**cross-group netting** ("settle across all groups with Bob")~~ — **shipped** (2026-09-04). `GET /api/auth/people` (§13): per linked person, the net per currency + per-group settle-up edges. Read-side only — "Settle All" is N ordinary `addSettlement` calls.
 - ~~Apple server-to-server token revocation on account deletion~~ — **code
   shipped** (2026-09-04). `POST /api/auth/apple` takes `authorizationCode`,
   exchanges it for a refresh token stored in the `UserDO`; `DELETE
   /api/auth/account` calls `revokeToken` first (`lib/apple-oauth.ts`, ES256
   `client_secret`). All behind a config check — inert until the four `SIWA_*`
-  secrets are set (`ACCOUNTS_DESIGN.md` §11/§16). That config remains a
-  submission prerequisite.
+  secrets are set. That config was completed 2026-09-04 — see §13 Config.
 
 ---
 
 ## 13. Accounts — auth surface
 
-Mandatory Apple or Google sign-in (`MANDATORY_LOGIN_PLAN.md`) — there's no
-guest tier as of 2026-09-05; every user signs in before creating, joining, or
-viewing a group. This is a **client-side gate only**: the design rationale,
-threat model, and judgement calls live in **`ACCOUNTS_DESIGN.md`** (written
-when sign-in was still optional — its placeholder-member/claim mechanics are
-unchanged, only the "optional" framing is superseded); this section is the
-wire contract. **The pre-accounts routes (§2) are unchanged** and still need
-no credential beyond `groupId` possession — the server's trust model didn't
-change, only which paths the app lets a signed-out user reach.
+Mandatory Apple or Google sign-in — there's no guest tier as of 2026-09-05;
+every user signs in before creating, joining, or viewing a group. This is a
+**client-side gate only** — this section is the full wire contract; the
+placeholder-member/claim mechanics below are what made the mandatory-login
+switch safe (a member who predates accounts, or who's added by name with no
+account at all, is just an unclaimed placeholder — never a broken row).
+**The pre-accounts routes (§2) are unchanged** and still need no credential
+beyond `groupId` (+ access-token, §1/§8) possession — the server's trust
+model didn't change, only which paths the app lets a signed-out user reach.
 
 ### Credentials
 
@@ -452,7 +480,7 @@ POST   /api/groups/:groupId/members/:memberId/claim   (Bearer)
        GroupDO.claim(memberId, sub) sets members.identity_sub, then
        UserDO.addMembership(...). 404 UNKNOWN_MEMBER, 409 ALREADY_CLAIMED /
        IDENTITY_ALREADY_IN_GROUP. iOS calls this after every sign-in-gated
-       "join" outcome now (`MANDATORY_LOGIN_PLAN.md` Part 3) — both picking
+       "join" outcome now — both picking
        an existing placeholder and adding yourself fresh (a plain
        POST .../members immediately followed by a claim of the member it
        returns) — and after creating a group, to claim the creator's own
@@ -466,14 +494,14 @@ New error codes: `INVALID_APPLE_TOKEN` (401), `INVALID_GOOGLE_TOKEN` (401),
 
 Our own minimal JWT: `{ sub, iat, exp }`, HS256 over `env.SESSION_SIGNING_KEY`,
 `exp = iat + 30 days`. Verified locally on every Bearer request — no DO hit, no
-server-side revocation (`ACCOUNTS_DESIGN.md` §3). The JWKS for Apple-token
+server-side revocation. The JWKS for Apple-token
 verification is cached in a per-isolate module variable (24h TTL + a one-shot
 refetch on a `kid` miss), not KV.
 
 ### `UserDO`
 
 One per signed-in identity, `idFromName("<provider>:" + sub)` — `"apple:" +
-sub` or `"google:" + sub"` (`MANDATORY_LOGIN_PLAN.md` Part 2), so an Apple and
+sub` or `"google:" + sub"`, so an Apple and
 a Google identity can never collide on the same underlying `sub` value. A
 thin, self-healing index — `user_meta` + `memberships` (§10). `GroupDO` is
 authoritative for the membership↔identity link; the Worker writes `GroupDO`
@@ -486,7 +514,7 @@ tolerates.
 - `USER_DO` — Durable Object namespace binding (wrangler migration `v2`).
 - `APPLE_AUDIENCE` — `vars` (`com.clantab.app`).
 - `GOOGLE_AUDIENCE` — `vars`, the iOS OAuth client id from Google Cloud
-  Console (`MANDATORY_LOGIN_PLAN.md` Part 1).
+  Console.
 - `SESSION_SIGNING_KEY` — a real secret in prod (`wrangler secret put`); **never a
   `vars` entry** — a plain var overwrites a same-named secret on every deploy.
   Local: `worker/.dev.vars`. Tests: `vitest.workers.config.ts`.

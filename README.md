@@ -43,12 +43,12 @@ lives in the core; the shell only presents it; the backend recomputes balances
 authoritatively. The sync model is deliberately simple — fetch-on-load,
 refetch-after-write, no optimistic UI, no WebSocket (`DESIGN.md` §7).
 
-**Signing in (Apple or Google) is mandatory** (`MANDATORY_LOGIN_PLAN.md`) — a
-stateless session token (`DESIGN.md` §13, `ACCOUNTS_DESIGN.md`) that syncs
-*which groups you're in* across devices. It's a client-side gate only: the
-group routes themselves are still `groupId`-possession, unchanged from day
-one — a member row can be a placeholder (added by name alone, no account) or
-linked to a signed-in identity.
+**Signing in (Apple or Google) is mandatory** — a stateless session token
+(`DESIGN.md` §13) that syncs *which groups you're in* across devices. It's a
+client-side gate only: the group routes themselves are still `groupId`
+(+ optional access-token) possession, unchanged from day one — a member row
+can be a placeholder (added by name alone, no account) or linked to a
+signed-in identity.
 
 ```mermaid
 flowchart TB
@@ -106,10 +106,9 @@ clantab-ios/
 ├── docs/                # privacy policy, App Store metadata, screenshots
 ├── .githooks/pre-push   # local build/test gate (fast feedback, no CI wait) — `make hooks`
 ├── DESIGN.md            # the wire / storage / security contract (§13 = accounts)
-├── ACCOUNTS_DESIGN.md   # accounts rationale, threat model, build log (superseded by MANDATORY_LOGIN_PLAN.md's "mandatory" framing)
-├── NEXT_STEPS.md        # the running "what's left" checklist (index into the below)
-├── PLAN.md · BACKEND_PLAN.md · SHIP_PLAN.md   # roadmaps: app · backend · shipping
-└── HANDOFF.md           # running status log
+├── DESIGN_BIBLE.md      # portfolio-wide visual-identity rules (typography, color, icons, motion)
+├── PLAN_BIBLE.md        # portfolio-wide planning process rules
+└── CHECKLIST.md         # the one running "what's left / what's done" list
 ```
 
 ### Pure core, thin shell
@@ -122,8 +121,8 @@ layer that needs Xcode on macOS; it's build-verified and run-verified end to
 end against the deployed backend (see `App/README.md`).
 
 _(The project was originally developed on Windows against `ClanTabKit`'s pure
-core, with the iOS shell built blind and verified by CI — hence some of the
-history in `HANDOFF.md`. Development is on a Mac now.)_
+core, with the iOS shell built blind and verified by CI. Development is on a
+Mac now.)_
 
 ---
 

@@ -1,13 +1,13 @@
 # ClanTab (iOS)
 
-Open-source expense splitter for small groups. Native iOS application powered by a pure Swift core package (`ClanTabKit`). Every user signs in with Apple or Google before creating, joining, or viewing a group — there's no guest tier (`MANDATORY_LOGIN_PLAN.md`); the group link (`groupId`, optionally carrying an access token, `ACCESS_TOKEN_PLAN.md`) is still the underlying data-access credential. No payments, no ads.
+Open-source expense splitter for small groups. Native iOS application powered by a pure Swift core package (`ClanTabKit`). Every user signs in with Apple or Google before creating, joining, or viewing a group — there's no guest tier; the group link (`groupId`, optionally carrying an access token, `DESIGN.md` §1/§2) is still the underlying data-access credential. No payments, no ads.
 
 ## Commands
 - `make check` — run everything relevant (ClanTabKit + worker + iOS build/tests). Same as what the `pre-push` hook runs; `make hooks` installs it.
 - `swift test --package-path ClanTabKit` or `make test` — the pure Swift core (no Apple frameworks; also runs on the Linux CI)
 - `swift build --package-path ClanTabKit` — build the core package
 - `App/` (the SwiftUI shell) requires Xcode on macOS. `cd App && xcodegen generate`, then the `ClanTab` scheme. See `App/README.md`.
-- `worker/` (Cloudflare Worker backend — `BACKEND_PLAN.md`): `npm --prefix worker ci`, then `make worker-test` / `worker-typecheck` / `worker-dev`. `make worker-deploy` needs `wrangler login`.
+- `worker/` (Cloudflare Worker backend — `DESIGN.md`): `npm --prefix worker ci`, then `make worker-test` / `worker-typecheck` / `worker-dev`. `make worker-deploy` needs `wrangler login`.
 
 ## CI
 - The repo is **public**, so GitHub-hosted runners (Linux and macOS) are unmetered.
@@ -26,16 +26,16 @@ Open-source expense splitter for small groups. Native iOS application powered by
 - **Integer Minor Units**: All money amounts are stored and calculated in integer minor units (paise, cents, yen) as `Int` or `Int64`. Never use floating-point types (`Double`, `Float`) for monetary amounts or arithmetic. Convert to/from display units only at the UI formatting edge.
 - **Derived Balances**: Member balances are always derived on read from the collection of expenses and settlements; never cache or persist a mutable "balance" field.
 - **Capability Links**: Each group is addressed by an unguessable capability identifier (`groupId`) and an optional 6-character human-friendly `joinCode`. Possession of the `groupId` is the read/write credential — this is unchanged by accounts.
-- **Mandatory identity (`MANDATORY_LOGIN_PLAN.md`, supersedes the older optional-identity design in `ACCOUNTS_DESIGN.md`)**: every user signs in with Apple or Google (`/api/auth/*`) before creating, joining, or viewing a group — there's no guest tier or separate local identity store; `AuthViewModel.groups` is the authoritative "which groups am I in, as which member" source. Group *data* routes stay reachable by `groupId` (+ access token) possession alone, dual-authed against either the token or a claimed session (`ACCESS_TOKEN_PLAN.md`) — never gate those behind a session outright. A `members` row still gains a nullable `identity_sub` when claimed.
+- **Mandatory identity (`DESIGN.md` §13)**: every user signs in with Apple or Google (`/api/auth/*`) before creating, joining, or viewing a group — there's no guest tier or separate local identity store; `AuthViewModel.groups` is the authoritative "which groups am I in, as which member" source. Group *data* routes stay reachable by `groupId` (+ access token) possession alone, dual-authed against either the token or a claimed session (`DESIGN.md` §1/§2/§8) — never gate those behind a session outright. A `members` row still gains a nullable `identity_sub` when claimed.
 - **Split Integrity**: Every split in an expense must sum up exactly to the total `amountMinor`. Remainder paise/cents from equal or percentage divisions are deterministically assigned (e.g., to the payer) before dispatch. `splitType` (`equal` / `exact` / `percentage`) is a descriptive label — `percentage` is resolved to minor-unit shares client-side (`Validation.percentageSplit`), never sent as raw percentages.
 
 ## Non-Goals — Do Not Add Without Explicit Request
-- No passwords, ever. Identity is Sign in with Apple or Google only (`MANDATORY_LOGIN_PLAN.md`) — no other providers, no separate profile data beyond what each provider's credential carries.
+- No passwords, ever. Identity is Sign in with Apple or Google only (`DESIGN.md` §13) — no other providers, no separate profile data beyond what each provider's credential carries.
 - No payment processing, banking integration, or money transfer — ever.
 - No FX conversion. A group can hold expenses in multiple currencies, but balances and settle-up are computed per currency and never blended — the group's `currency` is only the default for new expenses.
-- No recurring *expenses* or subscription models (recurring local *reminders* to add one manually are in scope, `FEATURE_BACKLOG.md` — the expense itself is never auto-posted).
+- No recurring *expenses* or subscription models (recurring local *reminders* to add one manually are in scope, shipped — the expense itself is never auto-posted).
 - No receipt OCR / paid cloud AI services in core v1.
-- No email collection beyond what Google's mandatory-login credential carries. (Push notifications *were* a non-goal — reversed 2026-09-05, now in v1 scope: `FEATURE_BACKLOG.md`, `NEXT_STEPS.md` Phase 6.)
+- No email collection beyond what Google's mandatory-login credential carries. (Push notifications *were* a non-goal — reversed 2026-09-05, now shipped, see `CHECKLIST.md`.)
 
 ## Conventions
 - Swift 6 language standard, strict concurrency checking.

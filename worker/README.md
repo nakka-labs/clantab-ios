@@ -1,8 +1,7 @@
 # ClanTab Worker
 
 The Cloudflare Worker + Durable Objects backend. Contract: `../DESIGN.md` §2-§8
-(guest routes) and §13 (accounts / auth). Plan / status: `../BACKEND_PLAN.md`.
-Accounts rationale: `../ACCOUNTS_DESIGN.md`.
+(group routes) and §13 (accounts / auth). Status: `../CHECKLIST.md`.
 
 **Deployed:** `https://clantab.nakka-labs.workers.dev` — accounts routes live
 since 2026-09-04 (`SESSION_SIGNING_KEY` is a real secret).
@@ -15,13 +14,13 @@ src/
 │                   PUT/DELETE edit-delete, + §13 accounts)
 ├── group-do.ts     GroupDO     — one group's SQLite ledger; server-computed balances;
 │                                 claim / unclaim (schema v5, members.identity_sub)
-├── user-do.ts      UserDO      — one per Apple sub; thin self-healing group index
+├── user-do.ts      UserDO      — one per signed-in identity (provider:sub); thin self-healing group index
 ├── types.ts        wire DTOs (mirror ClanTabKit's ClanTabWireTypes.swift)
 └── lib/            balances / simplify / validation (ports of ClanTabKit Logic/),
                     apple-auth (Apple JWKS verify), apple-oauth (code exchange +
                     token revocation), session (HS256 session JWT), base64url,
                     ids, join-codes (joinCode ↔ groupId in Workers KV, rate-limit
-                    binding — SHIP_PLAN.md Track 3 §3), schema (SQL DDL), parse,
+                    binding), schema (SQL DDL), parse,
                     errors, result
 test/               logic + validation (Node) · join-codes/group/routes/user/auth/
                     apple-oauth (workers pool)
@@ -59,8 +58,9 @@ test/               logic + validation (Node) · join-codes/group/routes/user/au
   `SIWA_KEY_ID` / `SIWA_PRIVATE_KEY` (all four or none) drive the Apple
   authorization-code exchange + token revocation on account deletion
   (`lib/apple-oauth.ts`) — the code is done and inert until the secrets are set;
-  a submission prerequisite (`ACCOUNTS_DESIGN.md` §16).
+  configured in production since 2026-09-04 (`DESIGN.md` §13 Config).
 - **Auth is additive** — the group routes are still `groupId`-possession only.
   Never add a session check to them.
 - `GET /g/:groupId` is a stub landing page (noindex + app deep link). A real page +
-  Universal Links come with a production domain — `BACKEND_PLAN.md` §6.
+  Universal Links come with a production domain — see `CHECKLIST.md`'s
+  "custom domain + Universal Links" item.

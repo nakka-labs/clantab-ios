@@ -52,14 +52,25 @@ Tag every item, in every doc, not just the master index — an untagged
 item is an ambiguous item, and ambiguity here is what stalls a project
 waiting on the wrong party.
 
-## 5. One master sequencing doc, many detail docs
+## 5. One checklist per project, full stop — not one-per-feature
 
-Doc sprawl — three files each independently claiming to be "the order" —
-is a recurring, real failure mode past 3-4 plan docs, not a hypothetical.
-Pick exactly one file as the sequencing index. Every other doc stays
-authoritative for *how*, but its own "suggested order" section gets
-trimmed to a one-line pointer at the index, never duplicated. Re-check
-this the first time a project accumulates a fourth plan doc.
+Doc sprawl — a plan doc per feature, each with its own "suggested order,"
+its own status banner, half of them stale — is a recurring, real failure
+mode past 2-3 plan docs, not a hypothetical (it happened here: eleven
+planning docs collapsed into one `CHECKLIST.md` on 2026-09-07). One file
+per project holds every open to-do and a condensed done history — nothing
+else gets created to track sequencing or status, ever, no matter how
+tempting a "just for this feature" doc feels in the moment. This is
+stricter than "pick one index and let detail docs keep their own order"
+— there are no detail docs for *planning* anymore, only the checklist.
+
+This doesn't reach docs that aren't planning/tracking docs: a technical
+contract (`DESIGN.md`) or a visual-identity contract (`DESIGN_BIBLE.md`)
+is a living reference other code and decisions point to, not a status
+tracker, and stays its own file. The test: if the doc's job is "what's
+left and what's done," it belongs in the one checklist; if its job is
+"how this actually works" or "how this should look," it's a contract, not
+sprawl.
 
 ## 6. Sequence to minimize rework, not calendar time
 
@@ -122,6 +133,16 @@ finding" callout for anything that changes the risk picture, placed where
 it can't be missed (top of the doc, not buried in a part). A "what
 sequences after this" pointer at the bottom so cross-doc dependencies are
 explicit — a reader shouldn't have to infer sequencing from context.
+
+## 14. Nothing ships until it looks finished and passes testing + approval
+
+A deploy or App Store submission is never a default next step just
+because the checklist's ship-blocking items are checked off. It happens
+only after (1) the design/UX polish work that makes the app *look*
+finished is actually done, and (2) a real testing pass and owner approval
+— both, in that order. A plan doc, this file included, should never
+describe shipping as imminent or assumed; state the gate explicitly
+wherever shipping is mentioned, the way `CHECKLIST.md`'s own banner does.
 
 ## Explicitly not doing (yet)
 

@@ -59,7 +59,7 @@ package. This target should stay thin — views and view models only.
 
 **Compiles + `ClanTabTests` pass** via `make check` / the `pre-push` hook
 (`xcodebuild test` for the `ClanTab` scheme). This started life as a macOS
-GitHub Actions job (`ios-build.yml`, since removed — see `HANDOFF.md`) back
+GitHub Actions job (`ios-build.yml`, since removed) back
 when development was on Windows; it caught three real build errors on its
 first run: a `private` nested-type access error in `CreateGroupView`, a
 `Section` overload-resolution failure in `AddExpenseView`, and a ternary
@@ -70,20 +70,19 @@ first run: a `private` nested-type access error in `CreateGroupView`, a
 mock of the API. Every Phase 3-6 screen and flow — Start, Create, Group
 Home, Add Expense, Settle Up, Share & Export, Join-by-code, deep-link scheme
 registration, resume-on-relaunch, pull-to-refresh — exercised and asserted;
-no SwiftUI runtime warnings, no crashes. Full write-up and findings in
-`HANDOFF.md`'s "App/ Runtime Verification — Done" section.
+no SwiftUI runtime warnings, no crashes.
 
 ## Known gaps
 
 - Placeholder app icon (`Assets.xcassets/AppIcon` — a flat "=" mark) + a blue
   `AccentColor`. Fine for TestFlight; swap for real design before the App Store.
 - No custom launch screen (`UILaunchScreen: {}` → plain system background —
-  HIG-compliant, no flash, but unbranded). `SHIP_PLAN.md` Track 2.
+  HIG-compliant, no flash, but unbranded).
 - Universal Links (tappable `https://…/g/:id` invites that open the app) need a
   custom domain + Associated Domains entitlement + a hosted
   `apple-app-site-association`. Only the `clantab://g/:groupId` dev scheme is
-  wired for now; invites otherwise work by 6-character code. See `SHIP_PLAN.md`
-  Track 1.
+  wired for now; invites otherwise work by 6-character code — see
+  `CHECKLIST.md`'s "custom domain + Universal Links" item.
 - `MoneyFormat` assumes 2 decimal minor units for every currency (true for
   INR/USD/EUR/GBP, not for e.g. JPY) — fine for the currencies in the v1
   picker, worth revisiting if more are added.

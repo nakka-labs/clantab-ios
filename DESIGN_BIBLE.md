@@ -5,7 +5,9 @@
 > tightened). Lives in `clantab-ios` for now since it's the only connected
 > repo and the most advanced app; belongs at the portfolio level (a
 > `nakka-labs` org profile repo, or `tiny-tools`'s shared design system)
-> once one of those exists.
+> once one of those exists. Every rule below is portfolio-wide — decided
+> once, applied to all four apps — even though only ClanTab is built out
+> enough to show it yet.
 >
 > For a minimalist, flat, system-font portfolio, almost everything below
 > reduces to two decisions: **the font treatment** (§1) and **the color
@@ -25,15 +27,21 @@ reason Apple's own first-party apps look related without sharing pixels.
 
 ## 1. Typography — the identity
 
-System fonts only: SF Pro (iOS) / system-ui or Inter (web). Zero cost,
-zero maintenance, no bundling or licensing. One deliberate exception,
-and it's the single highest-leverage move in this whole document: use
-`ui-rounded` (SF Rounded) for **hero numerals** — the balance in
-ClanTab, the countdown in LoopTimer, the streak count in Habit Tracker,
-the detected pitch in PitchLab. Every one of these apps is numbers-first;
-a consistent rounded-numeral treatment against otherwise-plain system
-type is a real, felt signature that touches nothing else — not body
-text, not chrome, not iconography.
+System fonts only for body text and chrome: SF Pro (iOS) / system-ui or
+Inter (web). Zero cost, zero maintenance, no bundling or licensing for
+the 95% of the UI that's reading, not signature.
+
+One deliberate, portfolio-wide exception — the single highest-leverage
+move in this document: a **distinct display typeface**, used only for
+each app's wordmark and its hero numerals (ClanTab's balance, LoopTimer's
+countdown, Habit Tracker's streak count, PitchLab's detected pitch). Free
+and self-hosted (a Google Fonts family, not a paid license), same face
+across all four apps so it reads as one portfolio's signature rather than
+four unrelated choices. This supersedes the earlier "`ui-rounded` (SF
+Rounded) for hero numerals" rule — same instinct (numbers-first apps
+deserve a felt signature), stronger execution: a genuinely distinct face
+reads as designed, where a system font at a different weight reads as a
+tweak. Touches nothing else — not body text, not chrome, not iconography.
 
 ## 2. Color — one formula, one hue per app
 
@@ -49,35 +57,116 @@ that has many like things a person needs to tell apart at a glance, hash a
 stable identifier to a hue and reuse the formula at a different
 lightness/chroma band per use, rather than hand-picking colors one at a
 time. ClanTab's per-category colors (`CategoryColor`, pastel band) and
-per-member identity colors (`MemberColor`, a higher-chroma band, proposed
-`FEATURE_BACKLOG.md` 2026-09-06) are the same formula at two bands, not two
-separate systems — treat any future "N things need distinct colors" problem
-in any app the same way before reaching for anything hand-picked.
+per-member identity colors (`MemberColor`, a higher-chroma band) are the
+same formula at two bands, not two separate systems — treat any future
+"N things need distinct colors" problem in any app the same way before
+reaching for anything hand-picked.
 
 ## 3. App icons
 
-Flat, geometric, single strong silhouette, no gradients/bevels/photoreal,
-legible at 40px, no baked-in text. What varies per app is the **motif**
-(what the shape is), never the construction style. `LOGO_BRIEF.md` has
-the actual generation prompt and a distinctiveness-check process
-(competitor survey, reverse image search, trademark search, small-size
-confusability test) — read that when actually producing an icon; this
-section is the rule, not the workflow.
+Flat, geometric, single strong silhouette, legible at 40px, no baked-in
+text, no photoreal, no drop shadow/3D bevel. One deliberate, portfolio-
+wide exception: a tasteful two-stop gradient using the app's own hue
+(§2) at two points on the same lightness/chroma formula — never a second,
+unrelated color — scoped to the app icon itself and to in-app hero
+moments (a completed-timer state, a hit-streak celebration, ClanTab's
+balance hero card), never to routine UI chrome, where flat color stays
+the default. What varies per app is the **motif** (what the shape is) and
+whether that app leans on the gradient or stays fully flat — never the
+construction style itself, and never more than the one gradient per icon.
 
-## 4. In-app iconography — SF Symbols only
+**Generation workflow** (the same process for every app's icon — only the
+concept/motif changes per app):
 
-No custom icon sets, ever, on the native apps. Free, automatically
-themed, automatically Dynamic-Type- and VoiceOver-correct. Not really a
-brand choice — a "don't reinvent free infrastructure" rule, stated so
-nobody reaches for a custom icon pack mid-project.
+> A minimalist, flat vector app icon for "[App Name]," a [one-line app
+> description]. Concept: [the app-specific motif — a single strong,
+> literal-but-not-clichéd shape tied to what the app does]. Two-tone (or,
+> where the gradient exception above is used, two-stop-gradient) palette
+> built from the app's own `oklch(55% 0.16 H)` hue — a confident
+> background with a crisp light mark. No gradients beyond the one
+> sanctioned stop-pair, no drop shadows, no 3D bevel, no photorealism, no
+> text or letters. Square 1024×1024 canvas, full-bleed flat background, no
+> transparency (a transparent icon is an App Store rejection), no rounded
+> corners baked in (iOS applies its own mask). Generous padding,
+> confident negative space, single strong silhouette that reads clearly
+> at 60×60px. Style reference: modern iOS utility-app icons (Things 3,
+> Bear, Fantastical) — clean, geometric, not cartoonish, not
+> generic-fintech/generic-utility. Avoid whatever's overused in that
+> app's specific category (for ClanTab: dollar signs, piggy banks,
+> wallets, scales/balance-beams, pie charts, overlapping-people icons).
 
-## 5. Motion — confirm, don't decorate
+ClanTab's own instance of this, kept as the worked example: a bold
+geometric equals sign ("="), evolving the app's placeholder icon and
+established blue, symbolizing settling a balance rather than money
+itself. Background `#0074CA` (the precise sRGB conversion of
+`oklch(55% 0.16 250)`, computed via the standard OKLab matrices, not
+eyeballed) with a crisp white/light-blue mark. Alternate motifs
+considered: a tab/flag shape split down the center (literal "clan tab"),
+or three dots converging into one line (small-group-settling-into-one).
+Installed at `App/ClanTab/Assets.xcassets/AppIcon.appiconset/icon-1024.png`.
+
+**Distinctiveness check** (run before finalizing any app's icon — not
+just eyeballing it next to a couple of competitors):
+
+1. **Visual competitor survey.** Pull current App Store icons for the
+   category's real players (for ClanTab: Splitwise, Settle Up, Tricount,
+   Spliit, Kittysplit, plus adjacent fintech — Venmo, Cash App, PayPal).
+   Verify live; icons refresh over time. The bar is a distinct *shape*,
+   not a distinct *color* — a shared hue family (most fintech sits in
+   blue/green/purple) is common territory in every category.
+2. **Reverse image search** each generated candidate (Google Lens or
+   TinEye) before finalizing — catches an accidental near-duplicate the
+   model pulled from training data, more common than expected with
+   generic "minimalist flat icon" prompts.
+3. **Trademark search** — USPTO TESS / TMview for design marks in
+   software/financial-app classes (9, 36, 42) that could read as
+   confusingly similar. Real legal exposure, separate from "looks kind of
+   alike."
+4. **Small-size confusability test — the actual bar.** Render the
+   candidate at real iOS sizes (180/120/60/40px) next to 3-4 competitor
+   icons at the same size, on both light and dark home screens. A
+   full-size side-by-side is the wrong test — nobody sees the icon at
+   full size except the person picking it, once, at generation time.
+
+ClanTab's own check: legibility passed at 180/120/60/40px. Reverse-image
+and trademark search need tools this environment doesn't have (Google
+Lens/TinEye, USPTO TESS) — run those before actually submitting to the
+App Store; the shape-not-color reasoning above still held on a general
+search at the time.
+
+## 4. In-app iconography — SF Symbols only, with one named exception
+
+No custom icon sets, ever, for *functional* UI: buttons, nav, category
+glyphs — all SF Symbols. Free, automatically themed, automatically
+Dynamic-Type- and VoiceOver-correct. Not really a brand choice — a "don't
+reinvent free infrastructure" rule, stated so nobody reaches for a custom
+icon pack mid-project.
+
+One deliberate, portfolio-wide exception: a single custom empty-state
+illustration per app, reused everywhere that app shows a genuine
+zero-state (ClanTab's "no groups yet" / "no expenses yet"; the equivalent
+first-run zero-state in each other app). One asset per app, not per
+screen or per state — this is a branding moment (the first thing a new
+user sees), not functional chrome, so it sits outside the
+infrastructure-reuse reasoning above rather than contradicting it.
+
+## 5. Motion & sound — confirm, don't decorate
 
 A light haptic on every state-confirming action (a timer completing, a
 habit checked off, an expense settled), never on navigation or routine
 taps — ClanTab's existing `.sensoryFeedback` pattern, made the portfolio
 rule. Cheap, consistent, and a felt quality signal even to someone who
 never consciously registers the shared icon construction rule.
+
+One deliberate, portfolio-wide addition: a short, custom confirmation
+sound, played alongside the haptic — never instead of it, so the silent-
+switch/Do Not Disturb case still gets a correct confirmation — on the
+single most significant confirming action per app (ClanTab: settled up;
+LoopTimer: timer complete; Habit Tracker: streak milestone; PitchLab:
+pitch matched). One sound design, reused across all four apps at the same
+moment-class, not a bespoke sound per app — same instinct as the color
+formula: one system, applied consistently, rather than four separate
+creative decisions.
 
 ## 6. Naming
 
@@ -101,32 +190,13 @@ frame and background, same mermaid diagram style. Someone clicking
 through 3-4 of these repos in one sitting notices structure before they
 notice whether two accent blues are the exact same hex.
 
-## Under consideration for ClanTab — pending a decision, not yet adopted
-
-A pure-UX (Bible-aside) pass on ClanTab specifically surfaced four ideas
-that would break a rule above rather than just use one more fully — full
-list, reasoning, and a recommended pick in `FEATURE_BACKLOG.md`'s
-"Off-Bible UX ideas" (2026-09-07):
-
-- A distinct display typeface for the wordmark/hero numerals — breaks §1.
-- Gradients on the app icon and hero moments only — breaks §3.
-- A custom empty-state illustration — stretches §4.
-- A short branded confirmation sound — extends past §5 (not forbidden,
-  just never considered).
-
-None of these are decided. Because this file is written to eventually be
-portfolio-wide (see the Status note at the top), a real yes here is a
-bigger call than a normal ClanTab feature decision — it either creates a
-ClanTab-only exception to an otherwise-shared rule, or it changes the rule
-for every app. Worth resolving deliberately, not by default via whichever
-gets built first.
-
 ## Explicitly not doing (yet)
 
 - No shared component library or design-token file across native repos —
   premature before a second native app is actively being built alongside
   ClanTab.
-- No custom/licensed fonts.
+- No paid or licensed fonts — the §1 display face and all system fonts
+  stay free.
 - No design-tool subscription, no re-running a visual design tool to
   illustrate a decision this file already states in words.
 
