@@ -157,9 +157,13 @@ one-off/casual, large-friend-group):
       CSV/JSON export) is untouched. Tests: `isRoundAmount`, a
       locale-independent digit-count check, and Darwin-only exact strings.
       kit 174 · app 80.
-- [ ] **Add Expense submit button contrast.** `~8k tokens` (CLI)
-      1. Give the enabled state its own fill color distinct from the
-         disabled/empty-field grey.
+- [x] **Add Expense submit button contrast.** Done 2026-09-07. The submit
+      button is now a full-width `.borderedProminent` / `.controlSize(.large)`
+      button — a solid accent-blue fill with white bold text when enabled,
+      dropping to a muted grey pill while a required field is empty.
+      Verified in the Simulator (both states). app 80. (`CreateGroupView`'s
+      submit has the same weak pattern — left for the "primary buttons"
+      polish item.)
 - [ ] **Category picker icon weight.** `~5k tokens` (CLI)
       1. Match the SF Symbol weight to the filled icons used elsewhere
          (gear, chart glyphs).

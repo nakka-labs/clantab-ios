@@ -190,13 +190,25 @@ struct AddExpenseView: View {
                 Button {
                     Task { await save() }
                 } label: {
-                    if isSubmitting {
-                        ProgressView()
-                    } else {
-                        Text(isEditing ? "Save Changes" : "Add Expense")
+                    Group {
+                        if isSubmitting {
+                            ProgressView()
+                        } else {
+                            Text(isEditing ? "Save Changes" : "Add Expense")
+                        }
                     }
+                    // Fill the row and read as the primary action — a solid
+                    // accent fill when enabled, clearly distinct from the
+                    // muted grey it drops to while a required field is empty
+                    // (`CHECKLIST.md` "Add Expense submit button contrast").
+                    .frame(maxWidth: .infinity)
+                    .font(.headline)
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .disabled(!canSubmit || isSubmitting)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
         }
         .navigationTitle(isEditing ? "Edit Expense" : "Add Expense")
