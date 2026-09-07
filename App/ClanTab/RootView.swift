@@ -12,6 +12,9 @@ struct RootView: View {
     /// The first-run walkthrough (`CHECKLIST.md` "Onboarding walkthrough") —
     /// shown over everything else until it's finished or skipped, once.
     @State private var showOnboarding: Bool
+    /// Set when the Home Screen "Add Expense" quick action targets a group we
+    /// then route into — `GroupHomeView` opens Add Expense for it once.
+    @State private var pendingAddExpenseGroupId: String?
 
     init(client: ClanTabClient, knownGroups: KnownGroupsStoring, auth: AuthViewModel, onboarding: OnboardingStoring) {
         self.client = client
@@ -41,6 +44,12 @@ struct RootView: View {
         .task {
             await auth.handleLaunch()
             resolveInitialRoute()
+            refreshQuickAction()
+            // A quick action that cold-launched the app, buffered until now
+            // (`CHECKLIST.md` "Home Screen quick action").
+            if let groupId = QuickActions.consumePending() {
+                handleQuickActionAddExpense(groupId: groupId)
+            }
         }
         .onOpenURL { url in handleDeepLink(url) }
         .onReceive(NotificationCenter.default.publisher(for: .pushNotificationTapped)) { notification in
@@ -49,6 +58,13 @@ struct RootView: View {
             guard let url = notification.userInfo?["url"] as? URL else { return }
             handleDeepLink(url)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .quickActionAddExpense)) { notification in
+            guard let groupId = notification.userInfo?[QuickActions.groupIdKey] as? String else { return }
+            handleQuickActionAddExpense(groupId: groupId)
+        }
+        .onChange(of: auth.isSignedIn) { _, _ in refreshQuickAction() }
+        .onChange(of: auth.groups) { _, _ in refreshQuickAction() }
+        .onChange(of: knownGroupsRevision) { _, _ in refreshQuickAction() }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             guard signedIn, let pending = pendingDeepLink else { return }
             pendingDeepLink = nil
@@ -147,6 +163,8 @@ struct RootView: View {
                 knownGroups: knownGroups,
                 auth: auth,
                 accessToken: knownAccessToken(for: groupId),
+                initialAction: pendingAddExpenseGroupId == groupId ? .addExpense : nil,
+                onInitialActionConsumed: { pendingAddExpenseGroupId = nil },
                 onOpenSettings: { showingSettings = true },
                 onSwitchGroup: { enterGroup($0, accessToken: knownAccessToken(for: $0)) },
                 onCreateNewGroup: { route = .createGroup },
@@ -181,6 +199,25 @@ struct RootView: View {
     private func enterGroup(_ groupId: String, accessToken: String? = nil) {
         knownGroups.remember(groupId: groupId, name: nil, accessToken: accessToken, at: Date())
         route = .group(groupId: groupId)
+        refreshQuickAction()
+    }
+
+    /// The Home Screen "Add Expense" quick action (`CHECKLIST.md`) fired for
+    /// `groupId`: open it, and flag it so `GroupHomeView` presents Add Expense
+    /// once. Falls back to the start screen if the group isn't ours (a stale
+    /// shortcut after leaving it).
+    private func handleQuickActionAddExpense(groupId: String) {
+        showOnboarding = false
+        showingSettings = false
+        guard auth.isSignedIn, isMember(groupId) else { route = .start; return }
+        pendingAddExpenseGroupId = groupId
+        enterGroup(groupId, accessToken: knownAccessToken(for: groupId))
+    }
+
+    /// Keep the Home Screen quick action pointed at the current primary group
+    /// — only while signed in, so a signed-out device offers nothing.
+    private func refreshQuickAction() {
+        QuickActions.refresh(auth.isSignedIn ? knownGroups.all() : [])
     }
 
     /// Drop a group from this device's local list — on an explicit "Leave This

@@ -8,6 +8,11 @@ extension Notification.Name {
     /// group's deep link URL in `userInfo["url"]`, handled identically to any
     /// other incoming URL (`RootView.handleDeepLink`, `.onOpenURL`).
     static let pushNotificationTapped = Notification.Name("clantab.pushNotificationTapped")
+
+    /// Posted when the Home Screen "Add Expense" quick action fires
+    /// (`CHECKLIST.md`) — carries the target group id in `userInfo["groupId"]`.
+    /// A cold launch buffers it instead (`AppDelegate.consumePendingQuickAction`).
+    static let quickActionAddExpense = Notification.Name("clantab.quickActionAddExpense")
 }
 
 /// Bridges the UIKit-only push-notification APIs into the SwiftUI app —
@@ -32,6 +37,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         return true
+    }
+
+    /// Attach `SceneDelegate` — the only place Home Screen quick actions can
+    /// be received under SwiftUI's `App` lifecycle (`CHECKLIST.md`).
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting session: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: session.role)
+        config.delegateClass = SceneDelegate.self
+        return config
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {

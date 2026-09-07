@@ -1,11 +1,19 @@
 import SwiftUI
 import ClanTabKit
 
+/// A one-shot action to run when Group Home first appears — currently only
+/// the Home Screen "Add Expense" quick action (`CHECKLIST.md`).
+enum GroupHomeAction: Equatable {
+    case addExpense
+}
+
 struct GroupHomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     private let client: ClanTabClient
     private let knownGroups: KnownGroupsStoring
     private let auth: AuthViewModel
+    private let initialAction: GroupHomeAction?
+    private let onInitialActionConsumed: () -> Void
     private let onOpenSettings: () -> Void
     /// Switch straight to another known group — the same `enterGroup` path
     /// `RootView` uses everywhere else (`NAV_POLISH_PLAN.md` Part 1).
@@ -36,6 +44,9 @@ struct GroupHomeView: View {
     @State private var filter = ActivityFilter()
     @State private var undoBanner: UndoBanner?
     @State private var backupNudgeDismissed = false
+    /// A `GroupHomeAction` still to run — cleared once state has loaded and
+    /// it's been carried out (`CHECKLIST.md` "Home Screen quick action").
+    @State private var pendingInitialAction: GroupHomeAction?
 
     /// The fast-path "Undo" toast after a swipe-to-delete (`FEATURE_BACKLOG.md`
     /// "Delete goes to trash") — the same restore action `RecentlyDeletedView`
@@ -54,6 +65,8 @@ struct GroupHomeView: View {
         knownGroups: KnownGroupsStoring,
         auth: AuthViewModel,
         accessToken: String? = nil,
+        initialAction: GroupHomeAction? = nil,
+        onInitialActionConsumed: @escaping () -> Void = {},
         onOpenSettings: @escaping () -> Void = {},
         onSwitchGroup: @escaping (_ groupId: String) -> Void = { _ in },
         onCreateNewGroup: @escaping () -> Void = {},
@@ -63,6 +76,9 @@ struct GroupHomeView: View {
         self.client = client
         self.knownGroups = knownGroups
         self.auth = auth
+        self.initialAction = initialAction
+        self.onInitialActionConsumed = onInitialActionConsumed
+        _pendingInitialAction = State(initialValue: initialAction)
         self.onOpenSettings = onOpenSettings
         self.onSwitchGroup = onSwitchGroup
         self.onCreateNewGroup = onCreateNewGroup
@@ -219,6 +235,20 @@ struct GroupHomeView: View {
         .navigationTitle(headerTitle)
         .searchable(text: $filter.searchText, prompt: "Search activity")
         .refreshable { await viewModel.refetch() }
+        .task(id: viewModel.state == nil) {
+            // Opened via the Home Screen "Add Expense" quick action
+            // (`CHECKLIST.md`); the state check waits for the members/currency
+            // the form needs — cold launch reaches here with the action
+            // already pending.
+            runInitialActionIfReady()
+        }
+        .onChange(of: initialAction) { _, action in
+            // The same action arriving while this exact group is already on
+            // screen (a warm-launch quick action) — the initializer above
+            // won't re-run, so react to the prop change too.
+            pendingInitialAction = action
+            runInitialActionIfReady()
+        }
         .task {
             await viewModel.load()
             // Poll while Group Home is on screen so another device's expenses
@@ -496,6 +526,15 @@ struct GroupHomeView: View {
         guard let pendingDelete else { return "" }
         if case .settlement = pendingDelete.kind { return "Delete this settlement?" }
         return "Delete this expense?"
+    }
+
+    /// Carry out a still-pending `GroupHomeAction` once the group's state has
+    /// loaded (`CHECKLIST.md` "Home Screen quick action").
+    private func runInitialActionIfReady() {
+        guard pendingInitialAction == .addExpense, viewModel.state != nil else { return }
+        pendingInitialAction = nil
+        onInitialActionConsumed()
+        isPresentingAddExpense = true
     }
 
     private func edit(_ item: ActivityItem) {

@@ -198,11 +198,16 @@ one-off/casual, large-friend-group):
       install → carousel → Skip/Get Started → start screen → relaunch skips
       it. Tests: `OnboardingStoreTests` (3) + `RootView.shouldPresentOnboarding`
       (2). kit 177 · app 82.
-- [ ] **Home Screen quick action.** `~20k tokens` (CLI)
-      1. Add a `UIApplicationShortcutItems` entry for "Add Expense to
-         <primary group>."
-      2. Wire it to the existing `AddExpenseIntent`/`GroupEntity`.
-      3. Verify the long-press action appears and opens the right flow.
+- [x] **Home Screen quick action.** Done 2026-09-07. A dynamic
+      `UIApplicationShortcutItem` ("Add Expense" / subtitle = the
+      most-recently-opened named group), refreshed by `RootView` on every
+      group-list change. Received via a `SceneDelegate` (SwiftUI's `App`
+      lifecycle never calls `UIApplicationDelegate.performActionFor`);
+      `RootView` routes into the group and `GroupHomeView` opens the Add
+      Expense sheet once its state is loaded — cold launch and warm launch
+      both. Verified in the Simulator: the long-press menu shows it, and
+      tapping opens straight to Add Expense. Tests: `QuickActionsTests` (6).
+      kit 177 · app 88.
 - [ ] **Dynamic Type / VoiceOver audit.** `~45k tokens` (CLI, on-device
       pass)
       1. Step through every screen at the largest accessibility text
