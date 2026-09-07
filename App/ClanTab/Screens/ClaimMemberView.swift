@@ -32,8 +32,13 @@ struct ClaimMemberView: View {
                 if !members.isEmpty {
                     Section("Which member are you?") {
                         ForEach(members) { member in
-                            Button(member.displayName) { pendingConfirmation = member }
-                                .disabled(auth.isBusy)
+                            Button { pendingConfirmation = member } label: {
+                                HStack(spacing: 10) {
+                                    MemberAvatar(member, size: 28)
+                                    Text(member.displayName)
+                                }
+                            }
+                            .disabled(auth.isBusy)
                         }
                     }
                 }

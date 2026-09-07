@@ -70,7 +70,8 @@ struct InsightsView: View {
                             breakdownRow(
                                 title: entry.member.displayName,
                                 icon: "person",
-                                amountMinor: entry.totalMinor
+                                amountMinor: entry.totalMinor,
+                                memberName: entry.member.displayName
                             )
                         }
                     }
@@ -115,19 +116,29 @@ struct InsightsView: View {
     }
 
     /// A category/member row: icon, name, a proportional bar, and the amount.
-    private func breakdownRow(title: String, icon: String, amountMinor: Int64) -> some View {
+    /// Pass `memberName` for a member row — it gets that member's identity
+    /// avatar and tints the bar with their `MemberColor`.
+    private func breakdownRow(title: String, icon: String, amountMinor: Int64, memberName: String? = nil) -> some View {
         let fraction = total > 0 ? Double(amountMinor) / Double(total) : 0
+        let tint = memberName.map { MemberColor.color(for: $0) } ?? Color.accentColor
 
         return VStack(spacing: 6) {
             HStack {
-                Label(title, systemImage: icon)
+                if let memberName {
+                    HStack(spacing: 8) {
+                        MemberAvatar(name: memberName, size: 22)
+                        Text(title)
+                    }
+                } else {
+                    Label(title, systemImage: icon)
+                }
                 Spacer()
                 Text(money(amountMinor)).foregroundStyle(.secondary).monospacedDigit()
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.secondary.opacity(0.15))
-                    Capsule().fill(Color.accentColor)
+                    Capsule().fill(tint)
                         .frame(width: max(0, geo.size.width * fraction))
                 }
             }

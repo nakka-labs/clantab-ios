@@ -115,13 +115,14 @@
 From a screenshot review + persona walkthrough (trip, household, couple,
 one-off/casual, large-friend-group):
 
-- [ ] **Member identity color/avatar.** `~70k tokens` (CLI)
-      1. Add `MemberColor` to `ClanTabKit` — same djb2-hash-to-hue
-         pattern as `CategoryColor`, higher chroma band.
-      2. Unit-test it against a handful of fixed names for stable output.
-      3. Wire an initials-on-swatch view and swap it in everywhere a
-         member appears (rows, activity feed, split toggles, Insights).
-      4. Build + test the App target.
+- [x] **Member identity color/avatar.** Done 2026-09-07. `MemberColor`
+      (`oklch(50% 0.17 H)`, djb2 hue) + shared `OKLCH` primitive extracted
+      from `CategoryColor`; `MemberAvatar` (white initials, WCAG-AA on every
+      hue) wired into Group Home, activity feed (settlement rows), Add
+      Expense split rows, Settle Up, Group Settings, Claim Member, and
+      Insights "By member" (rows + per-member bar tint). Menu pickers left
+      as plain text — SwiftUI won't render a custom icon there. Verified in
+      the Simulator, light + dark.
 - [ ] **Insights donut chart, spend by member.** `~40k tokens` (CLI,
       after `MemberColor` above)
       1. Add a donut/pie layout to `InsightsView` using SwiftUI Charts'

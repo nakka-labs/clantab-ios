@@ -218,7 +218,12 @@ struct AddExpenseView: View {
         switch splitType {
         case .equal:
             ForEach(members) { member in
-                Toggle(member.displayName, isOn: includedBinding(for: member.id))
+                Toggle(isOn: includedBinding(for: member.id)) {
+                    HStack(spacing: 10) {
+                        MemberAvatar(member, size: 24)
+                        Text(member.displayName)
+                    }
+                }
             }
             // Saves taps once a group has more than a few people
             // (`FEATURE_BACKLOG.md` "Select All / Select None").
@@ -252,7 +257,8 @@ struct AddExpenseView: View {
     @ViewBuilder
     private var exactSplitRows: some View {
         ForEach(members) { member in
-            HStack {
+            HStack(spacing: 10) {
+                MemberAvatar(member, size: 24)
                 Text(member.displayName)
                 Spacer()
                 TextField("0.00", text: exactAmountBinding(for: member.id))
@@ -279,7 +285,8 @@ struct AddExpenseView: View {
     @ViewBuilder
     private var percentSplitRows: some View {
         ForEach(members) { member in
-            HStack {
+            HStack(spacing: 10) {
+                MemberAvatar(member, size: 24)
                 Text(member.displayName)
                 Spacer()
                 TextField("0", text: percentBinding(for: member.id))

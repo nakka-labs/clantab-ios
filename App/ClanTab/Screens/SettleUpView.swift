@@ -78,6 +78,7 @@ struct SettleUpView: View {
         let amount = MoneyFormat.string(minorUnits: settlement.amountMinor, currency: settlement.currency)
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
+                MemberAvatar(name: payer, size: 32)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(payer) pays \(payee)")
                     Text(amount)

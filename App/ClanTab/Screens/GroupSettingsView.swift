@@ -102,7 +102,8 @@ struct GroupSettingsView: View {
                         renameText = member.displayName
                         renamingMember = member
                     } label: {
-                        HStack {
+                        HStack(spacing: 10) {
+                            MemberAvatar(member, size: 28)
                             Text(member.displayName).foregroundStyle(.primary)
                             Spacer()
                             Image(systemName: "pencil").font(.caption).foregroundStyle(.tertiary)

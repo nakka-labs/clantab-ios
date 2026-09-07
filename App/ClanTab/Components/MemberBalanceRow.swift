@@ -9,7 +9,8 @@ struct MemberBalanceRow: View {
     let balances: [Balance]
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .center, spacing: 10) {
+            MemberAvatar(member, size: 28)
             Text(member.displayName)
             Spacer()
             if balances.isEmpty {

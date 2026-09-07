@@ -34,11 +34,14 @@ struct PeopleView: View {
                                 await reload()
                             }
                         } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(person.displayName).font(.headline)
-                                Text(Self.summary(person.net, name: person.displayName))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                MemberAvatar(name: person.displayName, size: 36)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(person.displayName).font(.headline)
+                                    Text(Self.summary(person.net, name: person.displayName))
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }

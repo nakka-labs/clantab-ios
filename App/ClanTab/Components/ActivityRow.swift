@@ -52,17 +52,6 @@ struct ActivityItem: Identifiable {
         }
     }
 
-    /// Leading SF Symbol: the expense's category icon (falling back to the
-    /// "uncategorized" symbol), or a settlement marker.
-    var icon: String {
-        switch kind {
-        case .expense(let expense):
-            return ExpenseCategory.resolve(name: expense.category, symbolName: expense.categoryIcon).symbolName
-        case .settlement:
-            return "arrow.left.arrow.right"
-        }
-    }
-
     /// The expense's resolved category, for its pastel badge
     /// (`FEATURE_BACKLOG.md` "Category colors, formula-driven"). `nil` for a
     /// settlement — those keep the neutral gray marker, there's no category.
@@ -81,6 +70,16 @@ struct ActivityItem: Identifiable {
         switch kind {
         case .expense(let expense): return expense.deletedAt
         case .settlement(let settlement): return settlement.deletedAt
+        }
+    }
+
+    /// The person this row leads with — the payer of an expense, the sender
+    /// of a settlement — for their identity avatar. Always set (both kinds
+    /// have an actor); `"Someone"` if the member is no longer in the group.
+    var actorName: String {
+        switch kind {
+        case .expense(let expense): return name(for: expense.payerId)
+        case .settlement(let settlement): return name(for: settlement.fromId)
         }
     }
 
@@ -110,12 +109,13 @@ struct ActivityRow: View {
     var body: some View {
         HStack(spacing: 12) {
             if let category = item.category {
+                // An expense leads with its category badge; the payer is
+                // named in the row title.
                 CategoryIconBadge(category: category)
             } else {
-                Image(systemName: item.icon)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 32)
+                // A settlement has no category — lead with the sender's
+                // identity avatar instead of a nondescript arrow glyph.
+                MemberAvatar(name: item.actorName, size: 32)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)

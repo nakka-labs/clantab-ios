@@ -41,3 +41,13 @@ Open-source expense splitter for small groups. Native iOS application powered by
 - Swift 6 language standard, strict concurrency checking.
 - Commit format: `feat|fix|test|chore|docs(scope): description`
 - Every modification to `Balances.swift`/`Simplify.swift` (or their `worker/src/lib/` ports) must be accompanied by unit tests, and the two languages must agree on `test-fixtures/balances/`.
+
+## Screenshots
+- **Never leave screenshots in the repo tree or a scratchpad.** Any screenshot
+  captured (Simulator runs, UI verification, bug repros, App Store assets) is
+  copied to `/Users/indra/Dev/git ignored files keys etc/clantab/Screenshots/`
+  into a folder named for the capture date (`YYYY-MM-DD/`), e.g.
+  `.../Screenshots/2026-09-07/01_group_home.png`. That directory is outside the
+  repo and holds the durable copy; the in-repo `local screenshots/` (gitignored)
+  and session scratchpads are working space only.
+- Give files descriptive, ordered names (`NN_screen-name.png`), not `s1.png`.
