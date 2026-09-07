@@ -101,6 +101,7 @@ struct ActivityItem: Identifiable {
 
 struct ActivityRow: View {
     let item: ActivityItem
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var amount: String {
         MoneyFormat.string(minorUnits: item.amountMinor, currency: item.currency)
@@ -119,18 +120,18 @@ struct ActivityRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                HStack(spacing: 4) {
-                    if let categoryName = item.categoryName {
-                        Text(categoryName)
-                        Text("·")
-                    }
-                    Text(item.date, style: .date)
+                metadataLine
+                // At accessibility text sizes there's no room for the amount
+                // beside the title, so it drops below it rather than wrapping
+                // the number character by character.
+                if dynamicTypeSize.isAccessibilitySize {
+                    Text(amount).font(.headline).lineLimit(1)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
-            Spacer()
-            Text(amount)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer()
+                Text(amount).lineLimit(1)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -139,5 +140,18 @@ struct ActivityRow: View {
                 .joined(separator: ", ")
         )
         .accessibilityValue(item.date.formatted(date: .abbreviated, time: .omitted))
+    }
+
+    private var metadataLine: some View {
+        HStack(spacing: 4) {
+            if let categoryName = item.categoryName {
+                Text(categoryName)
+                Text("·")
+            }
+            Text(item.date, style: .date)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
 }

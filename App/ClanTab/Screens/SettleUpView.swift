@@ -23,6 +23,7 @@ struct SettleUpView: View {
     /// The shareable recap card (`CHECKLIST.md`), rendered off-screen once the
     /// plan is in hand and re-rendered whenever it changes.
     @State private var shareCard: Image?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var members: [Member] {
         viewModel.state?.members ?? []
@@ -99,28 +100,41 @@ struct SettleUpView: View {
         let payer = name(for: settlement.fromId)
         let payee = name(for: settlement.toId)
         let amount = MoneyFormat.string(minorUnits: settlement.amountMinor, currency: settlement.currency)
+        let markPaidButton = Button {
+            Task { await markPaid(settlement, rowId: rowId) }
+        } label: {
+            Group {
+                if pendingRowId == rowId {
+                    ProgressView()
+                } else {
+                    Text("Mark as Paid").lineLimit(1)
+                }
+            }
+            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+        }
+        .buttonStyle(.bordered)
+        .disabled(pendingRowId != nil)
+        .accessibilityLabel("Mark \(payer)'s \(amount) payment to \(payee) as paid")
+
+        let summary = VStack(alignment: .leading, spacing: 2) {
+            Text("\(payer) pays \(payee)")
+            Text(amount).font(.headline).lineLimit(1)
+        }
+        .accessibilityElement(children: .combine)
+
         return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                MemberAvatar(name: payer, size: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(payer) pays \(payee)")
-                    Text(amount)
-                        .font(.headline)
+            // At accessibility text sizes the button can't sit beside the
+            // names without both wrapping badly — it drops full-width below.
+            if dynamicTypeSize.isAccessibilitySize {
+                HStack(alignment: .top) { MemberAvatar(name: payer, size: 32); summary }
+                markPaidButton
+            } else {
+                HStack {
+                    MemberAvatar(name: payer, size: 32)
+                    summary
+                    Spacer()
+                    markPaidButton
                 }
-                .accessibilityElement(children: .combine)
-                Spacer()
-                Button {
-                    Task { await markPaid(settlement, rowId: rowId) }
-                } label: {
-                    if pendingRowId == rowId {
-                        ProgressView()
-                    } else {
-                        Text("Mark as Paid")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(pendingRowId != nil)
-                .accessibilityLabel("Mark \(payer)'s \(amount) payment to \(payee) as paid")
             }
             if let upiURL = upiPayURL(for: settlement) {
                 Link(destination: upiURL) {

@@ -208,13 +208,20 @@ one-off/casual, large-friend-group):
       both. Verified in the Simulator: the long-press menu shows it, and
       tapping opens straight to Add Expense. Tests: `QuickActionsTests` (6).
       kit 177 · app 88.
-- [ ] **Dynamic Type / VoiceOver audit.** `~45k tokens` (CLI, on-device
-      pass)
-      1. Step through every screen at the largest accessibility text
-         size in the Simulator.
-      2. Turn on VoiceOver and step through the primary flows.
-      3. Fix layout breaks as found; log anything deferred back into
-         this item.
+- [x] **Dynamic Type / VoiceOver audit.** Done 2026-09-07. Walked every
+      screen at AX5 (accessibility-XXXL). Fixed the rows that broke —
+      `ActivityRow`, `SettleUpView`, `MemberBalanceRow`, `InsightsView`'s
+      breakdown rows: at accessibility text sizes the trailing
+      amount/button now stacks under the name instead of being wrapped
+      character-by-character or truncated off the edge; money `Text` got
+      `.lineLimit(1)` everywhere. VoiceOver: the sim's a11y tree reads
+      cleanly ("Aditi Rao is owed ₹2,030", "Rohan Mehta paid for … , Food,
+      ₹1,480"); added explicit labels to the split toggles and the
+      exact/percentage amount fields. app 88.
+
+      Deferred (functional, just tight at AX5, not broken): the category
+      icon grid and "Select All / Select None" in Add Expense; the
+      activity-row metadata line truncates its date.
 - [ ] **Materials/blur on sheets.** `~25k tokens` (CLI)
       1. Swap flat card backgrounds on Add Expense, Settings, and Your
          Groups sheets to `.ultraThinMaterial`/`.regularMaterial`.

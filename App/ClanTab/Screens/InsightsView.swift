@@ -17,6 +17,7 @@ struct InsightsView: View {
     @State private var currency: String = ""
     /// The shareable recap card, rendered off-screen for the current currency.
     @State private var shareCard: Image?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var currencies: [String] { Insights.currencies(in: expenses) }
     private var total: Int64 { Insights.totalSpend(expenses, currency: currency) }
@@ -187,18 +188,29 @@ struct InsightsView: View {
         let fraction = total > 0 ? Double(amountMinor) / Double(total) : 0
         let tint = memberName.map { MemberColor.color(for: $0) } ?? Color.accentColor
 
-        return VStack(spacing: 6) {
-            HStack {
-                if let memberName {
-                    HStack(spacing: 8) {
-                        MemberAvatar(name: memberName, size: 22)
-                        Text(title)
-                    }
-                } else {
-                    Label(title, systemImage: icon)
+        let name = Group {
+            if let memberName {
+                HStack(spacing: 8) {
+                    MemberAvatar(name: memberName, size: 22)
+                    Text(title)
                 }
-                Spacer()
-                Text(money(amountMinor)).foregroundStyle(.secondary).monospacedDigit()
+            } else {
+                Label(title, systemImage: icon)
+            }
+        }
+        let amount = Text(money(amountMinor))
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .lineLimit(1)
+
+        return VStack(alignment: .leading, spacing: 6) {
+            // The amount drops under the name at accessibility text sizes
+            // rather than being truncated off the right edge.
+            if dynamicTypeSize.isAccessibilitySize {
+                name
+                amount
+            } else {
+                HStack { name; Spacer(minLength: 8); amount }
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {

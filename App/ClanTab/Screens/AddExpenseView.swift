@@ -236,6 +236,7 @@ struct AddExpenseView: View {
                         Text(member.displayName)
                     }
                 }
+                .accessibilityLabel(member.displayName)
             }
             // Saves taps once a group has more than a few people
             // (`FEATURE_BACKLOG.md` "Select All / Select None").
@@ -278,6 +279,7 @@ struct AddExpenseView: View {
                     .multilineTextAlignment(.trailing)
                     .frame(width: 80)
                     .foregroundStyle(exactMismatch && hasEntry(exactAmountText[member.id]) ? Color.red : Color.primary)
+                    .accessibilityLabel("\(member.displayName)'s share")
             }
         }
         if let amountMinor {
@@ -306,6 +308,7 @@ struct AddExpenseView: View {
                     .multilineTextAlignment(.trailing)
                     .frame(width: 56)
                     .foregroundStyle(percentMismatch && percent(for: member.id) > 0 ? Color.red : Color.primary)
+                    .accessibilityLabel("\(member.displayName)'s percentage")
                 Text("%").foregroundStyle(.secondary)
             }
         }
