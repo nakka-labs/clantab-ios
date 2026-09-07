@@ -211,6 +211,7 @@ struct AddExpenseView: View {
                 .listRowBackground(Color.clear)
             }
         }
+        .materialSheetContent()
         .navigationTitle(isEditing ? "Edit Expense" : "Add Expense")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

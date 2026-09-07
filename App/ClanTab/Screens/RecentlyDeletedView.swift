@@ -56,6 +56,7 @@ struct RecentlyDeletedView: View {
                 Section { Text(loadError).foregroundStyle(.red) }
             }
         }
+        .materialSheetContent()
         .navigationTitle("Recently Deleted")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

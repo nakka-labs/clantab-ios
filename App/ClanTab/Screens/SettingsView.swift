@@ -84,6 +84,7 @@ struct SettingsView: View {
                 LabeledContent("Version", value: Self.appVersion)
             }
         }
+        .materialSheetContent()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         // Pin the bar's background from the first frame — without this the

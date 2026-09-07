@@ -203,6 +203,7 @@ struct GroupSettingsView: View {
                 Text("Removes this group from this device. Your expenses stay for everyone else.")
             }
         }
+        .materialSheetContent()
         .navigationTitle("Group Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

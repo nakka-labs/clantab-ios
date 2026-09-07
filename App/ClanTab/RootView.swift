@@ -78,6 +78,7 @@ struct RootView: View {
             NavigationStack {
                 SettingsView(auth: auth, client: client, onDone: { showingSettings = false })
             }
+            .materialSheet()
         }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView {

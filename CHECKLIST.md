@@ -222,10 +222,16 @@ one-off/casual, large-friend-group):
       Deferred (functional, just tight at AX5, not broken): the category
       icon grid and "Select All / Select None" in Add Expense; the
       activity-row metadata line truncates its date.
-- [ ] **Materials/blur on sheets.** `~25k tokens` (CLI)
-      1. Swap flat card backgrounds on Add Expense, Settings, and Your
-         Groups sheets to `.ultraThinMaterial`/`.regularMaterial`.
-      2. Check contrast still holds in both light and dark mode.
+- [x] **Materials/blur on sheets.** Done 2026-09-07. Every sheet
+      presented from Group Home + the Settings sheet now gets
+      `.presentationBackground(.regularMaterial)` (`materialSheet()`), and
+      each `Form`/`List` inside gets `.scrollContentBackground(.hidden)`
+      (`materialSheetContent()`) so the blur shows through the gutters
+      while the inset row groups keep their fill for legibility. Covers
+      Add Expense, Settings, Your Groups, Settle Up, Group Settings, edit/
+      duplicate expense, Import CSV, Recently Deleted, Recurring Reminders.
+      Verified light + dark — contrast holds. app 88. (The one nested sheet,
+      New Recurring Reminder, isn't converted — a follow-up.)
 - [ ] **Tonal surface elevation.** `~30k tokens` (CLI)
       1. Define 3-4 grey tiers (canvas → card → nested card → modal) as
          named constants.

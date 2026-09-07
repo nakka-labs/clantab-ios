@@ -62,6 +62,7 @@ struct RecurringRemindersView: View {
                 }
             }
         }
+        .materialSheetContent()
         .navigationTitle("Recurring Reminders")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

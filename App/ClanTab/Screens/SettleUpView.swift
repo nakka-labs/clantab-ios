@@ -67,6 +67,7 @@ struct SettleUpView: View {
                 }
             }
         }
+        .materialSheetContent()
         .navigationTitle("Settle Up")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

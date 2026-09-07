@@ -343,6 +343,7 @@ struct GroupHomeView: View {
                     onCancel: { isPresentingAddExpense = false }
                 )
             }
+            .materialSheet()
         }
         .sheet(isPresented: $isPresentingSettleUp) {
             NavigationStack {
@@ -355,6 +356,7 @@ struct GroupHomeView: View {
                     onDone: { isPresentingSettleUp = false }
                 )
             }
+            .materialSheet()
         }
         .sheet(isPresented: $isPresentingImport) {
             NavigationStack {
@@ -371,6 +373,7 @@ struct GroupHomeView: View {
                     onCancel: { isPresentingImport = false }
                 )
             }
+            .materialSheet()
         }
         .sheet(item: $editingExpense) { expense in
             NavigationStack {
@@ -391,6 +394,7 @@ struct GroupHomeView: View {
                     onCancel: { editingExpense = nil }
                 )
             }
+            .materialSheet()
         }
         .sheet(item: $duplicatingExpense) { expense in
             NavigationStack {
@@ -410,6 +414,7 @@ struct GroupHomeView: View {
                     onCancel: { duplicatingExpense = nil }
                 )
             }
+            .materialSheet()
         }
         .confirmationDialog(
             deleteTitle,
@@ -435,6 +440,7 @@ struct GroupHomeView: View {
                         onDone: { isPresentingGroupSettings = false }
                     )
                 }
+                .materialSheet()
             }
         }
         .sheet(isPresented: $isPresentingGroupSwitcher) {
@@ -473,6 +479,7 @@ struct GroupHomeView: View {
                     }
                 }
             }
+            .materialSheet()
         }
         .sheet(isPresented: $isPresentingRecentlyDeleted) {
             NavigationStack {
@@ -485,6 +492,7 @@ struct GroupHomeView: View {
                     onDone: { isPresentingRecentlyDeleted = false }
                 )
             }
+            .materialSheet()
         }
         .sheet(isPresented: $isPresentingRecurringReminders) {
             NavigationStack {
@@ -501,6 +509,7 @@ struct GroupHomeView: View {
                     onDone: { isPresentingRecurringReminders = false }
                 )
             }
+            .materialSheet()
         }
         .overlay(alignment: .bottom) {
             if let undoBanner {

@@ -44,6 +44,7 @@ struct ImportCSVView: View {
                 finished(imported: imported, failed: failed, message: message)
             }
         }
+        .materialSheetContent()
         .navigationTitle("Import CSV")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
