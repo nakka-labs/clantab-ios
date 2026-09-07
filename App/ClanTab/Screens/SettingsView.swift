@@ -86,6 +86,11 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
+        // Pin the bar's background from the first frame — without this the
+        // nav bar briefly flashes the tint colour as the sheet slides up
+        // (a SwiftUI NavigationStack-in-.sheet artifact; the status bar
+        // itself is fine — confirmed 2026-09-07).
+        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done", action: onDone)

@@ -178,11 +178,16 @@ one-off/casual, large-friend-group):
       list from the top, or a centered "No groups yet" get-started message;
       Create / Join dock full-width to the bottom safe area with a `.bar`
       backing. Verified all three states in the Simulator. app 80.
-- [ ] **Settings sheet chrome check.** `~12k tokens` (CLI)
-      1. Reproduce the captured screenshot's status-bar-light-on-dark
-         moment.
-      2. If it's a real bug, fix it; if it's a transition-frame artifact,
-         note that in this file and close the item.
+- [x] **Settings sheet chrome check.** Done 2026-09-07. The status bar
+      itself is fine — `.preferredColorScheme` from the root propagates to
+      the Settings sheet on iOS 17+; verified every settled state (light /
+      dark device × System / Light / Dark theme) has correct, matching
+      status-bar contrast. The captured "light on dark" was a
+      transition-frame artifact, not a persistent bug. While checking, did
+      find a real 1-frame glitch — the sheet's nav bar flashed the tint
+      colour as it slid up (a `NavigationStack`-in-`.sheet` quirk) — fixed
+      with `.toolbarBackground(.visible, for: .navigationBar)` on
+      `SettingsView`. app 80.
 - [ ] **Onboarding walkthrough.** `~100k tokens` (CLI)
       1. Design a 3-screen flow: add a group → add an expense → settle
          up.
