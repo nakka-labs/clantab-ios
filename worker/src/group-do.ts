@@ -206,7 +206,7 @@ export class GroupDO extends DurableObject {
     this.setMeta(META_KEYS.accessToken, accessToken);
 
     const member = this.insertMember(creatorDisplayName, now);
-    return { member, group: { name, currency, createdAt, joinCode, accessToken } };
+    return { member, group: { name, currency, createdAt, joinCode, accessToken, emoji: null } };
   }
 
   async addMember(displayName: string): Promise<{ member: Member }> {
@@ -216,9 +216,16 @@ export class GroupDO extends DurableObject {
   /** Rename the group and/or change its default currency for *new* expenses.
    * Existing expenses/settlements keep their own currency (multi-currency:
    * the group currency is only a default — `DESIGN.md` §2). */
-  async updateGroup(patch: { name?: string; currency?: string }): Promise<{ group: GroupSummary }> {
+  async updateGroup(patch: {
+    name?: string;
+    currency?: string;
+    /** `string` sets the group's emoji, `null` clears it, absent leaves it. */
+    emoji?: string | null;
+  }): Promise<{ group: GroupSummary }> {
     if (patch.name !== undefined) this.setMeta(META_KEYS.name, patch.name);
     if (patch.currency !== undefined) this.setMeta(META_KEYS.currency, patch.currency);
+    if (patch.emoji === null) this.deleteMeta(META_KEYS.emoji);
+    else if (patch.emoji !== undefined) this.setMeta(META_KEYS.emoji, patch.emoji);
     return { group: this.groupSummary() };
   }
 
@@ -282,6 +289,7 @@ export class GroupDO extends DurableObject {
       createdAt: this.requireMeta(META_KEYS.createdAt),
       joinCode: this.requireMeta(META_KEYS.joinCode),
       accessToken: this.meta(META_KEYS.accessToken),
+      emoji: this.meta(META_KEYS.emoji),
     };
   }
 
@@ -701,6 +709,9 @@ export class GroupDO extends DurableObject {
       key,
       value,
     );
+  }
+  private deleteMeta(key: string): void {
+    this.sql.exec("DELETE FROM group_meta WHERE key = ?", key);
   }
 
   private insertMember(displayName: string, createdAt: number): Member {

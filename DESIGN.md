@@ -48,12 +48,17 @@ Response: 200 { groupId }  |  404 if unknown
 
 ### `PATCH /api/groups/:groupId`
 ```
-Request:  { name?: string, currency? }   (at least one; unknown keys rejected)
+Request:  { name?: string, currency?, emoji?: string | null }
+          (at least one; unknown keys rejected)
 Response: 200 { group: {...} }            the updated GroupSummary
 ```
 Renames the group and/or changes its **default** currency for new expenses.
 Existing expenses/settlements keep their own currency (§ multi-currency — the
-group currency is only a default).
+group currency is only a default). `emoji` is the group's visual-identity
+emoji (shown in the groups list and the Group Home header): a string sets it,
+an explicit `null` clears it, omitting the key leaves it alone (same
+tri-state as a member's `upiVpa`, §2). Stored as a `group_meta` key —
+nullable, a new key not a schema-version bump, same as `access_token`.
 
 ### `POST /api/groups/:groupId/members`
 Join an existing group (also how the app adds a placeholder member).
@@ -163,7 +168,9 @@ CREATE TABLE group_meta (
   value TEXT NOT NULL
 );  -- rows: name, currency, join_code, schema_version, created_at,
     -- access_token (nullable, added 2026-09-05 — a new key, not a
-    -- schema-version bump; see §1/§2/§8)
+    -- schema-version bump; see §1/§2/§8),
+    -- emoji (nullable, added 2026-09-07 — likewise a new key; the group's
+    -- visual-identity emoji, set via PATCH, §2)
 
 CREATE TABLE members (
   id           TEXT PRIMARY KEY,
@@ -355,7 +362,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`6`** — `expenses.deleted_at`/`deleted_by` + `settlements.deleted_at`/`deleted_by` added (all nullable). Plain `ADD COLUMN`s, in place. `DELETE` now soft-deletes rather than removing the row; a trashed expense/settlement is excluded from balances and the activity feed but stays restorable (`POST .../restore`).
 - **`7`** — `members.upi_vpa` added (nullable, user-supplied). Plain `ADD COLUMN`, in place. Powers the optional "Pay via UPI" deep link on Settle Up — ClanTab never verifies or processes it, just builds a `upi://pay?...` URI the OS opens.
 
-`group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8) — a new key in an existing key/value table, not a schema-version bump; a pre-existing group simply has none until it first regenerates its link.
+`group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8) and an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji) — both new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has neither until it sets one.
 
 The **`UserDO`** (one per signed-in identity, `idFromName("<provider>:" + sub)`, added with the accounts phase) carries its own `USER_SCHEMA_VERSION` (currently `1`): a `user_meta` key/value table and a `memberships` table (`group_id` PK, `member_id`, `display_name`, `added_at`). It's a self-healing index the Worker updates *after* the authoritative `GroupDO` write — never the source of truth for the membership↔identity link. No migrations yet; a `UserDO` is created fresh on first sign-in.
 

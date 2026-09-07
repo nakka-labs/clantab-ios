@@ -136,6 +136,12 @@ export const META_KEYS = {
    * this feature shipped (`requireGroup` treats "no row" as open access,
    * unchanged from before — a deliberate backward-compat choice, not a bug). */
   accessToken: "access_token",
+  /** A single emoji the group picked as its visual identity (`CHECKLIST.md`
+   * "Group visual identity") — shown in the groups list and the Group Home
+   * header. Optional and user-set via `PATCH /api/groups/:groupId`; a new
+   * key in an existing key/value table, so no `SCHEMA_VERSION` bump (same as
+   * `access_token`). Absent ("no row") = the group has no emoji. */
+  emoji: "emoji",
 } as const;
 
 /**

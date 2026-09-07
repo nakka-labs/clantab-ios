@@ -78,6 +78,16 @@ struct GroupHomeView: View {
         knownGroups.all().filter { $0.groupId != viewModel.groupId }
     }
 
+    /// The nav-bar title: the group's name, prefixed with its visual-identity
+    /// emoji (`CHECKLIST.md` "Group visual identity") when it has one.
+    private var headerTitle: String {
+        let name = viewModel.state?.group.name ?? "Group"
+        if let emoji = viewModel.state?.group.emoji, !emoji.isEmpty {
+            return "\(emoji) \(name)"
+        }
+        return name
+    }
+
     var body: some View {
         List {
             if auth.shouldShowSyncNudge() {
@@ -201,7 +211,7 @@ struct GroupHomeView: View {
                 }
             }
         }
-        .navigationTitle(viewModel.state?.group.name ?? "Group")
+        .navigationTitle(headerTitle)
         .searchable(text: $filter.searchText, prompt: "Search activity")
         .refreshable { await viewModel.refetch() }
         .task {
@@ -229,6 +239,13 @@ struct GroupHomeView: View {
             // a join/deep-link only ever gave us the groupId.
             if let name, !name.isEmpty {
                 knownGroups.remember(groupId: viewModel.groupId, name: name, at: Date())
+            }
+        }
+        .onChange(of: viewModel.state?.group.emoji) { _, emoji in
+            // Cache the group's visual-identity emoji for the "Your Groups"
+            // list (`CHECKLIST.md`). A load with no emoji clears any stale one.
+            if viewModel.state != nil {
+                knownGroups.setEmoji(groupId: viewModel.groupId, emoji: emoji)
             }
         }
         .onChange(of: viewModel.accessToken) { _, token in

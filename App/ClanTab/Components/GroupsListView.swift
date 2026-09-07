@@ -22,6 +22,9 @@ struct GroupsListView: View {
                     onOpenGroup(group.groupId)
                 } label: {
                     HStack {
+                        if let emoji = group.emoji, !emoji.isEmpty {
+                            Text(emoji).font(.title3)
+                        }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(group.name.isEmpty ? "Group" : group.name)
                                 .foregroundStyle(.primary)

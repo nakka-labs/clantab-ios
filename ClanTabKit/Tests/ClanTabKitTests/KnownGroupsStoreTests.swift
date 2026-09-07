@@ -144,4 +144,40 @@ struct KnownGroupsStoreTests {
         let reloaded = UserDefaultsKnownGroupsStore(defaults: defaults)
         #expect(reloaded.all().first?.myBalances == [Balance(memberId: "m1", currency: "INR", netMinor: 250)])
     }
+
+    // MARK: - emoji (CHECKLIST.md "Group visual identity")
+
+    @Test("setEmoji sets and clears the cached emoji; nil is a removal, not a no-op")
+    func testSetEmoji() {
+        let store = InMemoryKnownGroupsStore()
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+        #expect(store.all().first?.emoji == nil)
+
+        store.setEmoji(groupId: "g1", emoji: "🏖️")
+        #expect(store.all().first?.emoji == "🏖️")
+        #expect(store.all().first?.lastOpenedAt == t0) // untouched, like updateBalances
+
+        store.setEmoji(groupId: "g1", emoji: nil) // the group's emoji was removed
+        #expect(store.all().first?.emoji == nil)
+    }
+
+    @Test("setEmoji is a no-op for an unknown group")
+    func testSetEmojiUnknownGroup() {
+        let store = InMemoryKnownGroupsStore()
+        store.setEmoji(groupId: "ghost", emoji: "🏖️")
+        #expect(store.all().isEmpty)
+    }
+
+    @Test("UserDefaults-backed store round-trips the emoji")
+    func testUserDefaultsRoundTripsEmoji() throws {
+        let suiteName = "com.clantab.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = UserDefaultsKnownGroupsStore(defaults: defaults)
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+        store.setEmoji(groupId: "g1", emoji: "🏖️")
+
+        #expect(UserDefaultsKnownGroupsStore(defaults: defaults).all().first?.emoji == "🏖️")
+    }
 }

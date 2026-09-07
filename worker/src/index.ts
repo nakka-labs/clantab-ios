@@ -202,13 +202,22 @@ async function handleGetState(request: Request, env: Env, params: Params): Promi
 async function handleUpdateGroup(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
   const body = await readJsonObject(request);
-  rejectUnknownKeys(body, ["name", "currency"]);
+  rejectUnknownKeys(body, ["name", "currency", "emoji"]);
   const name = optionalString(body, "name");
   const currency = optionalString(body, "currency");
-  if (name === undefined && currency === undefined) {
-    throw new BadRequestError('Provide "name" and/or "currency".');
+  // `null` clears the group's emoji; a string sets it; absent leaves it.
+  const emoji = optionalStringOrNull(body, "emoji");
+  if (name === undefined && currency === undefined && emoji === undefined) {
+    throw new BadRequestError('Provide "name", "currency", and/or "emoji".');
   }
-  return json(200, await group.updateGroup({ name, currency }));
+  // A single emoji can be several code points (ZWJ sequences, skin tones,
+  // flags); 16 is generous headroom while still rejecting a text label
+  // pasted in. Content itself is the report mechanism's job, same as the
+  // group name.
+  if (typeof emoji === "string" && [...emoji].length > 16) {
+    throw new BadRequestError('Field "emoji" must be a single emoji.');
+  }
+  return json(200, await group.updateGroup({ name, currency, emoji }));
 }
 
 /**

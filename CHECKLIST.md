@@ -129,12 +129,17 @@ one-off/casual, large-friend-group):
       the rows are the legend, chart legend hidden. Shown only with 2+
       spending members — one slice is just a filled ring. Verified in the
       Simulator with 1, 2, and 7 members.
-- [ ] **Group visual identity.** `~55k tokens` (CLI)
-      1. Add a nullable `emoji`/color field to the `Group` model +
-         worker schema (`ADD COLUMN`, same pattern as prior additions).
-      2. Add a picker in Group Settings.
-      3. Show it in the groups list and the Group Home header.
-      4. Test worker + ClanTabKit + App.
+- [x] **Group visual identity.** Done 2026-09-07. A per-group **emoji**
+      (chose emoji over a formula colour — orthogonal to the member/
+      category colour systems; the later per-group-accent item can layer a
+      colour on top). Stored as a nullable `group_meta.emoji` key (a new
+      key, not a `SCHEMA_VERSION` bump — same as `access_token`), set via
+      `PATCH /api/groups/:id` with the `null`-clears tri-state; on
+      `GroupSummary` + `KnownGroup`. Preset-chip picker in Group Settings
+      (no free text = nothing to validate), shown before the name in the
+      groups list and prefixed on the Group Home nav title. Verified in the
+      Simulator (pick → save → header + list update). worker 209 · kit
+      171 · app 80.
 - [ ] **Shareable settle-up / recap card.** `~50k tokens` (CLI)
       1. Build a `View` that renders the settle-up/Insights summary as a
          card layout.

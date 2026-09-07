@@ -27,6 +27,10 @@ struct GroupSettingsView: View {
 
     @State private var name: String
     @State private var currency: String
+    /// The group's chosen identity emoji (`CHECKLIST.md` "Group visual
+    /// identity"), `""` for none. Picked from a preset set below rather than
+    /// free text, so there's nothing to validate.
+    @State private var emoji: String
     @State private var renamingMember: Member?
     @State private var renameText = ""
     @State private var newMemberName = ""
@@ -66,8 +70,13 @@ struct GroupSettingsView: View {
         self.onDone = onDone
         _name = State(initialValue: state.group.name)
         _currency = State(initialValue: state.group.currency)
+        _emoji = State(initialValue: state.group.emoji ?? "")
         _myUpiVpa = State(initialValue: state.members.first(where: { $0.id == myMemberId })?.upiVpa ?? "")
     }
+
+    /// A small preset set — enough to give a trip / house / group a face,
+    /// short enough to scan. Order roughly by how common the use is.
+    static let emojiOptions = ["🏖️", "🏠", "✈️", "🍽️", "🎉", "🍻", "🚗", "⛰️", "⛺️", "🏝️", "🎓", "💼", "🏡", "🐶", "⚽️", "🎬"]
 
     private var myMember: Member? { state.members.first(where: { $0.id == myMemberId }) }
     private var trimmedMyUpiVpa: String { myUpiVpa.trimmingCharacters(in: .whitespaces) }
@@ -80,7 +89,11 @@ struct GroupSettingsView: View {
     }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
-    private var isDirty: Bool { trimmedName != state.group.name || currency != state.group.currency }
+    private var isDirty: Bool {
+        trimmedName != state.group.name
+            || currency != state.group.currency
+            || emoji != (state.group.emoji ?? "")
+    }
     private var trimmedNewMemberName: String { newMemberName.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
@@ -90,6 +103,7 @@ struct GroupSettingsView: View {
                 Picker("Default currency", selection: $currency) {
                     ForEach(currencyChoices, id: \.self) { Text($0).tag($0) }
                 }
+                emojiPicker
             } header: {
                 Text("Group")
             } footer: {
@@ -238,6 +252,38 @@ struct GroupSettingsView: View {
         }
     }
 
+    /// A "None" chip plus a horizontally-scrolling row of preset emoji; the
+    /// current pick is filled with the accent colour. Tapping the current
+    /// pick again is the same as choosing "None".
+    private var emojiPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Emoji").foregroundStyle(.primary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    emojiChip(nil, isSelected: emoji.isEmpty) { Image(systemName: "slash.circle").font(.body) }
+                    ForEach(Self.emojiOptions, id: \.self) { option in
+                        emojiChip(option, isSelected: emoji == option) { Text(option).font(.title3) }
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private func emojiChip<Label: View>(_ value: String?, isSelected: Bool, @ViewBuilder label: () -> Label) -> some View {
+        Button {
+            emoji = value ?? ""
+        } label: {
+            label()
+                .frame(width: 40, height: 40)
+                .background(isSelected ? Color.accentColor.opacity(0.22) : Color.secondary.opacity(0.12), in: Circle())
+                .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: isSelected ? 2 : 0))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(value.map { "Emoji \($0)" } ?? "No emoji")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
     private func save() async {
         isBusy = true
         errorMessage = nil
@@ -247,6 +293,7 @@ struct GroupSettingsView: View {
                 groupId: groupId,
                 name: trimmedName != state.group.name ? trimmedName : nil,
                 currency: currency != state.group.currency ? currency : nil,
+                emoji: emojiUpdate,
                 accessToken: accessToken
             )
             onChanged()
@@ -254,6 +301,13 @@ struct GroupSettingsView: View {
         } catch {
             errorMessage = friendlyMessage(for: error)
         }
+    }
+
+    /// `.unchanged` / `.set` / `.cleared` for the emoji, from the picker's
+    /// state versus what the group currently has.
+    private var emojiUpdate: FieldUpdate<String> {
+        guard emoji != (state.group.emoji ?? "") else { return .unchanged }
+        return emoji.isEmpty ? .cleared : .set(emoji)
     }
 
     private func rename(_ member: Member) async {

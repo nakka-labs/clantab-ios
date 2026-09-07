@@ -22,13 +22,18 @@ public struct GroupSummary: Codable, Sendable, Equatable {
     public let createdAt: Date
     public let joinCode: String
     public let accessToken: String?
+    /// A single emoji the group picked as its visual identity (`CHECKLIST.md`
+    /// "Group visual identity"), or `nil` if it has none. Shown in the groups
+    /// list and the Group Home header; set via `updateGroup`.
+    public let emoji: String?
 
-    public init(name: String, currency: String, createdAt: Date, joinCode: String, accessToken: String? = nil) {
+    public init(name: String, currency: String, createdAt: Date, joinCode: String, accessToken: String? = nil, emoji: String? = nil) {
         self.name = name
         self.currency = currency
         self.createdAt = createdAt
         self.joinCode = joinCode
         self.accessToken = accessToken
+        self.emoji = emoji
     }
 }
 
@@ -133,18 +138,28 @@ public struct UpdateMemberRequest: Encodable, Sendable {
 public struct UpdateGroupRequest: Encodable, Sendable {
     public let name: String?
     public let currency: String?
+    /// The group's visual-identity emoji (`CHECKLIST.md` "Group visual
+    /// identity") — `.unchanged` omits the key, `.cleared` sends `null`,
+    /// `.set` sends the emoji, matching the worker's `optionalStringOrNull`.
+    private let emojiUpdate: FieldUpdate<String>
 
-    public init(name: String? = nil, currency: String? = nil) {
+    public init(name: String? = nil, currency: String? = nil, emoji: FieldUpdate<String> = .unchanged) {
         self.name = name
         self.currency = currency
+        self.emojiUpdate = emoji
     }
 
-    private enum CodingKeys: String, CodingKey { case name, currency }
+    private enum CodingKeys: String, CodingKey { case name, currency, emoji }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(name, forKey: .name)
         try container.encodeIfPresent(currency, forKey: .currency)
+        switch emojiUpdate {
+        case .unchanged: break
+        case .cleared: try container.encodeNil(forKey: .emoji)
+        case .set(let value): try container.encode(value, forKey: .emoji)
+        }
     }
 }
 

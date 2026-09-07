@@ -770,6 +770,33 @@ describe("group + member settings", () => {
     expect((await patch(`/api/groups/${groupId}`, {}, token)).status).toBe(400);
   });
 
+  it("PATCH /api/groups/:id sets, keeps, and clears the group emoji", async () => {
+    const stateEmoji = async () =>
+      ((await get(`/api/groups/${groupId}`, undefined, token)).json.group as Json).emoji;
+
+    // Absent on a fresh group.
+    expect(await stateEmoji()).toBeNull();
+
+    // Set it.
+    const set = await patch(`/api/groups/${groupId}`, { emoji: "🏖️" }, token);
+    expect(set.status).toBe(200);
+    expect((set.json.group as Json).emoji).toBe("🏖️");
+    expect(await stateEmoji()).toBe("🏖️");
+
+    // A rename leaves the emoji alone (key absent).
+    await patch(`/api/groups/${groupId}`, { name: "Beach Trip" }, token);
+    expect(await stateEmoji()).toBe("🏖️");
+
+    // Explicit null clears it.
+    const cleared = await patch(`/api/groups/${groupId}`, { emoji: null }, token);
+    expect((cleared.json.group as Json).emoji).toBeNull();
+    expect(await stateEmoji()).toBeNull();
+  });
+
+  it("PATCH /api/groups/:id rejects a non-emoji text label in emoji → 400", async () => {
+    expect((await patch(`/api/groups/${groupId}`, { emoji: "the beach house trip 2026" }, token)).status).toBe(400);
+  });
+
   it("PATCH a member renames them", async () => {
     const { status, json } = await patch(`/api/groups/${groupId}/members/${b}`, { displayName: "Benjamin" }, token);
     expect(status).toBe(200);

@@ -30,6 +30,10 @@ export interface GroupSummary {
   createdAt: string; // ISO 8601, seconds precision
   joinCode: string;
   accessToken: string | null;
+  /** A single emoji the group picked as its visual identity (`CHECKLIST.md`
+   * "Group visual identity"), or `null` if it has none. Set via
+   * `PATCH /api/groups/:groupId`. */
+  emoji: string | null;
 }
 
 // POST /api/groups

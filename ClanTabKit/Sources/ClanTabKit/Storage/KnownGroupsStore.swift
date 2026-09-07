@@ -17,6 +17,10 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     /// doesn't return a token; the Bearer-session alternate credential covers
     /// that case server-side instead).
     public var accessToken: String?
+    /// The group's visual-identity emoji (`CHECKLIST.md` "Group visual
+    /// identity"), cached from the last group-state load so the "Your Groups"
+    /// list can show it offline. `nil` = the group has none.
+    public var emoji: String?
     /// The signed-in member's own balances in this group, last time it was
     /// fetched — the "you owe / you're owed" line on the groups list. `nil`
     /// means "never fetched yet," distinct from `[]` ("fetched, settled up")
@@ -26,11 +30,12 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
 
     public var id: String { groupId }
 
-    public init(groupId: String, name: String, lastOpenedAt: Date, accessToken: String? = nil, myBalances: [Balance]? = nil) {
+    public init(groupId: String, name: String, lastOpenedAt: Date, accessToken: String? = nil, emoji: String? = nil, myBalances: [Balance]? = nil) {
         self.groupId = groupId
         self.name = name
         self.lastOpenedAt = lastOpenedAt
         self.accessToken = accessToken
+        self.emoji = emoji
         self.myBalances = myBalances
     }
 }
@@ -57,6 +62,12 @@ public protocol KnownGroupsStoring: Sendable {
     /// this fires on every refetch, including the ~25s background poll, and
     /// shouldn't bump `lastOpenedAt` on every tick the way `remember` does.
     func updateBalances(groupId: String, myBalances: [Balance])
+
+    /// Update the cached visual-identity emoji for an already-known group —
+    /// `nil` clears it (the group's emoji was removed). No-op if the group
+    /// isn't known. Separate from `remember` for the same reason
+    /// `updateBalances` is: it fires on every state load, not just on open.
+    func setEmoji(groupId: String, emoji: String?)
 }
 
 public extension KnownGroupsStoring {
@@ -107,6 +118,14 @@ public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked 
         save(groups)
     }
 
+    public func setEmoji(groupId: String, emoji: String?) {
+        lock.lock(); defer { lock.unlock() }
+        var groups = load()
+        guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
+        groups[index].emoji = emoji
+        save(groups)
+    }
+
     private func load() -> [KnownGroup] {
         guard let data = defaults.data(forKey: Self.key),
               let groups = try? JSONDecoder().decode([KnownGroup].self, from: data)
@@ -154,5 +173,11 @@ public final class InMemoryKnownGroupsStore: KnownGroupsStoring, @unchecked Send
         lock.lock(); defer { lock.unlock() }
         guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
         groups[index].myBalances = myBalances
+    }
+
+    public func setEmoji(groupId: String, emoji: String?) {
+        lock.lock(); defer { lock.unlock() }
+        guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
+        groups[index].emoji = emoji
     }
 }

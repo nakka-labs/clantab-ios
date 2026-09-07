@@ -218,6 +218,7 @@ struct ClanTabClientTests {
         let response = try await client.updateGroup(groupId: "g1", name: "Goa 2.0", currency: "USD")
         #expect(response.group.name == "Goa 2.0")
         #expect(response.group.currency == "USD")
+        #expect(response.group.emoji == nil) // absent key decodes to nil
 
         let request = await transport.lastRequest
         #expect(request?.httpMethod == "PATCH")
@@ -236,6 +237,23 @@ struct ClanTabClientTests {
         let body = decodeBody(await transport.lastRequest)
         #expect(body["name"] as? String == "Renamed")
         #expect(body["currency"] == nil)
+        #expect(body["emoji"] == nil)
+    }
+
+    @Test("updateGroup encodes emoji: .unchanged absent, .set as the emoji, .cleared as null; decodes it back")
+    func testUpdateGroupEmoji() async throws {
+        func body(_ update: FieldUpdate<String>) async throws -> [String: Any] {
+            let transport = FakeTransport(statusCode: 200, body: jsonData([
+                "group": ["name": "Goa", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2", "emoji": "🏖️"],
+            ]))
+            let response = try await ClanTabClient(baseURL: baseURL, transport: transport).updateGroup(groupId: "g1", emoji: update)
+            #expect(response.group.emoji == "🏖️")
+            return decodeBody(await transport.lastRequest)
+        }
+
+        #expect(try await body(.unchanged)["emoji"] == nil)
+        #expect(try await body(.set("🏖️"))["emoji"] as? String == "🏖️")
+        #expect(try await body(.cleared)["emoji"] is NSNull)
     }
 
     @Test("renameMember PATCHes and removeMember DELETEs the member path")
