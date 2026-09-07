@@ -5,9 +5,28 @@ struct RootView: View {
     let client: ClanTabClient
     let knownGroups: KnownGroupsStoring
     let auth: AuthViewModel
+    let onboarding: OnboardingStoring
 
     @State private var route: AppRoute = .start
     @State private var showingSettings = false
+    /// The first-run walkthrough (`CHECKLIST.md` "Onboarding walkthrough") —
+    /// shown over everything else until it's finished or skipped, once.
+    @State private var showOnboarding: Bool
+
+    init(client: ClanTabClient, knownGroups: KnownGroupsStoring, auth: AuthViewModel, onboarding: OnboardingStoring) {
+        self.client = client
+        self.knownGroups = knownGroups
+        self.auth = auth
+        self.onboarding = onboarding
+        _showOnboarding = State(initialValue: Self.shouldPresentOnboarding(onboarding))
+    }
+
+    /// Whether the first-run walkthrough is presented on launch: only until
+    /// it's been finished or skipped once. Pure, so the routing rule can be
+    /// tested without standing up the view.
+    static func shouldPresentOnboarding(_ store: OnboardingStoring) -> Bool {
+        !store.hasCompletedOnboarding()
+    }
     /// A deep link opened while signed out (`MANDATORY_LOGIN_PLAN.md` Part 3 —
     /// viewing a group requires signing in first). Resumed once sign-in succeeds.
     @State private var pendingDeepLink: (groupId: String, accessToken: String?)?
@@ -42,6 +61,12 @@ struct RootView: View {
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
                 SettingsView(auth: auth, client: client, onDone: { showingSettings = false })
+            }
+        }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView {
+                onboarding.markOnboardingComplete()
+                showOnboarding = false
             }
         }
     }

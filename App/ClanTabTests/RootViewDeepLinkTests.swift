@@ -1,9 +1,24 @@
 import XCTest
+import ClanTabKit
 @testable import ClanTab
 
 /// Deep-link parsing and routing (`RootView`) — the pure pieces behind
 /// `.onOpenURL`, split out so they can be tested without a hosting view.
 final class RootViewDeepLinkTests: XCTestCase {
+
+    // MARK: - onboarding routing (CHECKLIST.md "Onboarding walkthrough")
+
+    func testOnboardingIsPresentedOnlyUntilComplete() {
+        let store = InMemoryOnboardingStore()
+        XCTAssertTrue(RootView.shouldPresentOnboarding(store))
+
+        store.markOnboardingComplete()
+        XCTAssertFalse(RootView.shouldPresentOnboarding(store))
+    }
+
+    func testOnboardingIsSkippedWhenAlreadyComplete() {
+        XCTAssertFalse(RootView.shouldPresentOnboarding(InMemoryOnboardingStore(completed: true)))
+    }
 
     // MARK: - extractGroupId
 

@@ -188,13 +188,16 @@ one-off/casual, large-friend-group):
       colour as it slid up (a `NavigationStack`-in-`.sheet` quirk) — fixed
       with `.toolbarBackground(.visible, for: .navigationBar)` on
       `SettingsView`. app 80.
-- [ ] **Onboarding walkthrough.** `~100k tokens` (CLI)
-      1. Design a 3-screen flow: add a group → add an expense → settle
-         up.
-      2. Build it as a first-run sheet, gated on a stored "seen
-         onboarding" flag.
-      3. Wire it into the launch/routing path ahead of "Your Groups."
-      4. Test the flag logic and the routing change.
+- [x] **Onboarding walkthrough.** Done 2026-09-07. `OnboardingView` — a
+      3-page carousel (group → add expenses → settle up), each an accent
+      glyph on a tinted circle + title + one line, with Skip / page dots /
+      a Continue→Get Started button. Presented as a `.fullScreenCover` from
+      `RootView` ahead of everything, gated on
+      `OnboardingStoring` (new `UserDefaultsOnboardingStore` in ClanTabKit,
+      sticky flag). Verified the full first run in the Simulator: fresh
+      install → carousel → Skip/Get Started → start screen → relaunch skips
+      it. Tests: `OnboardingStoreTests` (3) + `RootView.shouldPresentOnboarding`
+      (2). kit 177 · app 82.
 - [ ] **Home Screen quick action.** `~20k tokens` (CLI)
       1. Add a `UIApplicationShortcutItems` entry for "Add Expense to
          <primary group>."
