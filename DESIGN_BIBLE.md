@@ -43,6 +43,14 @@ deserve a felt signature), stronger execution: a genuinely distinct face
 reads as designed, where a system font at a different weight reads as a
 tweak. Touches nothing else — not body text, not chrome, not iconography.
 
+**Number formatting is part of the signature, not an afterthought.**
+Every hero numeral uses tabular (fixed-width, non-proportional) figures —
+so a value that updates in place doesn't jiggle the layout around it —
+and one consistent thousands-separator/decimal style across all four
+apps. Cheap (a font-feature flag, not new design work) and it's the kind
+of detail that reads as "an app, not a tutorial project" the moment a
+number changes on screen.
+
 ## 2. Color — one formula, one hue per app
 
 `oklch(55% 0.16 H)` — lightness and chroma fixed, hue (`H`) varies per
@@ -61,6 +69,12 @@ per-member identity colors (`MemberColor`, a higher-chroma band) are the
 same formula at two bands, not two separate systems — treat any future
 "N things need distinct colors" problem in any app the same way before
 reaching for anything hand-picked.
+
+**Neutrals are tinted, never pure greyscale.** Body text, chrome, and
+surface tones (§3's elevation tiers included) mix in 10-15% of the app's
+own hue rather than sitting at true `oklch(L% 0 0)` grey. The same trick
+Linear/Arc use to make a "monochrome" UI not read as a default system
+theme — barely perceptible on its own, felt as soon as it's missing.
 
 ## 3. App icons
 
@@ -167,6 +181,14 @@ pitch matched). One sound design, reused across all four apps at the same
 moment-class, not a bespoke sound per app — same instinct as the color
 formula: one system, applied consistently, rather than four separate
 creative decisions.
+
+**One named spring curve for every confirm-moment transition.** A single
+response/dampingFraction pair (name it — e.g. the "`.claimSettle`
+spring") reused for every matched-geometry/spring-based transition tied
+to a confirming action, across all four apps, the same way the haptic and
+sound are one system rather than four. A shared *feel*, not just a shared
+rule — the thing that makes four different apps register as the same
+hand having built them.
 
 ## 6. Naming
 

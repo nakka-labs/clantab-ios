@@ -103,6 +103,15 @@ one-off/casual, large-friend-group):
       §4, adopted portfolio-wide, not yet built.
 - [ ] Branded confirmation sound on each app's primary confirming action
       — `DESIGN_BIBLE.md` §5, adopted portfolio-wide, not yet built.
+- [ ] Tabular figures + one consistent thousands-separator style on hero
+      numerals — `DESIGN_BIBLE.md` §1, adopted portfolio-wide, not yet
+      built.
+- [ ] Tint neutral text/surface tones with 10-15% of the app's own hue,
+      instead of pure greyscale — `DESIGN_BIBLE.md` §2, adopted
+      portfolio-wide, not yet built.
+- [ ] Name and standardize the shared spring curve for confirm-moment
+      transitions (the "`.claimSettle` spring") — `DESIGN_BIBLE.md` §5,
+      adopted portfolio-wide, not yet built.
 
 ### Feature backlog — absorbed from the competitive scan
 
