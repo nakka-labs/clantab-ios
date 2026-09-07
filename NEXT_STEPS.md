@@ -209,6 +209,16 @@ Real App Store requirement for a public listing, not optional
 
 ---
 
+## Post-v1 backlog (intentionally not on this list)
+
+`FEATURE_BACKLOG.md` is titled "Post-v1" for a reason — everything under
+its headings dated after "In scope, next up" (all shipped, see Phase 5/6
+above) is real, considered work that isn't gating v1: UI/UX polish pass,
+competitive scan (Splitwise/Tricount/Settle Up/Splid), and off-Bible UX
+ideas, all 2026-09-06/07. Not sequenced here on purpose — this file's own
+scope is "everything left before v1 ships" (see the Status note at the
+top). Revisit once Phase 8 ships.
+
 ## Historical record (shipped, kept for context — not on the critical path)
 
 - [x] Accounts phase code (worker steps 1-5, iOS 6a-6f) — complete on

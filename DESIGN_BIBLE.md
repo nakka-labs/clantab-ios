@@ -101,6 +101,26 @@ frame and background, same mermaid diagram style. Someone clicking
 through 3-4 of these repos in one sitting notices structure before they
 notice whether two accent blues are the exact same hex.
 
+## Under consideration for ClanTab — pending a decision, not yet adopted
+
+A pure-UX (Bible-aside) pass on ClanTab specifically surfaced four ideas
+that would break a rule above rather than just use one more fully — full
+list, reasoning, and a recommended pick in `FEATURE_BACKLOG.md`'s
+"Off-Bible UX ideas" (2026-09-07):
+
+- A distinct display typeface for the wordmark/hero numerals — breaks §1.
+- Gradients on the app icon and hero moments only — breaks §3.
+- A custom empty-state illustration — stretches §4.
+- A short branded confirmation sound — extends past §5 (not forbidden,
+  just never considered).
+
+None of these are decided. Because this file is written to eventually be
+portfolio-wide (see the Status note at the top), a real yes here is a
+bigger call than a normal ClanTab feature decision — it either creates a
+ClanTab-only exception to an otherwise-shared rule, or it changes the rule
+for every app. Worth resolving deliberately, not by default via whichever
+gets built first.
+
 ## Explicitly not doing (yet)
 
 - No shared component library or design-token file across native repos —

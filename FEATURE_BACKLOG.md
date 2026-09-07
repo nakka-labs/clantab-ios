@@ -506,6 +506,81 @@ long complained about its generic default avatar — see its public
 feedback board — so initials-first beats the category leader's own weak
 spot, for zero cost.)
 
+## Off-Bible UX ideas — proposed 2026-09-07, not yet built
+
+Prompted by a "forget `DESIGN_BIBLE.md`, purely UX" pass over the current
+screens. Split into what's already legal under the Bible but unused, and
+what actually requires breaking a stated rule — kept separate on purpose so
+"yes, do this" doesn't quietly become "yes, amend the Bible."
+
+### Bucket A — free wins, no Bible rule broken, just unused
+
+- **Materials/blur instead of flat opaque sheets.** Every sheet reviewed
+  (Add Expense, Settings, Your Groups) is a flat solid dark-grey card on
+  flat black. `.ultraThinMaterial`/`.regularMaterial` are native, free, and
+  the biggest reason top-tier iOS apps read as having depth while these
+  screens currently read as stacked black rectangles.
+- **Tonal surface elevation.** Currently two greys total (canvas, one card
+  tone). 3-4 deliberate elevation tiers (canvas → card → nested card →
+  modal) reads hierarchy without borders — same palette, more deliberate
+  use of it.
+- **Shadow/elevation on interactive elements.** A subtle shadow under the
+  balance hero card and primary buttons gives them weight; nothing lifts
+  off the background today.
+- **Per-group accent color, extended past the badge.** The `oklch`
+  hash-to-hue formula already exists for categories (`CategoryColor`) and
+  is proposed for members (`MemberColor`, "UI/UX polish pass" above).
+  Nothing stops applying a group's own hue to that group's *entire* Group
+  Home screen accent, not just a small badge — Goa trip reads visibly
+  different from Home the moment you open it. Stretches §2's "one hue per
+  app" in scope (now "one hue per app, one hue per group within it") but
+  it's the identical formula, not a new system — see the Bible
+  cross-reference below.
+- **Charts with real interaction.** SwiftUI Charts supports scrub/tooltip
+  gestures and gradient fills natively — free API, current charts
+  (`InsightsView`, shipped 2026-09-01) are static bars with neither.
+- **Micro-copy personality.** Empty-state copy is currently correct and
+  generic ("no expenses yet"). Costs nothing but a better sentence;
+  disproportionate effect on "does this feel designed."
+- **Spring-based / matched-geometry transitions.** A group card morphing
+  into Group Home (`matchedGeometryEffect`) instead of a flat push — free
+  SwiftUI API. §5 restricts *haptics* to confirm-only, not animation in
+  general; a functional transition isn't the decoration that rule guards
+  against.
+
+### Bucket B — actually breaks a stated Bible rule
+
+Each item names the rule it breaks. None of these are decided — see the
+cross-reference added to `DESIGN_BIBLE.md` below.
+
+- **Gradients on the app icon and hero moments — breaks §3** ("no
+  gradients/bevels/photoreal"). §3 exists to control cost and avoid
+  clip-art output, not to ban gradients specifically. A tasteful two-stop
+  gradient using the existing brand hue, scoped to the icon and the
+  balance hero card only (not everywhere), is a small, contained break
+  matching current App Store design trends (Arc, Linear, Cash App all use
+  gradient icons, not flat).
+- **A distinct display typeface for the wordmark/hero numerals — breaks
+  §1** ("system fonts only"). Free Google Fonts alternative, not a paid
+  license — the substitution most directly answers "reads as a tutorial
+  app," since the wordmark and hero numerals are the two elements §1
+  itself already singles out as the identity signature.
+- **Custom empty-state illustration — stretches §4** ("no custom icon
+  sets, ever, on the native apps"). §4 is written for *functional*
+  iconography (buttons, nav, category glyphs) — a one-off illustration for
+  an empty/zero-state moment is closer to branding than UI chrome, but it
+  is still a custom asset the rule's spirit argues against. One asset,
+  reused everywhere a "zero groups"/"zero expenses" state appears.
+- **A short branded sound on "settled up" — extends past §5.** §5 commits
+  to haptic-only confirmation; it doesn't forbid sound, but sound was never
+  considered. Venmo/Cash App both use a deliberate confirmation sound as a
+  memorable identity moment haptics alone can't give.
+
+**If only one gets picked:** the typeface. Cheapest break, touches exactly
+the two elements the Bible already treats as the identity (§1), and is the
+most direct fix for "looks like a college project" — a stock-SF-Pro app and
+a hand-tuned one are otherwise doing the identical visual thing.
+
 ## Shipped
 
 - ~~**Edit / delete an expense or settlement; rename a group / member; remove a
