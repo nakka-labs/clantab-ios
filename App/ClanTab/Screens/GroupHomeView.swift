@@ -132,16 +132,19 @@ struct GroupHomeView: View {
                 .onAppear { auth.recordBackupNudgeShown() }
             }
 
-            if viewModel.state != nil {
-                Section {
-                    BalanceHeroView(
-                        balances: viewModel.myBalances,
-                        accent: GroupColor.color(forId: viewModel.groupId)
-                    )
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
+            // Always present — while state loads it's a redacted placeholder in
+            // the group's accent, so opening a group lands on its coloured
+            // identity card immediately instead of a blank screen (`CHECKLIST.md`
+            // "Spring/matched-geometry transition").
+            Section {
+                BalanceHeroView(
+                    balances: viewModel.myBalances,
+                    accent: GroupColor.color(forId: viewModel.groupId),
+                    isLoading: viewModel.state == nil
+                )
             }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
 
             if let settlements = viewModel.state?.simplifiedSettlements, !settlements.isEmpty {
                 Section {

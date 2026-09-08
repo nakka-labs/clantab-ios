@@ -11,10 +11,21 @@ struct BalanceHeroView: View {
     /// — a light wash on the card + its shadow, so the focal card carries
     /// the group's identity. `nil` falls back to a neutral card.
     var accent: Color?
+    /// The group's state hasn't loaded yet — show a redacted placeholder in
+    /// the accent colour rather than a real balance (`CHECKLIST.md`
+    /// "Spring/matched-geometry transition").
+    var isLoading = false
 
     var body: some View {
         VStack(spacing: 8) {
-            if balances.isEmpty {
+            if isLoading {
+                Text("Your balance")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text("₹0,000")
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                    .redacted(reason: .placeholder)
+            } else if balances.isEmpty {
                 Text("You're all settled up")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.secondary)

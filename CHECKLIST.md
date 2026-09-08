@@ -284,11 +284,26 @@ one-off/casual, large-friend-group):
       more specific, still literally true to each state. Verified the
       Group Home and All-Square states light + dark in the Simulator.
       kit 179 · app 88.
-- [ ] **Spring/matched-geometry transition.** `~30k tokens` (CLI)
+- [~] **Spring/matched-geometry transition.** `~30k tokens` (CLI)
       1. Add a `matchedGeometryEffect` from a group card into Group Home,
          replacing the flat push.
       2. Verify it doesn't break the existing navigation stack/back
          behavior.
+      Partly done 2026-09-08. The literal `matchedGeometryEffect` from
+      the start-screen badge into Group Home isn't feasible from here:
+      the badge's morph target — Group Home's balance card — is gated on
+      an async state load, so it doesn't exist during the transition
+      window; and Group Home's `.searchable` bar renders a flipped
+      snapshot of the outgoing screen during any SwiftUI view transition
+      across the `route` swap (a pre-existing glitch a cross-fade only
+      makes visible — can't verify device vs. simulator from here).
+      What shipped instead: the balance card is now **always** rendered,
+      showing a redacted placeholder in the group's accent colour while
+      state loads, so opening a group lands on its coloured identity card
+      immediately instead of a blank spinner screen. No navigation
+      changes. Still open: a real hero morph, once the transition
+      substrate is sorted (revisit with "Name + standardize the shared
+      spring curve"). kit 179 · app 88.
 - [ ] **Display typeface for wordmarks/hero numerals.** `~35k tokens`
       (CLI) + one design decision
       1. Owner/CLI: pick a free Google Fonts family for the display face.
