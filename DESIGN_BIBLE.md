@@ -117,12 +117,16 @@ concept/motif changes per app):
 ClanTab's own instance of this, kept as the worked example: a bold
 geometric equals sign ("="), evolving the app's placeholder icon and
 established blue, symbolizing settling a balance rather than money
-itself. Background `#0074CA` (the precise sRGB conversion of
-`oklch(55% 0.16 250)`, computed via the standard OKLab matrices, not
-eyeballed) with a crisp white/light-blue mark. Alternate motifs
-considered: a tab/flag shape split down the center (literal "clan tab"),
-or three dots converging into one line (small-group-settling-into-one).
-Installed at `App/ClanTab/Assets.xcassets/AppIcon.appiconset/icon-1024.png`.
+itself. The background is this app's instance of the sanctioned two-stop
+gradient — `oklch(60% 0.15 250)` at the top to `oklch(40% 0.14 250)` at
+the bottom, interpolated in OKLCH so the midtones stay on-hue — the same
+stop-pair as the in-app hero moments (`RecapCard.brandGradient`). Crisp
+near-white mark (`#FAFBFD`). Alternate motifs considered: a tab/flag
+shape split down the center (literal "clan tab"), or three dots
+converging into one line (small-group-settling-into-one). Regenerated
+by `docs/branding/make-app-icon.py` (geometry frozen from the prior flat
+icon); installed at
+`App/ClanTab/Assets.xcassets/AppIcon.appiconset/icon-1024.png`.
 
 **Distinctiveness check** (run before finalizing any app's icon — not
 just eyeballing it next to a couple of competitors):
@@ -147,11 +151,15 @@ just eyeballing it next to a couple of competitors):
    full-size side-by-side is the wrong test — nobody sees the icon at
    full size except the person picking it, once, at generation time.
 
-ClanTab's own check: legibility passed at 180/120/60/40px. Reverse-image
-and trademark search need tools this environment doesn't have (Google
-Lens/TinEye, USPTO TESS) — run those before actually submitting to the
-App Store; the shape-not-color reasoning above still held on a general
-search at the time.
+ClanTab's own check: legibility re-confirmed at 180/120/60/40px on light
+and dark after the gradient was added — the "=" stays crisp, the
+gradient reads as subtle depth, not muddiness. The motif is unchanged
+from the flat version, so the shape-distinctiveness reasoning carries
+over (a bold "=" is distinct from Splitwise's split-S, Settle Up,
+Tricount, Venmo, Cash App, PayPal — all a different mark; shared blue
+hue is common category territory). Reverse-image and trademark search
+still need tools this environment doesn't have (Google Lens/TinEye,
+USPTO TESS) — run those before submitting to the App Store.
 
 ## 4. In-app iconography — SF Symbols only, with one named exception
 
