@@ -483,38 +483,40 @@ one-off/casual, large-friend-group):
       picks it up — **no explicit `resources:` entry was needed**, and
       `project.yml` is unchanged. (Owner still to confirm the chime is
       audible on a device/Simulator with the ringer on.) kit 180 · app 97.
-- [x] **Fix CSV import: Splid was completely broken, plus a real
+- [x] **Fix CSV import: Settle Up was completely broken, plus a real
       remainder-rounding bug.** Done 2026-09-08, prompted by a real failed
-      import (`Future.csv`, a Splid trip export). Two bugs, both silent —
-      the import screen just said "Couldn't read that file":
+      import (`Future.csv`, a Settle Up trip export — originally described
+      as a Splid export; the exporter later confirmed it was Settle Up, and
+      the attribution was corrected repo-wide on 2026-09-08). Two bugs, both
+      silent — the import screen just said "Couldn't read that file":
       1. `ImportCSVView` read the picked file as UTF-8
-         (`String(contentsOf:encoding:.utf8)`). Splid's iOS/macOS export is
-         UTF-16LE with a BOM, which throws immediately under that
+         (`String(contentsOf:encoding:.utf8)`). Settle Up's iOS/macOS export
+         is UTF-16LE with a BOM, which throws immediately under that
          assumption — same failure mode as Numbers' "CSV" save and Excel's
          "Unicode Text" export. Fixed with a new
          `CSVImport.decode(_ data: Data) -> String?` (BOM-sniffing UTF-8 /
          UTF-16LE / UTF-16BE, falling back through UTF-8 → UTF-16LE →
          Latin-1 with no BOM); `ImportCSVView` now reads bytes and calls it
          instead of assuming an encoding.
-      2. No Splid parser existed at all — `CSVImport.parseSplid` added
+      2. No Settle Up parser existed at all — `CSVImport.parseSettleUp` added
          (`Who paid`/`Amount`/`Currency`/`For whom`/`Split amounts`/
          `Purpose`/`Category`/`Date & time`/`Type`; `Type` `expense` vs
          `transfer` for settlements). Unlike Splitwise's lossy per-person
-         net-balance reconstruction, Splid's `For whom`/`Split amounts` are
-         parallel lists giving each share directly, so it round-trips
+         net-balance reconstruction, Settle Up's `For whom`/`Split amounts`
+         are parallel lists giving each share directly, so it round-trips
          losslessly.
       3. Found only by checking against the real file, not a hypothetical:
-         Splid rounds each share to 2dp independently on an equal split, so
-         ~6% of rows in the real sample were a paisa off the row total
+         Settle Up rounds each share to 2dp independently on an equal split,
+         so ~6% of rows in the real sample were a paisa off the row total
          (`₹6628 ÷ 3 → 2209.33 × 3 = 6627.99`). A strict sum-must-match
          check would have silently dropped those rows. Fixed by nudging the
          small remainder onto the payer's own share — the same rule
          `Validation.equalSplit` already uses.
       Also hardened: a stray BOM *character* surviving decode no longer
-      breaks header matching; `parseDate` gained Splid's
+      breaks header matching; `parseDate` gained Settle Up's
       `yyyy-MM-dd HH:mm:ss` format. Full writeup + the (still open) gaps —
       no duplicate-import guard on any format, EU-locale comma-decimal
-      amounts unhandled, Tricount/Settle Up still unsupported (no verified
+      amounts unhandled, Tricount/Splid still unsupported (no verified
       sample to build against) — in `docs/csv-import-formats.md`.
       Written first in a sandbox with no Swift toolchain (cross-checked
       with a Python re-implementation of the parsing logic); a later pass
@@ -530,7 +532,7 @@ one-off/casual, large-friend-group):
 Splitwise/Tricount/Settle Up/Splid, primary sources only:
 
 - [ ] **De-dupe guard on CSV import.** `~20k tokens` (CLI) — found
-      2026-09-08 while fixing Splid import (`docs/csv-import-formats.md`).
+      2026-09-08 while fixing Settle Up import (`docs/csv-import-formats.md`).
       Every imported row gets a fresh client-generated id, by design, so a
       partial import is safe to retry — but that also means importing the
       *same* file twice (or the same trip exported from two apps by two
@@ -555,23 +557,26 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       per the screenshot pattern) rather than a replacement — it reads
       well for "who owes the most" at a glance but is worse than the list
       for "how much do I owe whom," which is what settle-up actually needs.
-- [ ] **Settle Up import.** `~15k tokens` investigation + build (CLI) —
-      researched 2026-09-08, not built (`docs/csv-import-formats.md` has
-      full sourcing). Settle Up does still have a self-serve export ("export
-      data by email in CSV format," per its own App Store/Play Store
-      listing) — unlike Tricount below, this one's alive. But it arrives by
-      email, not a downloadable sample anyone's posted publicly: checked
-      Settle Up's own site/FAQ and the one GitHub tool built around it
-      (works from a raw Firebase/SQLite dump, not the CSV feature) and found
-      no published column schema anywhere.
-      1. Get someone to trigger Settle Up's own "export data by email in
-         CSV format" on a throwaway 2-3-row group, redact names, hand over
-         the file.
-      2. Build `parseSettleUp` against that real file the same way Splid
-         got fixed, not from a guess — verify the sign/share convention,
-         decimal locale, settlement-row shape, and any per-row rounding
-         quirk (Splid's was a real 6%-of-rows bug that a guess would've
-         missed) before trusting it.
+- [ ] **Splid import — get a real sample.** `~15k tokens` investigation +
+      build (CLI) — surfaced 2026-09-08 when `Future.csv`, the file the CSV
+      importer was built and verified against, turned out to be a Settle Up
+      export, not Splid (the exporter confirmed it). Settle Up support is
+      done; actual Splid support is now the gap. Splid's iOS/macOS app does
+      have a CSV export, and it shares the same `Who paid`/`For whom`/`Split
+      amounts` header shape — but we have **no verified Splid sample**:
+      nobody's posted one publicly and we haven't triggered one ourselves,
+      so the exact column shape, decimal-locale convention, settlement-row
+      encoding, and any per-row rounding quirk are all unconfirmed for
+      Splid specifically.
+      1. Get someone to trigger Splid's own CSV export on a throwaway 2-3-row
+         group, redact names, hand over the file.
+      2. Check the existing `parseSettleUp` against that real file — it may
+         already handle Splid given the shared header, or it may not.
+         Verify the sign/share convention, decimal locale, settlement-row
+         shape, and any per-row rounding quirk (Settle Up's was a real
+         6%-of-rows bug a guess would've missed) before claiming Splid as
+         supported; branch the parser or split detection only if the real
+         file forces it.
 - [ ] **Tricount import — get a sample first, likely low priority.**
       `~10k tokens` investigation, build TBD after (CLI) — researched
       2026-09-08 (`docs/csv-import-formats.md`). Tricount's self-serve

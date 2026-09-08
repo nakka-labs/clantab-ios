@@ -61,7 +61,7 @@ struct CSVImportTests {
 
     // MARK: date parsing
 
-    @Test("parseDate handles ISO 8601, Splid's space-separated datetime, and bare yyyy-MM-dd")
+    @Test("parseDate handles ISO 8601, Settle Up's space-separated datetime, and bare yyyy-MM-dd")
     func testParseDate() {
         #expect(CSVImport.parseDate("2026-07-02T09:00:00Z") != nil)
         #expect(CSVImport.parseDate("2025-07-26 14:56:07") != nil)
@@ -203,19 +203,19 @@ struct CSVImportTests {
         #expect(r.warnings[0].contains("multi-payer"))
     }
 
-    // MARK: Splid format
+    // MARK: Settle Up format
 
-    private let splidCSV = """
+    private let settleUpCSV = """
     "Who paid","Amount","Currency","For whom","Split amounts","Purpose","Category","Date & time","Timezone","Exchange rate","Converted amount","Type","Receipt"
     "Ana","21.00","INR","Ana ;Ben;Cal","7.00;7.00;7.00","Groceries"," ","2025-07-26 14:56:07","","","21.00","expense",""
     "Cal","11.20","INR","Ana;Ben;Cal","3.73;3.73;3.74","Dinner","🍲 Food","2025-07-27 19:30:01","","","11.20","expense",""
     "Ben","10.00","INR","Ana","10.00","Debt settlement"," ","2025-07-28 09:00:00","","","10.00","transfer",""
     """
 
-    @Test("parses the Splid export format losslessly, including a settlement row")
-    func testSplid() throws {
-        let r = try CSVImport.parse(splidCSV)
-        #expect(r.format == .splid)
+    @Test("parses the Settle Up export format losslessly, including a settlement row")
+    func testSettleUp() throws {
+        let r = try CSVImport.parse(settleUpCSV)
+        #expect(r.format == .settleUp)
         #expect(r.referencedNames == ["Ana", "Ben", "Cal"])
         #expect(r.warnings.isEmpty)
 
@@ -244,8 +244,8 @@ struct CSVImportTests {
         #expect(settlement.amountMinor == 1000)
     }
 
-    @Test("a Splid row whose split amounts don't add up is skipped with a warning")
-    func testSplidBadSplits() throws {
+    @Test("a Settle Up row whose split amounts don't add up is skipped with a warning")
+    func testSettleUpBadSplits() throws {
         let csv = """
         "Who paid","Amount","Currency","For whom","Split amounts","Purpose","Category","Date & time","Timezone","Exchange rate","Converted amount","Type","Receipt"
         "Ana","20.00","INR","Ana;Ben","7.00;7.00","Bad row"," ","2025-07-26 14:56:07","","","20.00","expense",""
@@ -256,9 +256,9 @@ struct CSVImportTests {
         #expect(r.warnings[0].contains("don't add up"))
     }
 
-    @Test("a Splid equal-split rounding remainder (a paisa off the total) lands on the payer, not a dropped row")
-    func testSplidRoundingRemainderCorrected() throws {
-        // 66.28 ÷ 3 = 22.0933… → Splid's own export truncates each share to
+    @Test("a Settle Up equal-split rounding remainder (a paisa off the total) lands on the payer, not a dropped row")
+    func testSettleUpRoundingRemainderCorrected() throws {
+        // 66.28 ÷ 3 = 22.0933… → Settle Up's own export truncates each share to
         // 22.09, so the three shares sum to 66.27 — one paisa short.
         let csv = """
         "Who paid","Amount","Currency","For whom","Split amounts","Purpose","Category","Date & time","Timezone","Exchange rate","Converted amount","Type","Receipt"
@@ -272,8 +272,8 @@ struct CSVImportTests {
         #expect(e.splits.first(where: { $0.memberName == "Ana" })?.amountMinor == 2210) // 2209 + 1 remainder
     }
 
-    @Test("a Splid split that's genuinely wrong (not just a rounding paisa) is still skipped")
-    func testSplidLargeMismatchNotSilentlyCorrected() throws {
+    @Test("a Settle Up split that's genuinely wrong (not just a rounding paisa) is still skipped")
+    func testSettleUpLargeMismatchNotSilentlyCorrected() throws {
         let csv = """
         "Who paid","Amount","Currency","For whom","Split amounts","Purpose","Category","Date & time","Timezone","Exchange rate","Converted amount","Type","Receipt"
         "Ana","100.00","INR","Ana;Ben","50.00;40.00","Wrong"," ","2025-07-26 14:56:07","","","100.00","expense",""
@@ -284,8 +284,8 @@ struct CSVImportTests {
         #expect(r.warnings[0].contains("don't add up"))
     }
 
-    @Test("a Splid settlement to yourself is skipped with a warning")
-    func testSplidSelfSettlement() throws {
+    @Test("a Settle Up settlement to yourself is skipped with a warning")
+    func testSettleUpSelfSettlement() throws {
         let csv = """
         "Who paid","Amount","Currency","For whom","Split amounts","Purpose","Category","Date & time","Timezone","Exchange rate","Converted amount","Type","Receipt"
         "Ana","10.00","INR","Ana","10.00","Oops"," ","2025-07-26 14:56:07","","","10.00","transfer",""
@@ -295,12 +295,12 @@ struct CSVImportTests {
         #expect(r.warnings.count == 1)
     }
 
-    @Test("Splid's UTF-16-with-BOM export decodes and parses end to end")
-    func testSplidUTF16RoundTrip() throws {
-        let data = Data([0xFF, 0xFE]) + splidCSV.data(using: .utf16LittleEndian)!
+    @Test("Settle Up's UTF-16-with-BOM export decodes and parses end to end")
+    func testSettleUpUTF16RoundTrip() throws {
+        let data = Data([0xFF, 0xFE]) + settleUpCSV.data(using: .utf16LittleEndian)!
         let text = try #require(CSVImport.decode(data))
         let r = try CSVImport.parse(text)
-        #expect(r.format == .splid)
+        #expect(r.format == .settleUp)
         #expect(r.expenses.count == 2)
         #expect(r.settlements.count == 1)
     }

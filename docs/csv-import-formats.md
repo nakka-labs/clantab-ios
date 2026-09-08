@@ -11,15 +11,15 @@ it whenever `CSVImport` changes.
 |---|---|---|---|
 | **ClanTab** (`Export.csv`) | exact header match | lossless round-trip | Own format. `Splits` field is `Name:amount; Name:amount`. |
 | **Splitwise** | header has `cost`+`currency`+`date`+`description` | lossy by construction | Splitwise only exports each person's *signed net* (paid − owed) per row, not the actual splits. We reconstruct a single-payer expense (payer = largest net) and back-solve everyone else's share. A genuine multi-payer expense (two people net-positive on the same row) **cannot** be reconstructed and is skipped with a warning — that's a limit of Splitwise's export, not ours. |
-| **Splid** | header has `who paid`+`for whom`+`split amounts` | lossless | Fixed 2026-09-08 (see below). `For whom` / `Split amounts` are parallel `;`-separated lists — no reconstruction needed. `Type` is `expense` or `transfer` (settlement); a transfer's payer ("Who paid") sent the amount to the one person in "For whom". |
+| **Settle Up** | header has `who paid`+`for whom`+`split amounts` | lossless | Fixed 2026-09-08 (see below). `For whom` / `Split amounts` are parallel `;`-separated lists — no reconstruction needed. `Type` is `expense` or `transfer` (settlement); a transfer's payer ("Who paid") sent the amount to the one person in "For whom". |
 
-## Fixed 2026-09-08 (Splid import was totally broken)
+## Fixed 2026-09-08 (Settle Up import was totally broken)
 
-Reported via a real export (`Future.csv`, a Splid trip). Two independent bugs,
+Reported via a real export (`Future.csv`, a Settle Up trip). Two independent bugs,
 both silent — the import screen just said "Couldn't read that file":
 
 1. **Wrong assumption: file is UTF-8.** `ImportCSVView` read the picked file
-   with `String(contentsOf:encoding:.utf8)`. Splid's iOS/macOS CSV export is
+   with `String(contentsOf:encoding:.utf8)`. Settle Up's iOS/macOS CSV export is
    **UTF-16LE with a BOM** (`FF FE...`) — decoding that as UTF-8 throws
    immediately, before `CSVImport.parse` ever runs. Same failure mode hits
    *any* UTF-16 CSV — Numbers' "CSV" save and Excel's "Unicode Text" export
@@ -28,11 +28,11 @@ both silent — the import screen just said "Couldn't read that file":
    Latin-1 when there's no BOM at all, so a file just opens instead of
    silently failing. `ImportCSVView` now reads bytes (`Data(contentsOf:)`) and
    calls this instead of the old `String(contentsOf:encoding:)`.
-2. **No Splid parser existed.** Only ClanTab's own format and Splitwise were
-   recognized; a correctly-decoded Splid file still hit `unrecognizedFormat`.
-   Added `parseSplid` (see table above).
+2. **No Settle Up parser existed.** Only ClanTab's own format and Splitwise were
+   recognized; a correctly-decoded Settle Up file still hit `unrecognizedFormat`.
+   Added `parseSettleUp` (see table above).
 3. **Rounding remainder, found against the real file, not a hypothetical.**
-   When Splid splits a cost evenly, it rounds *each* share to 2dp
+   When Settle Up splits a cost evenly, it rounds *each* share to 2dp
    independently rather than assigning the leftover minor unit anywhere —
    `₹6628 ÷ 3 → 2209.33 × 3 = 6627.99`, one paisa short of the row's `Amount`.
    ~6% of rows in the real sample file had this (always ±1, occasionally ±2,
@@ -68,26 +68,26 @@ compiled and ran it unchanged — no behaviour changes were needed.)
   slightly across apps — a real feature, not a one-line fix). Worth its own
   CHECKLIST item; at minimum, `ImportCSVView` should warn once before import
   ("Re-importing may create duplicates") rather than staying silent.
-- **Splitwise / Splid amounts assume `.` as the decimal separator.**
+- **Splitwise / Settle Up amounts assume `.` as the decimal separator.**
   `parseAmount` strips `,` unconditionally, treating it only as a thousands
   separator (`"1,234.00"` → 123400). An export from a EU-locale device using
   comma-decimal would misparse: `"12,50"` (twelve-fifty, i.e. 1250 minor
   units) currently parses as `1250` *major* units — `125000` minor, a 100x
   error — because the `,` is stripped and the result read as a whole number.
   Nothing in the current codebase
-  exercises this path — the real Splid file we have is period-decimal — so
+  exercises this path — the real Settle Up file we have is period-decimal — so
   this is not "fixed," it's flagged. A safe fix needs a way to *know* the
   locale convention (e.g. detect a delimiter-shift to `;` the way Excel does
   for comma-decimal locales) rather than guessing from the amount string
   alone, which is genuinely ambiguous (`"1,234"` is 1234 in the US
   convention and 1.234 in the EU one). Don't build this without a real
   sample export from an EU-locale export to test against.
-- **Splid's `Timezone` column is ignored.** It's blank on every row we've
+- **Settle Up's `Timezone` column is ignored.** It's blank on every row we've
   seen in practice; `parseDate` treats the naive `yyyy-MM-dd HH:mm:ss`
-  timestamp as UTC. If Splid does populate it for some export paths, dates
+  timestamp as UTC. If Settle Up does populate it for some export paths, dates
   could be off by the local UTC offset. Low-impact (a date-only display bug,
   not a money bug) but undocumented until now.
-- **Splid's emoji-prefixed categories are kept as-is** (`"🍲 Food"`), not
+- **Settle Up's emoji-prefixed categories are kept as-is** (`"🍲 Food"`), not
   mapped onto ClanTab's plain-text category set. This is a deliberate
   choice, not a bug: categories are free text in this app
   (`ExpenseCategory`), so the emoji just becomes part of the category name
@@ -95,9 +95,9 @@ compiled and ran it unchanged — no behaviour changes were needed.)
 
 ## Not supported — researched 2026-09-08, no fix (see `CHECKLIST.md`)
 
-Splitwise, Splid, Tricount, and Settle Up are the four apps this repo's own
+Splitwise, Settle Up, Tricount, and Splid are the four apps this repo's own
 competitive scan treats as prominent; usage drops off sharply past them, so
-this pass didn't chase anything further down the list. Splitwise and Splid
+this pass didn't chase anything further down the list. Splitwise and Settle Up
 are covered above. For the other two, here's what's actually true right
 now, sourced — not guessed:
 
@@ -117,17 +117,17 @@ Given there's no self-serve path anymore, a Tricount importer would only
 help people with an old export file already sitting around — see the
 checklist item for the actual prioritization call.
 
-### Settle Up — export exists and is self-serve, but the schema isn't public
-Settle Up does still ship a working export: its own App Store / Play Store
-listing advertises **"export data by email in CSV format"** (checked
-2026-09-08). Unlike Tricount, this is real and self-serve today. But it
-arrives by email rather than a file anyone's posted publicly — checked
-Settle Up's own site and FAQ, and the one GitHub tool built around Settle
-Up data (`jack-kerouac/settle-up-stats`), which works from a raw
-Firebase/SQLite dump, not this CSV feature, so it doesn't document the
-export's columns either. Net: worth pursuing (the export mechanism is
-real), just needs someone to actually trigger it and hand over a sample —
-see the checklist item.
+### Splid — no verified sample
+The parser added on 2026-09-08 was built and verified against `Future.csv`,
+which the person who exported it later confirmed was a **Settle Up** export,
+not Splid — so despite the header schema being shared, we have **zero
+verified coverage of an actual Splid export**. Splid's own iOS/macOS app
+does have a CSV export, but nobody's posted a real sample publicly and we
+haven't triggered one ourselves, so its exact column shape, decimal-locale
+convention, settlement-row encoding, and any per-row rounding quirk are all
+unverified. Same rule as Tricount: get a real 2-3-row Splid export, redact
+names, add it as a fixture, and check the parser against it before claiming
+Splid as supported — the current parser may or may not already handle it.
 
 ### Splitwise sign convention — re-checked, confirmed correct, not a bug
 While researching the above, a secondary source (a competing app's
@@ -143,14 +143,14 @@ as a reminder that one plausible-sounding secondary source isn't enough to
 act on for a money-sign question, even when it's specifically about
 *correcting* something.
 
-Same rule as before for both Tricount and Settle Up: get a real 2-3-row
+Same rule as before for both Tricount and Splid: get a real 2-3-row
 export first, add it as a redacted fixture, build the parser against real
 data. See `CHECKLIST.md`'s Feature backlog for the actual next steps and
 effort estimates.
 
 ## Fixtures
 
-`test-fixtures/csv-import/splid-sample.csv` — a small synthetic Splid-shaped
+`test-fixtures/csv-import/settleup-sample.csv` — a small synthetic Settle Up-shaped
 file (UTF-16LE, BOM, multi-way splits, a settlement row, an emoji category) for
 manual import testing in the Simulator. Real friend names from the reported
 bug were **not** committed here (public repo) — this is a fabricated

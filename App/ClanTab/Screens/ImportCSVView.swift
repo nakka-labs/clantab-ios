@@ -66,7 +66,7 @@ struct ImportCSVView: View {
         ContentUnavailableView {
             Label("Import from CSV", systemImage: "square.and.arrow.down")
         } description: {
-            Text("Moving over from Splitwise or Splid, or restoring a ClanTab export? Bring the whole expense history with you.")
+            Text("Moving over from Splitwise or Settle Up, or restoring a ClanTab export? Bring the whole expense history with you.")
         } actions: {
             Button("Choose a File…") { isPickingFile = true }
                 .buttonStyle(.borderedProminent)
@@ -139,7 +139,7 @@ struct ImportCSVView: View {
         switch format {
         case .clanTab: return "ClanTab export"
         case .splitwise: return "Splitwise export"
-        case .splid: return "Splid export"
+        case .settleUp: return "Settle Up export"
         }
     }
 
@@ -205,7 +205,7 @@ struct ImportCSVView: View {
         case .empty: return "That file is empty."
         case .noDataRows: return "That file has a header but no rows."
         case .unrecognizedFormat:
-            return "Unrecognised format. Use a ClanTab export, a Splitwise export, or a Splid export."
+            return "Unrecognised format. Use a ClanTab export, a Splitwise export, or a Settle Up export."
         }
     }
 

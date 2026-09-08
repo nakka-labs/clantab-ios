@@ -12,11 +12,11 @@ import Foundation
 ///    as a single-payer expense (payer = the person with the largest net).
 ///    Rows Splitwise can't represent losslessly (a genuine multi-payer split)
 ///    are skipped with a warning.
-///  - **Splid** — Splid's CSV export (`Who paid,Amount,Currency,For whom,
+///  - **Settle Up** — Settle Up's CSV export (`Who paid,Amount,Currency,For whom,
 ///    Split amounts,Purpose,Category,Date & time,Timezone,Exchange rate,
 ///    Converted amount,Type,Receipt`). Lossless: "For whom"/"Split amounts"
 ///    are parallel `;`-separated lists giving each person's exact share, and
-///    `Type` is `expense` or `transfer` (a settlement). Splid's iOS/macOS
+///    `Type` is `expense` or `transfer` (a settlement). Settle Up's iOS/macOS
 ///    export is UTF-16 with a BOM — see `decode(_:)`.
 ///
 /// See `docs/csv-import-formats.md` for the full compatibility matrix and
@@ -25,7 +25,7 @@ public enum CSVImport {
     public enum Format: String, Sendable, Equatable {
         case clanTab
         case splitwise
-        case splid
+        case settleUp
     }
 
     public enum ParseError: Error, Equatable, Sendable {
@@ -114,14 +114,14 @@ public enum CSVImport {
             return parseSplitwise(header: header, lowered: lowered, dataRows: dataRows)
         }
         if lowered.contains("who paid"), lowered.contains("for whom"), lowered.contains("split amounts") {
-            return parseSplid(header: header, lowered: lowered, dataRows: dataRows)
+            return parseSettleUp(header: header, lowered: lowered, dataRows: dataRows)
         }
         throw ParseError.unrecognizedFormat
     }
 
     /// Decodes raw file bytes to text, sniffing the encoding from a BOM when
     /// present and falling back sensibly when it isn't. Some export sources
-    /// (Splid's iOS/macOS export, Numbers' "CSV" save, Excel's "Unicode Text")
+    /// (Settle Up's iOS/macOS export, Numbers' "CSV" save, Excel's "Unicode Text")
     /// write UTF-16 rather than UTF-8, which `String(contentsOf:encoding:.utf8)`
     /// simply fails to open — this is the fix for that whole class of bug.
     public static func decode(_ data: Data) -> String? {
@@ -282,15 +282,15 @@ public enum CSVImport {
                       referencedNames: names.all, warnings: warnings)
     }
 
-    // MARK: - Splid
+    // MARK: - Settle Up
 
-    /// Splid's CSV export. Unlike Splitwise's per-person net-balance columns,
+    /// Settle Up's CSV export. Unlike Splitwise's per-person net-balance columns,
     /// "For whom" and "Split amounts" are parallel `;`-separated lists giving
     /// each person's exact share directly — no reconstruction needed, so
     /// every row round-trips losslessly. `Type` distinguishes an `expense`
     /// row from a `transfer` (settlement): the payer sent the split amount
     /// to the single person named in "For whom".
-    private static func parseSplid(header: [String], lowered: [String], dataRows: [[String]]) -> Result {
+    private static func parseSettleUp(header: [String], lowered: [String], dataRows: [[String]]) -> Result {
         guard let payerIdx = lowered.firstIndex(of: "who paid"),
               let amountIdx = lowered.firstIndex(of: "amount"),
               let currencyIdx = lowered.firstIndex(of: "currency"),
@@ -298,8 +298,8 @@ public enum CSVImport {
               let splitsIdx = lowered.firstIndex(of: "split amounts"),
               let dateIdx = lowered.firstIndex(of: "date & time")
         else {
-            return Result(format: .splid, expenses: [], settlements: [], referencedNames: [],
-                          warnings: ["Missing one of the columns Splid's export needs (Who paid / Amount / Currency / For whom / Split amounts / Date & time)."])
+            return Result(format: .settleUp, expenses: [], settlements: [], referencedNames: [],
+                          warnings: ["Missing one of the columns Settle Up's export needs (Who paid / Amount / Currency / For whom / Split amounts / Date & time)."])
         }
         let purposeIdx = lowered.firstIndex(of: "purpose")
         let categoryIdx = lowered.firstIndex(of: "category")
@@ -339,7 +339,7 @@ public enum CSVImport {
             var splits = zip(people, amounts).map { name, amt in DraftSplit(memberName: name, amountMinor: amt!) }
             let splitSum = splits.reduce(Int64(0)) { $0 + $1.amountMinor }
             if splitSum != amount {
-                // Splid rounds each share to 2dp independently when it splits
+                // Settle Up rounds each share to 2dp independently when it splits
                 // a cost evenly, so a genuine equal split can land a paisa/cent
                 // or two off the total (e.g. ₹6628 ÷ 3 → 2209.33 × 3 = 6627.99).
                 // Nudge the payer's own share by the (small) remainder — the
@@ -380,12 +380,12 @@ public enum CSVImport {
             }
         }
 
-        return Result(format: .splid, expenses: expenses, settlements: settlements,
+        return Result(format: .settleUp, expenses: expenses, settlements: settlements,
                       referencedNames: names.all, warnings: warnings)
     }
 
-    /// Splid joins both "For whom" and "Split amounts" with `;` — trims each
-    /// part (Splid's own names sometimes carry a trailing space).
+    /// Settle Up joins both "For whom" and "Split amounts" with `;` — trims each
+    /// part (Settle Up's own names sometimes carry a trailing space).
     private static func splitField(_ field: String) -> [String] {
         field.split(separator: ";", omittingEmptySubsequences: true)
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -466,8 +466,8 @@ public enum CSVImport {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
         if let iso = ISO8601DateFormatter().date(from: trimmed) { return iso }
-        // Splid's "Date & time" column: "2025-07-26 14:56:07" — a space, not
-        // a `T`, and no timezone offset. Splid does export a Timezone column
+        // Settle Up's "Date & time" column: "2025-07-26 14:56:07" — a space, not
+        // a `T`, and no timezone offset. Settle Up does export a Timezone column
         // too, but it's blank in practice; the naive timestamp is treated as
         // UTC (documented in docs/csv-import-formats.md).
         let dateTime = DateFormatter()
