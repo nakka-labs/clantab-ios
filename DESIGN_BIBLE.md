@@ -228,6 +228,12 @@ sound are one system rather than four. A shared *feel*, not just a shared
 rule — the thing that makes four different apps register as the same
 hand having built them.
 
+ClanTab's own instance: `Animation.claimSettle` in `App/ClanTab/Motion.swift`
+— `spring(response: 0.4, dampingFraction: 0.85)`, settled with a touch of
+give. Applied to the delete/undo toast on Group Home; the next
+confirm-moment transitions to land (a settle-up animation, the deferred
+open-a-group hero) use it in place of `.default`.
+
 ## 6. Naming
 
 Short, compound, coined names. No articles, no punctuation, hints at

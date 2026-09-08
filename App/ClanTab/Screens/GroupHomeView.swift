@@ -546,7 +546,7 @@ struct GroupHomeView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.default, value: undoBanner)
+        .animation(.claimSettle, value: undoBanner)
         .sensoryFeedback(.success, trigger: expenseAddedTrigger)
         .sensoryFeedback(.success, trigger: settlementMarkedTrigger)
     }

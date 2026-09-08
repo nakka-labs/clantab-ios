@@ -406,12 +406,21 @@ one-off/casual, large-friend-group):
       canvas — well past AAA. System `.secondary`/`.tertiary` text left
       as-is (tinting it app-wide fights the system controls beside it).
       Verified light + dark. kit 180 · app 88.
-- [ ] **Name + standardize the shared spring curve.** `~15k tokens`
+- [x] **Name + standardize the shared spring curve.** `~15k tokens`
       (CLI)
       1. Pick one response/dampingFraction pair, name it (e.g.
          `.claimSettle`).
       2. Apply it to every confirm-moment transition instead of
          per-call-site defaults.
+      Done 2026-09-08. `Animation.claimSettle` (`App/ClanTab/Motion.swift`)
+      = `spring(response: 0.4, dampingFraction: 0.85)`, settled, not
+      bouncy (`DESIGN_BIBLE.md` §5). Applied to the one confirm-moment
+      transition that exists today — the delete/undo toast on Group Home
+      (was `.default`). The chart-scrub `.easeOut` and onboarding page
+      `.easeInOut` are continuous/navigational, not confirm moments, so
+      they keep their curves. Future confirm-moment transitions (a
+      settle-up animation, the deferred open-a-group hero) adopt
+      `.claimSettle`. kit 180 · app 88.
 
 ### Feature backlog — absorbed from the competitive scan
 
