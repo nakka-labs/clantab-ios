@@ -35,7 +35,7 @@ struct InsightsView: View {
             if expenses.isEmpty {
                 ContentUnavailableView(
                     "Nothing to Chart Yet",
-                    systemImage: "chart.bar",
+                    image: "EmptyStateGlyph",
                     description: Text("Once the group logs a few expenses, this is where the totals, trends, and who-paid-what breakdowns show up.")
                 )
             } else {

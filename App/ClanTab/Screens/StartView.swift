@@ -117,12 +117,14 @@ struct StartView: View {
     /// below are for instead of leaving a blank gap.
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image("LaunchLogo")
+            // ClanTab's custom empty-state glyph (`DESIGN_BIBLE.md` §4),
+            // shared with every other genuine zero-state.
+            Image("EmptyStateGlyph")
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 44, height: 44)
-                .foregroundStyle(.tint)
+                .frame(width: 56, height: 56)
+                .foregroundStyle(.secondary)
             Text("No groups yet")
                 .font(.title2.bold())
             Text("Start one for a trip or a shared house — or join one with a code someone sent you.")

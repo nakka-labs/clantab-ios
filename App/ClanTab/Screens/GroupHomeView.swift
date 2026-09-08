@@ -185,18 +185,24 @@ struct GroupHomeView: View {
                 Section {
                     let items = activityFeed(state: state)
                     if items.isEmpty {
-                        // Same treatment as InsightsView's empty state
-                        // (`FEATURE_BACKLOG.md` "Empty-state consistency") —
-                        // this is the first thing a brand-new group shows.
-                        ContentUnavailableView(
-                            filter.isActive ? "Nothing Matches" : "No Expenses Yet",
-                            systemImage: filter.isActive ? "line.3.horizontal.decrease.circle" : "tray",
-                            description: Text(
-                                filter.isActive
-                                    ? "No expense here fits that search. Try different words, or clear the filters."
-                                    : "Add the first one and ClanTab keeps a running tally of who owes whom."
+                        // The genuine zero-state gets ClanTab's custom
+                        // empty-state glyph (`DESIGN_BIBLE.md` §4) — it's the
+                        // first thing a brand-new group shows; a filtered
+                        // no-match is a transient outcome, so it keeps a plain
+                        // SF Symbol.
+                        if filter.isActive {
+                            ContentUnavailableView(
+                                "Nothing Matches",
+                                systemImage: "line.3.horizontal.decrease.circle",
+                                description: Text("No expense here fits that search. Try different words, or clear the filters.")
                             )
-                        )
+                        } else {
+                            ContentUnavailableView(
+                                "No Expenses Yet",
+                                image: "EmptyStateGlyph",
+                                description: Text("Add the first one and ClanTab keeps a running tally of who owes whom.")
+                            )
+                        }
                     } else {
                         ForEach(items) { item in
                             ActivityRow(item: item)

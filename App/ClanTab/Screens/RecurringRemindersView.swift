@@ -31,7 +31,7 @@ struct RecurringRemindersView: View {
             if templates.isEmpty {
                 ContentUnavailableView(
                     "Nothing on Repeat Yet",
-                    systemImage: "repeat",
+                    image: "EmptyStateGlyph",
                     description: Text("Set one up for rent, the wifi bill, or anything that comes around like clockwork — ClanTab nudges you, you add the expense.")
                 )
             } else {
