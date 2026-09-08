@@ -8,11 +8,23 @@
 	<array/>
 
 	<!--
+	  Kept in sync with docs/appstore/metadata.md's "App Privacy" table
+	  (last synced 2026-09-08 — added User ID + Device ID for mandatory
+	  Apple/Google sign-in and push).
+
 	  Data leaving the device (sent to the ClanTab Worker backend):
-	    - the display name the user typed for a group
-	    - expense/settlement records within a group (amounts, descriptions, dates)
-	  No accounts, no email/phone, no payment credentials, no device identifiers,
-	  no analytics or advertising SDKs. Nothing is used for tracking.
+	    - the display name the user typed for a group ("Name")
+	    - expense/settlement records + content-report free text ("Other Data Types")
+	    - the opaque Apple/Google account identifier that recognises a returning
+	      user, plus per-group member ids ("User ID")
+	    - the APNs push token, only if the user enables notifications, used only
+	      to notify them about their own groups ("Device ID")
+	  Everything is "Linked", nothing is used for tracking, every purpose is
+	  "App Functionality". No email/phone, no payment credentials, no analytics
+	  or advertising SDKs. Sign in with Apple requests no name or email; a Google
+	  sign-in token carries an email but the backend reads only the anonymous
+	  subject id and never stores or logs it (declared "not collected" — see the
+	  metadata.md note).
 
 	  Judgement calls, revisit if App Review pushes back:
 	    - The self-chosen display name is declared as "Name", "Linked" (it is
@@ -27,6 +39,30 @@
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeName</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
@@ -53,8 +89,9 @@
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
-			<!-- UserDefaultsIdentityStore + @AppStorage: reading/writing this
-			     app's own settings only. -->
+			<!-- @AppStorage + the app's own UserDefaults stores (known groups,
+			     onboarding flag, cached push token, nudge timestamps): reading
+			     and writing this app's own settings only. -->
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>

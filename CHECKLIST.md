@@ -29,13 +29,19 @@
 
 ### Ship-blocking — App Store submission track
 
-- [ ] **Deploy the worker.** `~5k tokens` (CLI, once `wrangler login` is
-      done)
-      1. Owner: confirm `wrangler login` is authenticated on this
-         machine (`wrangler whoami`).
-      2. CLI: run `make worker-deploy`.
-      3. CLI: hit the deployed URL's `/api/groups/:groupId` on a scratch
-         group to confirm it's live.
+- [x] **Deploy the worker.** Done 2026-09-08. `wrangler whoami` confirmed
+      an OAuth token for `id0399@gmail.com` (account
+      `a4c993ce08b752dc5e16eac386ae954e`) with `workers (write)` scope, so
+      CLI ran `make worker-deploy` — uploaded `clantab` (version
+      `0c392b79-c507-42a0-b6ce-01f158e20ebf`) to
+      `https://clantab.nakka-labs.workers.dev` with all bindings intact
+      (GROUP_DO / USER_DO / REPORTS_DO, JOIN_CODES KV, RESOLVE_RATE_LIMITER,
+      APPLE/GOOGLE_AUDIENCE vars; production secrets untouched — this was a
+      redeploy over the 2026-09-04 initial cutover). Verified live, not just
+      exit 0: CLI created a scratch group over HTTPS
+      (`POST /api/groups`), then `GET /api/groups/:groupId?token=…` returned
+      `200` with the real state body, the tokenless call `403 FORBIDDEN`,
+      and an unknown id `404 GROUP_NOT_FOUND`.
 - [ ] **Enable real push delivery.** `~5k tokens` (CLI) + `Owner` portal
       work
       1. Owner: enable the Push Notifications capability on the App ID
@@ -79,26 +85,45 @@
       CLI budget
       1. Owner: log into App Store Connect, set the public support
          contact to `indra@nakka.dev`.
-- [ ] **Rewrite privacy policy + App Privacy answers.** `~25k tokens`
-      (CLI) + `Owner` approval
-      1. CLI: rewrite `docs/privacy-policy.md` for mandatory Apple+Google
-         login and UGC moderation.
-      2. CLI: update the App Privacy answers doc to match.
-      3. Owner: approve both.
-- [ ] **Rewrite App Store review notes.** `~15k tokens` (CLI) + `Owner`
-      approval
-      1. CLI: rewrite `docs/appstore/metadata.md`'s reviewer walkthrough
-         for the mandatory-login flow.
-      2. Owner: approve.
+- [x] **Rewrite privacy policy + App Privacy answers.** Done 2026-09-08,
+      owner-approved. `docs/privacy-policy.md` rewritten end to end for
+      mandatory Apple/Google sign-in: what each provider returns (Apple —
+      no name/email requested; Google — token carries an email that the
+      backend never reads, stores, or logs, only the opaque `sub`), what
+      the backend keeps per identity (opaque id, first-sign-in date, Apple
+      refresh token for revocation, a groups→member index, APNs tokens),
+      in-app account deletion, and the live report/remove UGC-moderation
+      path. `docs/appstore/metadata.md`'s "App Privacy" questionnaire table
+      reworked to match — added Identifiers → User ID and Identifiers →
+      Device ID (both linked · not tracking · App Functionality), documented
+      the Google-email "not collected" call with its fallback answer — and
+      `App/ClanTab/PrivacyInfo.xcprivacy` synced to the same
+      (`NSPrivacyCollectedDataTypeUserID` + `…DeviceID` added, stale "no
+      accounts" comment replaced).
+- [x] **Rewrite App Store review notes.** Done 2026-09-08, owner-approved.
+      `docs/appstore/metadata.md`'s review-notes block rewritten for the
+      mandatory-login flow — Sign in with Apple covers the reviewer path
+      (their own Apple ID, no demo account, a fresh account reaches 100% of
+      the app), a sign-in-first TO TEST walkthrough, and explicit
+      Guideline 1.2 (report/remove) and 5.1.1(v) (Delete Account) sections.
+      Same pass also fixed the file's stale pre-login marketing copy:
+      subtitle ("Split expenses, settle up fast"), the description's
+      sign-in section, the promo text, and a reasoned re-confirmation that
+      4+ still holds given the UGC is confined to private invite-only
+      groups with report+remove moderation.
 - [ ] **Decide the monetization stance.** `Owner` — no CLI budget
       1. Owner: pick free / freemium / one-time (cost model already done,
          ~$5-55/mo across 100-1M users).
-- [ ] **Add the `CLOUDFLARE_API_TOKEN` GitHub secret.** `~5k tokens`
-      (CLI) + `Owner` token
-      1. Owner: generate the Cloudflare API token with Workers-deploy
-         scope.
-      2. CLI: `gh secret set CLOUDFLARE_API_TOKEN` (owner pastes the
-         value when prompted).
+- [x] **Add the `CLOUDFLARE_API_TOKEN` GitHub secret.** Done 2026-09-08.
+      Owner generated a Cloudflare API token ("Edit Cloudflare Workers"
+      template, scoped to the one account
+      `a4c993ce08b752dc5e16eac386ae954e`) and handed it over; CLI set it via
+      `gh secret set CLOUDFLARE_API_TOKEN` on `nakka-labs/clantab-ios`.
+      Verified the token authenticates (`wrangler whoami` → the right
+      account, single-account so CI needs no `CLOUDFLARE_ACCOUNT_ID`) and
+      that `wrangler deploy --dry-run` bundles cleanly with it. The
+      `worker-deploy.yml` workflow (tag `v*` / manual dispatch) can now
+      deploy.
 - [ ] **TestFlight on-device end-to-end pass.** `~10k tokens` (CLI build
       help) + `Owner` device time
       1. CLI: run the archive/export build steps, hand owner the
