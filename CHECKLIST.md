@@ -540,6 +540,21 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       apps (date+amount+payer+description, allowing for each app's own
       rounding) and a check against the group's existing ledger before
       posting.
+- [ ] **Balance bubble/circle-pack view.** `~30k tokens` (CLI) — Settle
+      Up's group-home screen (not in the original competitive scan) shows
+      each member as a circle sized by |balance|, one big "should pay"
+      bubble front-and-center, everyone-settled members shrunk to a dot.
+      Cheap: no charting library needed, `Canvas` + a simple circle-pack
+      layout (biggest circle centered, rest placed around it by a
+      spiral/grid heuristic — exact packing isn't the point, it reads fine
+      approximate) — same pattern this app already uses for the Insights
+      donut (`SwiftUI Charts` is for axis-based charts; this one is custom
+      either way, in SettleUp's own implementation and here). Reuses the
+      existing per-member `GroupColor` for fill. Good candidate for a
+      second Group Home page (rotates alongside the existing balance hero
+      per the screenshot pattern) rather than a replacement — it reads
+      well for "who owes the most" at a glance but is worse than the list
+      for "how much do I owe whom," which is what settle-up actually needs.
 - [ ] **Itemized expense entry, manual.** `~130k tokens` (CLI)
       1. Add an `items: [LineItem]` shape (name, price, assignees) to
          the expense model, worker + `ClanTabKit`.
