@@ -30,7 +30,14 @@ struct BalanceHeroView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .padding(.vertical, 28)
+        .padding(.horizontal, 20)
+        // A raised card, not flat on the canvas — the one clear focal point
+        // on Group Home (`CHECKLIST.md` "Shadow/elevation on hero card").
+        .background(Surface.raised, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 14, y: 5)
+        .padding(.horizontal)
+        .padding(.top, 4)
         .accessibilityElement(children: .combine)
     }
 

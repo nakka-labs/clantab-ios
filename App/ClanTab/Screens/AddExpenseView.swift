@@ -207,6 +207,7 @@ struct AddExpenseView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(!canSubmit || isSubmitting)
+                .primaryButtonShadow(active: canSubmit && !isSubmitting)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             }

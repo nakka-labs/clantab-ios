@@ -243,8 +243,13 @@ one-off/casual, large-friend-group):
       `secondary.opacity(…)` guesses. Greys are plain today — the
       `DESIGN_BIBLE.md` §2 hue tint is the next item, and lands in this one
       file. app 88 · kit 177.
-- [ ] **Shadow/elevation on hero card + buttons.** `~10k tokens` (CLI)
-      1. Add a subtle shadow to `BalanceHeroView` and primary buttons.
+- [x] **Shadow/elevation on hero card + buttons.** Done 2026-09-08.
+      `BalanceHeroView` is a raised `Surface.raised` card with a soft
+      neutral shadow — it's now the clear focal point on Group Home rather
+      than floating text. `primaryButtonShadow()` (a small accent-tinted
+      lift, `active:` gates it off for a disabled button) on the three
+      prominent CTAs: Create a Group, Add Expense submit, onboarding
+      Continue/Get Started. Verified light + dark. app 88.
 - [ ] **Per-group accent color, extended past the badge.** `~30k tokens`
       (CLI, after Group visual identity above)
       1. Apply a group's own hue to that group's entire Group Home

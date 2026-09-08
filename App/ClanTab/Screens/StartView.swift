@@ -67,6 +67,7 @@ struct StartView: View {
                         Text("Create a Group").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
+                    .primaryButtonShadow()
                     Button(action: onJoinWithCode) {
                         Text("Join with a Code").frame(maxWidth: .infinity)
                     }

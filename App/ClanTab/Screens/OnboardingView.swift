@@ -71,6 +71,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .primaryButtonShadow()
             }
             .padding()
         }
