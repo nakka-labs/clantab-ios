@@ -30,9 +30,9 @@ struct RecurringRemindersView: View {
         Form {
             if templates.isEmpty {
                 ContentUnavailableView(
-                    "No Recurring Reminders",
+                    "Nothing on Repeat Yet",
                     systemImage: "repeat",
-                    description: Text("Get a reminder to log rent, groceries, or anything else that comes up on a schedule.")
+                    description: Text("Set one up for rent, the wifi bill, or anything that comes around like clockwork — ClanTab nudges you, you add the expense.")
                 )
             } else {
                 Section {

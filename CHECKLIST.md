@@ -272,9 +272,18 @@ one-off/casual, large-friend-group):
       isolates (others dim to 0.3) and the centre annotation swaps from
       "Total" to that member's name + spend. Verified light + dark in the
       Simulator. kit 179 · app 88.
-- [ ] **Empty-state micro-copy pass.** `~12k tokens` (CLI)
+- [x] **Empty-state micro-copy pass.** `~12k tokens` (CLI)
       1. Rewrite each `ContentUnavailableView` string with more
          personality, keeping them accurate to the actual empty state.
+      Done 2026-09-08: rewrote all seven empty/zero states — Group Home
+      activity ("No Expenses Yet" → "Add the first one and ClanTab keeps
+      a running tally of who owes whom"), the filtered-feed no-match,
+      Insights ("Nothing to Chart Yet"), Recurring Reminders ("Nothing
+      on Repeat Yet"), Recently Deleted ("Nothing in the Bin"), Settle
+      Across Groups ("All Square"), and the CSV import intro. Warmer and
+      more specific, still literally true to each state. Verified the
+      Group Home and All-Square states light + dark in the Simulator.
+      kit 179 · app 88.
 - [ ] **Spring/matched-geometry transition.** `~30k tokens` (CLI)
       1. Add a `matchedGeometryEffect` from a group card into Group Home,
          replacing the flat push.

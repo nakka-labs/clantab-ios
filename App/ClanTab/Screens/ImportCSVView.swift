@@ -66,7 +66,7 @@ struct ImportCSVView: View {
         ContentUnavailableView {
             Label("Import from CSV", systemImage: "square.and.arrow.down")
         } description: {
-            Text("Bring in expense history from a ClanTab export or a Splitwise export.")
+            Text("Moving over from Splitwise, or restoring a ClanTab export? Bring the whole expense history with you.")
         } actions: {
             Button("Choose a File…") { isPickingFile = true }
                 .buttonStyle(.borderedProminent)

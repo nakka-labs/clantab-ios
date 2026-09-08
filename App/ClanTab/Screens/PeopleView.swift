@@ -20,9 +20,9 @@ struct PeopleView: View {
             if let people {
                 if people.isEmpty {
                     ContentUnavailableView(
-                        "Nothing to settle",
+                        "All Square",
                         systemImage: "checkmark.circle",
-                        description: Text("You have no open balances with anyone across your groups.")
+                        description: Text("Nobody owes you and you owe nobody — across every group you're in.")
                     )
                 } else {
                     ForEach(people) { person in

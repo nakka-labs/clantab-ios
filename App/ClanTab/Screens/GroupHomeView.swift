@@ -185,12 +185,12 @@ struct GroupHomeView: View {
                         // (`FEATURE_BACKLOG.md` "Empty-state consistency") —
                         // this is the first thing a brand-new group shows.
                         ContentUnavailableView(
-                            filter.isActive ? "No Matches" : "No Expenses Yet",
+                            filter.isActive ? "Nothing Matches" : "No Expenses Yet",
                             systemImage: filter.isActive ? "line.3.horizontal.decrease.circle" : "tray",
                             description: Text(
                                 filter.isActive
-                                    ? "Try a different search or clear your filters."
-                                    : "Add an expense to start splitting costs with the group."
+                                    ? "No expense here fits that search. Try different words, or clear the filters."
+                                    : "Add the first one and ClanTab keeps a running tally of who owes whom."
                             )
                         )
                     } else {

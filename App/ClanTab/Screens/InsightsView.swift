@@ -34,9 +34,9 @@ struct InsightsView: View {
         Group {
             if expenses.isEmpty {
                 ContentUnavailableView(
-                    "No spending yet",
+                    "Nothing to Chart Yet",
                     systemImage: "chart.bar",
-                    description: Text("Add an expense to see where the money goes.")
+                    description: Text("Once the group logs a few expenses, this is where the totals, trends, and who-paid-what breakdowns show up.")
                 )
             } else {
                 List {

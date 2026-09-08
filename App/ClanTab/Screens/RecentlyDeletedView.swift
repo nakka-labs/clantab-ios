@@ -25,9 +25,9 @@ struct RecentlyDeletedView: View {
             if let items {
                 if items.isEmpty {
                     ContentUnavailableView(
-                        "Nothing Deleted",
+                        "Nothing in the Bin",
                         systemImage: "trash",
-                        description: Text("Deleted expenses and settlements show up here, and can be restored any time.")
+                        description: Text("Delete an expense or settlement and it waits here — you can put it back any time.")
                     )
                 } else {
                     Section {
