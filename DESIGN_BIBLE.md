@@ -205,6 +205,15 @@ moment-class, not a bespoke sound per app — same instinct as the color
 formula: one system, applied consistently, rather than four separate
 creative decisions.
 
+ClanTab's own instance: `settled.caf` — a short rising perfect fifth
+(C6→G6) on a gentle exponential decay, peak ~0.32 so it sits under
+speech, ~0.35s of audible content. Synthesised by
+`docs/branding/make-confirmation-sound.py` (16-bit mono → `afconvert` to
+`.caf`). Played via `ConfirmationSound.play()` (`AudioServicesPlaySystemSound`,
+so it honours the ring/silent switch) in `SettleUpView`'s "Mark as Paid"
+handler, alongside the existing `.sensoryFeedback(.success)` haptic —
+never the add-expense confirm, only settling up.
+
 **One named spring curve for every confirm-moment transition.** A single
 response/dampingFraction pair (name it — e.g. the "`.claimSettle`
 spring") reused for every matched-geometry/spring-based transition tied

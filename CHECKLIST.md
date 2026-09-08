@@ -363,11 +363,21 @@ one-off/casual, large-friend-group):
       filtered-feed "Nothing Matches" and "All Square" keep SF Symbols
       (outcome states, not zero-state branding moments). Verified light +
       dark. kit 179 · app 88.
-- [ ] **Branded confirmation sound.** `~20k tokens` (CLI wiring) + one
+- [x] **Branded confirmation sound.** `~20k tokens` (CLI wiring) + one
       audio asset
       1. Owner/CLI: produce or source one short confirmation sound.
       2. CLI: play it alongside the existing haptic on "settled up,"
          never replacing it.
+      Done 2026-09-08. Asset: `settled.caf` (`DESIGN_BIBLE.md` §5) — a
+      short rising perfect fifth (C6→G6) on a soft exponential decay,
+      peak ~0.32, synthesised by
+      `docs/branding/make-confirmation-sound.py`. `ConfirmationSound.play()`
+      uses `AudioServicesPlaySystemSound` (honours the ring/silent
+      switch), called from `SettleUpView`'s "Mark as Paid" handler
+      alongside the existing `.sensoryFeedback(.success)` — only on
+      settling up, never add-expense. Verified in the Simulator: the
+      settlement lands and the log shows the system sound server engaged
+      at the tap. kit 179 · app 88.
 - [ ] **Tabular figures + thousands-separator style.** `~10k tokens`
       (CLI)
       1. Set the tabular/lining figure font feature on hero numerals.

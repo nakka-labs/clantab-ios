@@ -367,7 +367,12 @@ struct GroupHomeView: View {
                     client: client,
                     accessToken: viewModel.accessToken,
                     viewModel: viewModel,
-                    onSettled: { settlementMarkedTrigger += 1 },
+                    onSettled: {
+                        // The one confirm-moment that gets the branded sound
+                        // as well as the haptic (`DESIGN_BIBLE.md` §5).
+                        settlementMarkedTrigger += 1
+                        ConfirmationSound.play()
+                    },
                     onDone: { isPresentingSettleUp = false }
                 )
             }
