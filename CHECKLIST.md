@@ -391,10 +391,21 @@ one-off/casual, large-friend-group):
       `,` group / `.` decimal) regardless of device locale — a lakh
       reads "₹100,000", not "₹1,00,000"; the currency symbol stays
       locale-native. New test `testStringGroupsByThrees`. kit 180 · app 88.
-- [ ] **Tint neutral text/surface tones.** `~20k tokens` (CLI)
+- [x] **Tint neutral text/surface tones.** `~20k tokens` (CLI)
       1. Mix 10-15% of the app's hue into the grey tokens defined in
          "Tonal surface elevation" above.
       2. Spot-check contrast ratios still pass.
+      Done 2026-09-08. `Surface.swift`'s four tiers now carry a fixed
+      `chroma 0.007` at 250° instead of pure grey (`DESIGN_BIBLE.md`
+      §2) — landed at ~4% of the accent chroma, not 10-15%: at the
+      near-white light tiers a bigger tint clips one channel and reads
+      as a blue cast, not a neutral. The two brightest light tiers
+      dropped a hair off pure white (`card` 0.995→0.99, `raised`
+      1.0→0.995) so the tint registers. Contrast unchanged (lightness
+      dominates luminance): primary text ~19:1, secondary ~10:1 on
+      canvas — well past AAA. System `.secondary`/`.tertiary` text left
+      as-is (tinting it app-wide fights the system controls beside it).
+      Verified light + dark. kit 180 · app 88.
 - [ ] **Name + standardize the shared spring curve.** `~15k tokens`
       (CLI)
       1. Pick one response/dampingFraction pair, name it (e.g.

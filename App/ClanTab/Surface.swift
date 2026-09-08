@@ -13,22 +13,28 @@ import ClanTabKit
 ///             render at roughly this tier via the system grouped style)
 ///   `raised`→ a surface above a card: a selected chip, the balance hero
 ///
-/// Each tier resolves per light/dark. They're plain greys today; the
-/// `DESIGN_BIBLE.md` §2 hue tint (10–15% of the app's 250°) is a separate
-/// checklist item that adjusts the numbers here in one place.
+/// Each tier resolves per light/dark and carries a whisper of the app's hue
+/// (`DESIGN_BIBLE.md` §2 — "neutrals are tinted, never pure greyscale"): a
+/// small fixed OKLCH chroma at 250°, barely perceptible on its own but enough
+/// that the "monochrome" UI doesn't read as the default system theme. The
+/// brightest light tiers are pulled just off pure white so the tint has room
+/// to register.
 enum Surface {
     static let well = tier(light: 0.90, dark: 0.26)
     static let canvas = tier(light: 0.965, dark: 0.135)
-    static let card = tier(light: 0.995, dark: 0.190)
-    static let raised = tier(light: 1.0, dark: 0.235)
+    static let card = tier(light: 0.99, dark: 0.190)
+    static let raised = tier(light: 0.995, dark: 0.235)
 
-    /// A grey at the given OKLCH lightness per appearance (chroma 0 for now —
-    /// see the type doc). Wrapped in a dynamic `UIColor` so one `Color`
-    /// tracks the trait change.
+    /// `~4%` of the brand accent's chroma (`0.16`) — barely perceptible on
+    /// its own, felt as soon as it's missing.
+    private static let tintChroma = 0.007
+
+    /// A tinted neutral at the given OKLCH lightness per appearance, wrapped
+    /// in a dynamic `UIColor` so one `Color` tracks the trait change.
     private static func tier(light: Double, dark: Double) -> Color {
         Color(uiColor: UIColor { traits in
             let lightness = traits.userInterfaceStyle == .dark ? dark : light
-            let c = OKLCH.sRGB(hue: 250, lightness: lightness, chroma: 0)
+            let c = OKLCH.sRGB(hue: 250, lightness: lightness, chroma: tintChroma)
             return UIColor(red: c.red, green: c.green, blue: c.blue, alpha: 1)
         })
     }

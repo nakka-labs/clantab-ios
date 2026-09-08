@@ -76,10 +76,16 @@ resolved per light/dark, rather than scattered `secondary.opacity(…)`
 guesses. ClanTab's is `App/ClanTab/Surface.swift`.
 
 **Neutrals are tinted, never pure greyscale.** Body text, chrome, and
-those surface tones mix in 10-15% of the app's own hue rather than
+those surface tones mix in a little of the app's own hue rather than
 sitting at true `oklch(L% 0 0)` grey. The same trick Linear/Arc use to
 make a "monochrome" UI not read as a default system theme — barely
-perceptible on its own, felt as soon as it's missing.
+perceptible on its own, felt as soon as it's missing. ClanTab's
+`Surface.swift` tiers carry a fixed `chroma 0.007` at 250° (about 4% of
+the accent's `0.16` — the "10-15% of the hue" figure clips ugly at the
+near-white tiers, so it landed lower); the brightest light tiers are
+pulled just off pure white so the tint has room to show. System
+semantic text colours (`.secondary` etc.) are left alone — tinting
+those app-wide fights the system controls they sit beside.
 
 ## 3. App icons
 
