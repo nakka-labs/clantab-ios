@@ -140,6 +140,7 @@ struct GroupHomeView: View {
                 BalanceHeroView(
                     balances: viewModel.myBalances,
                     accent: GroupColor.color(forId: viewModel.groupId),
+                    wash: GroupColor.wash(forId: viewModel.groupId),
                     isLoading: viewModel.state == nil
                 )
             }
