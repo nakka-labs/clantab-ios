@@ -256,10 +256,14 @@ one-off/casual, large-friend-group):
       permanent `id` (shared `OKLCH` primitive, same `55%/0.16` band as the
       brand accent). Scoped to the header, not the chrome (owner call):
       the balance hero card gets a light wash + matching shadow in the
-      group's hue, and the groups list shows each group's emoji (or a dot)
-      on a circle of its colour. Two groups read clearly differently
-      (verified: a blue-violet vs a magenta group). Buttons/links stay
-      brand blue. Tests: `GroupColorTests` (2). kit 179 · app 88.
+      group's hue, and the groups list shows each group's emoji — or, with
+      no emoji, its initial in white on a solid disc of its colour, same
+      shape as a `MemberAvatar` (`GroupColor.badge(forId:)` at the `50%`
+      band for white-text contrast). Two groups read clearly differently.
+      Buttons/links stay brand blue. Tests: `GroupColorTests` (2).
+      kit 179 · app 88. (Follow-up 2026-09-08: the no-emoji badge was a
+      filled centre dot that read as a selected radio button — swapped
+      for the initial.)
 - [x] **Chart interaction + gradient fills.** `~25k tokens` (CLI)
       1. Add scrub/tooltip gestures to the existing `InsightsView`
          charts.
@@ -318,9 +322,12 @@ one-off/casual, large-friend-group):
       alongside. `Font.display(...)` (`DisplayFont.swift`) wraps
       `.custom(_:size:relativeTo:)` so it scales with Dynamic Type
       (verified at AX-XL). Applied to: the pre-sign-in welcome wordmark,
-      the balance hero numeral, the Insights "Total spent" figure, and
-      the recap card's total + "Made with ClanTab". Everything else —
-      body, chrome, screen titles, iconography — stays SF Pro.
+      the Insights "Total spent" figure, and the recap card's total +
+      "Made with ClanTab". Everything else — body, chrome, screen titles,
+      iconography — stays SF Pro. (Follow-up 2026-09-08: the Group Home
+      balance was reverted to SF Rounded — owner call, Space Grotesk's ₹
+      and geometric digits read calculator-ish at that size — plus a thin
+      space between the currency symbol and first digit, hero card only.)
       Not done: the signed-in start screen's wordmark is a system large
       *nav* title; fonting one SwiftUI large nav title needs either a
       global `UINavigationBar` appearance override (would hit every

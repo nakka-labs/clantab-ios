@@ -26,7 +26,7 @@ struct BalanceHeroView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text("₹0,000")
-                    .font(.display(size: 28, weight: .bold, relativeTo: .title))
+                    .font(heroFont)
                     .redacted(reason: .placeholder)
             } else if balances.isEmpty {
                 Text("You're all settled up")
@@ -39,7 +39,7 @@ struct BalanceHeroView: View {
                 VStack(spacing: 4) {
                     ForEach(balances, id: \.currency) { balance in
                         Text(amountLine(for: balance))
-                            .font(.display(size: 28, weight: .bold, relativeTo: .title))
+                            .font(heroFont)
                             .foregroundStyle(balance.netMinor > 0 ? .green : .red)
                             .minimumScaleFactor(0.6)
                             .lineLimit(1)
@@ -67,15 +67,37 @@ struct BalanceHeroView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// The balance is the number a person looks at most, so it stays on SF
+    /// Rounded rather than the display face (Space Grotesk's geometric digits
+    /// and cramped ₹ read a touch calculator-ish at this size — owner call);
+    /// still tabular so it doesn't jiggle as balances change.
+    private var heroFont: Font {
+        .system(size: 28, weight: .bold, design: .rounded).monospacedDigit()
+    }
+
     private func headline(for balance: Balance) -> String {
         balance.netMinor > 0 ? "You are owed" : "You owe"
     }
 
     /// For a single currency the sign is carried by the headline, so show the
-    /// bare amount; for multiple, prefix each so a mixed row still reads.
+    /// bare amount; for multiple, prefix each so a mixed row still reads. A
+    /// thin space sits between the currency symbol and the first digit — calmer
+    /// than "₹1,200" jammed together at hero size, and only here (list rows
+    /// stay tight).
     private func amountLine(for balance: Balance) -> String {
         let amount = MoneyFormat.string(minorUnits: abs(balance.netMinor), currency: balance.currency)
-        guard balances.count > 1 else { return amount }
-        return balance.netMinor > 0 ? "owed \(amount)" : "owe \(amount)"
+        let spaced = spacingCurrencySymbol(amount)
+        guard balances.count > 1 else { return spaced }
+        return balance.netMinor > 0 ? "owed \(spaced)" : "owe \(spaced)"
+    }
+
+    /// Insert a thin space (U+2009) before the first digit when it's preceded
+    /// by a currency symbol — "₹ 1,200", "$ 5". Leaves an already-spaced or
+    /// suffix-symbol format untouched.
+    private func spacingCurrencySymbol(_ s: String) -> String {
+        guard let firstDigit = s.firstIndex(where: \.isNumber), firstDigit != s.startIndex else { return s }
+        let before = s[s.index(before: firstDigit)]
+        guard !before.isWhitespace, !before.isNumber else { return s }
+        return s[..<firstDigit] + "\u{2009}" + s[firstDigit...]
     }
 }

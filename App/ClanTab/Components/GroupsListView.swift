@@ -55,21 +55,29 @@ struct GroupsListView: View {
         .padding(.horizontal, 4)
     }
 
-    /// The group's identity badge (`CHECKLIST.md` "Per-group accent color"):
-    /// its chosen emoji on a circle of its formula accent, or — with no
-    /// emoji — a plain dot of that accent.
+    /// The group's identity badge: its chosen emoji on a light circle of its
+    /// formula accent, or — with no emoji — the group's initial in white on a
+    /// solid disc of that accent (the same shape as a `MemberAvatar`).
     @ViewBuilder
     private func groupBadge(for group: KnownGroup) -> some View {
-        let accent = GroupColor.color(forId: group.groupId)
-        ZStack {
-            Circle().fill(accent.opacity(0.18))
-            if let emoji = group.emoji, !emoji.isEmpty {
-                Text(emoji).font(.body)
-            } else {
-                Circle().fill(accent).frame(width: 10, height: 10)
-            }
+        if let emoji = group.emoji, !emoji.isEmpty {
+            Text(emoji)
+                .font(.body)
+                .frame(width: 32, height: 32)
+                .background(GroupColor.color(forId: group.groupId).opacity(0.18), in: Circle())
+        } else {
+            Text(Self.initial(for: group))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(GroupColor.badge(forId: group.groupId), in: Circle())
         }
-        .frame(width: 32, height: 32)
+    }
+
+    /// One uppercased letter for the badge — the first letter of the group's
+    /// name, `"#"` when it has none yet.
+    static func initial(for group: KnownGroup) -> String {
+        group.name.first(where: \.isLetter).map { String($0).uppercased() } ?? "#"
     }
 
     /// "You owe ₹500" / "You're owed ₹200" / "Settled up" — `nil` (no line

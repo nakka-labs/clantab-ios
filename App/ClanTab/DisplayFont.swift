@@ -2,8 +2,10 @@ import SwiftUI
 
 /// The portfolio display face (`DESIGN_BIBLE.md` §1) — Space Grotesk, self-hosted
 /// (SIL OFL), the one deliberate exception to "system fonts only". Used *only*
-/// for the ClanTab wordmark and hero numerals (the balance, the Insights total,
-/// the recap card) — never body text, chrome, or iconography.
+/// for the ClanTab wordmark and hero numerals (the Insights total, the recap
+/// card) — never body text, chrome, or iconography. The Group Home balance
+/// stays on SF Rounded (owner call — Space Grotesk's ₹ and geometric digits
+/// read calculator-ish at that size); see `BalanceHeroView.heroFont`.
 ///
 /// Bundled as three static instances (`SpaceGrotesk-Medium/SemiBold/Bold`,
 /// registered in `project.yml`'s `UIAppFonts`). `relativeTo:` ties each size to

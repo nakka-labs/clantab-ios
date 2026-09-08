@@ -10,6 +10,14 @@ extension GroupColor {
         return Color(red: c.red, green: c.green, blue: c.blue)
     }
 
+    /// A slightly darker take on the group's hue (`oklch 50%`, the
+    /// `MemberColor` band) for a solid badge that carries white text — the
+    /// header-accent `color(forId:)` at `55%` is a touch light for that.
+    static func badge(forId groupId: String) -> Color {
+        let c = OKLCH.sRGB(hue: hue(forId: groupId), lightness: 0.50, chroma: chroma)
+        return Color(red: c.red, green: c.green, blue: c.blue)
+    }
+
     /// The group's hue at the two points on the sanctioned lightness scale
     /// (`DESIGN_BIBLE.md` §3's two-stop gradient — `oklch 60% → 40%`, the
     /// same stop-pair as the icon and `RecapCard.brandGradient`). Used as a

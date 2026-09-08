@@ -33,11 +33,14 @@ the 95% of the UI that's reading, not signature.
 
 One deliberate, portfolio-wide exception — the single highest-leverage
 move in this document: a **distinct display typeface**, used only for
-each app's wordmark and its hero numerals (ClanTab's balance, LoopTimer's
-countdown, Habit Tracker's streak count, PitchLab's detected pitch). Free
-and self-hosted (a Google Fonts family, not a paid license), same face
-across all four apps so it reads as one portfolio's signature rather than
-four unrelated choices. This supersedes the earlier "`ui-rounded` (SF
+each app's wordmark and its hero numerals (ClanTab's Insights total and
+recap card, LoopTimer's countdown, Habit Tracker's streak count,
+PitchLab's detected pitch). Free and self-hosted (a Google Fonts family,
+not a paid license), same face across all four apps so it reads as one
+portfolio's signature rather than four unrelated choices. (ClanTab's
+Group Home balance is the one carve-out: Space Grotesk's ₹ and geometric
+digits read a touch calculator-ish there, so it stays on SF Rounded —
+an owner call, revisit if the face changes.) This supersedes the earlier "`ui-rounded` (SF
 Rounded) for hero numerals" rule — same instinct (numbers-first apps
 deserve a felt signature), stronger execution: a genuinely distinct face
 reads as designed, where a system font at a different weight reads as a
