@@ -134,7 +134,10 @@ struct GroupHomeView: View {
 
             if viewModel.state != nil {
                 Section {
-                    BalanceHeroView(balances: viewModel.myBalances)
+                    BalanceHeroView(
+                        balances: viewModel.myBalances,
+                        accent: GroupColor.color(forId: viewModel.groupId)
+                    )
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)

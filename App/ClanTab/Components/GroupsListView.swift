@@ -21,10 +21,8 @@ struct GroupsListView: View {
                 Button {
                     onOpenGroup(group.groupId)
                 } label: {
-                    HStack {
-                        if let emoji = group.emoji, !emoji.isEmpty {
-                            Text(emoji).font(.title3)
-                        }
+                    HStack(spacing: 12) {
+                        groupBadge(for: group)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(group.name.isEmpty ? "Group" : group.name)
                                 .foregroundStyle(.primary)
@@ -55,6 +53,23 @@ struct GroupsListView: View {
             }
         }
         .padding(.horizontal, 4)
+    }
+
+    /// The group's identity badge (`CHECKLIST.md` "Per-group accent color"):
+    /// its chosen emoji on a circle of its formula accent, or — with no
+    /// emoji — a plain dot of that accent.
+    @ViewBuilder
+    private func groupBadge(for group: KnownGroup) -> some View {
+        let accent = GroupColor.color(forId: group.groupId)
+        ZStack {
+            Circle().fill(accent.opacity(0.18))
+            if let emoji = group.emoji, !emoji.isEmpty {
+                Text(emoji).font(.body)
+            } else {
+                Circle().fill(accent).frame(width: 10, height: 10)
+            }
+        }
+        .frame(width: 32, height: 32)
     }
 
     /// "You owe ₹500" / "You're owed ₹200" / "Settled up" — `nil` (no line

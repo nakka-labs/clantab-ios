@@ -7,6 +7,10 @@ import ClanTabKit
 struct BalanceHeroView: View {
     /// The current member's nonzero balances, one per currency.
     let balances: [Balance]
+    /// This group's formula accent (`CHECKLIST.md` "Per-group accent color")
+    /// — a light wash on the card + its shadow, so the focal card carries
+    /// the group's identity. `nil` falls back to a neutral card.
+    var accent: Color?
 
     var body: some View {
         VStack(spacing: 8) {
@@ -33,9 +37,16 @@ struct BalanceHeroView: View {
         .padding(.vertical, 28)
         .padding(.horizontal, 20)
         // A raised card, not flat on the canvas — the one clear focal point
-        // on Group Home (`CHECKLIST.md` "Shadow/elevation on hero card").
-        .background(Surface.raised, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 14, y: 5)
+        // on Group Home (`CHECKLIST.md` "Shadow/elevation on hero card"),
+        // washed with this group's accent (`CHECKLIST.md` "Per-group accent
+        // color") so it carries the group's identity.
+        .background {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Surface.raised)
+                .overlay((accent ?? .clear).opacity(0.09))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .shadow(color: (accent ?? .black).opacity(accent == nil ? 0.06 : 0.18), radius: 14, y: 5)
         .padding(.horizontal)
         .padding(.top, 4)
         .accessibilityElement(children: .combine)

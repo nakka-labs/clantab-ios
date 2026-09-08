@@ -250,11 +250,16 @@ one-off/casual, large-friend-group):
       lift, `active:` gates it off for a disabled button) on the three
       prominent CTAs: Create a Group, Add Expense submit, onboarding
       Continue/Get Started. Verified light + dark. app 88.
-- [ ] **Per-group accent color, extended past the badge.** `~30k tokens`
-      (CLI, after Group visual identity above)
-      1. Apply a group's own hue to that group's entire Group Home
-         screen accent, not just the badge.
-      2. Verify two different groups read visibly differently.
+- [x] **Per-group accent color.** Done 2026-09-08. Since "Group visual
+      identity" went with an emoji, added `GroupColor` to ClanTabKit —
+      `DESIGN_BIBLE.md` §2's formula with the hue hashed from the group's
+      permanent `id` (shared `OKLCH` primitive, same `55%/0.16` band as the
+      brand accent). Scoped to the header, not the chrome (owner call):
+      the balance hero card gets a light wash + matching shadow in the
+      group's hue, and the groups list shows each group's emoji (or a dot)
+      on a circle of its colour. Two groups read clearly differently
+      (verified: a blue-violet vs a magenta group). Buttons/links stay
+      brand blue. Tests: `GroupColorTests` (2). kit 179 · app 88.
 - [ ] **Chart interaction + gradient fills.** `~25k tokens` (CLI)
       1. Add scrub/tooltip gestures to the existing `InsightsView`
          charts.
