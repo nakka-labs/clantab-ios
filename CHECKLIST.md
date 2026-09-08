@@ -555,6 +555,40 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       per the screenshot pattern) rather than a replacement — it reads
       well for "who owes the most" at a glance but is worse than the list
       for "how much do I owe whom," which is what settle-up actually needs.
+- [ ] **Settle Up import.** `~15k tokens` investigation + build (CLI) —
+      researched 2026-09-08, not built (`docs/csv-import-formats.md` has
+      full sourcing). Settle Up does still have a self-serve export ("export
+      data by email in CSV format," per its own App Store/Play Store
+      listing) — unlike Tricount below, this one's alive. But it arrives by
+      email, not a downloadable sample anyone's posted publicly: checked
+      Settle Up's own site/FAQ and the one GitHub tool built around it
+      (works from a raw Firebase/SQLite dump, not the CSV feature) and found
+      no published column schema anywhere.
+      1. Get someone to trigger Settle Up's own "export data by email in
+         CSV format" on a throwaway 2-3-row group, redact names, hand over
+         the file.
+      2. Build `parseSettleUp` against that real file the same way Splid
+         got fixed, not from a guess — verify the sign/share convention,
+         decimal locale, settlement-row shape, and any per-row rounding
+         quirk (Splid's was a real 6%-of-rows bug that a guess would've
+         missed) before trusting it.
+- [ ] **Tricount import — get a sample first, likely low priority.**
+      `~10k tokens` investigation, build TBD after (CLI) — researched
+      2026-09-08 (`docs/csv-import-formats.md`). Tricount's self-serve
+      CSV/PDF export was a Premium feature that's now **deprecated**
+      (help.tricount.com/articles/tricount-faqs, checked 2026-09-08): the
+      only way to get a file today is emailing support@bunq.com and waiting
+      for them to send one. No published column schema exists — the one
+      public "Tricount exporter" tool on GitHub scrapes Tricount's API and
+      invents its own CSV shape, which is not what Tricount itself would
+      ever hand a user.
+      1. If this is still wanted, get someone to request their own export
+         via bunq support, redact it, hand it over as the real sample —
+         don't build against the unofficial scraper's invented schema.
+      2. Weigh against the rest of the backlog before spending CLI budget:
+         since there's no self-serve export anymore, this only helps people
+         who already have an old export file sitting around, not anyone
+         swapping in from Tricount going forward.
 - [ ] **Itemized expense entry, manual.** `~130k tokens` (CLI)
       1. Add an `items: [LineItem]` shape (name, price, assignees) to
          the expense model, worker + `ClanTabKit`.

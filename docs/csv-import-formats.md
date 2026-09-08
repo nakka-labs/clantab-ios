@@ -93,17 +93,60 @@ compiled and ran it unchanged — no behaviour changes were needed.)
   (`ExpenseCategory`), so the emoji just becomes part of the category name
   rather than breaking anything. Cosmetic only.
 
-## Not supported — no verified sample to build against
+## Not supported — researched 2026-09-08, no fix (see `CHECKLIST.md`)
 
-**Tricount** and **Settle Up** are both named in `CHECKLIST.md`'s
-competitive scan, but there's no confirmed real export sample for either in
-this repo, and their public documentation doesn't spell out the exact CSV
-schema. Guessing a parser for a money import without a real file to check it
-against is how the Splid bug happened in the first place — don't repeat
-that. If support is wanted: get a real exported CSV from each app first (a
-throwaway trip with 2-3 rows is enough), add it as a redacted fixture the
-same way `Future.csv` informed the Splid fix, then build the parser against
-it.
+Splitwise, Splid, Tricount, and Settle Up are the four apps this repo's own
+competitive scan treats as prominent; usage drops off sharply past them, so
+this pass didn't chase anything further down the list. Splitwise and Splid
+are covered above. For the other two, here's what's actually true right
+now, sourced — not guessed:
+
+### Tricount — self-serve export doesn't exist anymore
+Tricount's CSV/PDF export was a **Premium feature that's now deprecated**.
+Its own FAQ says the only way to get your data out today is to email
+`support@bunq.com` and wait for them to send you a file
+([help.tricount.com/articles/tricount-faqs](https://help.tricount.com/articles/tricount-faqs),
+checked 2026-09-08). No column schema is published anywhere, because there's
+no self-serve export to inspect. `marcomc/tricount-exporter` on GitHub
+exists, but it's an **unofficial** scraper of Tricount's private API — its
+own docs are explicit about that — and its column shape (`Share <name>` /
+`Local Share <name>` / `Allocation Type <name>` per member, semicolon CSV)
+is that third-party tool's invented shape, not Tricount's. Don't build a
+parser against it; it would parse a file Tricount itself never produces.
+Given there's no self-serve path anymore, a Tricount importer would only
+help people with an old export file already sitting around — see the
+checklist item for the actual prioritization call.
+
+### Settle Up — export exists and is self-serve, but the schema isn't public
+Settle Up does still ship a working export: its own App Store / Play Store
+listing advertises **"export data by email in CSV format"** (checked
+2026-09-08). Unlike Tricount, this is real and self-serve today. But it
+arrives by email rather than a file anyone's posted publicly — checked
+Settle Up's own site and FAQ, and the one GitHub tool built around Settle
+Up data (`jack-kerouac/settle-up-stats`), which works from a raw
+Firebase/SQLite dump, not this CSV feature, so it doesn't document the
+export's columns either. Net: worth pursuing (the export mechanism is
+real), just needs someone to actually trigger it and hand over a sample —
+see the checklist item.
+
+### Splitwise sign convention — re-checked, confirmed correct, not a bug
+While researching the above, a secondary source (a competing app's
+migration blog, summarized via an AI-fetched page) claimed Splitwise's
+per-person columns use `positive = you owe` — the opposite of what's
+shipped here. That would mean the already-shipped Splitwise importer has
+every payer/debtor inverted, so it got checked against a primary source
+before anything was touched: a real user-posted example row in
+[spliit-app/spliit#22](https://github.com/spliit-app/spliit/issues/22)
+confirms `positive = paid − owed` (net creditor) — matching
+`parseSplitwise` and its tests exactly. No bug, no change made. Kept here
+as a reminder that one plausible-sounding secondary source isn't enough to
+act on for a money-sign question, even when it's specifically about
+*correcting* something.
+
+Same rule as before for both Tricount and Settle Up: get a real 2-3-row
+export first, add it as a redacted fixture, build the parser against real
+data. See `CHECKLIST.md`'s Feature backlog for the actual next steps and
+effort estimates.
 
 ## Fixtures
 
