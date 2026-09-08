@@ -9,6 +9,36 @@ final class GroupsListViewTests: XCTestCase {
         KnownGroup(groupId: "g1", name: "Flatmates", lastOpenedAt: Date(), myBalances: myBalances)
     }
 
+    private func named(_ name: String) -> KnownGroup {
+        KnownGroup(groupId: "g1", name: name, lastOpenedAt: Date())
+    }
+
+    // MARK: - initial(for:)
+
+    func testInitialIsTheFirstLetterUppercased() {
+        XCTAssertEqual(GroupsListView.initial(for: named("flatmates")), "F")
+    }
+
+    func testInitialSkipsLeadingEmoji() {
+        XCTAssertEqual(GroupsListView.initial(for: named("🏝️ Bali trip")), "B")
+    }
+
+    func testInitialSkipsLeadingDigits() {
+        XCTAssertEqual(GroupsListView.initial(for: named("42 nomads")), "N")
+    }
+
+    func testInitialFallsBackToHashForEmojiOnlyName() {
+        XCTAssertEqual(GroupsListView.initial(for: named("🎉🎊")), "#")
+    }
+
+    func testInitialFallsBackToHashForSymbolOnlyName() {
+        XCTAssertEqual(GroupsListView.initial(for: named("!!!")), "#")
+    }
+
+    func testInitialFallsBackToHashForEmptyName() {
+        XCTAssertEqual(GroupsListView.initial(for: named("")), "#")
+    }
+
     func testNilUntilFetched() {
         XCTAssertNil(GroupsListView.balanceLine(for: group(myBalances: nil)))
     }

@@ -6,15 +6,21 @@ extension GroupColor {
     /// ClanTabKit's pure `GroupColor.rgb(forId:)`, same split as
     /// `MemberColor.color(for:)`.
     static func color(forId groupId: String) -> Color {
-        let c = rgb(forId: groupId)
-        return Color(red: c.red, green: c.green, blue: c.blue)
+        swatch(forId: groupId, lightness: lightness)
     }
 
     /// A slightly darker take on the group's hue (`oklch 50%`, the
     /// `MemberColor` band) for a solid badge that carries white text — the
     /// header-accent `color(forId:)` at `55%` is a touch light for that.
     static func badge(forId groupId: String) -> Color {
-        let c = OKLCH.sRGB(hue: hue(forId: groupId), lightness: 0.50, chroma: chroma)
+        swatch(forId: groupId, lightness: 0.50)
+    }
+
+    /// The group's hue converted to a SwiftUI `Color` at a given point on the
+    /// OKLCH lightness scale — `color(forId:)` and `badge(forId:)` differ only
+    /// in that constant, so the `OKLCH.sRGB` call lives here once.
+    private static func swatch(forId groupId: String, lightness: Double) -> Color {
+        let c = OKLCH.sRGB(hue: hue(forId: groupId), lightness: lightness, chroma: chroma)
         return Color(red: c.red, green: c.green, blue: c.blue)
     }
 

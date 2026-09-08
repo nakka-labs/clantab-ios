@@ -86,15 +86,16 @@ struct BalanceHeroView: View {
     /// stay tight).
     private func amountLine(for balance: Balance) -> String {
         let amount = MoneyFormat.string(minorUnits: abs(balance.netMinor), currency: balance.currency)
-        let spaced = spacingCurrencySymbol(amount)
+        let spaced = Self.spacingCurrencySymbol(amount)
         guard balances.count > 1 else { return spaced }
         return balance.netMinor > 0 ? "owed \(spaced)" : "owe \(spaced)"
     }
 
     /// Insert a thin space (U+2009) before the first digit when it's preceded
     /// by a currency symbol — "₹ 1,200", "$ 5". Leaves an already-spaced or
-    /// suffix-symbol format untouched.
-    private func spacingCurrencySymbol(_ s: String) -> String {
+    /// suffix-symbol format untouched. Internal + `static` so `BalanceHeroViewTests`
+    /// can exercise the string manipulation directly.
+    static func spacingCurrencySymbol(_ s: String) -> String {
         guard let firstDigit = s.firstIndex(where: \.isNumber), firstDigit != s.startIndex else { return s }
         let before = s[s.index(before: firstDigit)]
         guard !before.isWhitespace, !before.isNumber else { return s }

@@ -429,6 +429,36 @@ one-off/casual, large-friend-group):
       settle-up animation, the deferred open-a-group hero) adopt
       `.claimSettle`. kit 180 · app 88.
 
+- [x] **Close test gaps from the confirm-moment polish batch.** Done
+      2026-09-08. Added six `GroupsListViewTests` cases for
+      `GroupsListView.initial(for:)` — first letter uppercased, leading
+      emoji skipped, leading digits skipped, and emoji-only / symbol-only /
+      empty names all falling back to `"#"`. `BalanceHeroView`'s
+      `spacingCurrencySymbol` went from `private func` to an internal
+      `static func` (behaviour unchanged; call site now `Self.`-qualified),
+      covered by a new `BalanceHeroViewTests` — a prefix-symbol currency
+      (`"₹1,200"` → thin space inserted, incl. a leading-minus amount), a
+      suffix-symbol format (no-op), and an already-spaced input (no-op).
+      kit 180 · app 97.
+- [x] **De-duplicate GroupColor's hue math.** Done 2026-09-08. Both
+      `color(forId:)` and `badge(forId:)` in `GroupColor+Color.swift` now
+      call one `private static func swatch(forId:lightness:)` that holds
+      the single `OKLCH.sRGB(hue:lightness:chroma:)` call; the two entry
+      points just pass their lightness constant (`GroupColor.lightness` /
+      `0.50`). `color(forId:)` no longer round-trips through the kit's
+      `rgb(forId:)`, but the maths is identical, so output is unchanged and
+      `GroupColorTests` (kit) passes untouched. kit 180 · app 97.
+- [x] **Verify `settled.caf` is actually bundled.** Done 2026-09-08. Ran
+      `cd App && xcodegen generate` and inspected the generated
+      `ClanTab.xcodeproj/project.pbxproj`: `settled.caf` has a
+      `PBXFileReference` and a `PBXBuildFile`, and `settled.caf in
+      Resources` is listed in the ClanTab target's `PBXResourcesBuildPhase`
+      (Copy Bundle Resources) alongside the Space Grotesk fonts. So the
+      folder-source auto-detection on `sources: - path: ClanTab` already
+      picks it up — **no explicit `resources:` entry was needed**, and
+      `project.yml` is unchanged. (Owner still to confirm the chime is
+      audible on a device/Simulator with the ringer on.) kit 180 · app 97.
+
 ### Feature backlog — absorbed from the competitive scan
 
 Splitwise/Tricount/Settle Up/Splid, primary sources only:
