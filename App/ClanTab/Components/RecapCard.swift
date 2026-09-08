@@ -30,7 +30,7 @@ struct RecapCard: View {
             bodyCard
             Spacer(minLength: 24)
             Text("Made with ClanTab")
-                .font(.system(size: 26, weight: .semibold, design: .rounded))
+                .font(.display(size: 26, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.6))
         }
         .padding(72)
@@ -126,7 +126,7 @@ struct RecapCard: View {
                 .font(.system(size: 28, weight: .semibold, design: .rounded))
                 .foregroundStyle(.black.opacity(0.5))
             Text(MoneyFormat.string(minorUnits: total, currency: currency))
-                .font(.system(size: 76, weight: .bold, design: .rounded))
+                .font(.display(size: 76, weight: .bold))
                 .monospacedDigit()
                 .foregroundStyle(.black.opacity(0.9))
                 .minimumScaleFactor(0.5)

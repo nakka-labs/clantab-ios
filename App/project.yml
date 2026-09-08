@@ -86,6 +86,14 @@ targets:
         # `settings.base` below — never a frozen literal in the generated plist.
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # The portfolio display face (`DESIGN_BIBLE.md` §1) — Space Grotesk,
+        # self-hosted (SIL OFL), used only for the wordmark + hero numerals
+        # via `Font.display(...)`. Static instances sliced from the Google
+        # Fonts variable font; `Resources/Fonts/OFL.txt` ships alongside.
+        UIAppFonts:
+          - SpaceGrotesk-Medium.ttf
+          - SpaceGrotesk-SemiBold.ttf
+          - SpaceGrotesk-Bold.ttf
         # Branded launch screen: the white "=" mark centred on the brand blue
         # (same asset colour as the app icon). Minimal, no text — HIG-compliant,
         # not a splash ad. `LaunchLogo` / `AccentColor` are in Assets.xcassets.

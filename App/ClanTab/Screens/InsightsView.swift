@@ -52,7 +52,7 @@ struct InsightsView: View {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Total spent").font(.subheadline).foregroundStyle(.secondary)
-                            Text(money(total)).font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                            Text(money(total)).font(.display(size: 34, weight: .semibold, relativeTo: .largeTitle))
                         }
                     }
 

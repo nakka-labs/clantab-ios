@@ -23,7 +23,7 @@ struct BalanceHeroView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text("₹0,000")
-                    .font(.system(.title, design: .rounded).weight(.bold))
+                    .font(.display(size: 28, weight: .bold, relativeTo: .title))
                     .redacted(reason: .placeholder)
             } else if balances.isEmpty {
                 Text("You're all settled up")
@@ -36,7 +36,7 @@ struct BalanceHeroView: View {
                 VStack(spacing: 4) {
                     ForEach(balances, id: \.currency) { balance in
                         Text(amountLine(for: balance))
-                            .font(.system(.title, design: .rounded).weight(.bold))
+                            .font(.display(size: 28, weight: .bold, relativeTo: .title))
                             .foregroundStyle(balance.netMinor > 0 ? .green : .red)
                             .minimumScaleFactor(0.6)
                             .lineLimit(1)

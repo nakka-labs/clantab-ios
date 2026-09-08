@@ -304,12 +304,29 @@ one-off/casual, large-friend-group):
       changes. Still open: a real hero morph, once the transition
       substrate is sorted (revisit with "Name + standardize the shared
       spring curve"). kit 179 · app 88.
-- [ ] **Display typeface for wordmarks/hero numerals.** `~35k tokens`
+- [x] **Display typeface for wordmarks/hero numerals.** `~35k tokens`
       (CLI) + one design decision
       1. Owner/CLI: pick a free Google Fonts family for the display face.
       2. CLI: bundle it, apply it to the ClanTab wordmark + hero numerals
          only.
       3. CLI: verify Dynamic Type still scales it correctly.
+      Done 2026-09-08. Face: **Space Grotesk** (owner pick — geometric
+      grotesque, strong large-size numerals with tabular figures, SIL
+      OFL). Bundled as three static instances (Medium/SemiBold/Bold)
+      sliced from the Google Fonts variable font into
+      `App/ClanTab/Resources/Fonts/` + `UIAppFonts`; `OFL.txt` ships
+      alongside. `Font.display(...)` (`DisplayFont.swift`) wraps
+      `.custom(_:size:relativeTo:)` so it scales with Dynamic Type
+      (verified at AX-XL). Applied to: the pre-sign-in welcome wordmark,
+      the balance hero numeral, the Insights "Total spent" figure, and
+      the recap card's total + "Made with ClanTab". Everything else —
+      body, chrome, screen titles, iconography — stays SF Pro.
+      Not done: the signed-in start screen's wordmark is a system large
+      *nav* title; fonting one SwiftUI large nav title needs either a
+      global `UINavigationBar` appearance override (would hit every
+      screen's title — violates "not chrome") or a scoped
+      `UIViewControllerRepresentable` hack that didn't restore cleanly
+      across the route-swap stack. Left as SF Pro. kit 179 · app 88.
 - [ ] **Gradient app icon / hero-moment treatment.** `~35k tokens` (CLI)
       + a new icon asset
       1. Owner/CLI: generate the two-stop-gradient icon variant per

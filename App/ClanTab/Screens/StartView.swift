@@ -103,7 +103,7 @@ struct StartView: View {
                 .frame(width: 52, height: 52)
                 .foregroundStyle(.tint)
             Text("ClanTab")
-                .font(.largeTitle.bold())
+                .font(.display(weight: .bold))
             Text("Split expenses with friends. No ads.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
