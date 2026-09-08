@@ -22,9 +22,12 @@ enum DisplayWeight {
 
 extension Font {
     /// Display face at a fixed point size that still scales with Dynamic Type,
-    /// anchored to `textStyle` for the scaling curve.
+    /// anchored to `textStyle` for the scaling curve. Tabular figures
+    /// (`DESIGN_BIBLE.md` §1) — a value that updates in place doesn't jiggle
+    /// the layout around it, and the display face is only ever a hero numeral
+    /// or the (digit-free) wordmark, so this is always the figure style we want.
     static func display(size: CGFloat, weight: DisplayWeight = .semibold, relativeTo textStyle: Font.TextStyle = .largeTitle) -> Font {
-        .custom(weight.faceName, size: size, relativeTo: textStyle)
+        .custom(weight.faceName, size: size, relativeTo: textStyle).monospacedDigit()
     }
 
     /// Display face sized like the system large title (34pt), for the wordmark.

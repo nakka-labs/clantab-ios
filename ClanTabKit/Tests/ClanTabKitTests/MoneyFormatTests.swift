@@ -47,6 +47,17 @@ struct MoneyFormatTests {
         #expect(digits(MoneyFormat.string(minorUnits: 5, currency: "USD")) == 3)
     }
 
+    /// Grouping is always by threes (`DESIGN_BIBLE.md` §1), never the lakh
+    /// grouping an `en_IN` device would otherwise apply. Digit count alone
+    /// can't catch that, so check the separators directly — locale-independent.
+    @Test("string() groups by threes regardless of device locale")
+    func testStringGroupsByThrees() {
+        // ₹10,00,000.00 under lakh grouping; ₹1,000,000 grouped by threes.
+        let lakh = MoneyFormat.string(minorUnits: 100_000_000, currency: "INR")
+        #expect(lakh.contains("1,000,000"))
+        #expect(!lakh.contains("10,00,000"))
+    }
+
     #if canImport(Darwin)
     /// The exact user-visible strings on Apple platforms (where the pre-push
     /// hook runs); `NumberFormatter`'s currency output is less predictable on
@@ -58,6 +69,7 @@ struct MoneyFormatTests {
         #expect(MoneyFormat.string(minorUnits: 500, currency: "USD") == "$5")
         #expect(MoneyFormat.string(minorUnits: 5, currency: "USD") == "$0.05")
         #expect(MoneyFormat.string(minorUnits: -50000, currency: "INR") == "-₹500")
+        #expect(MoneyFormat.string(minorUnits: 10_000_000, currency: "INR") == "₹100,000")
     }
     #endif
 }

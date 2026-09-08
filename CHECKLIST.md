@@ -378,10 +378,19 @@ one-off/casual, large-friend-group):
       settling up, never add-expense. Verified in the Simulator: the
       settlement lands and the log shows the system sound server engaged
       at the tap. kit 179 · app 88.
-- [ ] **Tabular figures + thousands-separator style.** `~10k tokens`
+- [x] **Tabular figures + thousands-separator style.** `~10k tokens`
       (CLI)
       1. Set the tabular/lining figure font feature on hero numerals.
       2. Confirm one consistent separator style in `MoneyFormat`.
+      Done 2026-09-08. (1) `.monospacedDigit()` is baked into
+      `Font.display(size:…)`, so every hero numeral (balance, Insights
+      total, recap card) gets Space Grotesk's `tnum` — a value that
+      updates in place no longer nudges its neighbours. The face's
+      figures are already lining. (2) `MoneyFormat.string` now pins
+      grouping to threes (`groupingSize`/`secondaryGroupingSize` = 3,
+      `,` group / `.` decimal) regardless of device locale — a lakh
+      reads "₹100,000", not "₹1,00,000"; the currency symbol stays
+      locale-native. New test `testStringGroupsByThrees`. kit 180 · app 88.
 - [ ] **Tint neutral text/surface tones.** `~20k tokens` (CLI)
       1. Mix 10-15% of the app's hue into the grey tokens defined in
          "Tonal surface elevation" above.

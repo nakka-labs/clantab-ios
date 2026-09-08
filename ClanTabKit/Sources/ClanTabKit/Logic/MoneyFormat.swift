@@ -15,6 +15,16 @@ public enum MoneyFormat {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currency
+        // One consistent figure style across the portfolio (`DESIGN_BIBLE.md`
+        // §1), independent of the device locale: comma every three digits,
+        // period before the fraction — so a lakh reads "₹100,000", not the
+        // "₹1,00,000" an Indian device would otherwise produce. The currency
+        // *symbol* and its placement stay locale-native.
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSize = 3
+        formatter.secondaryGroupingSize = 3
+        formatter.currencyGroupingSeparator = ","
+        formatter.currencyDecimalSeparator = "."
         // A round amount drops the pointless ".00" — "₹1,200", not
         // "₹1,200.00" (`CHECKLIST.md` "Currency display"). A non-round amount
         // still shows both places ("₹1,200.50", never "₹1,200.5"), which is
