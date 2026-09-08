@@ -77,10 +77,12 @@
       3. Owner: add the Associated Domains entitlement value in Xcode.
       4. CLI + Owner: install a TestFlight build and confirm a shared
          link opens the app, not Safari.
-- [ ] **Trademark + reverse-image checks.** `Owner` — no CLI budget
-      1. Owner: run "ClanTab" through USPTO TESS (classes 9, 36, 42).
-      2. Owner: reverse-image-search the icon (Google Lens or TinEye).
-      3. Owner: note the result in this file's Done section either way.
+- [x] **Trademark + reverse-image checks.** Done 2026-09-08, owner-run.
+      Wordmark: "ClanTab" through USPTO's trademark search
+      (`tmsearch.uspto.gov` — TESS was retired), Basic Search plus an
+      Advanced/Expert-mode pass scoped to classes 9/36/42 — no close
+      matches, live or dead. Icon: `icon-1024.png` through both Google
+      Lens and TinEye — no close matches either. Clear on both fronts.
 - [ ] **Update App Store Connect support-contact field.** `Owner` — no
       CLI budget
       1. Owner: log into App Store Connect, set the public support
