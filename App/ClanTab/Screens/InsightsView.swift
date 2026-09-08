@@ -85,8 +85,10 @@ struct InsightsView: View {
                         }
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
         }
+        .background(Surface.canvas)
         .navigationTitle("Insights")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -214,7 +216,7 @@ struct InsightsView: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(Surface.well)
                     Capsule().fill(tint)
                         .frame(width: max(0, geo.size.width * fraction))
                 }

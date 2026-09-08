@@ -232,10 +232,17 @@ one-off/casual, large-friend-group):
       duplicate expense, Import CSV, Recently Deleted, Recurring Reminders.
       Verified light + dark — contrast holds. app 88. (The one nested sheet,
       New Recurring Reminder, isn't converted — a follow-up.)
-- [ ] **Tonal surface elevation.** `~30k tokens` (CLI)
-      1. Define 3-4 grey tiers (canvas → card → nested card → modal) as
-         named constants.
-      2. Apply them consistently across the existing screens.
+- [x] **Tonal surface elevation.** Done 2026-09-08. `App/ClanTab/Surface.swift`
+      — a 4-tier scale (`well` → `canvas` → `card` → `raised`), each
+      resolved per light/dark via a dynamic `UIColor`. The app's `List`
+      screens now sit on an explicit `Surface.canvas`
+      (`.scrollContentBackground(.hidden)` + `.background`) rather than the
+      raw system tone, so canvas→card elevation is deliberate (clearest in
+      dark mode: near-black canvas, lifted cards); the Insights bar tracks
+      and the emoji-picker chips use `Surface.well` instead of
+      `secondary.opacity(…)` guesses. Greys are plain today — the
+      `DESIGN_BIBLE.md` §2 hue tint is the next item, and lands in this one
+      file. app 88 · kit 177.
 - [ ] **Shadow/elevation on hero card + buttons.** `~10k tokens` (CLI)
       1. Add a subtle shadow to `BalanceHeroView` and primary buttons.
 - [ ] **Per-group accent color, extended past the badge.** `~30k tokens`

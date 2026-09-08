@@ -70,11 +70,16 @@ same formula at two bands, not two separate systems — treat any future
 "N things need distinct colors" problem in any app the same way before
 reaching for anything hand-picked.
 
+**Surfaces sit on a short elevation scale, not two flat tones.** One
+named set of greys — recessed *well* → *canvas* → *card* → *raised* —
+resolved per light/dark, rather than scattered `secondary.opacity(…)`
+guesses. ClanTab's is `App/ClanTab/Surface.swift`.
+
 **Neutrals are tinted, never pure greyscale.** Body text, chrome, and
-surface tones (§3's elevation tiers included) mix in 10-15% of the app's
-own hue rather than sitting at true `oklch(L% 0 0)` grey. The same trick
-Linear/Arc use to make a "monochrome" UI not read as a default system
-theme — barely perceptible on its own, felt as soon as it's missing.
+those surface tones mix in 10-15% of the app's own hue rather than
+sitting at true `oklch(L% 0 0)` grey. The same trick Linear/Arc use to
+make a "monochrome" UI not read as a default system theme — barely
+perceptible on its own, felt as soon as it's missing.
 
 ## 3. App icons
 

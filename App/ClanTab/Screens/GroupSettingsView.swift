@@ -277,7 +277,7 @@ struct GroupSettingsView: View {
         } label: {
             label()
                 .frame(width: 40, height: 40)
-                .background(isSelected ? Color.accentColor.opacity(0.22) : Color.secondary.opacity(0.12), in: Circle())
+                .background(isSelected ? Color.accentColor.opacity(0.22) : Surface.well, in: Circle())
                 .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: isSelected ? 2 : 0))
         }
         .buttonStyle(.plain)

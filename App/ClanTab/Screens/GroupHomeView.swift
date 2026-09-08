@@ -232,6 +232,8 @@ struct GroupHomeView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Surface.canvas)
         .navigationTitle(headerTitle)
         .searchable(text: $filter.searchText, prompt: "Search activity")
         .refreshable { await viewModel.refetch() }

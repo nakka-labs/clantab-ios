@@ -76,7 +76,7 @@ struct OnboardingView: View {
         }
         .background {
             Rectangle()
-                .fill(.background)
+                .fill(Surface.canvas)
                 .overlay(Color.accentColor.opacity(0.04))
                 .ignoresSafeArea()
         }
