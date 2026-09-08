@@ -17,6 +17,11 @@ struct InsightsView: View {
     @State private var currency: String = ""
     /// The shareable recap card, rendered off-screen for the current currency.
     @State private var shareCard: Image?
+    /// Drag position over the over-time chart (`CHECKLIST.md` "Chart
+    /// interaction") — `nil` when not scrubbing.
+    @State private var scrubbedDate: Date?
+    /// Angle scrubbed on the by-member donut, resolved to a slice.
+    @State private var scrubbedAngle: Double?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var currencies: [String] { Insights.currencies(in: expenses) }
@@ -117,13 +122,43 @@ struct InsightsView: View {
         }
     }
 
+    /// The bar nearest the current scrub position.
+    private var scrubbedBucket: SpendBucket? {
+        guard let scrubbedDate else { return nil }
+        return overTime.min {
+            abs($0.start.timeIntervalSince(scrubbedDate)) < abs($1.start.timeIntervalSince(scrubbedDate))
+        }
+    }
+
     private var overTimeChart: some View {
         Chart(overTime) { bucket in
             BarMark(
                 x: .value("Period", bucket.start, unit: chartUnit),
                 y: .value("Spent", Double(bucket.totalMinor) / 100)
             )
-            .foregroundStyle(Color.accentColor)
+            // Native gradient fill (`CHECKLIST.md` "gradient fills") — the
+            // accent from full at the top fading down.
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [Color.accentColor, Color.accentColor.opacity(0.4)],
+                    startPoint: .top, endPoint: .bottom
+                )
+            )
+            .cornerRadius(5)
+            // Dim the other bars while scrubbing so the touched one stands out.
+            .opacity(scrubbedBucket == nil || scrubbedBucket?.id == bucket.id ? 1 : 0.3)
+        }
+        .chartXSelection(value: $scrubbedDate)
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                if let bucket = scrubbedBucket,
+                   let plotAnchor = proxy.plotFrame,
+                   let x = proxy.position(forX: bucket.start) {
+                    let plot = geo[plotAnchor]
+                    scrubTooltip(for: bucket)
+                        .position(x: plot.origin.x + x, y: 8)
+                }
+            }
         }
         .chartYAxis {
             AxisMarks { value in
@@ -137,6 +172,31 @@ struct InsightsView: View {
         }
         .frame(height: 180)
         .padding(.vertical, 4)
+        .animation(.easeOut(duration: 0.15), value: scrubbedBucket)
+    }
+
+    /// The little "Sep · ₹4,200" label that follows the scrub over the bar chart.
+    private func scrubTooltip(for bucket: SpendBucket) -> some View {
+        VStack(spacing: 1) {
+            Text(bucket.start, format: scrubDateFormat)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(money(bucket.totalMinor))
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .fixedSize()
+    }
+
+    private var scrubDateFormat: Date.FormatStyle {
+        switch granularity {
+        case .day: return .dateTime.month(.abbreviated).day()
+        case .week: return .dateTime.month(.abbreviated).day()
+        case .month: return .dateTime.month(.wide).year()
+        }
     }
 
     /// Members with a nonzero share of the spend in the selected currency —
@@ -146,10 +206,22 @@ struct InsightsView: View {
         byMember.filter { $0.totalMinor > 0 }
     }
 
+    /// The slice under the current donut scrub angle.
+    private var scrubbedMember: MemberSpend? {
+        guard let scrubbedAngle else { return nil }
+        var cumulative = 0.0
+        for entry in spendingMembers {
+            cumulative += Double(entry.totalMinor)
+            if scrubbedAngle <= cumulative { return entry }
+        }
+        return spendingMembers.last
+    }
+
     /// Spend-by-member as a donut (`CHECKLIST.md` "Insights donut chart, spend
     /// by member") — each slice in that member's `MemberColor`, matching the
     /// avatar and bar tint on the rows just below. The rows are the legend, so
-    /// the chart's own is hidden.
+    /// the chart's own is hidden. Drag around the ring to isolate a slice
+    /// (`CHECKLIST.md` "Chart interaction").
     private var memberDonut: some View {
         Chart(spendingMembers) { entry in
             SectorMark(
@@ -159,6 +231,20 @@ struct InsightsView: View {
             )
             .cornerRadius(3)
             .foregroundStyle(by: .value("Member", entry.member.displayName))
+            .opacity(scrubbedMember == nil || scrubbedMember?.id == entry.id ? 1 : 0.3)
+        }
+        .chartAngleSelection(value: $scrubbedAngle)
+        .chartBackground { _ in
+            VStack(spacing: 1) {
+                if let m = scrubbedMember {
+                    Text(m.member.displayName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(money(m.totalMinor)).font(.headline).monospacedDigit()
+                } else {
+                    Text("Total").font(.caption).foregroundStyle(.secondary)
+                    Text(money(total)).font(.headline).monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 8)
         }
         .chartForegroundStyleScale(
             domain: spendingMembers.map { $0.member.displayName },
@@ -167,6 +253,7 @@ struct InsightsView: View {
         .chartLegend(.hidden)
         .frame(height: 200)
         .padding(.vertical, 8)
+        .animation(.easeOut(duration: 0.15), value: scrubbedMember)
         .accessibilityLabel("Spending by member")
         .accessibilityValue(
             spendingMembers

@@ -260,10 +260,18 @@ one-off/casual, large-friend-group):
       on a circle of its colour. Two groups read clearly differently
       (verified: a blue-violet vs a magenta group). Buttons/links stay
       brand blue. Tests: `GroupColorTests` (2). kit 179 · app 88.
-- [ ] **Chart interaction + gradient fills.** `~25k tokens` (CLI)
+- [x] **Chart interaction + gradient fills.** `~25k tokens` (CLI)
       1. Add scrub/tooltip gestures to the existing `InsightsView`
          charts.
       2. Add a gradient fill using SwiftUI Charts' native support.
+      Done 2026-09-08: the over-time bars get a native `LinearGradient`
+      fill (accent → 40% accent, top-down) and `.chartXSelection` scrub —
+      the touched bar stays lit while the rest drop to 0.3, with a
+      `.regularMaterial` pill above it showing the period + amount. The
+      by-member donut gets `.chartAngleSelection`: the scrubbed slice
+      isolates (others dim to 0.3) and the centre annotation swaps from
+      "Total" to that member's name + spend. Verified light + dark in the
+      Simulator. kit 179 · app 88.
 - [ ] **Empty-state micro-copy pass.** `~12k tokens` (CLI)
       1. Rewrite each `ContentUnavailableView` string with more
          personality, keeping them accurate to the actual empty state.
