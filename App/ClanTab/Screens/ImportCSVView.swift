@@ -66,7 +66,7 @@ struct ImportCSVView: View {
         ContentUnavailableView {
             Label("Import from CSV", systemImage: "square.and.arrow.down")
         } description: {
-            Text("Moving over from Splitwise, or restoring a ClanTab export? Bring the whole expense history with you.")
+            Text("Moving over from Splitwise or Splid, or restoring a ClanTab export? Bring the whole expense history with you.")
         } actions: {
             Button("Choose a File…") { isPickingFile = true }
                 .buttonStyle(.borderedProminent)
@@ -79,7 +79,7 @@ struct ImportCSVView: View {
     private func review(_ result: CSVImport.Result) -> some View {
         Form {
             Section {
-                LabeledContent("Format", value: result.format == .clanTab ? "ClanTab export" : "Splitwise export")
+                LabeledContent("Format", value: formatLabel(result.format))
                 LabeledContent("Expenses", value: "\(result.expenses.count)")
                 if !result.settlements.isEmpty {
                     LabeledContent("Settlements", value: "\(result.settlements.count)")
@@ -133,6 +133,16 @@ struct ImportCSVView: View {
         }
     }
 
+    // MARK: format label
+
+    private func formatLabel(_ format: CSVImport.Format) -> String {
+        switch format {
+        case .clanTab: return "ClanTab export"
+        case .splitwise: return "Splitwise export"
+        case .splid: return "Splid export"
+        }
+    }
+
     // MARK: name choices
 
     private func choiceBinding(for name: String) -> Binding<NameChoice> {
@@ -174,7 +184,11 @@ struct ImportCSVView: View {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
             do {
-                let text = try String(contentsOf: url, encoding: .utf8)
+                let data = try Data(contentsOf: url)
+                guard let text = CSVImport.decode(data) else {
+                    parseError = "Couldn't read that file — unrecognised text encoding."
+                    return
+                }
                 let parsed = try CSVImport.parse(text)
                 choices = [:]
                 stage = .review(parsed)
@@ -191,7 +205,7 @@ struct ImportCSVView: View {
         case .empty: return "That file is empty."
         case .noDataRows: return "That file has a header but no rows."
         case .unrecognizedFormat:
-            return "Unrecognised format. Use a ClanTab export or a Splitwise export."
+            return "Unrecognised format. Use a ClanTab export, a Splitwise export, or a Splid export."
         }
     }
 

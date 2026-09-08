@@ -483,11 +483,63 @@ one-off/casual, large-friend-group):
       picks it up — **no explicit `resources:` entry was needed**, and
       `project.yml` is unchanged. (Owner still to confirm the chime is
       audible on a device/Simulator with the ringer on.) kit 180 · app 97.
+- [x] **Fix CSV import: Splid was completely broken, plus a real
+      remainder-rounding bug.** Done 2026-09-08, prompted by a real failed
+      import (`Future.csv`, a Splid trip export). Two bugs, both silent —
+      the import screen just said "Couldn't read that file":
+      1. `ImportCSVView` read the picked file as UTF-8
+         (`String(contentsOf:encoding:.utf8)`). Splid's iOS/macOS export is
+         UTF-16LE with a BOM, which throws immediately under that
+         assumption — same failure mode as Numbers' "CSV" save and Excel's
+         "Unicode Text" export. Fixed with a new
+         `CSVImport.decode(_ data: Data) -> String?` (BOM-sniffing UTF-8 /
+         UTF-16LE / UTF-16BE, falling back through UTF-8 → UTF-16LE →
+         Latin-1 with no BOM); `ImportCSVView` now reads bytes and calls it
+         instead of assuming an encoding.
+      2. No Splid parser existed at all — `CSVImport.parseSplid` added
+         (`Who paid`/`Amount`/`Currency`/`For whom`/`Split amounts`/
+         `Purpose`/`Category`/`Date & time`/`Type`; `Type` `expense` vs
+         `transfer` for settlements). Unlike Splitwise's lossy per-person
+         net-balance reconstruction, Splid's `For whom`/`Split amounts` are
+         parallel lists giving each share directly, so it round-trips
+         losslessly.
+      3. Found only by checking against the real file, not a hypothetical:
+         Splid rounds each share to 2dp independently on an equal split, so
+         ~6% of rows in the real sample were a paisa off the row total
+         (`₹6628 ÷ 3 → 2209.33 × 3 = 6627.99`). A strict sum-must-match
+         check would have silently dropped those rows. Fixed by nudging the
+         small remainder onto the payer's own share — the same rule
+         `Validation.equalSplit` already uses.
+      Also hardened: a stray BOM *character* surviving decode no longer
+      breaks header matching; `parseDate` gained Splid's
+      `yyyy-MM-dd HH:mm:ss` format. Full writeup + the (still open) gaps —
+      no duplicate-import guard on any format, EU-locale comma-decimal
+      amounts unhandled, Tricount/Settle Up still unsupported (no verified
+      sample to build against) — in `docs/csv-import-formats.md`.
+      Written first in a sandbox with no Swift toolchain (cross-checked
+      with a Python re-implementation of the parsing logic); a later pass
+      compiled it unchanged and confirmed green — `swift test --filter
+      CSVImport` (19 cases, incl. the UTF-16 round-trip and the
+      remainder-nudge) and `make check` both pass, and the real reported
+      file parses to 31 expenses + 4 settlements with 0 warnings (the 2
+      rounding-short rows nudged, not dropped). No behaviour changes were
+      needed on that pass. kit 190 · app 97.
 
 ### Feature backlog — absorbed from the competitive scan
 
 Splitwise/Tricount/Settle Up/Splid, primary sources only:
 
+- [ ] **De-dupe guard on CSV import.** `~20k tokens` (CLI) — found
+      2026-09-08 while fixing Splid import (`docs/csv-import-formats.md`).
+      Every imported row gets a fresh client-generated id, by design, so a
+      partial import is safe to retry — but that also means importing the
+      *same* file twice (or the same trip exported from two apps by two
+      group members) silently posts every row again. No detection at all
+      today. At minimum: warn once before import ("Re-importing may create
+      duplicates"). Real fix needs a definition of "same expense" across
+      apps (date+amount+payer+description, allowing for each app's own
+      rounding) and a check against the group's existing ledger before
+      posting.
 - [ ] **Itemized expense entry, manual.** `~130k tokens` (CLI)
       1. Add an `items: [LineItem]` shape (name, price, assignees) to
          the expense model, worker + `ClanTabKit`.

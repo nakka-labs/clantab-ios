@@ -4,7 +4,7 @@ import Foundation
 /// Pure: no I/O, no member resolution — drafts carry member *names*, and the
 /// caller (the App's import flow) matches those to real members or creates them.
 ///
-/// Two formats are auto-detected:
+/// Three formats are auto-detected:
 ///  - **ClanTab** — this app's own `Export.csv` output, for backup/restore or
 ///    moving history between groups (lossless round-trip).
 ///  - **Splitwise** — Splitwise's per-person CSV export. Each row's per-person
@@ -12,10 +12,20 @@ import Foundation
 ///    as a single-payer expense (payer = the person with the largest net).
 ///    Rows Splitwise can't represent losslessly (a genuine multi-payer split)
 ///    are skipped with a warning.
+///  - **Splid** — Splid's CSV export (`Who paid,Amount,Currency,For whom,
+///    Split amounts,Purpose,Category,Date & time,Timezone,Exchange rate,
+///    Converted amount,Type,Receipt`). Lossless: "For whom"/"Split amounts"
+///    are parallel `;`-separated lists giving each person's exact share, and
+///    `Type` is `expense` or `transfer` (a settlement). Splid's iOS/macOS
+///    export is UTF-16 with a BOM — see `decode(_:)`.
+///
+/// See `docs/csv-import-formats.md` for the full compatibility matrix and
+/// notes on formats that aren't supported yet.
 public enum CSVImport {
     public enum Format: String, Sendable, Equatable {
         case clanTab
         case splitwise
+        case splid
     }
 
     public enum ParseError: Error, Equatable, Sendable {
@@ -82,6 +92,13 @@ public enum CSVImport {
     }
 
     public static func parse(_ text: String) throws -> Result {
+        // A leading byte-order-mark character survives UTF-16 decoding as a
+        // literal `\u{FEFF}` on the first character; strip it so header
+        // matching isn't thrown off by it (belt-and-braces — `decode(_:)`
+        // already strips the BOM *bytes* before this ever runs).
+        var text = text
+        if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
+
         let rows = tokenize(text).filter { row in row.contains { !$0.isEmpty } }
         guard let header = rows.first else { throw ParseError.empty }
         let dataRows = Array(rows.dropFirst())
@@ -96,7 +113,35 @@ public enum CSVImport {
            lowered.contains("date"), lowered.contains("description") {
             return parseSplitwise(header: header, lowered: lowered, dataRows: dataRows)
         }
+        if lowered.contains("who paid"), lowered.contains("for whom"), lowered.contains("split amounts") {
+            return parseSplid(header: header, lowered: lowered, dataRows: dataRows)
+        }
         throw ParseError.unrecognizedFormat
+    }
+
+    /// Decodes raw file bytes to text, sniffing the encoding from a BOM when
+    /// present and falling back sensibly when it isn't. Some export sources
+    /// (Splid's iOS/macOS export, Numbers' "CSV" save, Excel's "Unicode Text")
+    /// write UTF-16 rather than UTF-8, which `String(contentsOf:encoding:.utf8)`
+    /// simply fails to open — this is the fix for that whole class of bug.
+    public static func decode(_ data: Data) -> String? {
+        let bytes = [UInt8](data.prefix(3))
+        if bytes.count >= 3, bytes[0] == 0xEF, bytes[1] == 0xBB, bytes[2] == 0xBF {
+            return String(data: data.dropFirst(3), encoding: .utf8)
+        }
+        if bytes.count >= 2, bytes[0] == 0xFF, bytes[1] == 0xFE {
+            return String(data: data.dropFirst(2), encoding: .utf16LittleEndian)
+        }
+        if bytes.count >= 2, bytes[0] == 0xFE, bytes[1] == 0xFF {
+            return String(data: data.dropFirst(2), encoding: .utf16BigEndian)
+        }
+        // No BOM: UTF-8 is the common case. Fall back to UTF-16LE (some
+        // Windows-side exports write UTF-16 without a BOM), then Latin-1 as
+        // a last resort so a file with a handful of stray bytes still opens
+        // instead of failing outright.
+        if let utf8 = String(data: data, encoding: .utf8) { return utf8 }
+        if let utf16 = String(data: data, encoding: .utf16LittleEndian) { return utf16 }
+        return String(data: data, encoding: .isoLatin1)
     }
 
     // MARK: - ClanTab
@@ -237,6 +282,115 @@ public enum CSVImport {
                       referencedNames: names.all, warnings: warnings)
     }
 
+    // MARK: - Splid
+
+    /// Splid's CSV export. Unlike Splitwise's per-person net-balance columns,
+    /// "For whom" and "Split amounts" are parallel `;`-separated lists giving
+    /// each person's exact share directly — no reconstruction needed, so
+    /// every row round-trips losslessly. `Type` distinguishes an `expense`
+    /// row from a `transfer` (settlement): the payer sent the split amount
+    /// to the single person named in "For whom".
+    private static func parseSplid(header: [String], lowered: [String], dataRows: [[String]]) -> Result {
+        guard let payerIdx = lowered.firstIndex(of: "who paid"),
+              let amountIdx = lowered.firstIndex(of: "amount"),
+              let currencyIdx = lowered.firstIndex(of: "currency"),
+              let forWhomIdx = lowered.firstIndex(of: "for whom"),
+              let splitsIdx = lowered.firstIndex(of: "split amounts"),
+              let dateIdx = lowered.firstIndex(of: "date & time")
+        else {
+            return Result(format: .splid, expenses: [], settlements: [], referencedNames: [],
+                          warnings: ["Missing one of the columns Splid's export needs (Who paid / Amount / Currency / For whom / Split amounts / Date & time)."])
+        }
+        let purposeIdx = lowered.firstIndex(of: "purpose")
+        let categoryIdx = lowered.firstIndex(of: "category")
+        let typeIdx = lowered.firstIndex(of: "type")
+
+        var expenses: [DraftExpense] = []
+        var settlements: [DraftSettlement] = []
+        var names = OrderedNames()
+        var warnings: [String] = []
+
+        for (i, row) in dataRows.enumerated() {
+            guard row.count > currencyIdx else {
+                warnings.append("Row \(i + 2): too few columns — skipped.")
+                continue
+            }
+            guard let date = parseDate(cell(row, dateIdx)) else {
+                warnings.append("Row \(i + 2): couldn't read the date — skipped.")
+                continue
+            }
+            let payer = cell(row, payerIdx)
+            guard !payer.isEmpty, let amount = parseAmount(cell(row, amountIdx)), amount > 0 else {
+                warnings.append("Row \(i + 2): couldn't read the payer or amount — skipped.")
+                continue
+            }
+            let currency = cell(row, currencyIdx)
+            let people = splitField(cell(row, forWhomIdx))
+            let amountTexts = splitField(cell(row, splitsIdx))
+            guard !people.isEmpty, people.count == amountTexts.count else {
+                warnings.append("Row \(i + 2): \"For whom\" and \"Split amounts\" don't line up — skipped.")
+                continue
+            }
+            let amounts = amountTexts.map { parseAmount($0) }
+            guard amounts.allSatisfy({ $0 != nil }) else {
+                warnings.append("Row \(i + 2): couldn't read one of the split amounts — skipped.")
+                continue
+            }
+            var splits = zip(people, amounts).map { name, amt in DraftSplit(memberName: name, amountMinor: amt!) }
+            let splitSum = splits.reduce(Int64(0)) { $0 + $1.amountMinor }
+            if splitSum != amount {
+                // Splid rounds each share to 2dp independently when it splits
+                // a cost evenly, so a genuine equal split can land a paisa/cent
+                // or two off the total (e.g. ₹6628 ÷ 3 → 2209.33 × 3 = 6627.99).
+                // Nudge the payer's own share by the (small) remainder — the
+                // same rule ClanTab itself uses for equal/percentage splits.
+                let remainder = amount - splitSum
+                if abs(remainder) <= Int64(max(1, splits.count)),
+                   let payerIdx = splits.firstIndex(where: { $0.memberName == payer }) {
+                    splits[payerIdx] = DraftSplit(
+                        memberName: payer, amountMinor: splits[payerIdx].amountMinor + remainder
+                    )
+                }
+            }
+            guard splits.reduce(Int64(0), { $0 + $1.amountMinor }) == amount else {
+                warnings.append("Row \(i + 2): splits don't add up to the amount — skipped.")
+                continue
+            }
+
+            let type = typeIdx.map { cell(row, $0).lowercased() } ?? "expense"
+            names.add(payer)
+            splits.forEach { names.add($0.memberName) }
+
+            if type == "transfer" {
+                guard splits.count == 1, splits[0].memberName != payer else {
+                    warnings.append("Row \(i + 2): a settlement needs exactly one recipient, different from the payer — skipped.")
+                    continue
+                }
+                settlements.append(DraftSettlement(
+                    date: date, fromName: payer, toName: splits[0].memberName,
+                    amountMinor: amount, currency: currency
+                ))
+            } else {
+                let purpose = purposeIdx.map { cell(row, $0) } ?? ""
+                let category = categoryIdx.map { cell(row, $0) } ?? ""
+                expenses.append(DraftExpense(
+                    date: date, description: purpose, amountMinor: amount, currency: currency,
+                    payerName: payer, splits: splits, category: category.isEmpty ? nil : category
+                ))
+            }
+        }
+
+        return Result(format: .splid, expenses: expenses, settlements: settlements,
+                      referencedNames: names.all, warnings: warnings)
+    }
+
+    /// Splid joins both "For whom" and "Split amounts" with `;` — trims each
+    /// part (Splid's own names sometimes carry a trailing space).
+    private static func splitField(_ field: String) -> [String] {
+        field.split(separator: ";", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
     // MARK: - Helpers
 
     private static func cell(_ row: [String], _ idx: Int) -> String {
@@ -312,6 +466,16 @@ public enum CSVImport {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
         if let iso = ISO8601DateFormatter().date(from: trimmed) { return iso }
+        // Splid's "Date & time" column: "2025-07-26 14:56:07" — a space, not
+        // a `T`, and no timezone offset. Splid does export a Timezone column
+        // too, but it's blank in practice; the naive timestamp is treated as
+        // UTC (documented in docs/csv-import-formats.md).
+        let dateTime = DateFormatter()
+        dateTime.calendar = Calendar(identifier: .gregorian)
+        dateTime.locale = Locale(identifier: "en_US_POSIX")
+        dateTime.timeZone = TimeZone(identifier: "UTC")
+        dateTime.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        if let dt = dateTime.date(from: trimmed) { return dt }
         let ymd = DateFormatter()
         ymd.calendar = Calendar(identifier: .gregorian)
         ymd.locale = Locale(identifier: "en_US_POSIX")
