@@ -122,6 +122,14 @@ targets:
         # self-classification is needed. Declaring this here skips the
         # export-compliance prompt on every TestFlight upload.
         ITSAppUsesNonExemptEncryption: false
+        # Lets a backgrounded/suspended app be woken to process a combined
+        # alert + `content-available` push and fold the carried balance into
+        # the dashboard cache (`AppDelegate.application(_:didReceiveRemote…)`,
+        # `CHECKLIST.md` "iOS: push handler writes the carried balance"). An
+        # Info.plist key only — no Apple Developer portal capability beyond
+        # the `aps-environment` entitlement already declared above.
+        UIBackgroundModes:
+          - remote-notification
         # `clantab://g/<groupId>` deep link scheme — the fallback path and the
         # only one testable in the Simulator (`xcrun simctl openurl booted
         # "clantab://g/<groupId>?token=<t>"`). The real share link is a Universal

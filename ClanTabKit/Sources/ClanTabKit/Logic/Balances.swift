@@ -70,4 +70,28 @@ public enum Balances {
     public static func headline(_ balances: [Balance]) -> Balance? {
         balances.filter { $0.netMinor != 0 }.max { abs($0.netMinor) < abs($1.netMinor) }
     }
+
+    /// Fold a single-currency balance update — a push payload carrying the
+    /// recipient's own new net (`CHECKLIST.md` "push payload carries the
+    /// recipient's own updated balance") — into a cached per-currency
+    /// `myBalances` array. The `currency` bucket becomes `netMinor` (dropped
+    /// when zero — a settled bucket isn't stored, matching `compute`); every
+    /// other currency is left untouched, so a multi-currency member's other
+    /// buckets survive an update about just one. `memberId` stamps the
+    /// new/updated entry to keep the array shape-consistent with a freshly
+    /// computed one (consumers key on currency + sign, not member, in the
+    /// `myBalances` context). The updated bucket moves to the end; order
+    /// isn't significant to any `myBalances` reader.
+    public static func applyingCarriedBalance(
+        to cached: [Balance],
+        memberId: String,
+        currency: String,
+        netMinor: Int64
+    ) -> [Balance] {
+        var result = cached.filter { $0.currency != currency }
+        if netMinor != 0 {
+            result.append(Balance(memberId: memberId, currency: currency, netMinor: netMinor))
+        }
+        return result
+    }
 }

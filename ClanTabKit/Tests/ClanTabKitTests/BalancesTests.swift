@@ -147,4 +147,41 @@ struct BalancesTests {
         ]
         #expect(Balances.headline(balances) == Balance(memberId: "m1", currency: "USD", netMinor: 100))
     }
+
+    // MARK: - applyingCarriedBalance (CHECKLIST.md "iOS: push handler writes the carried balance")
+
+    @Test("Updates the matching currency bucket, leaves other currencies alone")
+    func testApplyingCarriedBalanceUpdatesOneBucket() {
+        let cached = [
+            Balance(memberId: "me", currency: "INR", netMinor: -500),
+            Balance(memberId: "me", currency: "USD", netMinor: 200),
+        ]
+        let updated = Balances.applyingCarriedBalance(to: cached, memberId: "me", currency: "INR", netMinor: -1500)
+        // The untouched currency keeps its place; the updated bucket moves to the end.
+        #expect(updated == [
+            Balance(memberId: "me", currency: "USD", netMinor: 200),
+            Balance(memberId: "me", currency: "INR", netMinor: -1500),
+        ])
+    }
+
+    @Test("Inserts a bucket for a currency not yet cached")
+    func testApplyingCarriedBalanceInsertsNewCurrency() {
+        let updated = Balances.applyingCarriedBalance(to: [], memberId: "me", currency: "EUR", netMinor: 4200)
+        #expect(updated == [Balance(memberId: "me", currency: "EUR", netMinor: 4200)])
+    }
+
+    @Test("A zero net drops the bucket — a settled currency isn't stored")
+    func testApplyingCarriedBalanceZeroDropsBucket() {
+        let cached = [
+            Balance(memberId: "me", currency: "INR", netMinor: -500),
+            Balance(memberId: "me", currency: "USD", netMinor: 200),
+        ]
+        let updated = Balances.applyingCarriedBalance(to: cached, memberId: "me", currency: "INR", netMinor: 0)
+        #expect(updated == [Balance(memberId: "me", currency: "USD", netMinor: 200)])
+    }
+
+    @Test("A zero net for an uncached currency is a no-op")
+    func testApplyingCarriedBalanceZeroForUncachedIsNoop() {
+        #expect(Balances.applyingCarriedBalance(to: [], memberId: "me", currency: "GBP", netMinor: 0) == [])
+    }
 }

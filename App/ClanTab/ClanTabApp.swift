@@ -29,7 +29,10 @@ struct ClanTabApp: App {
         WindowGroup {
             RootView(client: client, knownGroups: knownGroups, auth: auth, onboarding: onboarding)
                 .preferredColorScheme(theme.colorScheme)
-                .task { appDelegate.authViewModel = auth }
+                .task {
+                    appDelegate.authViewModel = auth
+                    appDelegate.knownGroups = knownGroups
+                }
         }
     }
 }

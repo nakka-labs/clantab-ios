@@ -390,15 +390,30 @@
       already in `data`). Tests: `notify.test.ts` +2, `group.test.ts`
       `claimedRecipientsExcluding` rewritten. worker 213 green. `DESIGN.md`
       §7 note updated.
-- [ ] **iOS: push handler writes the carried balance into the local
-      cache.** `~20k tokens` (CLI) — extend the existing
-      `pushNotificationTapped` path to also fire on receipt (not just
-      tap), foreground and background, calling
-      `KnownGroups.updateBalances(groupId:, myBalances:)` with the
-      payload's `data`. Needs the `remote-notification` Background Mode
-      capability if not already enabled — `Owner`: verify in the Xcode
-      project / Apple Developer portal alongside the existing push
-      capability.
+- [x] **iOS: push handler writes the carried balance into the local
+      cache.** Done 2026-09-09. `AppDelegate.applyCarriedBalance(from:)`
+      reads `balanceCurrency`/`balanceNetMinor` from a push's `userInfo`
+      and folds it into the group's cached `myBalances` via
+      `Balances.applyingCarriedBalance` (new ClanTabKit helper — updates
+      just that currency's bucket, drops it at zero, leaves a
+      multi-currency member's other buckets intact) →
+      `KnownGroupsStore.updateBalances`. Called from **all three** push
+      paths: `willPresent` (foreground), `didReceive` (tap), and a new
+      `application(_:didReceiveRemoteNotification:fetchCompletionHandler:)`
+      (background/suspended wake). The worker now sends a combined
+      alert + `content-available` payload (`lib/apns.ts`) so iOS actually
+      wakes the app for the last one. `AppDelegate` gets the store from
+      `ClanTabApp` (`nonisolated(unsafe)`, set once at startup; the store
+      is `Sendable` + lock-guarded).
+      **Owner note:** `UIBackgroundModes: [remote-notification]` added to
+      `project.yml` → it's an **Info.plist key only**, no Apple Developer
+      portal capability beyond the `aps-environment` entitlement already
+      there — nothing for the owner to click; it just needs to ride the
+      next TestFlight build. Background push is best-effort (iOS throttles
+      it) — the guaranteed path is the next item's fallback sync.
+      Tests: `BalancesTests` +4 (kit), new `AppDelegateTests` x6 (app),
+      `apns.test.ts` body assertion updated. `make check` green (worker
+      213 · kit · app).
 - [ ] **Dashboard fallback sync for missed/denied push.** `~25k tokens`
       (CLI) — pull-to-refresh + a time-boxed periodic reconcile (once
       per day / once per cold-start-after-N-hours, not every launch).

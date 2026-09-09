@@ -73,7 +73,7 @@ describe("sendPush", () => {
     expect(seen?.headers.get("apns-push-type")).toBe("alert");
     expect(seen?.headers.get("apns-priority")).toBe("10");
     expect(JSON.parse(seen!.body)).toEqual({
-      aps: { alert: { title: "Priya added ₹500", body: "Dinner at Toit" }, sound: "default" },
+      aps: { alert: { title: "Priya added ₹500", body: "Dinner at Toit" }, sound: "default", "content-available": 1 },
       groupId: "g1",
     });
 

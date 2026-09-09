@@ -118,7 +118,13 @@ export async function sendPush(
         "apns-priority": "10",
       },
       body: JSON.stringify({
-        aps: { alert: { title: payload.title, body: payload.body }, sound: "default" },
+        // `content-available` alongside the alert makes this a combined
+        // visible+background push: iOS shows the banner *and*, budget
+        // permitting, wakes a backgrounded app's
+        // `didReceiveRemoteNotification` so it can fold the carried balance
+        // (`payload.data`) into its local cache without a fetch
+        // (`CHECKLIST.md` "iOS: push handler writes the carried balance").
+        aps: { alert: { title: payload.title, body: payload.body }, sound: "default", "content-available": 1 },
         ...payload.data,
       }),
     });
