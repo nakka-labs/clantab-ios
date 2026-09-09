@@ -286,25 +286,43 @@
       `groupId` only in `init`. SwiftUI treats `.group("A")` →
       `.group("B")` as the same view identity (same case, same switch
       position), so `init` never re-runs and `viewModel` stays pinned to
-      the first group opened. Fix applied: `.id(groupId)` on the
-      `GroupHomeView` branch in `RootView.content` so SwiftUI tears down
-      and rebuilds every `@State` (`viewModel` included) on switch — the
-      switcher sheet's `onSwitchGroup` → `enterGroup` → `route =
-      .group(…)` path now actually re-seeds. `make check` green (kit +
-      worker + iOS build + `ClanTabTests`). Purely a view-tree identity
-      change; the actual multi-group switch is exercised by the "TestFlight
-      on-device end-to-end pass".
-- [ ] **Audit: same view-identity footgun, anywhere else in the app.**
-      `~15k tokens` (CLI) — found 2026-09-09 fixing the item above:
-      SwiftUI reuses a view's `@State` across a same-position, different-
-      param re-render unless something (`.id()`, or the parent literally
-      removing/re-adding the view) forces a new identity. Only `RootView`
-      was checked. Scan every other place an enum/route case or a
-      `switch` feeds a `@State`-seeding `init` (`GroupSettingsView`,
-      sheet/cover presentations that pass a changing id but aren't driven
-      by `.sheet(item:)`, any future screen built the same way) for the
-      same pattern — fix or add a one-line comment explaining why that
-      one's safe, don't just eyeball it and move on.
+      the first group opened. Fix applied: `.id(route)` on the whole
+      `content` subtree in `RootView.body` (`AppRoute` made `Hashable`)
+      so SwiftUI tears down and rebuilds every `@State` (`viewModel`
+      included) whenever the route's associated values change — the
+      switcher sheet's `onSwitchGroup` → `enterGroup` → `route = .group(…)`
+      path now actually re-seeds. (First landed as a narrower
+      `.id(groupId)` on just the `.group` branch; widened to `.id(route)`
+      by the same-view-identity audit below, which found `.claimMember`
+      had the same bug.) `make check` green (kit + worker + iOS build +
+      `ClanTabTests`). Purely a view-tree identity change; the actual
+      multi-group switch is exercised by the "TestFlight on-device
+      end-to-end pass".
+- [x] **Audit: same view-identity footgun, anywhere else in the app.**
+      Done 2026-09-09. Swept every `_x = State(initialValue:)` in `App/`
+      and every `.sheet` / `.fullScreenCover` presentation.
+      **Found one more, same class:** `RootView`'s `.claimMember(groupId:,
+      accessToken:)` case — a second deep link / tapped push for a
+      *different* group while already on the claim screen goes
+      `.claimMember("A")` → `.claimMember("B")`, same `switch` case = same
+      identity, so `ClaimMemberView`'s `.task`-loaded `@State members`
+      (and `newMemberName`, `pendingConfirmation`) stay pinned to group A
+      while `groupId` updates to B underneath.
+      **Systemic fix:** `AppRoute` made `Hashable` and `.id(route)` put on
+      the whole `content` subtree in `RootView.body` — every route case
+      now rebuilds when its associated values change, so the previous
+      per-case `.id(groupId)` (from the item above) was removed as
+      redundant. `.start` / `.createGroup` / `.joinGroup` carry no
+      associated values so they were never at risk.
+      **Cleared, with reasoning (not eyeballed):** every other param-
+      seeded view is presented via `.sheet(isPresented:)` (the view is
+      destroyed on dismiss → fresh `init` each presentation; a background
+      poll mutating members/state mid-sheet is deliberately *not*
+      re-seeded, so it can't clobber a half-filled form) or `.sheet(item:)`
+      (`editingExpense`, `duplicatingExpense`, `loggingTemplate` — SwiftUI
+      rebinds on `item.id` change). `GroupSettingsView`, `AddExpenseView`,
+      `NewRecurringReminderView`, `ReportContentView` all fall into one of
+      those two buckets. `make check` green.
 - [ ] **Dashboard becomes the launch screen.** `~15k tokens` (CLI) —
       `RootView.resolveInitialRoute()` currently auto-skips into the
       device's one group when exactly one is known; remove that skip so

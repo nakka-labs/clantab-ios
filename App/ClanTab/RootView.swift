@@ -39,7 +39,17 @@ struct RootView: View {
 
     var body: some View {
         NavigationStack {
+            // Key the whole route subtree on `route`. SwiftUI otherwise treats
+            // two hits of the same `switch` case as one view identity — so a
+            // `.group("A")` → `.group("B")` switch, or a `.claimMember` screen
+            // re-targeted by a second deep link, never re-runs the child's
+            // `init` and its `@State` (`GroupHomeView.viewModel`,
+            // `ClaimMemberView.members`, …) stays pinned to the first value.
+            // `.id(route)` forces a teardown/rebuild whenever the associated
+            // values change (`CHECKLIST.md` "Fix: group switching…" + the
+            // same-view-identity audit).
             content
+                .id(route)
         }
         .task {
             await auth.handleLaunch()
@@ -183,14 +193,6 @@ struct RootView: View {
                 onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
-            // SwiftUI treats `.group("A")` → `.group("B")` as the same view
-            // identity (same `switch` case, same position), so `GroupHomeView`'s
-            // `init` — which seeds `@State var viewModel` from `groupId` — never
-            // re-runs on a switch and the view stays pinned to the first group
-            // opened. Tie identity to `groupId` so a switch tears down and
-            // rebuilds (`CHECKLIST.md` "Fix: group switching doesn't actually
-            // switch").
-            .id(groupId)
         }
     }
 

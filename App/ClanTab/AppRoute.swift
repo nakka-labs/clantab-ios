@@ -4,7 +4,7 @@ import Foundation
 /// is either showing the start chooser, one of the two onboarding forms, or the
 /// single active group. Every route past `.start` requires a signed-in session
 /// (`MANDATORY_LOGIN_PLAN.md` Part 3) — there's no guest tier anymore.
-enum AppRoute: Equatable {
+enum AppRoute: Hashable {
     case start
     case createGroup
     /// "Join with a Code": type a 6-character code, resolved to a `groupId`,
