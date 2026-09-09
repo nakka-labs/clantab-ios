@@ -1,7 +1,17 @@
 # App Store Connect — ClanTab metadata (draft)
 
-Paste these into App Store Connect. All are editable there; treat this as the
-source of truth so it's version-controlled.
+Source of truth, version-controlled. Pushed to App Store Connect (app
+`6807057518`, version 1.0) via the ASC API on 2026-09-09: **name, subtitle,
+description, keywords, promotional text, support URL, privacy policy URL,
+primary/secondary category (Finance / Utilities), content-rights declaration
+(no third-party content), and build 7 attached**. The 4+ age-rating
+questionnaire was already filled in the UI and matches §"Age rating" below.
+
+Still to do in App Store Connect: **screenshots** (`docs/appstore/screenshots/`,
+3-step upload); **App Review contact phone** (the API requires one — the rest
+of the review detail, incl. the notes below, is ready to write once it's
+supplied); **App Privacy** data-collection labels (that ASC API surface is
+non-functional — verify the UI form matches the table below).
 
 ---
 
