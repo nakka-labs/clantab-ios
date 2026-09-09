@@ -53,7 +53,11 @@ struct RootView: View {
         }
         .task {
             await auth.handleLaunch()
-            resolveInitialRoute()
+            // No auto-route on launch: a returning user always lands on
+            // `StartView` — the "your groups" dashboard — never straight in a
+            // specific group (`CHECKLIST.md` "Dashboard becomes the launch
+            // screen"). Deep links, push taps and the Home Screen quick action
+            // below still route on their own.
             refreshQuickAction()
             // A quick action that cold-launched the app, buffered until now
             // (`CHECKLIST.md` "Home Screen quick action").
@@ -194,17 +198,6 @@ struct RootView: View {
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
         }
-    }
-
-    /// On launch, skip straight back into the group this device was last active
-    /// in — but only when there's exactly one, so a device that's seen several
-    /// groups lands on the start screen's list instead. Runs after
-    /// `auth.handleLaunch()` so `auth.groups` is populated.
-    private func resolveInitialRoute() {
-        guard route == .start, auth.isSignedIn else { return }
-        let known = knownGroups.all()
-        guard known.count == 1, let only = known.first, isMember(only.groupId) else { return }
-        route = .group(groupId: only.groupId)
     }
 
     private func handleDeepLink(_ url: URL) {

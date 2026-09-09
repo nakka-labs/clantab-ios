@@ -19,9 +19,7 @@ struct GroupHomeView: View {
     /// `RootView` uses everywhere else (`NAV_POLISH_PLAN.md` Part 1).
     private let onSwitchGroup: (_ groupId: String) -> Void
     /// Leave this group's screen for the create-group flow — the "Your
-    /// Groups" sheet's way out of the single-group dead end (there's no
-    /// other route back to `StartView` once `resolveInitialRoute()` has
-    /// skipped straight into one group).
+    /// Groups" sheet's way out to a new group.
     private let onCreateNewGroup: () -> Void
     private let onLeaveGroup: () -> Void
     private let onGroupUnavailable: () -> Void
@@ -321,10 +319,8 @@ struct GroupHomeView: View {
                 }
             }
             ToolbarItem(placement: .topBarLeading) {
-                // Always shown, even with no other known groups — otherwise
-                // there's no way back to the create-group flow once
-                // `resolveInitialRoute()` has skipped straight into the
-                // device's one group.
+                // Always shown, even with no other known groups — it's this
+                // screen's only way back out to the groups list / create flow.
                 Button {
                     isPresentingGroupSwitcher = true
                 } label: {

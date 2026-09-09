@@ -323,11 +323,16 @@
       rebinds on `item.id` change). `GroupSettingsView`, `AddExpenseView`,
       `NewRecurringReminderView`, `ReportContentView` all fall into one of
       those two buckets. `make check` green.
-- [ ] **Dashboard becomes the launch screen.** `~15k tokens` (CLI) —
-      `RootView.resolveInitialRoute()` currently auto-skips into the
-      device's one group when exactly one is known; remove that skip so
-      `StartView` (already "your groups" list + balances) is always
-      what a returning user sees first, never a specific group.
+- [x] **Dashboard becomes the launch screen.** Done 2026-09-09.
+      Deleted `RootView.resolveInitialRoute()` and its call in `body`'s
+      launch `.task` — it auto-skipped into the device's one group when
+      exactly one was known. `route` defaults to `.start` and nothing
+      else auto-routes on launch, so a returning user always lands on
+      `StartView` (the signed-in "your groups" list). Deep links, push
+      taps and the Home Screen quick action still route on their own,
+      unchanged. Stale rationale comments in `GroupHomeView` (the "Your
+      Groups" toolbar button + `onCreateNewGroup`, both still needed as
+      the screen's way back out) refreshed. `make check` green.
 - [ ] **Settings: launch-screen preference (Dashboard vs. a chosen
       group).** `~15k tokens` (CLI) — an explicit override for the
       default above, in `SettingsView`'s existing `Form`/`@AppStorage`
