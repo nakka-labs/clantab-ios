@@ -869,14 +869,18 @@ one-off/casual, large-friend-group):
 
 Splitwise/Tricount/Settle Up/Splid, primary sources only:
 
-- [ ] **De-dupe guard on CSV import.** `~20k tokens` (CLI) — found
+- [~] **De-dupe guard on CSV import.** `~20k tokens` (CLI) — found
       2026-09-08 while fixing Settle Up import (`docs/csv-import-formats.md`).
       Every imported row gets a fresh client-generated id, by design, so a
       partial import is safe to retry — but that also means importing the
       *same* file twice (or the same trip exported from two apps by two
       group members) silently posts every row again. No detection at all
-      today. At minimum: warn once before import ("Re-importing may create
-      duplicates"). Real fix needs a definition of "same expense" across
+      today.
+      **Interim done 2026-09-09:** `ImportCSVView`'s review screen shows an
+      amber caution above the Import button ("ClanTab won't skip expenses
+      it already has…") — a re-import is no longer silent, though it's not
+      blocked. `make check` green.
+      **Still open — the real fix:** a definition of "same expense" across
       apps (date+amount+payer+description, allowing for each app's own
       rounding) and a check against the group's existing ledger before
       posting.

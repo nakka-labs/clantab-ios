@@ -62,12 +62,15 @@ compiled and ran it unchanged — no behaviour changes were needed.)
   members — posts every expense and settlement again, with no detection.
   For a money app this is the sharper edge of "imports need to work
   flawlessly": a successful *second* import is a correctness bug even though
-  nothing errors. Not fixed here (real dedup needs comparing candidate rows
-  against the group's existing ledger by date+amount+payer+description, and
-  deciding what "same expense" means when descriptions/rounding differ
-  slightly across apps — a real feature, not a one-line fix). Worth its own
-  CHECKLIST item; at minimum, `ImportCSVView` should warn once before import
-  ("Re-importing may create duplicates") rather than staying silent.
+  nothing errors. Real dedup — comparing candidate rows against the group's
+  existing ledger by date+amount+payer+description, and deciding what "same
+  expense" means when descriptions/rounding differ slightly across apps — is
+  a real feature, not a one-line fix, and still its own open CHECKLIST item.
+  **Interim (2026-09-09):** `ImportCSVView`'s review screen now shows an amber
+  caution above the Import button ("ClanTab won't skip expenses it already
+  has. If this file was imported before — or another member imported the same
+  trip — every row is added again."), so a re-import isn't silent even though
+  it isn't blocked.
 - **Splitwise / Settle Up amounts assume `.` as the decimal separator.**
   `parseAmount` strips `,` unconditionally, treating it only as a thousands
   separator (`"1,234.00"` → 123400). An export from a EU-locale device using

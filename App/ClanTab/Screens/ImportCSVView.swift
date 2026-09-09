@@ -109,6 +109,21 @@ struct ImportCSVView: View {
             }
 
             Section {
+                // No de-dup guard yet (`docs/csv-import-formats.md`, `CHECKLIST.md`
+                // "De-dupe guard on CSV import") — ClanTab can't tell an imported
+                // row from one it already has, so importing the same file twice,
+                // or the same trip exported from two apps by two members, silently
+                // doubles the ledger. Flag it here until real detection lands.
+                Label {
+                    Text("ClanTab won't skip expenses it already has. If this file was imported before — or another member imported the same trip — every row is added again.")
+                        .font(.footnote)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                .foregroundStyle(.orange)
+            }
+
+            Section {
                 Button("Import") {
                     Task { await runImport(result) }
                 }
