@@ -4,14 +4,17 @@ Source of truth, version-controlled. Pushed to App Store Connect (app
 `6807057518`, version 1.0) via the ASC API on 2026-09-09: **name, subtitle,
 description, keywords, promotional text, support URL, privacy policy URL,
 primary/secondary category (Finance / Utilities), content-rights declaration
-(no third-party content), and build 7 attached**. The 4+ age-rating
-questionnaire was already filled in the UI and matches §"Age rating" below.
+(no third-party content), build 7 attached, all 4 screenshots
+(`APP_IPHONE_67` set, 1320×2868, order 1–4), and the App Review detail**
+(contact Indra Nakka / `indra@nakka.dev` / `+91 77993 39777`, no demo
+account, the review notes below). The 4+ age-rating questionnaire and the
+App Privacy data-collection labels were filled in the UI (age rating
+verified via API; the App Privacy API surface is non-functional so trust
+the owner's UI entry against the table below).
 
-Still to do in App Store Connect: **screenshots** (`docs/appstore/screenshots/`,
-3-step upload); **App Review contact phone** (the API requires one — the rest
-of the review detail, incl. the notes below, is ready to write once it's
-supplied); **App Privacy** data-collection labels (that ASC API surface is
-non-functional — verify the UI form matches the table below).
+Everything for a version 1.0 submission is in place. Remaining is the
+`Owner` decision to submit (`CHECKLIST.md` "Submit for App Store review"),
+gated on the monetization stance and the TestFlight pass.
 
 ---
 
@@ -82,7 +85,11 @@ as a shared document link. Keep the link private to the people in your group.
 ```
 
 ## Keywords (≤ 100 chars, comma-separated, no spaces)
-`split,expenses,bills,trip,roommate,flatmate,shared,settle up,ious,group,tab,splitwise`
+`split,expenses,bills,trip,roommate,flatmate,shared,settle up,ious,group,tab,expense tracker`
+
+(Dropped `splitwise` 2026-09-09 — a competitor trademark in keywords is a
+common metadata-rejection trigger, Guideline 2.3.7 — and used the freed
+space for `expense tracker`.)
 
 ## Support URL
 `https://clantab.nakka.dev/support`
@@ -185,7 +192,9 @@ analytics or advertising SDKs. No in-app purchases.
 ```
 
 ## Screenshots
-✅ Ready — `docs/appstore/screenshots/` (2026-09-02). Four 1320 × 2868 frames
+✅ Uploaded to App Store Connect 2026-09-09 (`APP_IPHONE_67` set, order 1–4,
+all `COMPLETE`, no warnings). Source: `docs/appstore/screenshots/`
+(2026-09-02). Four 1320 × 2868 frames
 (iPhone 6.9" — the one required iPhone size), PNG without alpha, status bar at
 9:41: Group Home, Insights, Add Expense, Settle Up. Captured on an iPhone 17 Pro
 Max Simulator with a "Lisbon Trip" demo group. Upload as-is to the iPhone
