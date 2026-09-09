@@ -335,6 +335,7 @@ struct GroupHomeView: View {
                 if let state = viewModel.state, !state.expenses.isEmpty || !state.settlements.isEmpty {
                     activityFilterMenu(state: state)
                 }
+                groupSettingsButton
                 shareMenu
                 Button {
                     isPresentingAddExpense = true
@@ -637,6 +638,21 @@ struct GroupHomeView: View {
         return ExportFile.write(csv, filename: "\(filenameBase)-export.csv")
     }
 
+    /// Group Settings gets its own toolbar entry (found 2026-09-09: it was
+    /// buried as the last of 7 items inside `shareMenu`, a menu labeled and
+    /// iconed as "share" — the wrong home for rename/currency/leave-group).
+    /// `slider.horizontal.3` matches the icon `GroupSettingsView` already
+    /// used for its own row there, so nothing about the destination changes,
+    /// only how it's reached.
+    private var groupSettingsButton: some View {
+        Button {
+            isPresentingGroupSettings = true
+        } label: {
+            Label("Group Settings", systemImage: "slider.horizontal.3")
+        }
+        .disabled(viewModel.state == nil)
+    }
+
     @ViewBuilder
     private var shareMenu: some View {
         if let state = viewModel.state {
@@ -669,9 +685,6 @@ struct GroupHomeView: View {
                 }
                 Button("Recurring Reminders", systemImage: "repeat") {
                     isPresentingRecurringReminders = true
-                }
-                Button("Group Settings", systemImage: "slider.horizontal.3") {
-                    isPresentingGroupSettings = true
                 }
             } label: {
                 Label("Group Options", systemImage: "square.and.arrow.up")

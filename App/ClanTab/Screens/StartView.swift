@@ -47,17 +47,17 @@ struct StartView: View {
                     .navigationTitle("ClanTab")
                 }
             } else {
-                // A welcome screen: the wordmark and the two sign-in buttons
-                // sit together, centered — not a centered title with the
-                // buttons shoved to the bottom by a Spacer.
-                VStack(spacing: 28) {
-                    Spacer(minLength: 0)
+                // A welcome screen with a clear focal split: the logo +
+                // wordmark own the upper-centre of the screen, and the
+                // sign-in controls dock to the bottom safe area (below) —
+                // deliberately separated, not one centred clump.
+                VStack(spacing: 0) {
+                    Spacer(minLength: 24)
                     hero
-                    signInSection
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 24)
                 }
-                .padding()
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 24)
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -78,6 +78,11 @@ struct StartView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 4)
                 .background(.bar)
+            } else {
+                signInSection
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+                    .padding(.bottom, 20)
             }
         }
         .toolbar {
@@ -89,27 +94,31 @@ struct StartView: View {
                 }
             }
         }
+        // Before sign-in there's no title or toolbar — drop the empty nav bar
+        // so the welcome hero centres against the full screen.
+        .toolbar(isSignedIn ? .automatic : .hidden, for: .navigationBar)
     }
 
     /// The "welcome" hero, shown only before sign-in — once you're in, the
     /// nav-bar large title carries the wordmark and the groups list gets the
     /// space.
     private var hero: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 20) {
             Image("LaunchLogo")
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 52, height: 52)
+                .frame(width: 64, height: 64)
                 .foregroundStyle(.tint)
-            Text("ClanTab")
-                .font(.display(weight: .bold))
-            Text("Split expenses with friends. No ads.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            VStack(spacing: 10) {
+                Text("ClanTab")
+                    .font(.display(weight: .bold))
+                Text("Split expenses with friends. No ads.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
         }
-        .padding(.top, 28)
         .frame(maxWidth: .infinity)
     }
 
@@ -136,7 +145,13 @@ struct StartView: View {
     }
 
     private var signInSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
+            Text("Sign in to create or join a group.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 2)
+
             AppleSignInButton(
                 onCredential: { token, userID, authCode in
                     sheetError = nil
@@ -144,7 +159,7 @@ struct StartView: View {
                 },
                 onFailure: { sheetError = $0 }
             )
-            .frame(height: 44)
+            .frame(height: 48)
             .disabled(isSigningIn)
             .opacity(isSigningIn ? 0.5 : 1)
 
@@ -155,13 +170,9 @@ struct StartView: View {
                 },
                 onFailure: { sheetError = $0 }
             )
-            .frame(height: 44)
+            .frame(height: 48)
             .disabled(isSigningIn)
             .opacity(isSigningIn ? 0.5 : 1)
-
-            Text("Sign in to create or join a group.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if let message = authError ?? sheetError {
                 Text(message)
@@ -171,6 +182,5 @@ struct StartView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 8)
     }
 }
