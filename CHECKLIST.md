@@ -102,14 +102,26 @@
       (Dashboard → Schema → Deploy Schema Changes → Deploy to Production) so
       TestFlight/release builds can write too — folded into the TestFlight
       pass below. The record type only exists in Development today.
-- [ ] **Approve moderation copy + enable admin reports.** `~5k tokens`
-      (CLI) + `Owner` approval
-      1. Owner: approve the moderation copy + EULA zero-tolerance UGC
-         clause text.
-      2. Owner: pick a strong random value for `ADMIN_TOKEN`.
-      3. CLI: run `wrangler secret put ADMIN_TOKEN` with that value.
-      4. CLI: confirm `GET /api/admin/reports` with `Authorization:
-         Bearer <token>` returns real data, not a 404.
+- [x] **Approve moderation copy + enable admin reports.** Done 2026-09-09,
+      owner-approved with strengthening edits. Guideline 1.2's literal
+      requirement is "act on objectionable content reports within 24 hours"
+      and the copy committed to no timeframe, so before approval: the
+      privacy policy's + website's UGC section now says "reviewed within 24
+      hours", the review notes (`docs/appstore/metadata.md`) spell out the
+      24-hour review + the EULA zero-tolerance policy + the published
+      support contact, and the Terms of Service "Your content" clause
+      (`clantab-website/terms.html`) gained an explicit "We have zero
+      tolerance for objectionable content and abusive users" sentence plus
+      the 24-hour review commitment. Privacy-policy "Last updated" bumped to
+      2026-09-09 in both repos. In-app strings (`ReportContentView`,
+      `GroupSettingsView` footer) left as-is — accurate and sufficient.
+      `ADMIN_TOKEN`: CLI generated `openssl rand -base64 32`, set via
+      `wrangler secret put ADMIN_TOKEN` (redeployed the Worker), value handed
+      to the owner for their password manager. Verified live against
+      production: `GET /api/admin/reports` with no auth → `401`, a wrong
+      bearer → `401`, the real token → `200` with the report log JSON (one
+      pre-existing 2026-09-05 smoke-test report). Was `404` before the
+      secret existed, as designed ("safe until configured").
 - [ ] **Custom domain + Universal Links.** `~45k tokens` (CLI) + `Owner`
       DNS/portal work. Scope is the *app's* deep-link domain only — the
       marketing/legal site is already handled: `clantab.nakka.dev` went

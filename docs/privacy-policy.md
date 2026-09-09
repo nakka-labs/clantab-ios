@@ -1,6 +1,6 @@
 # ClanTab — Privacy Policy
 
-_Last updated: 2026-09-08_
+_Last updated: 2026-09-09_
 
 ClanTab is an expense-splitting app for small groups — trips, flatmates, friend
 circles. Using it **requires signing in with Apple or Google**. This policy
@@ -73,8 +73,8 @@ zero-tolerance approach to abusive or objectionable content:
   member or a group's content for review.
 - **Remove** — from Group Settings, a member can remove another member from the
   group.
-- Reports are reviewed and acted on, and content or members found to be abusive
-  are removed.
+- Reports are reviewed within 24 hours, and content or members found to be
+  abusive are removed.
 
 ## How groups are identified
 

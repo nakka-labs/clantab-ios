@@ -158,7 +158,10 @@ USER-GENERATED CONTENT (Guideline 1.2)
 Group names, member names, and expense descriptions are shared between members.
 "Report a Problem" is available from any member row and from Group Settings;
 "Remove" (Group Settings) blocks a member from the group. Reports go to the
-operator for review; abusive content and users are removed.
+operator and are reviewed within 24 hours; abusive content and users are
+removed. The EULA (https://clantab.nakka.dev/terms) states a zero-tolerance
+policy for objectionable content and abusive users. Published support contact:
+indra@nakka.dev.
 
 ACCOUNT DELETION (Guideline 5.1.1(v))
 Settings (gear icon on the start screen or Group Home) → "Delete Account".
