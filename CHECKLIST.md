@@ -98,10 +98,11 @@
       decoded to the complete, correct ledger (`schemaVersion 1`, INR,
       integer minor units, both expenses with splits, ISO 8601 dates —
       byte-identical conventions to `Export.json`).
-      **Before submission:** deploy the CloudKit schema to Production
-      (Dashboard → Schema → Deploy Schema Changes → Deploy to Production) so
-      TestFlight/release builds can write too — folded into the TestFlight
-      pass below. The record type only exists in Development today.
+      Schema deployed to Production 2026-09-09 (`GroupBackup` + auto-indexes
+      + default role entries; app is `privateCloudDatabase`-only so the role
+      changes are inert) — confirmed present in the Production environment,
+      so TestFlight/release builds can write too. Actual write-on-a-release-
+      build verification is folded into the TestFlight pass below.
 - [x] **Approve moderation copy + enable admin reports.** Done 2026-09-09,
       owner-approved with strengthening edits. Guideline 1.2's literal
       requirement is "act on objectionable content reports within 24 hours"
@@ -221,16 +222,19 @@
       deploy.
 - [ ] **TestFlight on-device end-to-end pass.** `~10k tokens` (CLI build
       help) + `Owner` device time
-      1. Owner: deploy the CloudKit schema to Production (Dashboard → Schema
-         → Deploy Schema Changes → Deploy to Production) — the `GroupBackup`
-         record type only exists in Development so far, so a TestFlight
-         build's backup write would otherwise fail (silently, by design).
+      1. [x] Owner: CloudKit schema deployed to Production 2026-09-09
+         (Dashboard → Deploy Schema Changes → Deploy to Production) — a
+         clean additive deploy: `GroupBackup` record type + its auto-
+         generated indexes + the default `_world`/`_icloud`/`_creator` role
+         entries for the new type (harmless — the app writes only to
+         `privateCloudDatabase`). `GroupBackup` confirmed present in the
+         Production environment.
       2. CLI: run the archive/export build steps, hand owner the
          `.ipa`/TestFlight build.
       3. Owner: on a real device, verify Sign in with Apple/Google, a
-         push notification, one recurring-reminder delivery, and a
-         `GroupBackup` record in the CloudKit Dashboard's *Production*
-         environment.
+         push notification, one recurring-reminder delivery, a shared
+         `clantab.nakka.dev/g/…` link opening the app, and a `GroupBackup`
+         record in the CloudKit Dashboard's *Production* environment.
       4. Owner: tag the version once it passes.
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above **and** every item
