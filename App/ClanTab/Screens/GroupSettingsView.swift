@@ -41,6 +41,12 @@ struct GroupSettingsView: View {
     @State private var confirmingRegenerate = false
     @State private var isRegenerating = false
     @State private var isArchiving = false
+    /// The "Default Split" editor (`FEATURE_BACKLOG.md` "Default split config
+    /// per group"): whether it's expanded, the per-member percent drafts, and
+    /// the in-flight flag.
+    @State private var editingDefaultSplit = false
+    @State private var draftPercent: [String: String] = [:]
+    @State private var isSavingDefaultSplit = false
     @State private var myUpiVpa = ""
     @State private var isSavingUpiVpa = false
     /// Drives the "Report a Problem" sheet (`FEATURE_BACKLOG.md`,
@@ -110,6 +116,8 @@ struct GroupSettingsView: View {
             } footer: {
                 Text("The default currency for new expenses. Existing expenses keep the currency they were entered in.")
             }
+
+            defaultSplitSection
 
             Section {
                 ForEach(state.members) { member in
@@ -286,6 +294,108 @@ struct GroupSettingsView: View {
                 }
                 .padding(.vertical, 2)
             }
+        }
+    }
+
+    // MARK: - Default split (FEATURE_BACKLOG.md "Default split config per group")
+
+    @ViewBuilder
+    private var defaultSplitSection: some View {
+        Section {
+            if editingDefaultSplit {
+                ForEach(state.members) { member in
+                    HStack {
+                        Text(member.displayName)
+                        Spacer()
+                        TextField("0", text: draftPercentBinding(for: member.id))
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 44)
+                        Text("%").foregroundStyle(.secondary)
+                    }
+                }
+                Text(draftPercentTotal == 100 ? "Adds up to 100%." : "\(draftPercentTotal)% assigned")
+                    .font(.caption)
+                    .foregroundStyle(draftPercentTotal == 100 ? Color.secondary : Color.red)
+                HStack {
+                    Button("Split Equally", role: .destructive) { Task { await saveDefaultSplit(nil) } }
+                    Spacer()
+                    Button("Save") { Task { await saveDefaultSplit(draftDefaultSplit) } }
+                        .disabled(draftDefaultSplit == nil || isSavingDefaultSplit)
+                }
+            } else {
+                HStack {
+                    Text("Default Split")
+                    Spacer()
+                    Text(currentDefaultSplitLabel).foregroundStyle(.secondary)
+                }
+                Button("Change") { startEditingDefaultSplit() }
+            }
+        } header: {
+            Text("Default Split")
+        } footer: {
+            Text("New expenses open with this split. You can still change it on any expense.")
+        }
+    }
+
+    private var currentDefaultSplitLabel: String {
+        guard let split = state.group.defaultSplit else { return "Split equally" }
+        let name: (String) -> String = { id in
+            state.members.first { $0.id == id }?.displayName ?? "?"
+        }
+        return split.weights.map { "\(name($0.memberId)) \($0.weight)%" }.joined(separator: " · ")
+    }
+
+    private func draftPercentBinding(for memberId: String) -> Binding<String> {
+        Binding(get: { draftPercent[memberId] ?? "" }, set: { draftPercent[memberId] = $0 })
+    }
+
+    private func draftPercent(for memberId: String) -> Int {
+        Int(draftPercent[memberId]?.trimmingCharacters(in: .whitespaces) ?? "") ?? 0
+    }
+
+    private var draftPercentTotal: Int {
+        state.members.reduce(0) { $0 + draftPercent(for: $1.id) }
+    }
+
+    /// The editor's current weights as a valid `DefaultSplit`, or `nil` if it
+    /// doesn't add up / has no positive weight.
+    private var draftDefaultSplit: DefaultSplit? {
+        let weights = state.members
+            .map { DefaultSplitWeight(memberId: $0.id, weight: draftPercent(for: $0.id)) }
+            .filter { $0.weight > 0 }
+        let split = DefaultSplit(weights: weights)
+        return split.isValid ? split : nil
+    }
+
+    private func startEditingDefaultSplit() {
+        var draft: [String: String] = [:]
+        if let current = state.group.defaultSplit {
+            for w in current.weights { draft[w.memberId] = String(w.weight) }
+        } else {
+            // Seed from an equal split so the user starts from something sane.
+            let base = 100 / max(1, state.members.count)
+            for member in state.members { draft[member.id] = String(base) }
+        }
+        draftPercent = draft
+        editingDefaultSplit = true
+    }
+
+    /// `nil` → "split equally" (clears the config).
+    private func saveDefaultSplit(_ split: DefaultSplit?) async {
+        errorMessage = nil
+        isSavingDefaultSplit = true
+        defer { isSavingDefaultSplit = false }
+        do {
+            _ = try await client.updateGroup(
+                groupId: groupId,
+                defaultSplit: split.map { .set($0) } ?? .cleared,
+                accessToken: accessToken
+            )
+            editingDefaultSplit = false
+            onChanged()
+        } catch {
+            errorMessage = friendlyMessage(for: error)
         }
     }
 

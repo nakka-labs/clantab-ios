@@ -30,10 +30,15 @@ public struct GroupSummary: Codable, Sendable, Equatable {
     /// group-wide "this trip is over, hide it" flag, `nil` while active.
     /// Toggled via `updateGroup(archived:)`.
     public let archivedAt: Date?
+    /// The group's saved default split (`FEATURE_BACKLOG.md` "Default split
+    /// config per group") — percentage weights that pre-fill Add Expense.
+    /// `nil` = split equally among everyone. Set via `updateGroup(defaultSplit:)`.
+    public let defaultSplit: DefaultSplit?
 
     public init(
         name: String, currency: String, createdAt: Date, joinCode: String,
-        accessToken: String? = nil, emoji: String? = nil, archivedAt: Date? = nil
+        accessToken: String? = nil, emoji: String? = nil, archivedAt: Date? = nil,
+        defaultSplit: DefaultSplit? = nil
     ) {
         self.name = name
         self.currency = currency
@@ -42,6 +47,7 @@ public struct GroupSummary: Codable, Sendable, Equatable {
         self.accessToken = accessToken
         self.emoji = emoji
         self.archivedAt = archivedAt
+        self.defaultSplit = defaultSplit
     }
 }
 
@@ -154,18 +160,24 @@ public struct UpdateGroupRequest: Encodable, Sendable {
     /// "Archive a group"); `nil` omits the key. The server stamps / clears
     /// the `archived_at` timestamp itself.
     private let archived: Bool?
+    /// The group's default split (`FEATURE_BACKLOG.md` "Default split config
+    /// per group") — `.unchanged` omits the key, `.cleared` sends `null`
+    /// ("split equally"), `.set` sends the weights.
+    private let defaultSplitUpdate: FieldUpdate<DefaultSplit>
 
     public init(
         name: String? = nil, currency: String? = nil,
-        emoji: FieldUpdate<String> = .unchanged, archived: Bool? = nil
+        emoji: FieldUpdate<String> = .unchanged, archived: Bool? = nil,
+        defaultSplit: FieldUpdate<DefaultSplit> = .unchanged
     ) {
         self.name = name
         self.currency = currency
         self.emojiUpdate = emoji
         self.archived = archived
+        self.defaultSplitUpdate = defaultSplit
     }
 
-    private enum CodingKeys: String, CodingKey { case name, currency, emoji, archived }
+    private enum CodingKeys: String, CodingKey { case name, currency, emoji, archived, defaultSplit }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
@@ -176,6 +188,11 @@ public struct UpdateGroupRequest: Encodable, Sendable {
         case .unchanged: break
         case .cleared: try container.encodeNil(forKey: .emoji)
         case .set(let value): try container.encode(value, forKey: .emoji)
+        }
+        switch defaultSplitUpdate {
+        case .unchanged: break
+        case .cleared: try container.encodeNil(forKey: .defaultSplit)
+        case .set(let value): try container.encode(value, forKey: .defaultSplit)
         }
     }
 }

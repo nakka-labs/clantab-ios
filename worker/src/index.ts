@@ -205,15 +205,20 @@ async function handleGetState(request: Request, env: Env, params: Params): Promi
 async function handleUpdateGroup(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
   const body = await readJsonObject(request);
-  rejectUnknownKeys(body, ["name", "currency", "emoji", "archived"]);
+  rejectUnknownKeys(body, ["name", "currency", "emoji", "archived", "defaultSplit"]);
   const name = optionalString(body, "name");
   const currency = optionalString(body, "currency");
   // `null` clears the group's emoji; a string sets it; absent leaves it.
   const emoji = optionalStringOrNull(body, "emoji");
   // `true` archives, `false` unarchives, absent leaves it (`CHECKLIST.md`).
   const archived = optionalBoolean(body, "archived");
-  if (name === undefined && currency === undefined && emoji === undefined && archived === undefined) {
-    throw new BadRequestError('Provide "name", "currency", "emoji", and/or "archived".');
+  // An object sets the default split, `null` clears it, absent leaves it.
+  const defaultSplit = parseDefaultSplitPatch(body);
+  if (
+    name === undefined && currency === undefined && emoji === undefined &&
+    archived === undefined && defaultSplit === undefined
+  ) {
+    throw new BadRequestError('Provide "name", "currency", "emoji", "archived", and/or "defaultSplit".');
   }
   // A single emoji can be several code points (ZWJ sequences, skin tones,
   // flags); 16 is generous headroom while still rejecting a text label
@@ -222,7 +227,35 @@ async function handleUpdateGroup(request: Request, env: Env, params: Params): Pr
   if (typeof emoji === "string" && [...emoji].length > 16) {
     throw new BadRequestError('Field "emoji" must be a single emoji.');
   }
-  return json(200, await group.updateGroup({ name, currency, emoji, archived }));
+  const result = await group.updateGroup({ name, currency, emoji, archived, defaultSplit });
+  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+}
+
+/** `undefined` (key absent) / `null` (clear) / a validated
+ * `{ weights: [{ memberId, weight }] }` — positive integer weights, distinct
+ * members, summing to 100 (`FEATURE_BACKLOG.md` "Default split config"). The
+ * `GroupDO` checks the members actually exist. */
+function parseDefaultSplitPatch(body: Record<string, unknown>): { weights: { memberId: string; weight: number }[] } | null | undefined {
+  const raw = body.defaultSplit;
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  assertPlainObject(raw, "defaultSplit");
+  rejectUnknownKeys(raw, ["weights"]);
+  const weights = requireArray(raw, "weights").map((entry, i) => {
+    assertPlainObject(entry, `defaultSplit.weights[${i}]`);
+    rejectUnknownKeys(entry, ["memberId", "weight"]);
+    const weight = requireInteger(entry, "weight");
+    if (weight <= 0) throw new BadRequestError(`Field "defaultSplit.weights[${i}].weight" must be positive.`);
+    return { memberId: requireString(entry, "memberId"), weight };
+  });
+  if (weights.length === 0) throw new BadRequestError('Field "defaultSplit.weights" must not be empty.');
+  if (new Set(weights.map((w) => w.memberId)).size !== weights.length) {
+    throw new BadRequestError('Field "defaultSplit.weights" has a duplicate member.');
+  }
+  if (weights.reduce((sum, w) => sum + w.weight, 0) !== 100) {
+    throw new BadRequestError('Field "defaultSplit.weights" must sum to 100.');
+  }
+  return { weights };
 }
 
 /**

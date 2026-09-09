@@ -14,6 +14,7 @@ import type {
   AddExpenseRequest,
   AddSettlementRequest,
   Balance,
+  DefaultSplit,
   Expense,
   GroupStateResponse,
   GroupSummary,
@@ -207,7 +208,7 @@ export class GroupDO extends DurableObject {
     this.setMeta(META_KEYS.accessToken, accessToken);
 
     const member = this.insertMember(creatorDisplayName, now);
-    return { member, group: { name, currency, createdAt, joinCode, accessToken, emoji: null, archivedAt: null } };
+    return { member, group: { name, currency, createdAt, joinCode, accessToken, emoji: null, archivedAt: null, defaultSplit: null } };
   }
 
   async addMember(displayName: string): Promise<{ member: Member }> {
@@ -225,14 +226,31 @@ export class GroupDO extends DurableObject {
     /** `true` archives (stamps `archived_at` = now), `false` unarchives
      * (clears it), absent leaves it (`CHECKLIST.md` "Archive a group"). */
     archived?: boolean;
-  }): Promise<{ group: GroupSummary }> {
+    /** An object sets the group's default split, `null` clears it ("split
+     * equally"), absent leaves it (`FEATURE_BACKLOG.md` "Default split config
+     * per group"). Shape/weights already validated by the route handler;
+     * this checks the members exist. Returns a domain `Result` on a bad
+     * member so the route can 400 rather than store garbage. */
+    defaultSplit?: DefaultSplit | null;
+  }): Promise<Result<{ group: GroupSummary }>> {
+    if (patch.defaultSplit !== undefined && patch.defaultSplit !== null) {
+      const memberIds = new Set(this.readMembers().map((m) => m.id));
+      const unknown = patch.defaultSplit.weights.find((w) => !memberIds.has(w.memberId));
+      if (unknown !== undefined) {
+        return fail("NOT_FOUND", `Member "${unknown.memberId}" is not in this group.`);
+      }
+    }
+
     if (patch.name !== undefined) this.setMeta(META_KEYS.name, patch.name);
     if (patch.currency !== undefined) this.setMeta(META_KEYS.currency, patch.currency);
     if (patch.emoji === null) this.deleteMeta(META_KEYS.emoji);
     else if (patch.emoji !== undefined) this.setMeta(META_KEYS.emoji, patch.emoji);
     if (patch.archived === true) this.setMeta(META_KEYS.archivedAt, isoSeconds(Date.now()));
     else if (patch.archived === false) this.deleteMeta(META_KEYS.archivedAt);
-    return { group: this.groupSummary() };
+    if (patch.defaultSplit === null) this.deleteMeta(META_KEYS.defaultSplit);
+    else if (patch.defaultSplit !== undefined) this.setMeta(META_KEYS.defaultSplit, JSON.stringify(patch.defaultSplit));
+
+    return ok({ group: this.groupSummary() });
   }
 
   /** Update a member's display name and/or UPI VPA (`FEATURE_BACKLOG.md`
@@ -297,7 +315,21 @@ export class GroupDO extends DurableObject {
       accessToken: this.meta(META_KEYS.accessToken),
       emoji: this.meta(META_KEYS.emoji),
       archivedAt: this.meta(META_KEYS.archivedAt),
+      defaultSplit: this.readDefaultSplit(),
     };
+  }
+
+  /** Parse the stored `default_split` JSON; `null` if unset or unparseable
+   * (a corrupt row shouldn't 500 every group-state read). */
+  private readDefaultSplit(): DefaultSplit | null {
+    const raw = this.meta(META_KEYS.defaultSplit);
+    if (raw === null) return null;
+    try {
+      const parsed = JSON.parse(raw) as DefaultSplit;
+      return Array.isArray(parsed?.weights) ? parsed : null;
+    } catch {
+      return null;
+    }
   }
 
   // --- access token (ACCESS_TOKEN_PLAN.md) --------------------------------

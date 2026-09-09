@@ -62,6 +62,11 @@ struct AddExpenseView: View {
         /// member; otherwise falls back like a blank form would.
         /// `editing` stays `nil`, same reasoning as `duplicating`.
         recurringTemplate: RecurringTemplate? = nil,
+        /// The group's saved default split (`FEATURE_BACKLOG.md` "Default split
+        /// config per group") — a *fresh* Add Expense opens on a percentage
+        /// split pre-filled from it, when every weighted member is still in the
+        /// group. Editing / duplicating / a recurring reminder ignore it.
+        defaultSplit: DefaultSplit? = nil,
         onSaved: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -90,6 +95,15 @@ struct AddExpenseView: View {
             _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
             _currency = State(initialValue: defaultCurrency)
             _includedMemberIds = State(initialValue: Set(members.map(\.id)))
+            // Open on the group's saved default split when it's still valid
+            // for the current members (`FEATURE_BACKLOG.md` "Default split
+            // config per group").
+            if let resolved = defaultSplit?.resolved(for: members) {
+                _splitType = State(initialValue: .percentage)
+                _percentText = State(initialValue: Dictionary(
+                    uniqueKeysWithValues: resolved.weights.map { ($0.memberId, String($0.weight)) }
+                ))
+            }
             return
         }
 

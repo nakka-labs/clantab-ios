@@ -943,10 +943,26 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       3. Compute per-person totals from item assignments, reusing the
          existing split-math patterns.
       4. Test worker, `ClanTabKit`, and App.
-- [ ] **Default split config per group.** `~45k tokens` (CLI)
-      1. Add a nullable "default split" field to the group/member schema.
-      2. Add a save/apply UI in Group Settings.
-      3. Pre-fill Add Expense from it when set.
+- [x] **Default split config per group.** Done 2026-09-09. **Model:**
+      `DefaultSplit { weights: [DefaultSplitWeight] }` (ClanTabKit) — a
+      percentage split (weights positive, distinct, summing to 100);
+      `.resolved(for: members)` drops weights whose member left and returns
+      `nil` if that breaks the sum. `nil` on a group = "split equally".
+      **Worker:** `group_meta.default_split` (JSON, a new key — no
+      `SCHEMA_VERSION` bump); `PATCH /api/groups/:id` takes
+      `{ defaultSplit: {...} | null }`, validated (shape + sum + members
+      exist → 400/404); `GroupSummary.defaultSplit` on `getState`.
+      **Kit:** `GroupSummary.defaultSplit`, `ClanTabClient.updateGroup(defaultSplit:)`
+      (a `FieldUpdate`). **App:** a "Default Split" section in Group
+      Settings — shows the current split ("Split equally" / "Dev 70% ·
+      Sam 30%"), a "Change" → per-member `%` editor with a live
+      "adds up to 100%" check and Save / Split Equally. `AddExpenseView`
+      gains a `defaultSplit:` param; a *fresh* Add Expense (not edit /
+      duplicate / recurring) opens on `.percentage` pre-filled from
+      `resolved(for:)`. **Verified end-to-end in the Simulator:** set
+      70/30 in settings → PATCH stored → Add Expense opened on the
+      Percentage tab, Dev 70% / Sam 30%. Tests: `DefaultSplitTests` (3,
+      kit) + `routes.test.ts` +2. `make check` green. `DESIGN.md` §2 updated.
 - [ ] **Read-only web link for balances.** `~55k tokens` (CLI)
       1. Add a new unauthenticated `GET` route rendering a plain HTML
          balances view for a `groupId` (+ token).

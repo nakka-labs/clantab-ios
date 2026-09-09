@@ -64,11 +64,12 @@ public actor ClanTabClient {
     /// expenses keep their own currency.
     public func updateGroup(
         groupId: String, name: String? = nil, currency: String? = nil,
-        emoji: FieldUpdate<String> = .unchanged, archived: Bool? = nil, accessToken: String? = nil
+        emoji: FieldUpdate<String> = .unchanged, archived: Bool? = nil,
+        defaultSplit: FieldUpdate<DefaultSplit> = .unchanged, accessToken: String? = nil
     ) async throws -> UpdateGroupResponse {
         try await patch(
             "api/groups/\(groupId)",
-            body: UpdateGroupRequest(name: name, currency: currency, emoji: emoji, archived: archived),
+            body: UpdateGroupRequest(name: name, currency: currency, emoji: emoji, archived: archived, defaultSplit: defaultSplit),
             accessToken: accessToken
         )
     }

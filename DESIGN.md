@@ -50,7 +50,8 @@ Response: 200 { groupId }  |  404 if unknown
 
 ### `PATCH /api/groups/:groupId`
 ```
-Request:  { name?: string, currency?, emoji?: string | null, archived?: boolean }
+Request:  { name?: string, currency?, emoji?: string | null, archived?: boolean,
+            defaultSplit?: { weights: [{ memberId, weight }] } | null }
           (at least one; unknown keys rejected)
 Response: 200 { group: {...} }            the updated GroupSummary
 ```
@@ -65,8 +66,14 @@ reversible "the trip's over, hide it" flag any member can toggle
 (`CHECKLIST.md` "Archive a group"); it's purely organizational and doesn't
 block mutations. The client hides archived groups from the dashboard list
 (behind an "Archived" disclosure) and excludes them from the cross-group
-totals. Both `emoji` and `archived_at` are nullable `group_meta` keys — new
-keys, not schema-version bumps, same as `access_token`.
+totals. `defaultSplit` is the group's saved default split
+(`FEATURE_BACKLOG.md` "Default split config per group") — an object of
+percentage `weights` per member (positive ints summing to 100; members must
+exist) sets it, `null` clears it ("split equally"), omitting leaves it. A
+*fresh* Add Expense opens on a percentage split pre-filled from it (when
+every weighted member is still current); editing an expense ignores it.
+`emoji` / `archived_at` / `default_split` are all nullable `group_meta` keys
+— new keys, not schema-version bumps, same as `access_token`.
 
 ### `POST /api/groups/:groupId/members`
 Join an existing group (also how the app adds a placeholder member).
@@ -387,7 +394,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`6`** — `expenses.deleted_at`/`deleted_by` + `settlements.deleted_at`/`deleted_by` added (all nullable). Plain `ADD COLUMN`s, in place. `DELETE` now soft-deletes rather than removing the row; a trashed expense/settlement is excluded from balances and the activity feed but stays restorable (`POST .../restore`).
 - **`7`** — `members.upi_vpa` added (nullable, user-supplied). Plain `ADD COLUMN`, in place. Powers the optional "Pay via UPI" deep link on Settle Up — ClanTab never verifies or processes it, just builds a `upi://pay?...` URI the OS opens.
 
-`group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8), an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji), and an `archived_at` row (2026-09-09, §2 — the archive flag) — all new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has none of them until it sets one.
+`group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8), an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji), an `archived_at` row (2026-09-09, §2 — the archive flag), and a `default_split` row (2026-09-09, §2 — the saved default split JSON) — all new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has none of them until it sets one.
 
 The **`UserDO`** (one per signed-in identity, `idFromName("<provider>:" + sub)`, added with the accounts phase) carries its own `USER_SCHEMA_VERSION` (currently `1`): a `user_meta` key/value table and a `memberships` table (`group_id` PK, `member_id`, `display_name`, `added_at`). It's a self-healing index the Worker updates *after* the authoritative `GroupDO` write — never the source of truth for the membership↔identity link. No migrations yet; a `UserDO` is created fresh on first sign-in.
 

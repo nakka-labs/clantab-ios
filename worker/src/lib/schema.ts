@@ -148,6 +148,11 @@ export const META_KEYS = {
    * key/value table, so no `SCHEMA_VERSION` bump (same as `emoji` /
    * `access_token`). Purely organizational — it doesn't block mutations. */
   archivedAt: "archived_at",
+  /** JSON `{ weights: [{ memberId, weight }] }` — the group's saved default
+   * split (`FEATURE_BACKLOG.md` "Default split config per group"), percentage
+   * weights that pre-fill Add Expense. Absent = split equally. Weights are
+   * positive ints summing to 100; a new key, no `SCHEMA_VERSION` bump. */
+  defaultSplit: "default_split",
 } as const;
 
 /**

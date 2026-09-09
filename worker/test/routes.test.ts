@@ -821,6 +821,41 @@ describe("group + member settings", () => {
     expect((await patch(`/api/groups/${groupId}`, { archived: "yes" }, token)).status).toBe(400);
   });
 
+  it("PATCH /api/groups/:id sets, keeps, and clears the default split", async () => {
+    const stateSplit = async () =>
+      ((await get(`/api/groups/${groupId}`, undefined, token)).json.group as Json).defaultSplit;
+
+    expect(await stateSplit()).toBeNull(); // "split equally" on a fresh group
+
+    const split = { weights: [{ memberId: a, weight: 60 }, { memberId: b, weight: 40 }] };
+    const set = await patch(`/api/groups/${groupId}`, { defaultSplit: split }, token);
+    expect(set.status).toBe(200);
+    expect((set.json.group as Json).defaultSplit).toEqual(split);
+    expect(await stateSplit()).toEqual(split);
+
+    // A rename leaves it alone (key absent).
+    await patch(`/api/groups/${groupId}`, { name: "Renamed" }, token);
+    expect(await stateSplit()).toEqual(split);
+
+    const cleared = await patch(`/api/groups/${groupId}`, { defaultSplit: null }, token);
+    expect((cleared.json.group as Json).defaultSplit).toBeNull();
+    expect(await stateSplit()).toBeNull();
+  });
+
+  it("PATCH /api/groups/:id rejects a default split that doesn't sum to 100, or names an unknown member", async () => {
+    expect((await patch(`/api/groups/${groupId}`, {
+      defaultSplit: { weights: [{ memberId: a, weight: 60 }, { memberId: b, weight: 30 }] },
+    }, token)).status).toBe(400);
+
+    expect((await patch(`/api/groups/${groupId}`, {
+      defaultSplit: { weights: [{ memberId: a, weight: 50 }, { memberId: "ghost", weight: 50 }] },
+    }, token)).status).toBe(404);
+
+    expect((await patch(`/api/groups/${groupId}`, {
+      defaultSplit: { weights: [{ memberId: a, weight: 100 }, { memberId: a, weight: 0 }] },
+    }, token)).status).toBe(400);
+  });
+
   it("PATCH a member renames them", async () => {
     const { status, json } = await patch(`/api/groups/${groupId}/members/${b}`, { displayName: "Benjamin" }, token);
     expect(status).toBe(200);

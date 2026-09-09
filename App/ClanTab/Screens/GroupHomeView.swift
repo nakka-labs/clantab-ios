@@ -337,6 +337,7 @@ struct GroupHomeView: View {
                     currentMemberId: viewModel.myIdentity?.memberId,
                     client: client,
                     accessToken: viewModel.accessToken,
+                    defaultSplit: viewModel.state?.group.defaultSplit,
                     onSaved: {
                         isPresentingAddExpense = false
                         expenseAddedTrigger += 1

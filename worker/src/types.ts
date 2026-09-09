@@ -38,6 +38,15 @@ export interface GroupSummary {
    * (`CHECKLIST.md` "Archive a group"). Toggled via `PATCH /api/groups/:groupId`
    * with `{ "archived": true|false }`. */
   archivedAt: string | null;
+  /** The group's saved default split (`FEATURE_BACKLOG.md` "Default split
+   * config per group"), or `null` for "split equally". Set via
+   * `PATCH /api/groups/:groupId` with `{ "defaultSplit": {...} | null }`. */
+  defaultSplit: DefaultSplit | null;
+}
+
+/** Percentage weights per member; positive ints summing to 100. */
+export interface DefaultSplit {
+  weights: { memberId: string; weight: number }[];
 }
 
 // POST /api/groups
