@@ -68,6 +68,7 @@ struct RootView: View {
             // same-view-identity audit).
             content
                 .id(route)
+                .transition(Self.routeTransition)
         }
         .task {
             await auth.handleLaunch()
@@ -230,7 +231,7 @@ struct RootView: View {
                 initialAction: pendingAddExpenseGroupId == groupId ? .addExpense : nil,
                 onInitialActionConsumed: { pendingAddExpenseGroupId = nil },
                 onOpenSettings: { showingSettings = true },
-                onOpenGroupsHub: { route = .start },
+                onOpenGroupsHub: { withAnimation(.claimSettle) { route = .start } },
                 onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
@@ -248,9 +249,22 @@ struct RootView: View {
         }
     }
 
+    /// The spring hero for opening / leaving a group (`CHECKLIST.md`
+    /// "Spring/matched-geometry transition"). A literal cross-screen
+    /// `matchedGeometryEffect` isn't possible here — `.id(route)` tears the
+    /// old screen down before the new one exists, so source and target are
+    /// never co-present — so this is the achievable version: the incoming
+    /// screen springs up from 95% with a cross-fade on `Animation.claimSettle`
+    /// (that curve's own doc names this exact use). Group open/close only;
+    /// the form routes (`.createGroup` etc.) stay instant.
+    static let routeTransition: AnyTransition = .asymmetric(
+        insertion: .scale(scale: 0.95).combined(with: .opacity),
+        removal: .opacity
+    )
+
     private func enterGroup(_ groupId: String, accessToken: String? = nil) {
         knownGroups.remember(groupId: groupId, name: nil, accessToken: accessToken, at: Date())
-        route = .group(groupId: groupId)
+        withAnimation(.claimSettle) { route = .group(groupId: groupId) }
         refreshQuickAction()
     }
 
@@ -279,7 +293,7 @@ struct RootView: View {
     /// (pre-existing behavior, unchanged by `MANDATORY_LOGIN_PLAN.md` Part 3).
     private func leaveGroup(_ groupId: String) {
         knownGroups.forget(groupId: groupId)
-        route = .start
+        withAnimation(.claimSettle) { route = .start }
     }
 
     /// Where a `/g/:groupId` link should land. Pure so it can be tested without a

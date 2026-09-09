@@ -648,26 +648,29 @@ one-off/casual, large-friend-group):
       more specific, still literally true to each state. Verified the
       Group Home and All-Square states light + dark in the Simulator.
       kit 179 · app 88.
-- [~] **Spring/matched-geometry transition.** `~30k tokens` (CLI)
-      1. Add a `matchedGeometryEffect` from a group card into Group Home,
-         replacing the flat push.
-      2. Verify it doesn't break the existing navigation stack/back
-         behavior.
-      Partly done 2026-09-08. The literal `matchedGeometryEffect` from
-      the start-screen badge into Group Home isn't feasible from here:
-      the badge's morph target — Group Home's balance card — is gated on
-      an async state load, so it doesn't exist during the transition
-      window; and Group Home's `.searchable` bar renders a flipped
-      snapshot of the outgoing screen during any SwiftUI view transition
-      across the `route` swap (a pre-existing glitch a cross-fade only
-      makes visible — can't verify device vs. simulator from here).
-      What shipped instead: the balance card is now **always** rendered,
-      showing a redacted placeholder in the group's accent colour while
-      state loads, so opening a group lands on its coloured identity card
-      immediately instead of a blank spinner screen. No navigation
-      changes. Still open: a real hero morph, once the transition
-      substrate is sorted (revisit with "Name + standardize the shared
-      spring curve"). kit 179 · app 88.
+- [x] **Spring/matched-geometry transition.** Done 2026-09-09. A literal
+      cross-screen `matchedGeometryEffect` stays out: `RootView`'s
+      `.id(route)` (from the group-switching fix) tears the outgoing
+      screen down before the incoming one exists, so source and target
+      are never co-present — the pre-2026-09-09 note already ruled the
+      badge→balance-card morph infeasible for a different reason
+      (async-gated target), and `.id(route)` makes it structurally
+      impossible now. The achievable version shipped: opening / leaving a
+      group runs `withAnimation(.claimSettle)` around the `route` change
+      with a `.transition` on the routed subtree —
+      `.scale(0.95) + .opacity` in, `.opacity` out — so the group screen
+      springs up from 95% with a soft dissolve on the one shared
+      confirm-moment curve (`Animation.claimSettle`, whose doc comment
+      names this exact use). Form routes (`.createGroup` etc.) stay
+      instant. **Verified in the Simulator** (2 seeded groups): opens and
+      closes both directions cleanly, and the historical `.searchable`
+      flipped-snapshot glitch does **not** reproduce mid-transition
+      (mid-frame screenshot captured). The always-rendered accent
+      placeholder card from the earlier pass stays. `make check` green.
+      (Simulator-tooling note: an unsigned `CODE_SIGNING_ALLOWED=NO` sim
+      build can't use the Keychain, so the dev-session recipe now needs
+      an `InMemoryGroupAccessTokenStore` injected — logged in the
+      `running-the-ios-app` memory.)
 - [x] **Display typeface for wordmarks/hero numerals.** `~35k tokens`
       (CLI) + one design decision
       1. Owner/CLI: pick a free Google Fonts family for the display face.
