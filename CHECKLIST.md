@@ -252,11 +252,20 @@
          `~/.appstoreconnect/private_keys/`. Now processing in App Store
          Connect; will appear under TestFlight in ~10–30 min. Archive also
          in `~/Library/Developer/Xcode/Archives/2026-09-09/`.
-      3. Owner: on a real device, verify Sign in with Apple/Google, a
-         push notification, one recurring-reminder delivery, a shared
-         `clantab.nakka.dev/g/…` link opening the app, and a `GroupBackup`
+      3. [x] CLI: TestFlight configured 2026-09-09. Build 7 is
+         `processingState VALID`, `usesNonExemptEncryption false` (export
+         compliance auto-answered), and already `IN_BETA_TESTING` in the
+         internal group **"test-team"** (`id0399@gmail.com`, builds 3–7) —
+         installable now from the TestFlight app. Set the "What to Test"
+         (`betaBuildLocalization` en-US) + the beta app localization
+         (feedback email `indra@nakka.dev`, privacy URL). Full pass
+         checklist: `docs/appstore/testflight-pass.md`.
+      4. Owner: run the pass on a real device — Sign in with Apple/Google,
+         a push (CLI triggers it via an API expense-add), a recurring-
+         reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
+         the app, Report a Problem, Delete Account, and a `GroupBackup`
          record in the CloudKit Dashboard's *Production* environment.
-      4. Owner: tag the version once it passes.
+      5. Owner: tag the version once it passes.
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above **and** every item
          under "Design & UX polish" below.
@@ -857,15 +866,68 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
          Leave/Remove/Delete.
       3. Filter archived groups out of the default groups list, with a
          toggle to see them.
+- [ ] **Image storage backend (R2).** `~35k tokens` (CLI), blocked on
+      an Owner step — unblocks the three items below (profile photos,
+      group cover images, receipt attachments) and any future
+      "attach an image" feature. Was parked 2026-09-06 because R2
+      needs a billing card, breaking the zero-card invariant kept
+      everywhere else in this project — that invariant stops applying
+      once monetization ships (App Store Connect already needs
+      bank/tax details for paid IAP), so this is unparked pending the
+      monetization-stance decision (`Decide the monetization stance`,
+      above). Cost is negligible regardless: R2 has no egress fee and
+      free tiers of 10GB storage / 1M writes / 10M reads per month;
+      realistic usage stays inside or barely above that even at 1M
+      users (~$3-15/mo). Build once, wire to all three surfaces
+      below — don't build three separate upload paths.
+      1. Owner: enable R2 on the Cloudflare account (adds a billing
+         card to that account, nothing user-facing).
+      2. Add an `r2_buckets` binding in `wrangler.jsonc`, one bucket,
+         objects namespaced by path (`avatars/{userId}`,
+         `groups/{groupId}/cover`, `expenses/{expenseId}/receipt-{n}`).
+      3. Worker: an authenticated endpoint that checks the caller's
+         session + group membership and returns a short-lived
+         presigned R2 URL for PUT (upload) or GET (view) — the Worker
+         never proxies the image bytes itself, keeping compute/
+         duration cost flat regardless of image volume.
+      4. Server-side validation on upload: mimetype whitelist, size
+         cap (reject >5MB pre-compression) — don't trust client-side
+         compression alone.
+      5. Delete-on-delete: hook the existing member-remove /
+         expense-delete / group-delete paths to also delete the
+         associated R2 object(s), so storage doesn't grow with
+         orphans.
+- [ ] **Profile photos (replacing/supplementing initials avatars).**
+      `~25k tokens` (CLI) — needs the R2 backend above shipped first.
+      1. iOS: image picker + client-side resize to ~512px + JPEG
+         compress (~q0.7) before upload — the actual cost/UX lever,
+         do this even though the server also caps size.
+      2. Wire upload through the presigned-URL flow; store the R2
+         object key on the user record (`UserDO`), not the blob.
+      3. Swap the existing `MemberColor` initials avatar for the
+         photo wherever it renders, falling back to initials when
+         unset.
+- [ ] **Group cover image.** `~20k tokens` (CLI) — needs the R2
+      backend above; reuses the same upload/compress/display pattern
+      as profile photos with the object keyed to the group instead of
+      the user.
+      1. Add an optional cover-image field to the group record.
+      2. Group Settings: upload/replace/remove UI.
+      3. Show it on the group's dashboard entry and header.
+- [ ] **Photo attachment on an expense (receipts).** `~30k tokens`
+      (CLI) — needs the R2 backend above. Plain photo attachment
+      only; receipt OCR stays out of scope (see Parked below).
+      1. Add an `attachments: [String]` (R2 object keys) field to the
+         expense model, worker + `ClanTabKit`.
+      2. Add Expense: attach-photo action (camera or picker), same
+         resize/compress step as above.
+      3. Expense detail: thumbnail + full-screen view via the
+         presigned-URL flow.
+      4. Include in the delete-on-delete cleanup from the backend
+         item.
 
 ### Parked — not dropped, revisit deliberately
 
-- Real profile photos (not initials avatars) and plain photo attachment
-  on an expense — both need Cloudflare R2, which requires a card on file
-  and breaks the zero-card invariant kept everywhere else in this project.
-  Decided 2026-09-06 to ship initials/color avatars instead for now; if
-  the invariant is ever deliberately broken, revisit both together, same
-  R2 decision serves both.
 - Receipt / bill reading (OCR) — needs on-device Vision work or a paid
   cloud OCR API plus a review/correction UI; not cheap like the rest of
   this list. Confirmed out of scope again 2026-09-06/07.
