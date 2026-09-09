@@ -347,6 +347,7 @@ async function handleAddExpense(request: Request, env: Env, params: Params, ctx:
             currency: expense.currency,
             description: expense.description,
           }),
+          { recipientBalance: { currency: expense.currency, balances: state.balances } },
         );
       })(),
     );
@@ -493,6 +494,7 @@ async function handleAddSettlement(
             amountMinor: settlement.amountMinor,
             currency: settlement.currency,
           }),
+          { recipientBalance: { currency: settlement.currency, balances: state.balances } },
         );
       })(),
     );

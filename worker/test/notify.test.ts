@@ -15,7 +15,7 @@ describe("notifyGroup", () => {
 
     await notifyGroup(
       { USER_DO: env.USER_DO }, // no APNS_* — unconfigured
-      { claimedIdentitiesExcluding: async () => ({ identities: ["apple:x"] }) },
+      { claimedRecipientsExcluding: async () => ({ recipients: [{ sub: "apple:x", memberId: "m-x" }] }) },
       "apple:actor",
       { title: "t", body: "b" },
       { sendPushImpl },
@@ -37,8 +37,11 @@ describe("notifyGroup", () => {
     await notifyGroup(
       { USER_DO: env.USER_DO, ...apnsEnv },
       {
-        claimedIdentitiesExcluding: async (actingSub) => ({
-          identities: ["apple:friend", "apple:actor"].filter((i) => i !== actingSub),
+        claimedRecipientsExcluding: async (actingSub) => ({
+          recipients: [
+            { sub: "apple:friend", memberId: "m-friend" },
+            { sub: "apple:actor", memberId: "m-actor" },
+          ].filter((r) => r.sub !== actingSub),
         }),
       },
       "apple:actor",
@@ -62,7 +65,7 @@ describe("notifyGroup", () => {
 
     await notifyGroup(
       { USER_DO: env.USER_DO, ...apnsEnv },
-      { claimedIdentitiesExcluding: async () => ({ identities: ["apple:multi-device"] }) },
+      { claimedRecipientsExcluding: async () => ({ recipients: [{ sub: "apple:multi-device", memberId: "m1" }] }) },
       "apple:actor",
       { title: "g", body: "hi" },
       { sendPushImpl },
@@ -77,7 +80,7 @@ describe("notifyGroup", () => {
 
     await notifyGroup(
       { USER_DO: env.USER_DO, ...apnsEnv },
-      { claimedIdentitiesExcluding: async () => ({ identities: ["apple:stale"] }) },
+      { claimedRecipientsExcluding: async () => ({ recipients: [{ sub: "apple:stale", memberId: "m1" }] }) },
       "apple:actor",
       { title: "g", body: "hi" },
       { sendPushImpl },
@@ -93,7 +96,7 @@ describe("notifyGroup", () => {
 
     await notifyGroup(
       { USER_DO: env.USER_DO, ...apnsEnv },
-      { claimedIdentitiesExcluding: async () => ({ identities: ["apple:flaky"] }) },
+      { claimedRecipientsExcluding: async () => ({ recipients: [{ sub: "apple:flaky", memberId: "m1" }] }) },
       "apple:actor",
       { title: "g", body: "hi" },
       { sendPushImpl },
@@ -103,12 +106,12 @@ describe("notifyGroup", () => {
     expect(tokens).toEqual(["flaky-tok"]);
   });
 
-  it("never throws, even if claimedIdentitiesExcluding rejects", async () => {
+  it("never throws, even if claimedRecipientsExcluding rejects", async () => {
     await expect(
       notifyGroup(
         { USER_DO: env.USER_DO, ...apnsEnv },
         {
-          claimedIdentitiesExcluding: async () => {
+          claimedRecipientsExcluding: async () => {
             throw new Error("boom");
           },
         },
@@ -116,6 +119,68 @@ describe("notifyGroup", () => {
         { title: "g", body: "hi" },
       ),
     ).resolves.toBeUndefined();
+  });
+
+  it("folds each recipient's own net in the mutation currency into the payload data", async () => {
+    const user = env.USER_DO.get(env.USER_DO.idFromName("apple:owed"));
+    await user.registerDevice("tok-owed", "ios");
+
+    const seen: Array<Record<string, string> | undefined> = [];
+    const sendPushImpl = async (_c: ApnsConfig, _t: string, payload: { data?: Record<string, string> }) => {
+      seen.push(payload.data);
+      return "sent" as ApnsOutcome;
+    };
+
+    await notifyGroup(
+      { USER_DO: env.USER_DO, ...apnsEnv },
+      {
+        claimedRecipientsExcluding: async () => ({
+          recipients: [{ sub: "apple:owed", memberId: "m-owed" }],
+        }),
+      },
+      "apple:actor",
+      { title: "g", body: "hi", data: { groupId: "g1", kind: "expense" } },
+      {
+        sendPushImpl,
+        recipientBalance: {
+          currency: "INR",
+          balances: [
+            { memberId: "m-owed", currency: "INR", netMinor: 25000 },
+            { memberId: "m-actor", currency: "INR", netMinor: -25000 },
+          ],
+        },
+      },
+    );
+
+    expect(seen).toEqual([{ groupId: "g1", kind: "expense", balanceCurrency: "INR", balanceNetMinor: "25000" }]);
+  });
+
+  it("carries balanceNetMinor '0' for a recipient with no nonzero balance in that currency", async () => {
+    const user = env.USER_DO.get(env.USER_DO.idFromName("apple:settled"));
+    await user.registerDevice("tok-settled", "ios");
+
+    let seen: Record<string, string> | undefined;
+    const sendPushImpl = async (_c: ApnsConfig, _t: string, payload: { data?: Record<string, string> }) => {
+      seen = payload.data;
+      return "sent" as ApnsOutcome;
+    };
+
+    await notifyGroup(
+      { USER_DO: env.USER_DO, ...apnsEnv },
+      {
+        claimedRecipientsExcluding: async () => ({
+          recipients: [{ sub: "apple:settled", memberId: "m-settled" }],
+        }),
+      },
+      "apple:actor",
+      { title: "g", body: "hi", data: { groupId: "g1", kind: "settlement" } },
+      {
+        sendPushImpl,
+        recipientBalance: { currency: "USD", balances: [{ memberId: "m-other", currency: "USD", netMinor: 500 }] },
+      },
+    );
+
+    expect(seen).toEqual({ groupId: "g1", kind: "settlement", balanceCurrency: "USD", balanceNetMinor: "0" });
   });
 });
 

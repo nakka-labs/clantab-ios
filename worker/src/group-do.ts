@@ -323,19 +323,23 @@ export class GroupDO extends DurableObject {
     return rows.length > 0;
   }
 
-  /** Every *other* claimed identity in this group — for push notification
+  /** Every *other* claimed member in this group — for push notification
    * fan-out (`FEATURE_BACKLOG.md` "Push notifications"): "notify on someone
    * else's action, never your own," so the acting identity is excluded, and
    * guests (`identity_sub IS NULL`) never appear — there's no device to
-   * notify without a signed-in identity. */
-  async claimedIdentitiesExcluding(actingSub: string): Promise<{ identities: string[] }> {
+   * notify without a signed-in identity. Each recipient's `memberId` rides
+   * along so the fan-out can fold that member's own updated balance into the
+   * payload (`CHECKLIST.md` "push payload carries the recipient's own updated
+   * balance"); claiming enforces one identity per member per group, so the
+   * pairing is 1:1. */
+  async claimedRecipientsExcluding(actingSub: string): Promise<{ recipients: { sub: string; memberId: string }[] }> {
     const rows = this.sql
-      .exec<{ identity_sub: string }>(
-        "SELECT DISTINCT identity_sub FROM members WHERE identity_sub IS NOT NULL AND identity_sub != ?",
+      .exec<{ id: string; identity_sub: string }>(
+        "SELECT id, identity_sub FROM members WHERE identity_sub IS NOT NULL AND identity_sub != ?",
         actingSub,
       )
       .toArray();
-    return { identities: rows.map((r) => r.identity_sub) };
+    return { recipients: rows.map((r) => ({ sub: r.identity_sub, memberId: r.id })) };
   }
 
   // --- accounts / claim flow (ACCOUNTS_DESIGN.md §6) ----------------------

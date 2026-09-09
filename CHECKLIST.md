@@ -372,12 +372,24 @@
       — a duplicate of what `StartView` already shows, now with the
       cross-group totals header too), and the `otherKnownGroups`
       computed var. `make check` green.
-- [ ] **Worker: push payload carries the recipient's own updated
-      balance.** `~20k tokens` (CLI) — `notify.ts`'s `notifyGroup` loop
-      already computes the mutation's new state per recipient; add
-      `{groupId, currency, netMinor}` to `PushPayload.data` at the two
-      call sites in `index.ts` (add-expense, add-settlement). No new DO
-      calls — this rides an existing write.
+- [x] **Worker: push payload carries the recipient's own updated
+      balance.** Done 2026-09-09. `notifyGroup` gained a
+      `recipientBalance: { currency, balances }` option (the mutation's
+      currency + the `state.balances` array the route handler already read
+      from `getState()`); per recipient it folds
+      `{ balanceCurrency, balanceNetMinor }` into `payload.data` —
+      *that member's* own net in that currency, `"0"` when they hold no
+      nonzero balance in it (`data` values must be strings). Wired at both
+      `index.ts` call sites (add-expense, add-settlement). `GroupDO`'s
+      `claimedIdentitiesExcluding` → `claimedRecipientsExcluding`,
+      returning `{ sub, memberId }[]` so the fan-out (the one DO call that
+      already happens) knows which member each recipient is — claiming is
+      1:1 identity↔member per group. No new DO round-trips. Keys are
+      `balanceCurrency`/`balanceNetMinor` (flatter + unambiguous vs. the
+      note's shorthand `{groupId, currency, netMinor}`; `groupId` is
+      already in `data`). Tests: `notify.test.ts` +2, `group.test.ts`
+      `claimedRecipientsExcluding` rewritten. worker 213 green. `DESIGN.md`
+      §7 note updated.
 - [ ] **iOS: push handler writes the carried balance into the local
       cache.** `~20k tokens` (CLI) — extend the existing
       `pushNotificationTapped` path to also fire on receipt (not just

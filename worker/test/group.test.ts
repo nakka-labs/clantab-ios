@@ -254,8 +254,8 @@ describe("GroupDO", () => {
     });
   });
 
-  describe("claimedIdentitiesExcluding (FEATURE_BACKLOG.md — push notifications)", () => {
-    it("lists every claimed identity except the one excluded, dedupes, and skips guests", async () => {
+  describe("claimedRecipientsExcluding (FEATURE_BACKLOG.md — push notifications)", () => {
+    it("lists every claimed member except the one excluded, with its memberId, and skips guests", async () => {
       const g = group("g-notify");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "NTF234");
       const { member: ben } = await g.addMember("Ben");
@@ -264,20 +264,27 @@ describe("GroupDO", () => {
       await g.claim(ana.id, "apple:ana");
       await g.claim(ben.id, "apple:ben");
 
-      expect(await g.claimedIdentitiesExcluding("apple:ana")).toEqual({ identities: ["apple:ben"] });
-      expect(await g.claimedIdentitiesExcluding("apple:ben")).toEqual({ identities: ["apple:ana"] });
-      expect(await g.claimedIdentitiesExcluding("apple:someone-else")).toEqual({
-        identities: expect.arrayContaining(["apple:ana", "apple:ben"]),
+      expect(await g.claimedRecipientsExcluding("apple:ana")).toEqual({
+        recipients: [{ sub: "apple:ben", memberId: ben.id }],
+      });
+      expect(await g.claimedRecipientsExcluding("apple:ben")).toEqual({
+        recipients: [{ sub: "apple:ana", memberId: ana.id }],
+      });
+      expect(await g.claimedRecipientsExcluding("apple:someone-else")).toEqual({
+        recipients: expect.arrayContaining([
+          { sub: "apple:ana", memberId: ana.id },
+          { sub: "apple:ben", memberId: ben.id },
+        ]),
       });
     });
 
-    it("excludes an identity once unclaimed", async () => {
+    it("excludes a member once unclaimed", async () => {
       const g = group("g-notify-unclaim");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "NTU234");
       await g.claim(ana.id, "apple:ana");
       await g.unclaim(ana.id, "apple:ana");
 
-      expect(await g.claimedIdentitiesExcluding("apple:someone-else")).toEqual({ identities: [] });
+      expect(await g.claimedRecipientsExcluding("apple:someone-else")).toEqual({ recipients: [] });
     });
   });
 

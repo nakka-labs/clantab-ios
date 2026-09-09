@@ -7,6 +7,7 @@
 
 import { apnsConfigFromEnv, sendPush, type PushPayload } from "./apns.ts";
 import type { UserDO } from "../user-do.ts";
+import type { Balance } from "./types.ts";
 
 type SendPushFn = typeof sendPush;
 
@@ -20,7 +21,25 @@ interface NotifyEnv {
 }
 
 interface NotifiableGroup {
-  claimedIdentitiesExcluding(actingSub: string): Promise<{ identities: string[] }>;
+  claimedRecipientsExcluding(actingSub: string): Promise<{ recipients: { sub: string; memberId: string }[] }>;
+}
+
+/** The post-mutation balance state to fold into each recipient's payload
+ * (`CHECKLIST.md` "push payload carries the recipient's own updated
+ * balance"): the full `balances` array from the same `getState()` the route
+ * handler already read, plus the currency of the mutation this push is
+ * about. Each recipient gets *their own* net in that currency — `"0"` when
+ * they have no nonzero balance in it — so the app can update its cached
+ * dashboard figure without a fetch. */
+interface RecipientBalanceContext {
+  currency: string;
+  balances: Balance[];
+}
+
+/** This member's net (minor units) in `currency`, or 0 when they have no
+ * nonzero balance there — `computeBalances` omits zero buckets. */
+function netMinorFor(balances: Balance[], memberId: string, currency: string): number {
+  return balances.find((b) => b.memberId === memberId && b.currency === currency)?.netMinor ?? 0;
 }
 
 /** Fan a push out to every other claimed member of a group, forgetting any
@@ -33,21 +52,33 @@ export async function notifyGroup(
   group: NotifiableGroup,
   actingSub: string,
   payload: PushPayload,
-  opts: { sendPushImpl?: SendPushFn } = {},
+  opts: { sendPushImpl?: SendPushFn; recipientBalance?: RecipientBalanceContext } = {},
 ): Promise<void> {
   const config = apnsConfigFromEnv(env);
   if (config === null) return;
   const send = opts.sendPushImpl ?? sendPush;
 
   try {
-    const { identities } = await group.claimedIdentitiesExcluding(actingSub);
+    const { recipients } = await group.claimedRecipientsExcluding(actingSub);
     await Promise.all(
-      identities.map(async (identity) => {
-        const user = env.USER_DO.get(env.USER_DO.idFromName(identity));
+      recipients.map(async ({ sub, memberId }) => {
+        const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
         const tokens = await user.deviceTokens();
+        const recipientPayload = opts.recipientBalance
+          ? {
+              ...payload,
+              data: {
+                ...payload.data,
+                balanceCurrency: opts.recipientBalance.currency,
+                balanceNetMinor: String(
+                  netMinorFor(opts.recipientBalance.balances, memberId, opts.recipientBalance.currency),
+                ),
+              },
+            }
+          : payload;
         await Promise.all(
           tokens.map(async (token) => {
-            const outcome = await send(config, token, payload);
+            const outcome = await send(config, token, recipientPayload);
             if (outcome === "unregistered") await user.unregisterDevice(token);
           }),
         );
