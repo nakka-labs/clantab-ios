@@ -1009,10 +1009,21 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       (3, app). `make check` green.
       (Follow-up ideas: an in-app card on Group Home for the same
       condition; nudge the "you're owed, chase them" direction too.)
-- [ ] **PDF export.** `~45k tokens` (CLI)
-      1. Build a one-page PDF layout (PDFKit) from the existing
-         `Balances`/`Insights` output.
-      2. Add it as a second `ShareLink` option alongside CSV/JSON.
+- [x] **PDF export.** Done 2026-09-09. **Kit:** `GroupReportModel.build(from
+      state:)` (pure) gathers the report's numbers from the same
+      `Insights` / `Balances` output every screen uses — total, date range,
+      counts, per-member and per-category spend (in the currency with the
+      most spend, others noted), and the simplified settle-up plan resolved
+      to names + formatted amounts. **App:** `GroupReportView` lays it out
+      at A4 point size (a plain document look, not the brand-gradient recap
+      card); `GroupReportPDF.write(from:)` rasterises it straight into a PDF
+      `CGContext` via `ImageRenderer` — no PDFKit needed to *make* a PDF.
+      A `ShareLink("Export PDF Report", item: url)` sits alongside Export
+      CSV / JSON in the Group Options menu. **Verified in the Simulator:**
+      the share sheet shows "…-report · PDF Document · 35 KB"; pulled the
+      file off the device — a valid one-page PDF, all sections rendering
+      (header, stats row, settle-up, by-member/by-category bars, footer).
+      Tests: `GroupReportTests` (4, kit). `make check` green.
 - [x] **Inline calculator on the amount field.** Done 2026-09-09.
       `MoneyFormat.evaluate(_:)` (ClanTabKit) — `+`/`-` left to right, each
       term through the existing `minorUnits(from:)` (integer minor-unit

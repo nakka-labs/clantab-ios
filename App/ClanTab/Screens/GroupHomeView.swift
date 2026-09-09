@@ -621,6 +621,10 @@ struct GroupHomeView: View {
                     ShareLink("Export JSON", item: jsonURL)
                 }
 
+                if let pdfURL = GroupReportPDF.write(from: state) {
+                    ShareLink("Export PDF Report", item: pdfURL)
+                }
+
                 Divider()
                 Button("Import from CSV", systemImage: "square.and.arrow.down") {
                     isPresentingImport = true
