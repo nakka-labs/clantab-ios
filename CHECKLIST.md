@@ -235,8 +235,20 @@
          entries for the new type (harmless — the app writes only to
          `privateCloudDatabase`). `GroupBackup` confirmed present in the
          Production environment.
-      2. CLI: run the archive/export build steps, hand owner the
-         `.ipa`/TestFlight build.
+      2. [x] CLI: archive + export done 2026-09-09. `make bump-build`
+         (build 4→5), `xcodebuild archive` + `-exportArchive` with an
+         `app-store-connect` `ExportOptions.plist`, `-allowProvisioningUpdates`.
+         Output: `ClanTab.ipa` (2.4 MB, `1.0 (5)`), signed
+         `Apple Distribution: Indra Dev Nakka (UK652GNPP7)` (cloud-managed —
+         nothing added to the local keychain), profile "iOS Team Store
+         Provisioning Profile: com.clantab.app", `aps-environment: production`,
+         `associated-domains: *`, `beta-reports-active: true`, widget
+         extension embedded. Archive also copied into
+         `~/Library/Developer/Xcode/Archives/2026-09-09/` for Organizer.
+         **Upload still pending** — no App Store Connect API key on this
+         machine; owner uploads via Transporter.app / Xcode Organizer, or
+         provides an ASC API key (Issuer ID + Key ID + `AuthKey_*.p8`) for a
+         CLI `xcrun altool --upload-app`.
       3. Owner: on a real device, verify Sign in with Apple/Google, a
          push notification, one recurring-reminder delivery, a shared
          `clantab.nakka.dev/g/…` link opening the app, and a `GroupBackup`
