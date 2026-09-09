@@ -94,6 +94,14 @@ struct GroupHomeView: View {
         return name
     }
 
+    /// Whether the swipeable balance-bubble page is worth showing — only once
+    /// at least two members have a nonzero balance in the dominant currency
+    /// (`FEATURE_BACKLOG.md` "Balance bubble/circle-pack view").
+    private func showsBubblePage(_ state: GroupStateResponse) -> Bool {
+        guard let currency = state.balances.max(by: { abs($0.netMinor) < abs($1.netMinor) })?.currency else { return false }
+        return Set(state.balances.filter { $0.currency == currency }.map(\.memberId)).count >= 2
+    }
+
     var body: some View {
         List {
             if auth.shouldShowSyncNudge() {
@@ -127,12 +135,25 @@ struct GroupHomeView: View {
             // identity card immediately instead of a blank screen (`CHECKLIST.md`
             // "Spring/matched-geometry transition").
             Section {
-                BalanceHeroView(
+                let hero = BalanceHeroView(
                     balances: viewModel.myBalances,
                     accent: GroupColor.color(forId: viewModel.groupId),
                     wash: GroupColor.wash(forId: viewModel.groupId),
                     isLoading: viewModel.state == nil
                 )
+                if let state = viewModel.state, showsBubblePage(state) {
+                    // A second, swipeable page — the balance-bubble view
+                    // (`FEATURE_BACKLOG.md` "Balance bubble/circle-pack view").
+                    TabView {
+                        hero
+                        BalanceBubbleView(members: state.members, balances: state.balances)
+                            .padding(.vertical, 12)
+                    }
+                    .frame(height: 250)
+                    .tabViewStyle(.page(indexDisplayMode: .always))
+                } else {
+                    hero
+                }
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)

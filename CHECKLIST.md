@@ -884,21 +884,25 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       apps (date+amount+payer+description, allowing for each app's own
       rounding) and a check against the group's existing ledger before
       posting.
-- [ ] **Balance bubble/circle-pack view.** `~30k tokens` (CLI) — Settle
-      Up's group-home screen (not in the original competitive scan) shows
-      each member as a circle sized by |balance|, one big "should pay"
-      bubble front-and-center, everyone-settled members shrunk to a dot.
-      Cheap: no charting library needed, `Canvas` + a simple circle-pack
-      layout (biggest circle centered, rest placed around it by a
-      spiral/grid heuristic — exact packing isn't the point, it reads fine
-      approximate) — same pattern this app already uses for the Insights
-      donut (`SwiftUI Charts` is for axis-based charts; this one is custom
-      either way, in SettleUp's own implementation and here). Reuses the
-      existing per-member `GroupColor` for fill. Good candidate for a
-      second Group Home page (rotates alongside the existing balance hero
-      per the screenshot pattern) rather than a replacement — it reads
-      well for "who owes the most" at a glance but is worse than the list
-      for "how much do I owe whom," which is what settle-up actually needs.
+- [x] **Balance bubble/circle-pack view.** Done 2026-09-09. `CirclePack`
+      in the kit (`Logic/CirclePack.swift`) — pure, view-free: `(id, weight)`
+      pairs → `[PackedCircle]` (centre + radius) laid out by an Archimedean
+      spiral, heaviest item centred, the rest dropped at the first
+      non-overlapping spot, ties broken by `id` (so it's deterministic), then
+      the whole cluster uniformly scaled down to fit the target box.
+      Radius scales by `sqrt(weight/maxWeight)` so **area** tracks the
+      balance; a zero balance becomes a `minRadius` dot. 6 swift-testing
+      cases (empty/degenerate, single-centred, sqrt radii, fits-box,
+      no-overlap, order-independence). `BalanceBubbleView` (App) renders it
+      with `GeometryReader` + positioned `Circle`s: owed = washed fill +
+      accent ring, owing = solid accent, settled = grey dot; initials at
+      r≥20, amount at r≥36; per-member `MemberColor`, one currency only (the
+      one with the largest-magnitude balance — never blended). Wired as a
+      second **swipeable** Group Home page inside a `TabView(.page)` next to
+      the balance hero, shown only once ≥2 members have a nonzero balance in
+      the dominant currency (`showsBubblePage`). Kit-only logic, no worker /
+      DESIGN.md contract change. Verified in the Simulator on a seeded
+      5-member group (screenshot).
 - [ ] **Splid import — get a real sample.** `~15k tokens` investigation +
       build (CLI) — surfaced 2026-09-08 when `Future.csv`, the file the CSV
       importer was built and verified against, turned out to be a Settle Up
