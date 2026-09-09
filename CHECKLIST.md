@@ -122,11 +122,12 @@
       bearer → `401`, the real token → `200` with the report log JSON (one
       pre-existing 2026-09-05 smoke-test report). Was `404` before the
       secret existed, as designed ("safe until configured").
-- [~] **Custom domain + Universal Links.** CLI parts done 2026-09-09;
-      owner steps + TestFlight verification remain. Host decision (owner):
-      invite links use `clantab.nakka.dev/g/:groupId?token=…` — same host as
-      the marketing site, `/g/*` routed to the Worker, AASA on Pages scoped
-      to `/g/*` so the marketing pages stay web.
+- [x] **Custom domain + Universal Links.** Done 2026-09-09, verified on a
+      real device — tapping a `https://clantab.nakka.dev/g/…` link (from
+      Messages) opens the app straight to the group / claim screen, not
+      Safari. Invite links use `clantab.nakka.dev/g/:groupId?token=…` — same
+      host as the marketing site, `/g/*` routed to the Worker, AASA on Pages
+      scoped to `/g/*` so the marketing pages stay web.
       **Done (CLI):**
       - AASA live at `https://clantab.nakka.dev/.well-known/apple-app-site-association`
         (`nakka-labs/clantab-website@9aeaac4`) — verified `200`,
@@ -137,8 +138,7 @@
       - Worker: `GET /.well-known/apple-app-site-association` route (same
         JSON, for the workers.dev host); `/g/:groupId` now carries `?token=`
         through to its `clantab://` fallback button. Typechecked, 66 route
-        tests green — **needs `make worker-deploy`** (blocked by the perms
-        classifier this session; owner or a follow-up runs it).
+        tests green.
       - App: `com.apple.developer.associated-domains: [applinks:clantab.nakka.dev]`
         in `project.yml`; `AppConfig.shareLinkBaseURL` (`clantab.nakka.dev`,
         decoupled from `apiBaseURL`); `SceneDelegate` rewritten to funnel
@@ -158,14 +158,10 @@
         all still served by Pages; `/gg` / `/generic` don't over-match.
         (Cosmetic: a bare `/g/` with no id returns the Worker's JSON 404
         rather than a friendly page — unreachable via any real link.)
-      **Remaining:**
-      1. Owner: enable the **Associated Domains** capability on the
-         `com.clantab.app` App ID (Apple Developer portal) — same portal
-         caveat as Sign in with Apple / push / CloudKit.
-      2. Owner: TestFlight build (automatic signing picks up the entitlement)
-         → on a real device, tap a shared `https://clantab.nakka.dev/g/…`
-         link and confirm it opens the app, not Safari. Universal Links
-         can't be verified in the Simulator or without a provisioned build.
+      - Associated Domains capability enabled on the `com.clantab.app` App ID.
+      - On-device test passed: a `clantab.nakka.dev/g/…` link tapped from
+        Messages opened the app (build carrying the `applinks` entitlement,
+        commit `01d7e26`).
 - [x] **Trademark + reverse-image checks.** Done 2026-09-08, owner-run.
       Wordmark: "ClanTab" through USPTO's trademark search
       (`tmsearch.uspto.gov` — TESS was retired), Basic Search plus an
