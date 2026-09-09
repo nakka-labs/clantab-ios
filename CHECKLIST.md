@@ -147,17 +147,22 @@
         SwiftUI's `.onOpenURL`). App tests green (`RootViewDeepLinkTests` 17,
         `IncomingURLTests` 4); `clantab://` receive path smoke-tested in the
         Simulator, no crash.
+      **Done (owner, 2026-09-09):**
+      - Worker deployed with the AASA route + token pass-through — verified
+        live on `workers.dev`.
+      - Cloudflare Worker Route `clantab.nakka.dev/g/*` → the `clantab`
+        Worker added (zone `nakka.dev`). It *does* coexist with the
+        website's Custom Domain. Verified scoped: `/g/*` → Worker's
+        "Open in ClanTab" page; `/`, `/privacy`, `/support`, `/terms`,
+        `/style.css`, `/screenshots/*`, `/.well-known/apple-app-site-association`
+        all still served by Pages; `/gg` / `/generic` don't over-match.
+        (Cosmetic: a bare `/g/` with no id returns the Worker's JSON 404
+        rather than a friendly page — unreachable via any real link.)
       **Remaining:**
-      1. CLI/owner: `make worker-deploy` (the AASA route + token pass-through).
-      2. Owner: Cloudflare dashboard → add Worker Route `clantab.nakka.dev/g/*`
-         → the `clantab` Worker (Workers & Pages → `clantab` → Settings →
-         Domains & Routes). If a Route can't coexist with the website's
-         Custom Domain on that host, fall back to a static `g/` page in the
-         website repo instead.
-      3. Owner: enable the **Associated Domains** capability on the
+      1. Owner: enable the **Associated Domains** capability on the
          `com.clantab.app` App ID (Apple Developer portal) — same portal
          caveat as Sign in with Apple / push / CloudKit.
-      4. Owner: TestFlight build (automatic signing picks up the entitlement)
+      2. Owner: TestFlight build (automatic signing picks up the entitlement)
          → on a real device, tap a shared `https://clantab.nakka.dev/g/…`
          link and confirm it opens the app, not Safari. Universal Links
          can't be verified in the Simulator or without a provisioned build.
