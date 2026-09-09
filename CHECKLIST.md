@@ -362,12 +362,16 @@
       `DashboardTotalsHeaderTests` (5, app — the `line(for:)` wording +
       three-grouping). `make check` green. Visual check folds into the
       TestFlight on-device pass (needs ≥2 groups with cached balances).
-- [ ] **Repoint Group Home's "Your Groups" button; delete the dead
-      switcher sheet.** `~10k tokens` (CLI) — `GroupHomeView`'s
-      `isPresentingGroupSwitcher` sheet rebuilds the same list
-      `StartView` already renders. Point the toolbar button at
-      `route = .start` (a new `onOpenGroupsHub` callback, same pattern
-      as `onCreateNewGroup`) and delete the duplicate.
+- [x] **Repoint Group Home's "Your Groups" button; delete the dead
+      switcher sheet.** Done 2026-09-09. `GroupHomeView`'s two callbacks
+      `onSwitchGroup` + `onCreateNewGroup` collapsed into one
+      `onOpenGroupsHub` (`RootView` wires it to `route = .start`); the
+      toolbar "Your Groups" button now calls that. Deleted the
+      `isPresentingGroupSwitcher` `@State`, its whole sheet (a
+      `Create a Group` button + a `GroupsListView` of `otherKnownGroups`
+      — a duplicate of what `StartView` already shows, now with the
+      cross-group totals header too), and the `otherKnownGroups`
+      computed var. `make check` green.
 - [ ] **Worker: push payload carries the recipient's own updated
       balance.** `~20k tokens` (CLI) — `notify.ts`'s `notifyGroup` loop
       already computes the mutation's new state per recipient; add

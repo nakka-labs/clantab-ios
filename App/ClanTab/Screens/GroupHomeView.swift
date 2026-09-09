@@ -15,12 +15,11 @@ struct GroupHomeView: View {
     private let initialAction: GroupHomeAction?
     private let onInitialActionConsumed: () -> Void
     private let onOpenSettings: () -> Void
-    /// Switch straight to another known group — the same `enterGroup` path
-    /// `RootView` uses everywhere else (`NAV_POLISH_PLAN.md` Part 1).
-    private let onSwitchGroup: (_ groupId: String) -> Void
-    /// Leave this group's screen for the create-group flow — the "Your
-    /// Groups" sheet's way out to a new group.
-    private let onCreateNewGroup: () -> Void
+    /// Leave this group for the dashboard (`StartView`) — the groups list and
+    /// the create/join actions all live there now, so Group Home no longer
+    /// carries its own switcher sheet (`CHECKLIST.md` "Repoint Group Home's
+    /// 'Your Groups' button; delete the dead switcher sheet").
+    private let onOpenGroupsHub: () -> Void
     private let onLeaveGroup: () -> Void
     private let onGroupUnavailable: () -> Void
     private let recurringTemplatesStore: RecurringTemplatesStoring = UserDefaultsRecurringTemplatesStore()
@@ -34,7 +33,6 @@ struct GroupHomeView: View {
     @State private var isPresentingSettleUp = false
     @State private var isPresentingImport = false
     @State private var isPresentingGroupSettings = false
-    @State private var isPresentingGroupSwitcher = false
     @State private var isPresentingRecentlyDeleted = false
     @State private var isPresentingRecurringReminders = false
     @State private var expenseAddedTrigger = 0
@@ -66,8 +64,7 @@ struct GroupHomeView: View {
         initialAction: GroupHomeAction? = nil,
         onInitialActionConsumed: @escaping () -> Void = {},
         onOpenSettings: @escaping () -> Void = {},
-        onSwitchGroup: @escaping (_ groupId: String) -> Void = { _ in },
-        onCreateNewGroup: @escaping () -> Void = {},
+        onOpenGroupsHub: @escaping () -> Void = {},
         onLeaveGroup: @escaping () -> Void = {},
         onGroupUnavailable: @escaping () -> Void = {}
     ) {
@@ -78,21 +75,13 @@ struct GroupHomeView: View {
         self.onInitialActionConsumed = onInitialActionConsumed
         _pendingInitialAction = State(initialValue: initialAction)
         self.onOpenSettings = onOpenSettings
-        self.onSwitchGroup = onSwitchGroup
-        self.onCreateNewGroup = onCreateNewGroup
+        self.onOpenGroupsHub = onOpenGroupsHub
         self.onLeaveGroup = onLeaveGroup
         self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(
             groupId: groupId, client: client, auth: auth, knownGroups: knownGroups,
             accessToken: accessToken, backup: CloudKitGroupBackup()
         ))
-    }
-
-    /// Other groups this device knows about, for the "Your Groups" sheet's
-    /// list — hidden entirely when empty, leaving just "Create a Group"
-    /// (the toolbar entry to reach that sheet is always shown regardless).
-    private var otherKnownGroups: [KnownGroup] {
-        knownGroups.all().filter { $0.groupId != viewModel.groupId }
     }
 
     /// The nav-bar title: the group's name, prefixed with its visual-identity
@@ -319,11 +308,9 @@ struct GroupHomeView: View {
                 }
             }
             ToolbarItem(placement: .topBarLeading) {
-                // Always shown, even with no other known groups — it's this
-                // screen's only way back out to the groups list / create flow.
-                Button {
-                    isPresentingGroupSwitcher = true
-                } label: {
+                // Back to the dashboard — the groups list, cross-group totals
+                // and the create/join actions all live there.
+                Button(action: onOpenGroupsHub) {
                     Label("Your Groups", systemImage: "square.on.square")
                 }
             }
@@ -462,44 +449,6 @@ struct GroupHomeView: View {
                 }
                 .materialSheet()
             }
-        }
-        .sheet(isPresented: $isPresentingGroupSwitcher) {
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        Button {
-                            isPresentingGroupSwitcher = false
-                            onCreateNewGroup()
-                        } label: {
-                            Label("Create a Group", systemImage: "plus.circle.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        if !otherKnownGroups.isEmpty {
-                            GroupsListView(
-                                groups: otherKnownGroups,
-                                onOpenGroup: { groupId in
-                                    isPresentingGroupSwitcher = false
-                                    onSwitchGroup(groupId)
-                                },
-                                onRemoveGroup: { groupId in
-                                    knownGroups.forget(groupId: groupId)
-                                }
-                            )
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                }
-                .navigationTitle("Your Groups")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") { isPresentingGroupSwitcher = false }
-                    }
-                }
-            }
-            .materialSheet()
         }
         .sheet(isPresented: $isPresentingRecentlyDeleted) {
             NavigationStack {

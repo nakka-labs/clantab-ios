@@ -221,8 +221,7 @@ struct RootView: View {
                 initialAction: pendingAddExpenseGroupId == groupId ? .addExpense : nil,
                 onInitialActionConsumed: { pendingAddExpenseGroupId = nil },
                 onOpenSettings: { showingSettings = true },
-                onSwitchGroup: { enterGroup($0, accessToken: knownAccessToken(for: $0)) },
-                onCreateNewGroup: { route = .createGroup },
+                onOpenGroupsHub: { route = .start },
                 onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
