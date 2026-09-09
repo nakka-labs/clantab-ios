@@ -16,7 +16,13 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     /// device only ever learned about via `GET /api/auth/groups` (which
     /// doesn't return a token; the Bearer-session alternate credential covers
     /// that case server-side instead).
-    public var accessToken: String?
+    ///
+    /// **Not** part of `Codable` — it's a credential, so
+    /// `UserDefaultsKnownGroupsStore` keeps it in the Keychain
+    /// (`GroupAccessTokenStoring`) rather than the `UserDefaults` display blob
+    /// (`CHECKLIST.md` / `DESIGN.md` §8) and merges it back onto each group on
+    /// read. In-memory holders (`InMemoryKnownGroupsStore`) just carry it.
+    public var accessToken: String? = nil
     /// The group's visual-identity emoji (`CHECKLIST.md` "Group visual
     /// identity"), cached from the last group-state load so the "Your Groups"
     /// list can show it offline. `nil` = the group has none.
@@ -29,6 +35,13 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     public var myBalances: [Balance]?
 
     public var id: String { groupId }
+
+    /// `accessToken` is deliberately absent — see its doc comment. The
+    /// synthesized `Codable` conformance uses these keys, so the token is
+    /// never written to or read from the `UserDefaults` blob.
+    enum CodingKeys: String, CodingKey {
+        case groupId, name, lastOpenedAt, emoji, myBalances
+    }
 
     public init(groupId: String, name: String, lastOpenedAt: Date, accessToken: String? = nil, emoji: String? = nil, myBalances: [Balance]? = nil) {
         self.groupId = groupId
@@ -77,19 +90,33 @@ public extension KnownGroupsStoring {
 }
 
 /// `UserDefaults`-backed known-groups list, stored as one JSON array under
-/// `"clantab.knownGroups"`.
+/// `"clantab.knownGroups"` — display fields only. Each group's `accessToken`
+/// is a credential and lives in the Keychain instead
+/// (`GroupAccessTokenStoring`, `DESIGN.md` §8); `all()` merges it back on.
 public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked Sendable {
     private static let key = "clantab.knownGroups"
     private let defaults: UserDefaults
+    private let accessTokens: any GroupAccessTokenStoring
     private let lock = NSLock()
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(
+        defaults: UserDefaults = .standard,
+        accessTokens: any GroupAccessTokenStoring = defaultAccessTokenStore()
+    ) {
         self.defaults = defaults
+        self.accessTokens = accessTokens
+        migrateLegacyAccessTokens()
     }
 
     public func all() -> [KnownGroup] {
         lock.lock(); defer { lock.unlock() }
-        return load().sorted { $0.lastOpenedAt > $1.lastOpenedAt }
+        return load()
+            .map { group in
+                var group = group
+                group.accessToken = accessTokens.token(for: group.groupId)
+                return group
+            }
+            .sorted { $0.lastOpenedAt > $1.lastOpenedAt }
     }
 
     public func remember(groupId: String, name: String?, accessToken: String?, at date: Date) {
@@ -98,16 +125,19 @@ public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked 
         if let index = groups.firstIndex(where: { $0.groupId == groupId }) {
             groups[index].lastOpenedAt = date
             if let name, !name.isEmpty { groups[index].name = name }
-            if let accessToken { groups[index].accessToken = accessToken }
         } else {
-            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date, accessToken: accessToken))
+            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date))
         }
         save(groups)
+        // `nil` never clobbers a token learned elsewhere (mirrors the
+        // `name` rule) — see `KnownGroupsStoring.remember`'s doc comment.
+        if let accessToken { accessTokens.setToken(accessToken, for: groupId) }
     }
 
     public func forget(groupId: String) {
         lock.lock(); defer { lock.unlock() }
         save(load().filter { $0.groupId != groupId })
+        accessTokens.removeToken(for: groupId)
     }
 
     public func updateBalances(groupId: String, myBalances: [Balance]) {
@@ -126,6 +156,27 @@ public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked 
         save(groups)
     }
 
+    /// One-time move of any `accessToken` still embedded in an older
+    /// `UserDefaults` blob into the Keychain store, then rewrite the blob
+    /// without it. Runs on `init`; a no-op once every blob is clean.
+    private func migrateLegacyAccessTokens() {
+        lock.lock(); defer { lock.unlock() }
+        guard let data = defaults.data(forKey: Self.key),
+              let raw = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else { return }
+        var found = false
+        for entry in raw {
+            guard let groupId = entry["groupId"] as? String,
+                  let token = entry["accessToken"] as? String, !token.isEmpty
+            else { continue }
+            found = true
+            if accessTokens.token(for: groupId) == nil {
+                accessTokens.setToken(token, for: groupId)
+            }
+        }
+        if found { save(load()) } // re-encodes without `accessToken` (not a CodingKey)
+    }
+
     private func load() -> [KnownGroup] {
         guard let data = defaults.data(forKey: Self.key),
               let groups = try? JSONDecoder().decode([KnownGroup].self, from: data)
@@ -137,6 +188,17 @@ public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked 
         guard let data = try? JSONEncoder().encode(groups) else { return }
         defaults.set(data, forKey: Self.key)
     }
+}
+
+/// `KeychainGroupAccessTokenStore` where the Security framework exists (Apple
+/// platforms), an in-memory store elsewhere (Linux CI) — the same
+/// `#if canImport(Security)` split `KeychainSessionStore` uses.
+public func defaultAccessTokenStore() -> any GroupAccessTokenStoring {
+    #if canImport(Security)
+    KeychainGroupAccessTokenStore()
+    #else
+    InMemoryGroupAccessTokenStore()
+    #endif
 }
 
 /// In-memory known-groups store for tests and SwiftUI previews.

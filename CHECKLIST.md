@@ -429,16 +429,27 @@
       sees groups newest-first (the `displayName` "first name wins" rule
       depends on it). Behaviour byte-identical — `auth-routes.test.ts`'s
       multi-group netting test unchanged and green (worker 213).
-- [ ] **Security: move `KnownGroup.accessToken` into the Keychain.**
-      `~20k tokens` (CLI) — found 2026-09-09 while reviewing local
-      storage: the group access token sits in `UserDefaults` alongside
-      display data, unlike the session token (`KeychainSessionStore`),
-      despite `AGENTS.md` naming it the same class of credential.
-      Bounded severity (no payments/PII, needs local device access to
-      exploit) but a real inconsistency worth closing before public
-      launch — mirror `KeychainSessionStore`'s construction, keyed per
-      `groupId`; leave `name`/`emoji`/`myBalances` in `UserDefaults`,
-      they're display data, not credentials.
+- [x] **Security: move `KnownGroup.accessToken` into the Keychain.**
+      Done 2026-09-09. New `GroupAccessTokenStoring` +
+      `KeychainGroupAccessTokenStore` in ClanTabKit — one
+      `kSecClassGenericPassword` item holding a `[groupId: token]` JSON
+      map, `kSecAttrAccessibleAfterFirstUnlock`, same
+      `#if canImport(Security)` split and construction as
+      `KeychainSessionStore`. `KnownGroup.CodingKeys` now omits
+      `accessToken` (kept as a transient property); `KnownGroup` alone
+      never carries it to disk. `UserDefaultsKnownGroupsStore` takes an
+      injected token store (defaults to the Keychain one), writes the
+      token through on `remember`, deletes on `forget`, merges it back on
+      `all()`, and runs a one-time `init` migration lifting any token
+      still inline in a pre-existing blob into the Keychain + rewriting
+      the blob clean. `InMemoryKnownGroupsStore` unchanged (in-memory —
+      not a disk-secret concern). No App-target changes — the default
+      store construction picks up the Keychain backing.
+      Tests: `KnownGroupsStoreTests` +3 (kept-out-of-blob, forget-drops-
+      token, legacy-migration) with an injected `InMemoryGroupAccessToken`
+      store so tests never touch the real Keychain (as `SessionStoreTests`
+      does). `make check` green (kit 217 · worker · iOS build). `DESIGN.md`
+      §8 gap marked fixed.
 
 **Parked out of this pass, deliberately:** cross-group spend graphs on
 the dashboard — needs a new backend aggregate endpoint nothing today

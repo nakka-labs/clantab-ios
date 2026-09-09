@@ -6,6 +6,16 @@ import Foundation
 struct KnownGroupsStoreTests {
     private let t0 = Date(timeIntervalSince1970: 1_000_000)
 
+    /// A `UserDefaults`-backed store with an **in-memory** access-token store
+    /// injected — tests never touch the real Keychain (same choice
+    /// `SessionStoreTests` makes for `KeychainSessionStore`).
+    private func udStore(
+        _ defaults: UserDefaults,
+        tokens: InMemoryGroupAccessTokenStore = InMemoryGroupAccessTokenStore()
+    ) -> UserDefaultsKnownGroupsStore {
+        UserDefaultsKnownGroupsStore(defaults: defaults, accessTokens: tokens)
+    }
+
     @Test("remember inserts, then returns groups most-recently-opened first")
     func testInsertAndOrder() {
         let store = InMemoryKnownGroupsStore()
@@ -57,16 +67,16 @@ struct KnownGroupsStoreTests {
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = UserDefaultsKnownGroupsStore(defaults: defaults)
+        let store = udStore(defaults)
         store.remember(groupId: "g1", name: "Goa Trip", at: t0)
         store.remember(groupId: "g2", name: nil, at: t0.addingTimeInterval(30))
 
-        let reloaded = UserDefaultsKnownGroupsStore(defaults: defaults)
+        let reloaded = udStore(defaults)
         #expect(reloaded.all().map(\.groupId) == ["g2", "g1"])
         #expect(reloaded.all().first(where: { $0.groupId == "g1" })?.name == "Goa Trip")
 
         reloaded.forget(groupId: "g2")
-        #expect(UserDefaultsKnownGroupsStore(defaults: defaults).all().map(\.groupId) == ["g1"])
+        #expect(udStore(defaults).all().map(\.groupId) == ["g1"])
     }
 
     @Test("the convenience overload defaults name to nil and the timestamp to now")
@@ -77,7 +87,7 @@ struct KnownGroupsStoreTests {
         #expect(store.all().first?.name == "")
     }
 
-    // MARK: - accessToken (ACCESS_TOKEN_PLAN.md)
+    // MARK: - accessToken (ACCESS_TOKEN_PLAN.md, DESIGN.md §8 — Keychain, not the blob)
 
     @Test("remember sets accessToken on insert, and a later nil doesn't clobber it")
     func testAccessTokenPersistsAndIsntClobbered() {
@@ -93,6 +103,66 @@ struct KnownGroupsStoreTests {
         // A non-nil token (e.g. after a Regenerate Link) does update it.
         store.remember(groupId: "g1", accessToken: "tok2", at: t0.addingTimeInterval(120))
         #expect(store.all().first?.accessToken == "tok2")
+    }
+
+    @Test("the UserDefaults blob never contains the accessToken; the token store holds it")
+    func testAccessTokenKeptOutOfTheUserDefaultsBlob() throws {
+        let suiteName = "com.clantab.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tokens = InMemoryGroupAccessTokenStore()
+        let store = udStore(defaults, tokens: tokens)
+        store.remember(groupId: "g1", name: "Goa Trip", accessToken: "sekret", at: t0)
+
+        // Token surfaces on read, from the injected store — not the blob.
+        #expect(store.all().first?.accessToken == "sekret")
+        #expect(tokens.token(for: "g1") == "sekret")
+        let blob = try #require(defaults.data(forKey: "clantab.knownGroups"))
+        #expect(!String(decoding: blob, as: UTF8.self).contains("sekret"))
+        #expect(!String(decoding: blob, as: UTF8.self).contains("accessToken"))
+
+        // A reload with the same token store still sees the token; nil doesn't clobber.
+        let reloaded = udStore(defaults, tokens: tokens)
+        #expect(reloaded.all().first?.accessToken == "sekret")
+        reloaded.remember(groupId: "g1", accessToken: nil, at: t0.addingTimeInterval(60))
+        #expect(reloaded.all().first?.accessToken == "sekret")
+    }
+
+    @Test("forget drops the group's token from the token store too")
+    func testForgetDropsTheToken() throws {
+        let suiteName = "com.clantab.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tokens = InMemoryGroupAccessTokenStore()
+        let store = udStore(defaults, tokens: tokens)
+        store.remember(groupId: "g1", name: "A", accessToken: "tokA", at: t0)
+        store.forget(groupId: "g1")
+
+        #expect(tokens.token(for: "g1") == nil)
+    }
+
+    @Test("a legacy blob with an embedded accessToken is migrated into the token store on init")
+    func testLegacyBlobIsMigrated() throws {
+        let suiteName = "com.clantab.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Simulate a pre-migration blob (accessToken still inline).
+        let legacy = """
+        [{"groupId":"g1","name":"Goa Trip","lastOpenedAt":0,"accessToken":"legacyTok"}]
+        """
+        defaults.set(Data(legacy.utf8), forKey: "clantab.knownGroups")
+
+        let tokens = InMemoryGroupAccessTokenStore()
+        let store = udStore(defaults, tokens: tokens) // migration runs in init
+
+        #expect(tokens.token(for: "g1") == "legacyTok")
+        #expect(store.all().first?.accessToken == "legacyTok")
+        // Blob rewritten without the secret.
+        let blob = try #require(defaults.data(forKey: "clantab.knownGroups"))
+        #expect(!String(decoding: blob, as: UTF8.self).contains("legacyTok"))
     }
 
     // MARK: - myBalances (FEATURE_BACKLOG.md — groups list balance summary)
@@ -137,11 +207,11 @@ struct KnownGroupsStoreTests {
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = UserDefaultsKnownGroupsStore(defaults: defaults)
+        let store = udStore(defaults)
         store.remember(groupId: "g1", name: "Goa Trip", at: t0)
         store.updateBalances(groupId: "g1", myBalances: [Balance(memberId: "m1", currency: "INR", netMinor: 250)])
 
-        let reloaded = UserDefaultsKnownGroupsStore(defaults: defaults)
+        let reloaded = udStore(defaults)
         #expect(reloaded.all().first?.myBalances == [Balance(memberId: "m1", currency: "INR", netMinor: 250)])
     }
 
@@ -174,10 +244,10 @@ struct KnownGroupsStoreTests {
         let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = UserDefaultsKnownGroupsStore(defaults: defaults)
+        let store = udStore(defaults)
         store.remember(groupId: "g1", name: "Goa Trip", at: t0)
         store.setEmoji(groupId: "g1", emoji: "🏖️")
 
-        #expect(UserDefaultsKnownGroupsStore(defaults: defaults).all().first?.emoji == "🏖️")
+        #expect(udStore(defaults).all().first?.emoji == "🏖️")
     }
 }
