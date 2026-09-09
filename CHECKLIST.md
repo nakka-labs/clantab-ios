@@ -421,11 +421,14 @@
       same fan-out shape as the existing `GET /api/auth/people`) rather
       than N client round-trips — ground the exact shape against
       `handleAuthPeople` before building.
-- [ ] **Worker: parallelize the `handleAuthPeople` fan-out loop.** `~5k
-      tokens` (CLI) — currently a sequential `for`/`await` over every
-      membership; `Promise.all` instead. Free latency win,
-      unconditional — do it while touching this file regardless of the
-      rest of this section's order.
+- [x] **Worker: parallelize the `handleAuthPeople` fan-out loop.** Done
+      2026-09-09. The per-group `peerSettlements` reads (independent calls
+      to different `GroupDO`s) now go out concurrently via `Promise.all`
+      into a `views` array; the aggregation pass over the resolved views
+      stays sequential and, since `Promise.all` preserves order, still
+      sees groups newest-first (the `displayName` "first name wins" rule
+      depends on it). Behaviour byte-identical — `auth-routes.test.ts`'s
+      multi-group netting test unchanged and green (worker 213).
 - [ ] **Security: move `KnownGroup.accessToken` into the Keychain.**
       `~20k tokens` (CLI) — found 2026-09-09 while reviewing local
       storage: the group access token sits in `UserDefaults` alongside

@@ -663,8 +663,19 @@ async function handleAuthPeople(request: Request, env: Env): Promise<Response> {
   }
   const byPerson = new Map<string, Agg>();
 
-  for (const g of groups) {
-    const view = await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).peerSettlements(sub, g.memberId);
+  // Fan the per-group `peerSettlements` reads out concurrently — they're
+  // independent calls to different `GroupDO`s (`CHECKLIST.md` "Worker:
+  // parallelize the handleAuthPeople fan-out loop"). `Promise.all` keeps
+  // array order, so the aggregation pass below still sees groups
+  // newest-first (which the `displayName` "first name wins" rule relies on).
+  const views = await Promise.all(
+    groups.map(async (g) => ({
+      g,
+      view: await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).peerSettlements(sub, g.memberId),
+    })),
+  );
+
+  for (const { g, view } of views) {
     if (view === null) continue;
     for (const peer of view.peers) {
       if (peer.edges.length === 0) continue;
