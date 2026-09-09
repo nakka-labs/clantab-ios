@@ -952,12 +952,42 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
          balances view for a `groupId` (+ token).
       2. Serve it `noindex`, same as the existing group stub page.
       3. Add a "Share view-only link" action in the app.
-- [ ] **Offline queueing for adding an expense.** `~20k tokens`
-      investigation, build TBD after
-      1. CLI: check whether `GroupDO`'s write path already tolerates a
-         disconnected client (does the request just fail, or hang?).
-      2. CLI: report back findings + a real effort estimate before
-         committing to building it.
+- [~] **Offline queueing for adding an expense.** Investigation done
+      2026-09-09 (see `DESIGN.md` §7).
+      **Fails fast, never hangs.** `URLSessionTransport` uses
+      `URLSession.shared` (`waitsForConnectivity` is `false` for `.shared`),
+      so offline → `URLError.notConnectedToInternet` thrown immediately; a
+      mid-request drop is bounded by the 60s request timeout; nothing waits
+      indefinitely. `AddExpenseView.save()` catches it, shows the message,
+      and **keeps the sheet open with the form intact** — retry works once
+      you're back online, or Cancel loses the typed data.
+      **Backend is ready.** `GroupDO.addExpense`/`addSettlement` are
+      idempotent on the client `id` (`readExpenseById(req.id)` → replay
+      returns the existing row), and DO requests are serialized — a stored
+      request is safe to replay any number of times. (The `id` is generated
+      fresh per `save()` call, so idempotency only protects a *stored*
+      request, not a user re-tap — harmless either way.)
+      **The cost is optimistic display, not the network.** The app has
+      **no optimistic UI by explicit design** (`DESIGN.md` §7), so showing
+      a queued expense in the feed and reflecting it in balances is a real
+      architecture change. Plus edge cases: member deleted server-side,
+      group left, account deleted, double-tap, editing a not-yet-synced row.
+      **Real estimates (the `~20k` guess was low):**
+      - *Clearer message + a "Try Again" button, no queue* — `~10k`.
+        Marginal: Apple's "The Internet connection appears to be offline."
+        is already shown.
+      - *Single-slot deferred retry* — `~25–30k`. Stash the one failed
+        request per group, a "1 expense didn't send — Retry" banner on
+        Group Home, auto-flush on foreground / reachability. No feed
+        changes, no optimistic balances, add-only. Covers the realistic
+        case (added in a dead zone, syncs when signal returns).
+      - *Full offline queue* — `~100–140k`. Multi-item persistent queue +
+        syncer with transient-vs-permanent classification + optimistic feed
+        & balances + failure surfacing + edge cases. Comparable in scope to
+        "Itemized expense entry"; reverses a deliberate v1 non-goal.
+      **Recommendation:** current behaviour isn't broken. Do the single-slot
+      retry only if there's a signal people add expenses offline; don't
+      build the full queue without demand.
 - [ ] **Balance-aging nudge.** `~35k tokens` (CLI)
       1. Reuse the recurring-reminder scheduling infra for a "you've
          owed X for N days" local notification.
