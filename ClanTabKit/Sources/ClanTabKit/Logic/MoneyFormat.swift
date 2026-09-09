@@ -77,4 +77,45 @@ public enum MoneyFormat {
 
         return wholePart * 100 + fractionalMinor
     }
+
+    /// Evaluates a small `+`/`-` expression typed into the amount field
+    /// (`CHECKLIST.md` "Inline calculator on the amount field") — `"12 + 8.50"`,
+    /// `"20-3"`, `"5+5+5"` — into integer minor units, left to right, all in
+    /// minor-unit integer math (no `Double`, no floating-point drift). Each
+    /// operand goes through `minorUnits(from:)`, so the same "plain non-negative
+    /// number, ≤ 2 fraction digits" rule applies per term.
+    ///
+    /// `nil` for anything that doesn't fully resolve: an empty or trailing
+    /// operand (`"12 +"` while still typing), a non-numeric term, or a result
+    /// that would be negative (`"3 - 10"`) — the amount field can't hold a
+    /// negative. A bare number with no operator evaluates identically to
+    /// `minorUnits(from:)`.
+    public static func evaluate(_ input: String) -> Int64? {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+
+        var operands: [String] = []
+        var signs: [Int64] = []
+        var current = ""
+        var pendingSign: Int64 = 1
+        for ch in trimmed {
+            if ch == "+" || ch == "-" {
+                operands.append(current)
+                signs.append(pendingSign)
+                current = ""
+                pendingSign = ch == "-" ? -1 : 1
+            } else {
+                current.append(ch)
+            }
+        }
+        operands.append(current)
+        signs.append(pendingSign)
+
+        var totalMinor: Int64 = 0
+        for (operand, sign) in zip(operands, signs) {
+            guard let minor = minorUnits(from: operand) else { return nil }
+            totalMinor += sign * minor
+        }
+        return totalMinor >= 0 ? totalMinor : nil
+    }
 }

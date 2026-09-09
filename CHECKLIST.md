@@ -967,9 +967,19 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       1. Build a one-page PDF layout (PDFKit) from the existing
          `Balances`/`Insights` output.
       2. Add it as a second `ShareLink` option alongside CSV/JSON.
-- [ ] **Inline calculator on the amount field.** `~25k tokens` (CLI)
-      1. Parse simple `+`/`-` arithmetic typed into the amount `TextField`.
-      2. Resolve it to a number on blur/submit, unit-test the parser.
+- [x] **Inline calculator on the amount field.** Done 2026-09-09.
+      `MoneyFormat.evaluate(_:)` (ClanTabKit) — `+`/`-` left to right, each
+      term through the existing `minorUnits(from:)` (integer minor-unit
+      math, no `Double`); `nil` for an incomplete expression (`"12 +"`), a
+      non-numeric term, or a negative result. A bare number evaluates
+      identically, so it's a drop-in for the amount field's parse.
+      `AddExpenseView`'s amount field switched to it, plus a `@FocusState`
+      that surfaces small `+` / `−` buttons in the row while editing (the
+      `.decimalPad` has no operator keys) and resolves `"12 + 8.50"` →
+      `"20.50"` on blur (a bare number is left alone). **Verified in the
+      Simulator**: buttons appear on focus, `+` appends, the expression
+      resolves on Done. Tests: `MoneyFormatTests` +4 (kit). `make check`
+      green.
 - [ ] **Archive a group.** `~35k tokens` (CLI)
       1. Add a nullable `archived_at` to the group schema.
       2. Add "Archive"/"Unarchive" to Group Settings, distinct from

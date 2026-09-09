@@ -58,6 +58,39 @@ struct MoneyFormatTests {
         #expect(!lakh.contains("10,00,000"))
     }
 
+    // MARK: - evaluate (CHECKLIST.md "Inline calculator on the amount field")
+
+    @Test("evaluate adds and subtracts left to right in minor units")
+    func testEvaluateArithmetic() {
+        #expect(MoneyFormat.evaluate("12 + 8.50") == 2050)
+        #expect(MoneyFormat.evaluate("20-3") == 1700)
+        #expect(MoneyFormat.evaluate("5+5+5") == 1500)
+        #expect(MoneyFormat.evaluate("100 - 10 - 10.25") == 7975)
+        #expect(MoneyFormat.evaluate("0.10+0.20") == 30)
+    }
+
+    @Test("evaluate of a bare number matches minorUnits(from:)")
+    func testEvaluateBareNumber() {
+        for s in ["12", "12.5", "0.05", " 7.00 "] {
+            #expect(MoneyFormat.evaluate(s) == MoneyFormat.minorUnits(from: s))
+        }
+    }
+
+    @Test("evaluate rejects an incomplete or non-numeric expression")
+    func testEvaluateIncomplete() {
+        #expect(MoneyFormat.evaluate("12 +") == nil)   // still typing
+        #expect(MoneyFormat.evaluate("+") == nil)
+        #expect(MoneyFormat.evaluate("12 + abc") == nil)
+        #expect(MoneyFormat.evaluate("12.345 + 1") == nil) // >2 fraction digits
+        #expect(MoneyFormat.evaluate("") == nil)
+    }
+
+    @Test("evaluate rejects a negative result — the amount field can't hold one")
+    func testEvaluateNegativeResult() {
+        #expect(MoneyFormat.evaluate("3 - 10") == nil)
+        #expect(MoneyFormat.evaluate("-5") == nil)
+    }
+
     #if canImport(Darwin)
     /// The exact user-visible strings on Apple platforms (where the pre-push
     /// hook runs); `NumberFormatter`'s currency output is less predictable on

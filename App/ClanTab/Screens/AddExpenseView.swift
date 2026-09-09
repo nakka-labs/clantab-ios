@@ -128,8 +128,29 @@ struct AddExpenseView: View {
 
     private var isEditing: Bool { editing != nil }
 
+    /// The typed amount, resolving a `+`/`-` expression (`CHECKLIST.md`
+    /// "Inline calculator on the amount field") — `nil` while it doesn't fully
+    /// parse, which keeps the submit button disabled just like a blank field.
     private var amountMinor: Int64? {
-        MoneyFormat.minorUnits(from: amountText)
+        MoneyFormat.evaluate(amountText)
+    }
+
+    @FocusState private var amountFocused: Bool
+
+    private var amountHasExpression: Bool {
+        amountText.contains(where: { $0 == "+" || $0 == "-" })
+    }
+
+    /// Append `+` / `-` to the running amount expression, keeping focus so the
+    /// next term can be typed. A trailing operator is swapped, not stacked
+    /// (`"12 + "` then `-` → `"12 - "`); a blank field is left alone.
+    private func appendOperator(_ op: String) {
+        var text = amountText.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        if let last = text.last, last == "+" || last == "-" {
+            text = String(text.dropLast()).trimmingCharacters(in: .whitespaces)
+        }
+        amountText = "\(text) \(op) "
     }
 
     var body: some View {
@@ -144,6 +165,21 @@ struct AddExpenseView: View {
                         // "Amount-entry typography") — the amount is the
                         // most important thing on this screen.
                         .font(.system(.title2, design: .rounded).weight(.semibold))
+                        .focused($amountFocused)
+                        .onChange(of: amountFocused) { _, focused in
+                            // Resolve "12 + 8" to "20.00" once the field loses
+                            // focus, but leave a bare number ("12") alone.
+                            guard !focused, amountHasExpression,
+                                  let resolved = MoneyFormat.evaluate(amountText) else { return }
+                            amountText = MoneyFormat.plainString(minorUnits: resolved)
+                        }
+                    // `.decimalPad` has no operator keys — surface + / − while
+                    // the field is being edited so a running total can be typed
+                    // in place (`CHECKLIST.md` "Inline calculator").
+                    if amountFocused {
+                        Button { appendOperator("+") } label: { Image(systemName: "plus") }
+                        Button { appendOperator("-") } label: { Image(systemName: "minus") }
+                    }
                     if currencyChoices.count > 1 {
                         Picker("Currency", selection: $currency) {
                             ForEach(currencyChoices, id: \.self) { code in Text(code).tag(code) }
@@ -151,6 +187,8 @@ struct AddExpenseView: View {
                         .labelsHidden()
                     }
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 TextField("Description", text: $description)
                 Picker("Paid by", selection: $payerId) {
                     ForEach(members) { member in
