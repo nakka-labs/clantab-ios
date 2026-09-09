@@ -80,7 +80,7 @@ struct GroupHomeView: View {
         self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(
             groupId: groupId, client: client, auth: auth, knownGroups: knownGroups,
-            accessToken: accessToken, backup: CloudKitGroupBackup()
+            accessToken: accessToken, backup: CloudKitGroupBackup(), balanceAging: .live
         ))
     }
 

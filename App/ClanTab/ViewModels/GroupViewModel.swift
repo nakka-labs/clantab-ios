@@ -33,6 +33,10 @@ final class GroupViewModel {
     /// No-op by default (tests, previews); the real CloudKit writer is
     /// injected by `GroupHomeView`.
     private let backup: GroupBackupWriting
+    /// Balance-aging nudge (`FEATURE_BACKLOG.md`) — fed the member's fresh
+    /// balances on every successful fetch. Inert by default (tests, previews);
+    /// `GroupHomeView` injects the notification-scheduling version.
+    private let balanceAging: BalanceAgingObserver
 
     private(set) var state: GroupStateResponse?
     private(set) var isLoading = false
@@ -57,7 +61,8 @@ final class GroupViewModel {
         knownGroups: KnownGroupsStoring = UserDefaultsKnownGroupsStore(),
         accessToken: String? = nil,
         widgetSnapshotStore: WidgetSnapshotStoring = UserDefaultsWidgetSnapshotStore(defaults: AppConfig.sharedDefaults),
-        backup: GroupBackupWriting = NoOpGroupBackup()
+        backup: GroupBackupWriting = NoOpGroupBackup(),
+        balanceAging: BalanceAgingObserver = .inert()
     ) {
         self.groupId = groupId
         self.client = client
@@ -66,6 +71,7 @@ final class GroupViewModel {
         self.accessToken = accessToken
         self.widgetSnapshotStore = widgetSnapshotStore
         self.backup = backup
+        self.balanceAging = balanceAging
     }
 
     /// After "Regenerate Link" mints a fresh token — update immediately
@@ -158,6 +164,7 @@ final class GroupViewModel {
         )
         WidgetCenter.shared.reloadTimelines(ofKind: AppConfig.balanceWidgetKind)
         knownGroups.updateBalances(groupId: groupId, myBalances: myBalances)
+        balanceAging.observe(groupId: groupId, groupName: state.group.name, balances: myBalances)
 
         // Off-device ledger backup (`CHECKLIST.md` "CloudKit backup, tier 2").
         // Fire-and-forget and self-throttling (`CloudBackupSchedule`) — a

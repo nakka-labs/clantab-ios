@@ -988,11 +988,27 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       **Recommendation:** current behaviour isn't broken. Do the single-slot
       retry only if there's a signal people add expenses offline; don't
       build the full queue without demand.
-- [ ] **Balance-aging nudge.** `~35k tokens` (CLI)
-      1. Reuse the recurring-reminder scheduling infra for a "you've
-         owed X for N days" local notification.
-      2. Trigger it off a stale nonzero balance, not a fixed calendar
-         cadence.
+- [x] **Balance-aging nudge.** Done 2026-09-09. `BalanceAging`
+      (ClanTabKit, pure) — `reconcile(current:groupId:balances:)` folds the
+      member's fresh per-currency balances into a `[key: BalanceAgingEntry]`
+      map (`key` = `"<groupId>\t<currency>"`, `entry` = `{ owedSince,
+      nudged }`): a currency newly in the red past `minimumMinor` (₹1/$1)
+      starts a clock and gets a one-shot nudge scheduled for
+      `owedSince + threshold` (14 days); a cleared currency drops out and
+      its nudge is cancelled; once the threshold passes the entry is marked
+      `nudged` so it fires **once per debt episode** — clearing and
+      re-incurring re-arms. State-driven, not a calendar cadence.
+      `BalanceAgingStore` (UD + in-memory). App: `BalanceAgingScheduler`
+      mirrors `RecurringReminderScheduler` (one-shot `UNCalendar`/`UNTimeInterval`
+      trigger by fire date, `userInfo["groupId"]` opens the group like any
+      notification tap) — **never prompts**, only schedules when
+      notifications are already authorized. `BalanceAgingObserver` glues the
+      two, fed from `GroupViewModel.updateCaches` (group open) **and**
+      `AuthViewModel.reconcileGroupBalances` (every group, opened or not).
+      Tests: `BalanceAgingTests` (10, kit) + `BalanceAgingObserverTests`
+      (3, app). `make check` green.
+      (Follow-up ideas: an in-app card on Group Home for the same
+      condition; nudge the "you're owed, chase them" direction too.)
 - [ ] **PDF export.** `~45k tokens` (CLI)
       1. Build a one-page PDF layout (PDFKit) from the existing
          `Balances`/`Insights` output.

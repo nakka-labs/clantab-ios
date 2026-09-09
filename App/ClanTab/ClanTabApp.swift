@@ -21,7 +21,8 @@ struct ClanTabApp: App {
             sessionStore: KeychainSessionStore(),
             knownGroups: knownGroups,
             syncNudge: UserDefaultsSyncNudgeStore(),
-            backupNudge: UserDefaultsBackupNudgeStore()
+            backupNudge: UserDefaultsBackupNudgeStore(),
+            balanceAging: .live
         ))
     }
 

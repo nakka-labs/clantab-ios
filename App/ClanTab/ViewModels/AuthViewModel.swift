@@ -52,6 +52,9 @@ final class AuthViewModel {
     /// Timestamp store behind the dashboard's fallback balance reconcile
     /// (`CHECKLIST.md` "Dashboard fallback sync for missed/denied push").
     private let dashboardSync: DashboardSyncStoring
+    /// Balance-aging nudge (`FEATURE_BACKLOG.md`) — fed every group's balance
+    /// during a reconcile. Inert by default; `ClanTabApp` injects the real one.
+    private let balanceAging: BalanceAgingObserver
     /// Injectable so tests don't need a real Apple credential. Returns `.noSession`
     /// when there's nothing stored to check.
     private let credentialStanding: @Sendable (_ appleUserID: String) async -> CredentialStanding
@@ -78,6 +81,7 @@ final class AuthViewModel {
         syncNudge: SyncNudgeStoring,
         backupNudge: BackupNudgeStoring = UserDefaultsBackupNudgeStore(),
         dashboardSync: DashboardSyncStoring = UserDefaultsDashboardSyncStore(),
+        balanceAging: BalanceAgingObserver = .inert(),
         credentialStanding: @escaping @Sendable (_ appleUserID: String) async -> CredentialStanding = AuthViewModel.liveCredentialStanding
     ) {
         self.client = client
@@ -86,6 +90,7 @@ final class AuthViewModel {
         self.syncNudge = syncNudge
         self.backupNudge = backupNudge
         self.dashboardSync = dashboardSync
+        self.balanceAging = balanceAging
         self.credentialStanding = credentialStanding
         self.session = sessionStore.load()
         self.syncNudgeDismissed = syncNudge.isDismissed()
@@ -245,8 +250,17 @@ final class AuthViewModel {
         guard force || DashboardReconcile.shouldReconcile(lastAt: dashboardSync.lastReconcileAt()) else { return }
         do {
             let response = try await client.groupBalances(token: token)
+            let names = Dictionary(knownGroups.all().map { ($0.groupId, $0.name) }, uniquingKeysWith: { a, _ in a })
             for group in response.groups {
                 knownGroups.updateBalances(groupId: group.groupId, myBalances: group.balances)
+                // Balance-aging nudge (`FEATURE_BACKLOG.md`) — the reconcile is
+                // the one path that sees every group's balance, opened or not.
+                let name = names[group.groupId] ?? ""
+                balanceAging.observe(
+                    groupId: group.groupId,
+                    groupName: name.isEmpty ? "your group" : name,
+                    balances: group.balances
+                )
             }
             dashboardSync.recordReconcile(Date())
         } catch ClanTabClientError.server(let code, _) where code == "INVALID_SESSION" {
