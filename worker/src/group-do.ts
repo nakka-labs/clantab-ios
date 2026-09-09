@@ -351,6 +351,22 @@ export class GroupDO extends DurableObject {
     return { accessToken };
   }
 
+  /** The read-only capability secret (`FEATURE_BACKLOG.md` "Read-only web
+   * link for balances"), minted on first use. Only authorizes
+   * `GET /g/:groupId/balances`. */
+  async ensureViewToken(): Promise<{ viewToken: string }> {
+    let viewToken = this.meta(META_KEYS.viewToken);
+    if (viewToken === null) {
+      viewToken = newAccessToken();
+      this.setMeta(META_KEYS.viewToken, viewToken);
+    }
+    return { viewToken };
+  }
+
+  async currentViewToken(): Promise<string | null> {
+    return this.meta(META_KEYS.viewToken);
+  }
+
   /** Whether `sub` (the composite `"<provider>:<sub>"` identity string) has a
    * claimed member in this group — the Bearer-session alternate credential
    * for a device that never saw the link/code itself (e.g. synced only via

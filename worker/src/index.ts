@@ -93,6 +93,7 @@ const ROUTES: Route[] = [
   route("GET", "/api/groups/:groupId", handleGetState),
   route("PATCH", "/api/groups/:groupId", handleUpdateGroup),
   route("POST", "/api/groups/:groupId/regenerate-link", handleRegenerateLink),
+  route("POST", "/api/groups/:groupId/view-link", handleViewLink),
   route("POST", "/api/groups/:groupId/expenses", handleAddExpense),
   route("PUT", "/api/groups/:groupId/expenses/:expenseId", handleUpdateExpense),
   route("DELETE", "/api/groups/:groupId/expenses/:expenseId", handleDeleteExpense),
@@ -115,6 +116,7 @@ const ROUTES: Route[] = [
   route("GET", "/api/auth/people", handleAuthPeople),
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
   route("GET", "/api/admin/reports", handleAdminReports),
+  route("GET", "/g/:groupId/balances", handleBalancesPage),
   route("GET", "/g/:groupId", handleCapabilityPage),
   route("GET", "/.well-known/apple-app-site-association", handleAppleAppSiteAssociation),
   route("GET", "/", handleRoot),
@@ -268,6 +270,15 @@ function parseDefaultSplitPatch(body: Record<string, unknown>): { weights: { mem
 async function handleRegenerateLink(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
   return json(200, await group.regenerateAccessToken());
+}
+
+/** Mint (or return the existing) read-only `view_token` for the group
+ * (`FEATURE_BACKLOG.md` "Read-only web link for balances") — the app calls
+ * this before sharing a `/g/:groupId/balances` link. Same auth as any other
+ * group-data route; idempotent. */
+async function handleViewLink(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  return json(200, await group.ensureViewToken());
 }
 
 /** Rename a member and/or set their UPI VPA (`FEATURE_BACKLOG.md` "UPI deep
@@ -498,6 +509,112 @@ function handleRoot(): Promise<Response> {
       headers: { "content-type": "text/plain; charset=utf-8", "X-Robots-Tag": "noindex" },
     }),
   );
+}
+
+const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]!);
+}
+
+/** `en-IN` locale money; drops a round amount's `.00`, matching the app's
+ * `MoneyFormat`. */
+function money(amountMinor: number, currency: string): string {
+  try {
+    const fractionDigits = amountMinor % 100 === 0 ? 0 : 2;
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(amountMinor / 100);
+  } catch {
+    return `${(amountMinor / 100).toFixed(2)} ${currency}`;
+  }
+}
+
+/**
+ * A **read-only** web view of a group's balances and settle-up plan
+ * (`FEATURE_BACKLOG.md` "Read-only web link for balances") — same
+ * `groupId` (+ `?token=`) capability check as every group route, but it
+ * only ever *reads*, so it's safe to hand to someone you don't want
+ * writing to the ledger. `noindex`, like the capability page. Deliberately
+ * shows names + amounts and nothing else (no expense list, no join code).
+ */
+async function handleBalancesPage(request: Request, env: Env, params: Params): Promise<Response> {
+  let state: Awaited<ReturnType<GroupDO["getState"]>>;
+  try {
+    const group = await requireReadableGroup(request, env, params.groupId ?? "");
+    state = await group.getState();
+  } catch (err) {
+    const status = err instanceof GroupNotFoundError ? 404 : err instanceof ForbiddenError ? 403 : 500;
+    return htmlPage(status, "Not available", "<p>This link is no longer valid, or you don't have access to it.</p>");
+  }
+
+  const name = (id: string) => esc(state.members.find((m) => m.id === id)?.displayName ?? "Someone");
+  const nonzero = state.balances.filter((b) => b.netMinor !== 0);
+
+  const balanceRows = state.members
+    .map((member) => {
+      const bals = nonzero.filter((b) => b.memberId === member.id);
+      if (bals.length === 0) return `<li><span>${esc(member.displayName)}</span><span class="settled">settled up</span></li>`;
+      return bals
+        .map((b) => {
+          const owed = b.netMinor > 0;
+          return `<li><span>${esc(member.displayName)}</span><span class="${owed ? "pos" : "neg"}">${
+            owed ? "is owed" : "owes"
+          } ${esc(money(Math.abs(b.netMinor), b.currency))}</span></li>`;
+        })
+        .join("");
+    })
+    .join("");
+
+  const planRows = state.simplifiedSettlements
+    .map((s) => `<li>${name(s.fromId)} &rarr; ${name(s.toId)} <strong>${esc(money(s.amountMinor, s.currency))}</strong></li>`)
+    .join("");
+
+  const heading = `${state.group.emoji ? esc(state.group.emoji) + " " : ""}${esc(state.group.name)}`;
+  const body = `
+  <h1>${heading}</h1>
+  <p class="sub">View-only balances &middot; nobody can add or change anything from this link.</p>
+  ${nonzero.length === 0 ? "<p>Everyone's settled up. 🎉</p>" : `<h2>Balances</h2><ul class="balances">${balanceRows}</ul>`}
+  ${planRows ? `<h2>Settle up</h2><ul class="plan">${planRows}</ul>` : ""}`;
+  return htmlPage(200, `${heading} — balances`, body);
+}
+
+function htmlPage(status: number, title: string, bodyHtml: string): Response {
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>${esc(title)}</title>
+<style>
+  body { font: 16px/1.5 -apple-system, system-ui, sans-serif; margin: 0; color: #1c1c1e; background: #f2f2f7; }
+  main { max-width: 30rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: #8e8e93; margin: 2rem 0 .5rem; }
+  .sub { color: #636366; margin: 0 0 1rem; }
+  ul { list-style: none; padding: 0; margin: 0; background: #fff; border-radius: .8rem; overflow: hidden; }
+  li { display: flex; justify-content: space-between; gap: 1rem; padding: .75rem 1rem; border-top: 1px solid #e5e5ea; }
+  li:first-child { border-top: 0; }
+  .pos, .plan strong { color: #248a3d; }
+  .neg { color: #d70015; }
+  .settled { color: #8e8e93; }
+  footer { color: #aeaeb2; font-size: .8rem; margin-top: 2rem; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+${bodyHtml}
+<footer>Made with ClanTab</footer>
+</main>
+</body>
+</html>`;
+  return new Response(html, {
+    status,
+    headers: { "content-type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex" },
+  });
 }
 
 async function handleAddSettlement(
@@ -931,6 +1048,23 @@ async function requireGroup(request: Request, env: Env, groupId: string) {
     }
   }
   return stub;
+}
+
+/** Like `requireGroup`, but the read-only `view_token` also grants access
+ * (`FEATURE_BACKLOG.md` "Read-only web link for balances") — used only by
+ * `GET /g/:groupId/balances`, which never writes, so a caller holding just
+ * the view token can't reach any mutating route with it. */
+async function requireReadableGroup(request: Request, env: Env, groupId: string) {
+  const stub = env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId));
+  if (!(await stub.exists())) throw new GroupNotFoundError();
+
+  const [access, view] = await Promise.all([stub.currentAccessToken(), stub.currentViewToken()]);
+  if (access === null) return stub; // pre-token group: open, unchanged
+  const token = new URL(request.url).searchParams.get("token");
+  if (token !== null && (token === access || token === view)) return stub;
+  const sub = await optionalSessionSub(request, env);
+  if (sub !== undefined && (await stub.hasClaimedMember(sub))) return stub;
+  throw new ForbiddenError();
 }
 
 /** Best-effort session check for a route where a Bearer token is an

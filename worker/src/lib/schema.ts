@@ -153,6 +153,12 @@ export const META_KEYS = {
    * weights that pre-fill Add Expense. Absent = split equally. Weights are
    * positive ints summing to 100; a new key, no `SCHEMA_VERSION` bump. */
   defaultSplit: "default_split",
+  /** A **read-only** capability secret, separate from `access_token`
+   * (`FEATURE_BACKLOG.md` "Read-only web link for balances"): it only
+   * authorizes `GET /g/:groupId/balances`, never a write. Lazily minted the
+   * first time someone shares a view-only link; absent until then. A new
+   * key, no `SCHEMA_VERSION` bump. */
+  viewToken: "view_token",
 } as const;
 
 /**

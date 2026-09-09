@@ -35,6 +35,20 @@ enum AppConfig {
         return components.url!
     }
 
+    /// A **read-only** web view of a group's balances (`FEATURE_BACKLOG.md`
+    /// "Read-only web link for balances"). `viewToken` is the group's
+    /// read-only secret (`POST .../view-link`), *not* the access token — it
+    /// only opens this page, never a write route. Points at the API host,
+    /// *not* `shareLinkBaseURL` — that one is a Universal Link that opens the
+    /// app (and its claim/join flow) on a device that has it, which would
+    /// defeat "view only"; this always renders the web page.
+    static func balancesViewURL(groupId: String, viewToken: String) -> URL {
+        let base = URL(string: "g/\(groupId)/balances", relativeTo: apiBaseURL)!
+        var components = URLComponents(url: base, resolvingAgainstBaseURL: true)!
+        components.queryItems = [URLQueryItem(name: "token", value: viewToken)]
+        return components.url!
+    }
+
     /// The iOS OAuth client id from Google Cloud Console
     /// (`MANDATORY_LOGIN_PLAN.md` Part 1) — the `aud` the worker's
     /// `POST /api/auth/google` checks a Google identity token against.

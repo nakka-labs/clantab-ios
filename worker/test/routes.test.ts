@@ -1019,6 +1019,65 @@ describe("routing", () => {
     expect(await res.text()).toContain("clantab://g/somegroup?token=tok123");
   });
 
+  it("serves a noindex read-only balances page at /g/:groupId/balances", async () => {
+    const { groupId, creatorId, token } = await makeGroup();
+    const ben = await addMember(groupId, "Ben <script>", token);
+    await post(`/api/groups/${groupId}/expenses`, {
+      payerId: creatorId, amountMinor: 1000, description: "Dinner", date: "2026-01-01T12:00:00Z",
+      splitType: "equal", splits: [{ memberId: creatorId, amountMinor: 500 }, { memberId: ben, amountMinor: 500 }],
+    }, token);
+
+    const res = await SELF.fetch(`${BASE}/g/${groupId}/balances?token=${token}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("X-Robots-Tag")).toBe("noindex");
+    const body = await res.text();
+    expect(body).toContain('<meta name="robots" content="noindex">');
+    expect(body).toContain("Goa Trip");
+    expect(body).toContain("Indra"); // is owed ₹5
+    expect(body).toContain("is owed");
+    expect(body).toContain("owes");
+    expect(body).toContain("Settle up");
+    // A member name is HTML-escaped, not injected.
+    expect(body).not.toContain("<script>");
+    expect(body).toContain("Ben &lt;script&gt;");
+    // No write surface leaked.
+    expect(body).not.toContain("clantab://");
+  });
+
+  it("the balances page needs a token when the group has one", async () => {
+    const { groupId } = await makeGroup();
+    const res = await SELF.fetch(`${BASE}/g/${groupId}/balances`);
+    expect(res.status).toBe(403);
+    expect(res.headers.get("X-Robots-Tag")).toBe("noindex");
+  });
+
+  it("mints a read-only view token that opens the balances page but no write route", async () => {
+    const { groupId, creatorId, token } = await makeGroup();
+
+    const minted = await post(`/api/groups/${groupId}/view-link`, {}, token);
+    expect(minted.status).toBe(200);
+    const viewToken = minted.json.viewToken as string;
+    expect(viewToken).toMatch(/^[0-9A-Za-z_-]{22}$/);
+    expect(viewToken).not.toBe(token); // distinct from the access token
+    // Idempotent.
+    expect((await post(`/api/groups/${groupId}/view-link`, {}, token)).json.viewToken).toBe(viewToken);
+
+    // The view token opens the read-only page…
+    expect((await SELF.fetch(`${BASE}/g/${groupId}/balances?token=${viewToken}`)).status).toBe(200);
+    // …but not a write route.
+    const write = await post(`/api/groups/${groupId}/expenses`, {
+      payerId: creatorId, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+      splitType: "equal", splits: [{ memberId: creatorId, amountMinor: 100 }],
+    }, viewToken);
+    expect(write.status).toBe(403);
+  });
+
+  it("the balances page 404s for an unknown group", async () => {
+    const res = await SELF.fetch(`${BASE}/g/nope/balances`);
+    expect(res.status).toBe(404);
+  });
+
   it("serves the apple-app-site-association as application/json, scoped to /g/*", async () => {
     const res = await SELF.fetch(`${BASE}/.well-known/apple-app-site-association`);
     expect(res.status).toBe(200);

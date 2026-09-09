@@ -963,11 +963,28 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       70/30 in settings → PATCH stored → Add Expense opened on the
       Percentage tab, Dev 70% / Sam 30%. Tests: `DefaultSplitTests` (3,
       kit) + `routes.test.ts` +2. `make check` green. `DESIGN.md` §2 updated.
-- [ ] **Read-only web link for balances.** `~55k tokens` (CLI)
-      1. Add a new unauthenticated `GET` route rendering a plain HTML
-         balances view for a `groupId` (+ token).
-      2. Serve it `noindex`, same as the existing group stub page.
-      3. Add a "Share view-only link" action in the app.
+- [x] **Read-only web link for balances.** Done 2026-09-09.
+      **Worker:** `GET /g/:groupId/balances` — a `noindex` HTML page (same
+      iOS-card styling as the "Open in ClanTab" fallback) showing each
+      member's per-currency balance ("Dev is owed ₹1,250" / "Sam owes …" /
+      "settled up") and the simplified settle-up plan, nothing else. All
+      interpolated names/emoji HTML-escaped. Rather than reuse the write
+      token (which would make "view-only" a lie), a **separate**
+      `group_meta.view_token` — `POST /api/groups/:id/view-link` mints it
+      (idempotent), and `requireReadableGroup` accepts it *only* for this
+      page; a caller holding just the view token gets 403 on every mutating
+      route (tested). **App:** `GroupViewModel.loadViewLink()` mints it
+      best-effort on Group Home appear; `shareMenu` gains a
+      "Share View-only Balances" `ShareLink` pointing at
+      `<apiHost>/g/:id/balances?token=<viewToken>` (the API host, not the
+      branded Universal-Link host — a view-only link must always open the
+      web page, never the app's claim/join flow). **Verified:** rendered
+      the page via curl + headless Chrome; view token opens it, can't
+      write. Tests: `routes.test.ts` +4. `make check` green. `DESIGN.md`
+      §2/§8 updated.
+      (Follow-up: a "Revoke view links" action that rotates the view
+      token; the branded `clantab.nakka.dev` host via an AASA
+      `/g/*/balances` exclude.)
 - [~] **Offline queueing for adding an expense.** Investigation done
       2026-09-09 (see `DESIGN.md` §7).
       **Fails fast, never hangs.** `URLSessionTransport` uses

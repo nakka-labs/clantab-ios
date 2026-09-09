@@ -49,6 +49,12 @@ final class GroupViewModel {
     /// a group that predates this feature and was never regenerated.
     private(set) var accessToken: String?
 
+    /// The read-only web link for this group's balances (`FEATURE_BACKLOG.md`
+    /// "Read-only web link for balances") — lazily minted on Group Home's
+    /// first appearance so `shareMenu` can offer it. `nil` until fetched (or
+    /// if the fetch fails — it just stays hidden).
+    private(set) var viewLinkURL: URL?
+
     /// Set when the server says this group doesn't exist (a 404 on its
     /// capability URL) — the pointer to it is stale and Group Home can never
     /// load. `RootView` watches this to bounce back to the start screen.
@@ -112,6 +118,14 @@ final class GroupViewModel {
     func load() async {
         guard state == nil else { return }
         await refetch()
+    }
+
+    /// Mint the read-only balances link for `shareMenu` — once, best-effort
+    /// (a failure just leaves the option hidden). Idempotent server-side.
+    func loadViewLink() async {
+        guard viewLinkURL == nil else { return }
+        guard let viewToken = try? await client.viewLink(groupId: groupId, accessToken: accessToken).viewToken else { return }
+        viewLinkURL = AppConfig.balancesViewURL(groupId: groupId, viewToken: viewToken)
     }
 
     func refetch() async {

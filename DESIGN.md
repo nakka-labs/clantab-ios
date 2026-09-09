@@ -167,6 +167,26 @@ claimed member's Bearer session is unaffected. Same flat trust model as
 every other route here — no special "owner" tier, anyone who can currently
 reach the group can regenerate its link.
 
+### `POST /api/groups/:groupId/view-link`
+```
+Response: 200 { viewToken: string }
+```
+Mints (or returns the existing) `group_meta.view_token` — a **read-only**
+capability secret, separate from `access_token` (`FEATURE_BACKLOG.md`
+"Read-only web link for balances"). It authorizes only
+`GET /g/:groupId/balances`; a caller holding just the view token gets 403 on
+every mutating route. Idempotent; same auth as any other group route. The
+app calls this before sharing a view-only link, then hands out
+`<apiBaseURL>/g/:groupId/balances?token=<view_token>` (the API host, not
+`shareLinkBaseURL` — a view-only link must always render the web page, never
+open the app's claim/join flow).
+
+### `GET /g/:groupId/balances`
+An unauthenticated (capability-gated) HTML page: the group's per-member
+balances and the simplified settle-up plan, nothing else. `noindex`, like
+the "Open in ClanTab" page. Accepts `?token=` matching **either** the
+`view_token` or the `access_token`, or a claimed member's Bearer.
+
 **Every route above also accepts `?token=<access_token>`** once a group has
 one (§1) — omitted or wrong when a token exists → 403 `FORBIDDEN`, except
 for a request authenticated instead by a claimed member's Bearer session
@@ -359,7 +379,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 
 ## 8. Security considerations
 
-- **`groupId` (+ an optional access token) is the credential, not an account.** Anyone holding the `groupId` (via link or resolved code) — and the group's current `access_token`, once one exists — can read and write that group's data. This is a documented trust model, not an oversight — same as Spliit, same as sharing a Splitwise group invite. A leaked or shared link can be revoked without losing the group's data identity: "Regenerate Link" (`POST .../regenerate-link`, §2) rotates the `access_token` in `group_meta`, and every previously shared link/code stops working immediately — a claimed member's Bearer session is unaffected (dual-auth, not a replacement). A group created before 2026-09-05 has no token yet and stays open until it first regenerates, which lazily mints one — no deploy-time backfill.
+- **`groupId` (+ an optional access token) is the credential, not an account.** Anyone holding the `groupId` (via link or resolved code) — and the group's current `access_token`, once one exists — can read and write that group's data. This is a documented trust model, not an oversight — same as Spliit, same as sharing a Splitwise group invite. A leaked or shared link can be revoked without losing the group's data identity: "Regenerate Link" (`POST .../regenerate-link`, §2) rotates the `access_token` in `group_meta`, and every previously shared link/code stops working immediately — a claimed member's Bearer session is unaffected (dual-auth, not a replacement). A group created before 2026-09-05 has no token yet and stays open until it first regenerates, which lazily mints one — no deploy-time backfill. **Read-only sharing (2026-09-09):** a separate `group_meta.view_token` (`POST .../view-link`, §2), minted on first use, authorizes *only* `GET /g/:groupId/balances` — a caller holding just it gets 403 on every write route. This is the one place the trust model narrows: a view-only link genuinely can't mutate the ledger.
 - **Never let a group page get indexed.** Serve `X-Robots-Tag: noindex` on all `/api/groups/*` responses and `<meta name="robots" content="noindex">` on the group HTML page. A capability URL that ends up in a search index defeats its own security model.
 - **Rate-limit the join-code lookup route specifically** — it's the one shared surface across every group, so it's the one place someone could attempt to enumerate join codes. A per-IP cap (20 lookups/minute, a Cloudflare Rate Limiting binding — `RESOLVE_RATE_LIMITER` in `wrangler.jsonc`) is enough; the keyspace (32^6) already makes brute-forcing impractical, this is defense in depth, not the primary control.
 - **CORS:** the Worker serves both the frontend and the API from the same origin, so CORS can stay locked to same-origin — no need to open it up.

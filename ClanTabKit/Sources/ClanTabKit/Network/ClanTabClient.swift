@@ -106,6 +106,14 @@ public actor ClanTabClient {
         try await send("POST", "api/groups/\(groupId)/regenerate-link", bearer: nil, accessToken: accessToken)
     }
 
+    /// Mint (or fetch the existing) read-only `view_token` for the group
+    /// (`FEATURE_BACKLOG.md` "Read-only web link for balances") — the app
+    /// calls this before sharing a `/g/:groupId/balances` link. Idempotent;
+    /// same auth as any other group route.
+    public func viewLink(groupId: String, accessToken: String? = nil) async throws -> ViewLinkResponse {
+        try await send("POST", "api/groups/\(groupId)/view-link", bearer: nil, accessToken: accessToken)
+    }
+
     // MARK: - Edit / delete (DESIGN.md §2)
 
     /// Replace an expense wholesale. `request.id` is ignored — the id in the path

@@ -97,6 +97,14 @@ public struct RegenerateLinkResponse: Decodable, Sendable {
     public let accessToken: String
 }
 
+// MARK: - POST /api/groups/:groupId/view-link
+
+public struct ViewLinkResponse: Decodable, Sendable {
+    /// The read-only capability secret (`FEATURE_BACKLOG.md` "Read-only web
+    /// link for balances") — authorizes only `GET /g/:groupId/balances`.
+    public let viewToken: String
+}
+
 // MARK: - POST /api/groups/:groupId/members
 
 public struct JoinGroupRequest: Encodable, Sendable {

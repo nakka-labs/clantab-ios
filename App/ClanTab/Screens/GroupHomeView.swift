@@ -256,6 +256,7 @@ struct GroupHomeView: View {
         }
         .task {
             await viewModel.load()
+            Task { await viewModel.loadViewLink() } // best-effort, for shareMenu
             // Poll while Group Home is on screen so another device's expenses
             // and settlements appear without a manual pull-to-refresh. `.task`
             // is cancelled automatically when the view goes away; a suspended
@@ -605,6 +606,9 @@ struct GroupHomeView: View {
             Menu {
                 ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: viewModel.groupId, accessToken: viewModel.accessToken))
                 ShareLink("Share Join Code (\(state.group.joinCode))", item: state.group.joinCode)
+                if let viewLinkURL = viewModel.viewLinkURL {
+                    ShareLink("Share View-only Balances", item: viewLinkURL)
+                }
 
                 let filenameBase = ExportFile.sanitizedFilename(state.group.name)
                 let csv = Export.csv(members: state.members, expenses: state.expenses, settlements: state.settlements)
