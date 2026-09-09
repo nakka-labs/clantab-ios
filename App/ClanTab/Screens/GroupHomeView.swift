@@ -84,7 +84,10 @@ struct GroupHomeView: View {
         self.onCreateNewGroup = onCreateNewGroup
         self.onLeaveGroup = onLeaveGroup
         self.onGroupUnavailable = onGroupUnavailable
-        _viewModel = State(initialValue: GroupViewModel(groupId: groupId, client: client, auth: auth, knownGroups: knownGroups, accessToken: accessToken))
+        _viewModel = State(initialValue: GroupViewModel(
+            groupId: groupId, client: client, auth: auth, knownGroups: knownGroups,
+            accessToken: accessToken, backup: CloudKitGroupBackup()
+        ))
     }
 
     /// Other groups this device knows about, for the "Your Groups" sheet's

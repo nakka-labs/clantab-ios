@@ -51,16 +51,46 @@
       3. CLI: run `wrangler secret put` for `APNS_KEY_ID` / `APNS_TEAM_ID`
          / `APNS_PRIVATE_KEY` / `APNS_TOPIC` (owner pastes the values
          when prompted).
-- [ ] **CloudKit backup, tier 2.** `~90k tokens` (CLI)
-      1. Owner: enable the CloudKit capability + confirm the container
-         in Xcode's Signing & Capabilities.
-      2. CLI: add a `CKRecord` snapshot of the local export payload,
-         written on a timer (reuse `BackupNudge`'s cadence logic).
-      3. CLI: write it so `GroupDO` stays authoritative — this is a
-         backup destination only, never a second source of truth.
-      4. CLI: unit-test the snapshot-building logic; verify by installing
-         in the Simulator and checking a record appears in the CloudKit
-         Dashboard.
+- [x] **CloudKit backup, tier 2.** Done 2026-09-08, verified on device
+      2026-09-09 (`DESIGN.md` §7/§8).
+      1. Owner: CloudKit capability enabled on the `com.clantab.app` App ID,
+         `iCloud.com.clantab.app` container created + assigned (Apple
+         Developer portal, 2026-09-09).
+      2. CLI: `CKRecord` snapshot of the export payload, written on a
+         self-throttling cadence.
+      3. CLI: backup destination only — `GroupDO` stays authoritative.
+      4. CLI: snapshot logic unit-tested; verified on a real device — a
+         `GroupBackup` record lands in the CloudKit Dashboard.
+      Pure layer in `ClanTabKit/Export/CloudBackup.swift`:
+      `CloudBackupSnapshot` (the `Export.json` shape +
+      `groupId`/`capturedAt`/`schemaVersion`), deterministic `encode`, an
+      FNV-1a `checksum` (non-crypto, kept dependency-free for Linux CI), a
+      `CloudBackupSchedule.shouldBackUp` gate shaped exactly like
+      `BackupNudge.shouldShow` — writes only when the payload checksum
+      changed (≥ 10 min since last) or a day has passed — and a
+      `UserDefaults`-backed `CloudBackupStateStore` (last timestamp +
+      checksum, per group). App layer `App/ClanTab/CloudKitBackup.swift`:
+      `CloudKitGroupBackup` (behind a `GroupBackupWriting` protocol,
+      `NoOpGroupBackup` the default so tests never touch CloudKit) writes one
+      `GroupBackup` record per group (`recordName` = `group-<id>`, `.allKeys`
+      overwrite, the JSON blob as a `CKAsset`) to `privateCloudDatabase`,
+      fire-and-forget from `GroupViewModel.updateCaches` — gated by the same
+      `myIdentity` guard, so only claimed groups. Every failure path
+      swallowed (`accountStatus != .available`, offline, any `CKError`);
+      nothing reads a record back. Tests: `CloudBackupTests` (10, kit) +
+      `CloudKitBackupTests` (2, app — `makeRecord` field mapping + no-op
+      inertness). `make check` green (kit 200 · app 99).
+      On-device verification (2026-09-09): a real iPhone signed into iCloud
+      + Sign in with Apple, group "Goa trip" (`group-xZNcdQBW6VTU1wuz`) with
+      2 expenses — Xcode console logged `CloudKit backup ok`, and the
+      `GroupBackup` record's `payload` asset downloaded from the Dashboard
+      decoded to the complete, correct ledger (`schemaVersion 1`, INR,
+      integer minor units, both expenses with splits, ISO 8601 dates —
+      byte-identical conventions to `Export.json`).
+      **Before submission:** deploy the CloudKit schema to Production
+      (Dashboard → Schema → Deploy Schema Changes → Deploy to Production) so
+      TestFlight/release builds can write too — folded into the TestFlight
+      pass below. The record type only exists in Development today.
 - [ ] **Approve moderation copy + enable admin reports.** `~5k tokens`
       (CLI) + `Owner` approval
       1. Owner: approve the moderation copy + EULA zero-tolerance UGC
@@ -128,11 +158,17 @@
       deploy.
 - [ ] **TestFlight on-device end-to-end pass.** `~10k tokens` (CLI build
       help) + `Owner` device time
-      1. CLI: run the archive/export build steps, hand owner the
+      1. Owner: deploy the CloudKit schema to Production (Dashboard → Schema
+         → Deploy Schema Changes → Deploy to Production) — the `GroupBackup`
+         record type only exists in Development so far, so a TestFlight
+         build's backup write would otherwise fail (silently, by design).
+      2. CLI: run the archive/export build steps, hand owner the
          `.ipa`/TestFlight build.
-      2. Owner: on a real device, verify Sign in with Apple/Google, a
-         push notification, and one recurring-reminder delivery.
-      3. Owner: tag the version once it passes.
+      3. Owner: on a real device, verify Sign in with Apple/Google, a
+         push notification, one recurring-reminder delivery, and a
+         `GroupBackup` record in the CloudKit Dashboard's *Production*
+         environment.
+      4. Owner: tag the version once it passes.
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above **and** every item
          under "Design & UX polish" below.

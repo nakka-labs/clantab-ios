@@ -28,6 +28,11 @@ final class GroupViewModel {
     /// Backs the balance line on the groups list (`GroupsListView`) — updated
     /// on every successful refetch, same trigger as the widget snapshot.
     private let knownGroups: KnownGroupsStoring
+    /// Off-device ledger backup (`CHECKLIST.md` "CloudKit backup, tier 2") —
+    /// a destination only, never read back; `GroupDO` stays authoritative.
+    /// No-op by default (tests, previews); the real CloudKit writer is
+    /// injected by `GroupHomeView`.
+    private let backup: GroupBackupWriting
 
     private(set) var state: GroupStateResponse?
     private(set) var isLoading = false
@@ -51,7 +56,8 @@ final class GroupViewModel {
         auth: AuthViewModel,
         knownGroups: KnownGroupsStoring = UserDefaultsKnownGroupsStore(),
         accessToken: String? = nil,
-        widgetSnapshotStore: WidgetSnapshotStoring = UserDefaultsWidgetSnapshotStore(defaults: AppConfig.sharedDefaults)
+        widgetSnapshotStore: WidgetSnapshotStoring = UserDefaultsWidgetSnapshotStore(defaults: AppConfig.sharedDefaults),
+        backup: GroupBackupWriting = NoOpGroupBackup()
     ) {
         self.groupId = groupId
         self.client = client
@@ -59,6 +65,7 @@ final class GroupViewModel {
         self.knownGroups = knownGroups
         self.accessToken = accessToken
         self.widgetSnapshotStore = widgetSnapshotStore
+        self.backup = backup
     }
 
     /// After "Regenerate Link" mints a fresh token — update immediately
@@ -151,6 +158,20 @@ final class GroupViewModel {
         )
         WidgetCenter.shared.reloadTimelines(ofKind: AppConfig.balanceWidgetKind)
         knownGroups.updateBalances(groupId: groupId, myBalances: myBalances)
+
+        // Off-device ledger backup (`CHECKLIST.md` "CloudKit backup, tier 2").
+        // Fire-and-forget and self-throttling (`CloudBackupSchedule`) — a
+        // destination only, never read back into `state`. Gated by the same
+        // `myIdentity` guard above, so it only ever backs up a group this
+        // identity actually belongs to.
+        let (name, currency) = (state.group.name, state.group.currency)
+        let (members, expenses, settlements) = (state.members, state.expenses, state.settlements)
+        Task { [backup, groupId] in
+            await backup.backUpIfNeeded(
+                groupId: groupId, groupName: name, currency: currency,
+                members: members, expenses: expenses, settlements: settlements
+            )
+        }
     }
 
     /// A 404 for the group itself (`DESIGN.md` §2) — either a bare 404
