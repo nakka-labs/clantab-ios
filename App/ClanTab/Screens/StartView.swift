@@ -39,9 +39,12 @@ struct StartView: View {
                         .padding()
                 } else {
                     ScrollView {
-                        GroupsListView(groups: groups, onOpenGroup: onOpenGroup, onRemoveGroup: onRemoveGroup)
-                            .padding()
-                            .frame(maxWidth: .infinity)
+                        VStack(spacing: 18) {
+                            DashboardTotalsHeader(groups: groups)
+                            GroupsListView(groups: groups, onOpenGroup: onOpenGroup, onRemoveGroup: onRemoveGroup)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
                     }
                     .scrollBounceBehavior(.basedOnSize)
                     .navigationTitle("ClanTab")

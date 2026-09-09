@@ -348,11 +348,20 @@
       quick action still run after and override. Tests:
       `RootViewDeepLinkTests` +4 (`launchRoute`), new `SettingsViewTests`
       x3 (`launchLabel`). `make check` green.
-- [ ] **Currency-bucketed totals header on the dashboard.** `~15k
-      tokens` (CLI) — above `StartView`'s `GroupsListView`, bucket
-      `KnownGroup.myBalances` by currency ("You owe ₹500 · You're owed
-      $20") — never a single blended number (multi-currency is a hard
-      non-goal, `AGENTS.md`).
+- [x] **Currency-bucketed totals header on the dashboard.** Done
+      2026-09-09. New `DashboardTotals.compute([KnownGroup])` in
+      ClanTabKit (`Logic/`) sums each group's cached `myBalances` by
+      currency — one `CurrencyTotal` per currency, never blended (no FX),
+      zero-net buckets dropped, `nil`/unloaded groups skipped, first-
+      appearance currency order (matching `Balances`). New
+      `DashboardTotalsHeader` component renders it above `StartView`'s
+      `GroupsListView` (inside the signed-in `ScrollView`, in a `VStack`):
+      a "YOUR BALANCE" caption + one coloured line per currency ("You owe
+      ₹500" red / "You're owed $20" green), nothing at all when every
+      bucket nets to zero. Tests: `DashboardTotalsTests` (7, kit) +
+      `DashboardTotalsHeaderTests` (5, app — the `line(for:)` wording +
+      three-grouping). `make check` green. Visual check folds into the
+      TestFlight on-device pass (needs ≥2 groups with cached balances).
 - [ ] **Repoint Group Home's "Your Groups" button; delete the dead
       switcher sheet.** `~10k tokens` (CLI) — `GroupHomeView`'s
       `isPresentingGroupSwitcher` sheet rebuilds the same list
