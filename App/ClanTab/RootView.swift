@@ -99,6 +99,11 @@ struct RootView: View {
             if let url = IncomingURL.consumePending() {
                 handleDeepLink(url)
             }
+            // Time-boxed dashboard fallback sync — catches balances a missed or
+            // denied push never delivered (`CHECKLIST.md` "Dashboard fallback
+            // sync for missed/denied push"). No-op unless it's actually stale.
+            await auth.reconcileGroupBalances(force: false)
+            knownGroupsRevision += 1
         }
         .onReceive(NotificationCenter.default.publisher(for: .urlOpened)) { notification in
             // Every warm-open link — `clantab://` scheme or tapped Universal
@@ -185,7 +190,11 @@ struct RootView: View {
                 onSignInWithGoogle: { identityToken in
                     Task { await auth.signInWithGoogle(identityToken: identityToken) }
                 },
-                onOpenSettings: { showingSettings = true }
+                onOpenSettings: { showingSettings = true },
+                onRefresh: {
+                    await auth.reconcileGroupBalances(force: true)
+                    knownGroupsRevision += 1
+                }
             )
         case .createGroup:
             CreateGroupView(

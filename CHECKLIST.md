@@ -414,13 +414,24 @@
       Tests: `BalancesTests` +4 (kit), new `AppDelegateTests` x6 (app),
       `apns.test.ts` body assertion updated. `make check` green (worker
       213 · kit · app).
-- [ ] **Dashboard fallback sync for missed/denied push.** `~25k tokens`
-      (CLI) — pull-to-refresh + a time-boxed periodic reconcile (once
-      per day / once per cold-start-after-N-hours, not every launch).
-      Probably a new worker endpoint (`GET /api/auth/groups/balances`,
-      same fan-out shape as the existing `GET /api/auth/people`) rather
-      than N client round-trips — ground the exact shape against
-      `handleAuthPeople` before building.
+- [x] **Dashboard fallback sync for missed/denied push.** Done
+      2026-09-09. New `GET /api/auth/groups/balances` (Bearer) —
+      `GroupDO.myBalances(sub, memberId)` (same stale-membership guard as
+      `peerSettlements`) fanned out concurrently over `listGroups()`,
+      returning `{ groups: [{ groupId, balances: [Balance] }] }` (the
+      caller's own nonzero balances per group). Kit: `GroupBalancesResponse`
+      wire type + `ClanTabClient.groupBalances(token:)`. App:
+      `AuthViewModel.reconcileGroupBalances(force:)` folds each group's
+      balances into `knownGroups.updateBalances`, gated by pure
+      `DashboardReconcile.shouldReconcile` (6h staleness) +
+      `UserDefaultsDashboardSyncStore` timestamp — called `force:false`
+      from `RootView`'s launch `.task`, `force:true` from `StartView`'s
+      new `.refreshable` pull-to-refresh. `INVALID_SESSION` signs out;
+      any other failure is silent and doesn't advance the timestamp.
+      Tests: `DashboardReconcileTests` + `DashboardSyncStoreTests` (6, kit),
+      `AuthViewModelTests` +4 (app), `auth-routes.test.ts` +3 (worker).
+      `make check` green (worker 216 · kit 220 · iOS build). `DESIGN.md`
+      §7/§13 updated.
 - [x] **Worker: parallelize the `handleAuthPeople` fan-out loop.** Done
       2026-09-09. The per-group `peerSettlements` reads (independent calls
       to different `GroupDO`s) now go out concurrently via `Promise.all`

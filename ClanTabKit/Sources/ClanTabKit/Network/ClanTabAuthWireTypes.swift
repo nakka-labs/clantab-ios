@@ -75,6 +75,26 @@ public struct MyGroupsResponse: Decodable, Sendable {
     public let groups: [GroupMembershipSummary]
 }
 
+// MARK: - GET /api/auth/groups/balances  (dashboard fallback sync)
+
+/// The signed-in member's own nonzero balances in one group, per currency —
+/// the fallback path that keeps `KnownGroupsStore.myBalances` current when a
+/// push was missed or notifications are denied (`CHECKLIST.md` "Dashboard
+/// fallback sync for missed/denied push").
+public struct GroupBalanceSummary: Decodable, Sendable, Equatable {
+    public let groupId: String
+    public let balances: [Balance]
+
+    public init(groupId: String, balances: [Balance]) {
+        self.groupId = groupId
+        self.balances = balances
+    }
+}
+
+public struct GroupBalancesResponse: Decodable, Sendable {
+    public let groups: [GroupBalanceSummary]
+}
+
 // MARK: - GET /api/auth/people  (cross-group settling)
 
 /// The caller's net with one linked person in one currency. `netMinor > 0`

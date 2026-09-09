@@ -194,6 +194,13 @@ public actor ClanTabClient {
         try await get("api/auth/people", bearer: token)
     }
 
+    /// The signed-in member's own per-currency balance in every group — the
+    /// dashboard fallback when a push was missed or notifications are denied
+    /// (`CHECKLIST.md` "Dashboard fallback sync for missed/denied push").
+    public func groupBalances(token: String) async throws -> GroupBalancesResponse {
+        try await get("api/auth/groups/balances", bearer: token)
+    }
+
     /// Delete the account: every claimed membership reverts to a placeholder and
     /// the server-side index is wiped (§11). Groups and expenses are untouched.
     public func deleteAccount(token: String) async throws {

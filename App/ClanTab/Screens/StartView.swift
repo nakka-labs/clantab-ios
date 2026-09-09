@@ -19,6 +19,9 @@ struct StartView: View {
     var onSignIn: (_ identityToken: String, _ userID: String, _ authorizationCode: String?) -> Void = { _, _, _ in }
     var onSignInWithGoogle: (_ identityToken: String) -> Void = { _ in }
     var onOpenSettings: () -> Void = {}
+    /// Pull-to-refresh on the groups list — the dashboard fallback sync
+    /// (`CHECKLIST.md` "Dashboard fallback sync for missed/denied push").
+    var onRefresh: () async -> Void = {}
 
     @State private var sheetError: String?
 
@@ -47,6 +50,7 @@ struct StartView: View {
                         .frame(maxWidth: .infinity)
                     }
                     .scrollBounceBehavior(.basedOnSize)
+                    .refreshable { await onRefresh() }
                     .navigationTitle("ClanTab")
                 }
             } else {

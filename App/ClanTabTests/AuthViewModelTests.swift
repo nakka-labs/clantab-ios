@@ -505,6 +505,75 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertNil(store.load())
     }
 
+    // MARK: - reconcileGroupBalances (CHECKLIST.md "Dashboard fallback sync")
+
+    @MainActor
+    func testReconcileGroupBalancesFoldsServerBalancesIntoTheCache() async {
+        let knownGroups = InMemoryKnownGroupsStore([
+            KnownGroup(groupId: "g1", name: "Goa", lastOpenedAt: .now),
+            KnownGroup(groupId: "g2", name: "Flat", lastOpenedAt: .now),
+        ])
+        let sync = InMemoryDashboardSyncStore()
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: StubTransport(statusCode: 200, json: #"""
+            {"groups":[
+              {"groupId":"g1","balances":[{"memberId":"m1","currency":"INR","netMinor":-2500}]},
+              {"groupId":"g2","balances":[]}
+            ]}
+            """#),
+            knownGroups: knownGroups,
+            dashboardSync: sync
+        )
+
+        await vm.reconcileGroupBalances(force: true)
+
+        XCTAssertEqual(
+            knownGroups.all().first { $0.groupId == "g1" }?.myBalances,
+            [Balance(memberId: "m1", currency: "INR", netMinor: -2500)]
+        )
+        XCTAssertEqual(knownGroups.all().first { $0.groupId == "g2" }?.myBalances, [])
+        XCTAssertNotNil(sync.lastReconcileAt())
+    }
+
+    @MainActor
+    func testReconcileGroupBalancesSkipsWhenNotStaleAndNotForced() async {
+        let knownGroups = InMemoryKnownGroupsStore([KnownGroup(groupId: "g1", name: "Goa", lastOpenedAt: .now)])
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: StubTransport(statusCode: 200, json: #"{"groups":[{"groupId":"g1","balances":[{"memberId":"m1","currency":"INR","netMinor":-99}]}]}"#),
+            knownGroups: knownGroups,
+            dashboardSync: InMemoryDashboardSyncStore(lastReconcileAt: .now) // just ran
+        )
+
+        await vm.reconcileGroupBalances(force: false)
+
+        XCTAssertNil(knownGroups.all().first?.myBalances, "a reconcile must not have run")
+    }
+
+    @MainActor
+    func testReconcileGroupBalancesSignsOutOnInvalidSession() async {
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: StubTransport(statusCode: 401, json: #"{"error":{"code":"INVALID_SESSION","message":"gone"}}"#),
+            dashboardSync: InMemoryDashboardSyncStore()
+        )
+
+        await vm.reconcileGroupBalances(force: true)
+
+        XCTAssertFalse(vm.isSignedIn)
+    }
+
+    @MainActor
+    func testReconcileGroupBalancesIsANoOpWhenSignedOut() async {
+        let sync = InMemoryDashboardSyncStore()
+        let vm = makeVM(store: InMemorySessionStore(), transport: FailingTransport(), dashboardSync: sync)
+
+        await vm.reconcileGroupBalances(force: true)
+
+        XCTAssertNil(sync.lastReconcileAt())
+    }
+
     // MARK: - helpers
 
     private let day: TimeInterval = 24 * 60 * 60
@@ -528,7 +597,8 @@ final class AuthViewModelTests: XCTestCase {
         standing: CredentialStanding = .authorized,
         knownGroups: KnownGroupsStoring = InMemoryKnownGroupsStore(),
         syncNudge: SyncNudgeStoring = InMemorySyncNudgeStore(),
-        backupNudge: BackupNudgeStoring = InMemoryBackupNudgeStore()
+        backupNudge: BackupNudgeStoring = InMemoryBackupNudgeStore(),
+        dashboardSync: DashboardSyncStoring = InMemoryDashboardSyncStore()
     ) -> AuthViewModel {
         AuthViewModel(
             client: ClanTabClient(baseURL: URL(string: "https://example.invalid/")!, transport: transport),
@@ -536,6 +606,7 @@ final class AuthViewModelTests: XCTestCase {
             knownGroups: knownGroups,
             syncNudge: syncNudge,
             backupNudge: backupNudge,
+            dashboardSync: dashboardSync,
             credentialStanding: { _ in standing }
         )
     }

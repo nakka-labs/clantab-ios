@@ -349,6 +349,63 @@ describe("GET /api/auth/people (cross-group settling)", () => {
   });
 });
 
+describe("GET /api/auth/groups/balances (dashboard fallback sync)", () => {
+  const alice = "000123.balances.alice";
+  const bob = "000123.balances.bob";
+  let aliceBearer: string;
+  let bobBearer: string;
+
+  beforeEach(async () => {
+    aliceBearer = await token(alice);
+    bobBearer = await token(bob);
+  });
+
+  it("returns the caller's own per-currency balance in each group", async () => {
+    // Group 1: Alice paid 1000 split equally with Bob -> Alice +500, Bob -500.
+    const g1 = await call("POST", "/api/groups", { body: { name: "Goa", currency: "INR", creatorDisplayName: "x" } });
+    const g1Id = g1.json.groupId as string;
+    const g1Token = (g1.json.group as Json).accessToken as string;
+    const a1 = await addMember(g1Id, "Alice", g1Token);
+    const b1 = await addMember(g1Id, "Bob", g1Token);
+    await call("POST", `/api/groups/${g1Id}/members/${a1}/claim`, { bearer: aliceBearer, token: g1Token });
+    await call("POST", `/api/groups/${g1Id}/members/${b1}/claim`, { bearer: bobBearer, token: g1Token });
+    await call("POST", `/api/groups/${g1Id}/expenses`, {
+      token: g1Token,
+      body: {
+        payerId: a1, amountMinor: 1000, description: "e", date: "2026-01-01T12:00:00Z",
+        splitType: "equal", splits: [{ memberId: a1, amountMinor: 500 }, { memberId: b1, amountMinor: 500 }],
+      },
+    });
+
+    // Group 2: Alice solo, settled.
+    const g2 = await call("POST", "/api/groups", { body: { name: "Solo", currency: "USD", creatorDisplayName: "x" } });
+    const g2Id = g2.json.groupId as string;
+    const a2 = await addMember(g2Id, "Alice", (g2.json.group as Json).accessToken as string);
+    await call("POST", `/api/groups/${g2Id}/members/${a2}/claim`, {
+      bearer: aliceBearer, token: (g2.json.group as Json).accessToken as string,
+    });
+
+    const res = await call("GET", "/api/auth/groups/balances", { bearer: aliceBearer });
+    expect(res.status).toBe(200);
+    const groups = res.json.groups as Json[];
+    const byId = Object.fromEntries(groups.map((g) => [g.groupId, g.balances]));
+    expect(byId[g1Id]).toEqual([{ memberId: a1, currency: "INR", netMinor: 500 }]);
+    expect(byId[g2Id]).toEqual([]); // settled -> no nonzero buckets
+
+    // Bob sees his own side.
+    const forBob = await call("GET", "/api/auth/groups/balances", { bearer: bobBearer });
+    expect((forBob.json.groups as Json[])[0]!.balances).toEqual([{ memberId: b1, currency: "INR", netMinor: -500 }]);
+  });
+
+  it("is an empty list for an identity in no groups", async () => {
+    expect((await call("GET", "/api/auth/groups/balances", { bearer: aliceBearer })).json.groups).toEqual([]);
+  });
+
+  it("401s without a session", async () => {
+    expect((await call("GET", "/api/auth/groups/balances")).status).toBe(401);
+  });
+});
+
 describe("DELETE /api/auth/account", () => {
   it("releases every claimed membership and empties the index", async () => {
     const { groupId, token: groupToken } = await makeGroup();

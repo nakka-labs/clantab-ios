@@ -108,6 +108,7 @@ const ROUTES: Route[] = [
   route("POST", "/api/auth/google", handleAuthGoogle),
   route("POST", "/api/auth/refresh", handleAuthRefresh),
   route("GET", "/api/auth/groups", handleAuthGroups),
+  route("GET", "/api/auth/groups/balances", handleAuthGroupBalances),
   route("POST", "/api/auth/devices", handleRegisterDevice),
   route("DELETE", "/api/auth/devices/:token", handleUnregisterDevice),
   route("GET", "/api/auth/people", handleAuthPeople),
@@ -616,6 +617,29 @@ async function handleAuthGroups(request: Request, env: Env): Promise<Response> {
   const sub = await requireSession(request, env);
   const { groups } = await env.USER_DO.get(env.USER_DO.idFromName(sub)).listGroups();
   return json(200, { groups });
+}
+
+/**
+ * Dashboard fallback sync (`CHECKLIST.md` "Dashboard fallback sync for
+ * missed/denied push"): the signed-in member's own per-currency balance in
+ * every group they're in — one figure set per group, for the client to fold
+ * into its local `KnownGroupsStore` cache when a push was missed or
+ * notifications are denied. Same read-side concurrent fan-out shape as
+ * `handleAuthPeople`; a group whose membership no longer checks out is
+ * silently dropped.
+ */
+async function handleAuthGroupBalances(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const { groups } = await env.USER_DO.get(env.USER_DO.idFromName(sub)).listGroups();
+
+  const results = await Promise.all(
+    groups.map(async (g) => {
+      const view = await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).myBalances(sub, g.memberId);
+      return view === null ? null : { groupId: g.groupId, balances: view.balances };
+    }),
+  );
+
+  return json(200, { groups: results.filter((r) => r !== null) });
 }
 
 /** Register this device for push (`FEATURE_BACKLOG.md` "Push

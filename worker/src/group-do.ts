@@ -13,6 +13,7 @@ import {
 import type {
   AddExpenseRequest,
   AddSettlementRequest,
+  Balance,
   Expense,
   GroupStateResponse,
   GroupSummary,
@@ -451,6 +452,22 @@ export class GroupDO extends DurableObject {
     }));
 
     return { groupName, peers };
+  }
+
+  /**
+   * The signed-in member's own nonzero balances in this group, per currency
+   * (`CHECKLIST.md` "Dashboard fallback sync for missed/denied push"). `sub`
+   * is checked against the member row — same guard as `peerSettlements` — so
+   * a stale `UserDO` membership can't surface another identity's balance;
+   * returns `null` when it no longer matches.
+   */
+  async myBalances(sub: string, myMemberId: string): Promise<{ balances: Balance[] } | null> {
+    const mine = this.sql
+      .exec<{ id: string }>("SELECT id FROM members WHERE id = ? AND identity_sub = ?", myMemberId, sub)
+      .toArray();
+    if (mine.length === 0) return null;
+    const balances = computeBalances(this.readMembers(), this.readExpenses(), this.readSettlements());
+    return { balances: balances.filter((b) => b.memberId === myMemberId) };
   }
 
   async getState(): Promise<GroupStateResponse> {

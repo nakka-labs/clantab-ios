@@ -49,6 +49,9 @@ final class AuthViewModel {
     private let knownGroups: KnownGroupsStoring
     private let syncNudge: SyncNudgeStoring
     private let backupNudge: BackupNudgeStoring
+    /// Timestamp store behind the dashboard's fallback balance reconcile
+    /// (`CHECKLIST.md` "Dashboard fallback sync for missed/denied push").
+    private let dashboardSync: DashboardSyncStoring
     /// Injectable so tests don't need a real Apple credential. Returns `.noSession`
     /// when there's nothing stored to check.
     private let credentialStanding: @Sendable (_ appleUserID: String) async -> CredentialStanding
@@ -74,6 +77,7 @@ final class AuthViewModel {
         knownGroups: KnownGroupsStoring,
         syncNudge: SyncNudgeStoring,
         backupNudge: BackupNudgeStoring = UserDefaultsBackupNudgeStore(),
+        dashboardSync: DashboardSyncStoring = UserDefaultsDashboardSyncStore(),
         credentialStanding: @escaping @Sendable (_ appleUserID: String) async -> CredentialStanding = AuthViewModel.liveCredentialStanding
     ) {
         self.client = client
@@ -81,6 +85,7 @@ final class AuthViewModel {
         self.knownGroups = knownGroups
         self.syncNudge = syncNudge
         self.backupNudge = backupNudge
+        self.dashboardSync = dashboardSync
         self.credentialStanding = credentialStanding
         self.session = sessionStore.load()
         self.syncNudgeDismissed = syncNudge.isDismissed()
@@ -224,6 +229,30 @@ final class AuthViewModel {
             signOut()
         } catch {
             // Transient — keep the cached list.
+        }
+    }
+
+    /// The dashboard fallback sync (`CHECKLIST.md` "Dashboard fallback sync for
+    /// missed/denied push"): pull the signed-in member's own balance in every
+    /// group from the server and fold it into `knownGroups`, so the dashboard's
+    /// per-group and cross-group figures stay right even when a push was
+    /// throttled, dropped, or never permitted. Time-boxed — skipped unless
+    /// `force` (pull-to-refresh) or the last reconcile is stale
+    /// (`DashboardReconcile`). Silent: a failure leaves the cache untouched and
+    /// doesn't advance the timestamp, so the next launch retries.
+    func reconcileGroupBalances(force: Bool) async {
+        guard let token = session?.token else { return }
+        guard force || DashboardReconcile.shouldReconcile(lastAt: dashboardSync.lastReconcileAt()) else { return }
+        do {
+            let response = try await client.groupBalances(token: token)
+            for group in response.groups {
+                knownGroups.updateBalances(groupId: group.groupId, myBalances: group.balances)
+            }
+            dashboardSync.recordReconcile(Date())
+        } catch ClanTabClientError.server(let code, _) where code == "INVALID_SESSION" {
+            signOut()
+        } catch {
+            // Transient — leave the cache and the timestamp alone.
         }
     }
 
