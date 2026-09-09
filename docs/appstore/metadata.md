@@ -75,23 +75,23 @@ as a shared document link. Keep the link private to the people in your group.
 `split,expenses,bills,trip,roommate,flatmate,shared,settle up,ious,group,tab,splitwise`
 
 ## Support URL
-`https://nakka-labs.github.io/clantab-ios/support.html`
+`https://clantab.nakka.dev/support`
 
-`docs/support.html` — standalone page (what ClanTab is, a contact address,
-an FAQ, links to the privacy policy and repo). Published alongside the
-privacy policy by `.github/workflows/pages.yml`. Move to
-`https://clantab.nakka.dev/support` once the domain is wired (Track 1).
+Live. Standalone page (what ClanTab is, a contact address, an FAQ, links to
+the privacy policy and repo), served from the `nakka-labs/clantab-website`
+repo via Cloudflare Pages. The page there is a hand-port of this repo's
+`docs/support.html` — that file stays the upstream source (`WEBSITE_PLAN.md`
+in the website repo). Use the extension-less path; `/support.html` 301s to it.
 
 ## Marketing URL (optional)
 _leave blank for now — or reuse the support URL_
 
 ## Privacy Policy URL (required)
-`https://nakka-labs.github.io/clantab-ios/`
+`https://clantab.nakka.dev/privacy`
 
-Live. `docs/privacy-policy.md` is published as the site root by
-`.github/workflows/pages.yml` on every change to that file or `support.html`
-(Pages source: "GitHub Actions"). The repo is public, so the Pages build is
-unmetered.
+Live. Served from the `nakka-labs/clantab-website` repo via Cloudflare Pages —
+a hand-port of this repo's `docs/privacy-policy.md`, which stays the upstream
+source. Use the extension-less path; `/privacy.html` 301s to it.
 
 ---
 

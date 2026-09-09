@@ -11,7 +11,7 @@ Open-source expense splitter for small groups. Native iOS application powered by
 
 ## CI
 - The repo is **public**, so GitHub-hosted runners (Linux and macOS) are unmetered.
-- `.github/workflows/`: `test.yml` (ClanTabKit, Linux) and `worker.yml` (Worker, Linux) run on push. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret). `pages.yml` publishes the site to GitHub Pages — `docs/privacy-policy.md` at `/` and `docs/support.html` at `/support.html`.
+- `.github/workflows/`: `test.yml` (ClanTabKit, Linux) and `worker.yml` (Worker, Linux) run on push. `worker-deploy.yml` deploys on `v*` tags (needs a `CLOUDFLARE_API_TOKEN` secret). `pages.yml` auto-publishes `docs/privacy-policy.md` + `docs/support.html` to `nakka-labs.github.io/clantab-ios/` — now a **secondary mirror**: the canonical, App-Store-referenced Privacy/Support pages moved to `clantab.nakka.dev` (its own repo, `nakka-labs/clantab-website`, on Cloudflare Pages). Those pages are hand-ported from `docs/` here — `docs/privacy-policy.md` / `docs/support.html` stay the upstream source for both.
 - **The iOS build is NOT in cloud CI** — it runs in the `pre-push` hook on the dev's Mac for fast local feedback. A macOS CI job is now cost-free to add if PR-time checks are wanted; don't add one without a reason.
 
 ## Backend (`worker/`)

@@ -42,15 +42,26 @@
       (`POST /api/groups`), then `GET /api/groups/:groupId?token=…` returned
       `200` with the real state body, the tokenless call `403 FORBIDDEN`,
       and an unknown id `404 GROUP_NOT_FOUND`.
-- [ ] **Enable real push delivery.** `~5k tokens` (CLI) + `Owner` portal
-      work
-      1. Owner: enable the Push Notifications capability on the App ID
-         in the Apple Developer portal.
-      2. Owner: generate an APNs Auth Key (`.p8`), note its Key ID +
-         Team ID.
-      3. CLI: run `wrangler secret put` for `APNS_KEY_ID` / `APNS_TEAM_ID`
-         / `APNS_PRIVATE_KEY` / `APNS_TOPIC` (owner pastes the values
-         when prompted).
+- [x] **Enable real push delivery.** Done 2026-09-09. Owner enabled the
+      Push Notifications capability on the `com.clantab.app` App ID and
+      generated an APNs Auth Key (Key ID `77K24W288H`, Team ID
+      `UK652GNPP7` — same team as the `SIWA_*` secrets). CLI set the four
+      Worker secrets via `wrangler secret put`: `APNS_KEY_ID`,
+      `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (the `.p8` PKCS#8 PEM piped from
+      file), `APNS_TOPIC` = `com.clantab.app`. `APNS_ENVIRONMENT` left
+      unset → `apnsConfigFromEnv` defaults to the production APNs host,
+      correct for TestFlight/App Store builds (a local Xcode build's
+      sandbox token would need `APNS_ENVIRONMENT=sandbox` temporarily).
+      Each `secret put` redeployed the Worker, so `notifyGroup` now
+      dispatches for real instead of no-op returning on a null config.
+      Verified the provider auth live, not just exit 0: a hand-minted
+      ES256 JWT (same construction as `lib/apns.ts`) + a deliberately
+      bogus device token returned `400 BadDeviceToken` from **both**
+      `api.push.apple.com` and `api.sandbox.push.apple.com` — proving the
+      key/team/topic and JWT signature are all accepted and the key is
+      authorized for APNs (a bad key or a capability still disabled on the
+      App ID would be `403 InvalidProviderToken`). Real on-device delivery
+      is covered by the "TestFlight on-device end-to-end pass" below.
 - [x] **CloudKit backup, tier 2.** Done 2026-09-08, verified on device
       2026-09-09 (`DESIGN.md` §7/§8).
       1. Owner: CloudKit capability enabled on the `com.clantab.app` App ID,
@@ -100,8 +111,15 @@
       4. CLI: confirm `GET /api/admin/reports` with `Authorization:
          Bearer <token>` returns real data, not a 404.
 - [ ] **Custom domain + Universal Links.** `~45k tokens` (CLI) + `Owner`
-      DNS/portal work
-      1. Owner: point `nakka.dev`'s DNS at the Cloudflare Worker route.
+      DNS/portal work. Scope is the *app's* deep-link domain only — the
+      marketing/legal site is already handled: `clantab.nakka.dev` went
+      live 2026-09-09 as its own repo (`nakka-labs/clantab-website`) on
+      Cloudflare Pages, and App Store Connect's Privacy/Support URLs now
+      point there (see the two metadata items below). This item is the
+      separate question of a branded host for group-invite links that
+      opens the app instead of Safari.
+      1. Owner: pick + point the deep-link host's DNS (a `clantab.nakka.dev`
+         path or a dedicated subdomain) at the Cloudflare Worker route.
       2. CLI: add the `apple-app-site-association` file + wire the
          Worker route for it.
       3. Owner: add the Associated Domains entitlement value in Xcode.
@@ -132,6 +150,14 @@
       `App/ClanTab/PrivacyInfo.xcprivacy` synced to the same
       (`NSPrivacyCollectedDataTypeUserID` + `…DeviceID` added, stale "no
       accounts" comment replaced).
+      Hosting update 2026-09-09: the canonical Privacy + Support pages moved
+      to `clantab.nakka.dev` (`/privacy`, `/support`) — its own repo,
+      `nakka-labs/clantab-website`, on Cloudflare Pages, live and verified
+      (direct `200`, no redirect). `docs/appstore/metadata.md`'s Privacy
+      Policy URL + Support URL updated to match; `docs/privacy-policy.md` and
+      `docs/support.html` stay the upstream source (the website pages are a
+      hand-port), and `pages.yml`'s `nakka-labs.github.io/clantab-ios/`
+      publish stays as a secondary auto-mirror.
 - [x] **Rewrite App Store review notes.** Done 2026-09-08, owner-approved.
       `docs/appstore/metadata.md`'s review-notes block rewritten for the
       mandatory-login flow — Sign in with Apple covers the reviewer path
@@ -172,6 +198,103 @@
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above **and** every item
          under "Design & UX polish" below.
+
+### Group dashboard, switching fix & backend read efficiency — locked 2026-09-09
+
+> Scope locked 2026-09-09 after a brainstorm (group-switching bug report
+> → dashboard-first launch screen → backend cost/architecture review).
+> Full reasoning lives in `DESIGN.md` §7 (client state/dashboard design),
+> §8 (the `accessToken` storage finding), §9 (row-read cost model), and
+> §12 (the server-side-caching idea considered and rejected). Read those
+> before touching this section — this list is *what*, not *why*; update
+> `DESIGN.md` first if the *why* changes, then this list.
+
+- [ ] **Fix: group switching doesn't actually switch.** `~10k tokens`
+      (CLI) — root cause, not a UI issue: `RootView`'s `.group(groupId)`
+      case renders `GroupHomeView`, which seeds `@State var viewModel`
+      from `groupId` only in `init`. SwiftUI treats `.group("A")` →
+      `.group("B")` as the same view identity (same case, same switch
+      position), so `init` never re-runs and `viewModel` stays pinned to
+      the first group opened. Fix: `.id(groupId)` on that view in
+      `RootView.content` so SwiftUI tears down and rebuilds on switch.
+      Do this first — everything else below assumes switching actually
+      works.
+- [ ] **Audit: same view-identity footgun, anywhere else in the app.**
+      `~15k tokens` (CLI) — found 2026-09-09 fixing the item above:
+      SwiftUI reuses a view's `@State` across a same-position, different-
+      param re-render unless something (`.id()`, or the parent literally
+      removing/re-adding the view) forces a new identity. Only `RootView`
+      was checked. Scan every other place an enum/route case or a
+      `switch` feeds a `@State`-seeding `init` (`GroupSettingsView`,
+      sheet/cover presentations that pass a changing id but aren't driven
+      by `.sheet(item:)`, any future screen built the same way) for the
+      same pattern — fix or add a one-line comment explaining why that
+      one's safe, don't just eyeball it and move on.
+- [ ] **Dashboard becomes the launch screen.** `~15k tokens` (CLI) —
+      `RootView.resolveInitialRoute()` currently auto-skips into the
+      device's one group when exactly one is known; remove that skip so
+      `StartView` (already "your groups" list + balances) is always
+      what a returning user sees first, never a specific group.
+- [ ] **Settings: launch-screen preference (Dashboard vs. a chosen
+      group).** `~15k tokens` (CLI) — an explicit override for the
+      default above, in `SettingsView`'s existing `Form`/`@AppStorage`
+      pattern (same shape as the `theme` picker already there).
+- [ ] **Currency-bucketed totals header on the dashboard.** `~15k
+      tokens` (CLI) — above `StartView`'s `GroupsListView`, bucket
+      `KnownGroup.myBalances` by currency ("You owe ₹500 · You're owed
+      $20") — never a single blended number (multi-currency is a hard
+      non-goal, `AGENTS.md`).
+- [ ] **Repoint Group Home's "Your Groups" button; delete the dead
+      switcher sheet.** `~10k tokens` (CLI) — `GroupHomeView`'s
+      `isPresentingGroupSwitcher` sheet rebuilds the same list
+      `StartView` already renders. Point the toolbar button at
+      `route = .start` (a new `onOpenGroupsHub` callback, same pattern
+      as `onCreateNewGroup`) and delete the duplicate.
+- [ ] **Worker: push payload carries the recipient's own updated
+      balance.** `~20k tokens` (CLI) — `notify.ts`'s `notifyGroup` loop
+      already computes the mutation's new state per recipient; add
+      `{groupId, currency, netMinor}` to `PushPayload.data` at the two
+      call sites in `index.ts` (add-expense, add-settlement). No new DO
+      calls — this rides an existing write.
+- [ ] **iOS: push handler writes the carried balance into the local
+      cache.** `~20k tokens` (CLI) — extend the existing
+      `pushNotificationTapped` path to also fire on receipt (not just
+      tap), foreground and background, calling
+      `KnownGroups.updateBalances(groupId:, myBalances:)` with the
+      payload's `data`. Needs the `remote-notification` Background Mode
+      capability if not already enabled — `Owner`: verify in the Xcode
+      project / Apple Developer portal alongside the existing push
+      capability.
+- [ ] **Dashboard fallback sync for missed/denied push.** `~25k tokens`
+      (CLI) — pull-to-refresh + a time-boxed periodic reconcile (once
+      per day / once per cold-start-after-N-hours, not every launch).
+      Probably a new worker endpoint (`GET /api/auth/groups/balances`,
+      same fan-out shape as the existing `GET /api/auth/people`) rather
+      than N client round-trips — ground the exact shape against
+      `handleAuthPeople` before building.
+- [ ] **Worker: parallelize the `handleAuthPeople` fan-out loop.** `~5k
+      tokens` (CLI) — currently a sequential `for`/`await` over every
+      membership; `Promise.all` instead. Free latency win,
+      unconditional — do it while touching this file regardless of the
+      rest of this section's order.
+- [ ] **Security: move `KnownGroup.accessToken` into the Keychain.**
+      `~20k tokens` (CLI) — found 2026-09-09 while reviewing local
+      storage: the group access token sits in `UserDefaults` alongside
+      display data, unlike the session token (`KeychainSessionStore`),
+      despite `AGENTS.md` naming it the same class of credential.
+      Bounded severity (no payments/PII, needs local device access to
+      exploit) but a real inconsistency worth closing before public
+      launch — mirror `KeychainSessionStore`'s construction, keyed per
+      `groupId`; leave `name`/`emoji`/`myBalances` in `UserDefaults`,
+      they're display data, not credentials.
+
+**Parked out of this pass, deliberately:** cross-group spend graphs on
+the dashboard — needs a new backend aggregate endpoint nothing today
+provides, sized against real usage telemetry that doesn't exist yet.
+Revisit only after the items above have shipped and produced real
+groups-per-user / expenses-per-group numbers, not on a timer. See
+`DESIGN.md` §12.
+
 
 ### Design & UX polish — must land before "looks finished"
 
@@ -742,3 +865,9 @@ build work still open above).
 
 **Support infra, 2026-09-05** — support contact moved off personal Gmail
 to `indra@nakka.dev` (Cloudflare + Resend).
+
+**Marketing/legal site, 2026-09-09** — `clantab.nakka.dev` (Home, Privacy,
+Support, Terms, Contact) shipped as its own repo `nakka-labs/clantab-website`
+on Cloudflare Pages, built from real app content. App Store Connect
+Privacy/Support URLs repointed there. `docs/privacy-policy.md` +
+`docs/support.html` remain the upstream source, hand-ported into that repo.
