@@ -24,6 +24,10 @@ struct StartView: View {
     var onRefresh: () async -> Void = {}
 
     @State private var sheetError: String?
+    @State private var showArchived = false
+
+    private var activeGroups: [KnownGroup] { groups.filter { !$0.isArchived } }
+    private var archivedGroups: [KnownGroup] { groups.filter { $0.isArchived } }
 
     var body: some View {
         // Content flows from the top and scrolls only if it actually
@@ -43,8 +47,17 @@ struct StartView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 18) {
-                            DashboardTotalsHeader(groups: groups)
-                            GroupsListView(groups: groups, onOpenGroup: onOpenGroup, onRemoveGroup: onRemoveGroup)
+                            if activeGroups.isEmpty {
+                                Text("All your groups are archived.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.top, 8)
+                            } else {
+                                DashboardTotalsHeader(groups: activeGroups)
+                                GroupsListView(groups: activeGroups, onOpenGroup: onOpenGroup, onRemoveGroup: onRemoveGroup)
+                            }
+                            if !archivedGroups.isEmpty { archivedSection }
                         }
                         .padding()
                         .frame(maxWidth: .infinity)
@@ -104,6 +117,19 @@ struct StartView: View {
         // Before sign-in there's no title or toolbar — drop the empty nav bar
         // so the welcome hero centres against the full screen.
         .toolbar(isSignedIn ? .automatic : .hidden, for: .navigationBar)
+    }
+
+    /// Archived groups (`CHECKLIST.md` "Archive a group") — collapsed by
+    /// default below the active list; still openable and removable.
+    private var archivedSection: some View {
+        DisclosureGroup(isExpanded: $showArchived) {
+            GroupsListView(groups: archivedGroups, onOpenGroup: onOpenGroup, onRemoveGroup: onRemoveGroup, caption: nil)
+        } label: {
+            Text("Archived (\(archivedGroups.count))")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 4)
     }
 
     /// The "welcome" hero, shown only before sign-in — once you're in, the

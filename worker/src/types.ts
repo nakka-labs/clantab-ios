@@ -34,6 +34,10 @@ export interface GroupSummary {
    * "Group visual identity"), or `null` if it has none. Set via
    * `PATCH /api/groups/:groupId`. */
   emoji: string | null;
+  /** ISO 8601 timestamp the group was archived, or `null` if active
+   * (`CHECKLIST.md` "Archive a group"). Toggled via `PATCH /api/groups/:groupId`
+   * with `{ "archived": true|false }`. */
+  archivedAt: string | null;
 }
 
 // POST /api/groups

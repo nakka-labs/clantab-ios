@@ -250,4 +250,36 @@ struct KnownGroupsStoreTests {
 
         #expect(udStore(defaults).all().first?.emoji == "🏖️")
     }
+
+    // MARK: - archivedAt (CHECKLIST.md "Archive a group")
+
+    @Test("setArchivedAt sets, clears, and round-trips through UserDefaults; unknown group is a no-op")
+    func testSetArchivedAt() throws {
+        let suiteName = "com.clantab.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = udStore(defaults)
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+        #expect(store.all().first?.isArchived == false)
+
+        store.setArchivedAt(groupId: "g1", archivedAt: t0)
+        #expect(udStore(defaults).all().first?.archivedAt == t0)
+        #expect(udStore(defaults).all().first?.isArchived == true)
+        #expect(store.all().first?.lastOpenedAt == t0) // untouched, like setEmoji
+
+        store.setArchivedAt(groupId: "g1", archivedAt: nil)
+        #expect(udStore(defaults).all().first?.archivedAt == nil)
+
+        store.setArchivedAt(groupId: "ghost", archivedAt: t0) // no-op
+        #expect(store.all().map(\.groupId) == ["g1"])
+    }
+
+    @Test("InMemory store tracks archivedAt too")
+    func testInMemoryArchivedAt() {
+        let store = InMemoryKnownGroupsStore()
+        store.remember(groupId: "g1", name: "A", at: t0)
+        store.setArchivedAt(groupId: "g1", archivedAt: t0)
+        #expect(store.all().first?.isArchived == true)
+    }
 }

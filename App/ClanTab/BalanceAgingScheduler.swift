@@ -1,5 +1,5 @@
 import Foundation
-import UserNotifications
+@preconcurrency import UserNotifications
 import ClanTabKit
 
 /// Schedules / cancels the one-shot local notification behind the

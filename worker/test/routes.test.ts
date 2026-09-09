@@ -797,6 +797,30 @@ describe("group + member settings", () => {
     expect((await patch(`/api/groups/${groupId}`, { emoji: "the beach house trip 2026" }, token)).status).toBe(400);
   });
 
+  it("PATCH /api/groups/:id archives and unarchives the group", async () => {
+    const stateArchivedAt = async () =>
+      ((await get(`/api/groups/${groupId}`, undefined, token)).json.group as Json).archivedAt;
+
+    expect(await stateArchivedAt()).toBeNull(); // active on a fresh group
+
+    const archived = await patch(`/api/groups/${groupId}`, { archived: true }, token);
+    expect(archived.status).toBe(200);
+    expect((archived.json.group as Json).archivedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(await stateArchivedAt()).not.toBeNull();
+
+    // A rename leaves it archived (key absent).
+    await patch(`/api/groups/${groupId}`, { name: "Old Trip" }, token);
+    expect(await stateArchivedAt()).not.toBeNull();
+
+    const unarchived = await patch(`/api/groups/${groupId}`, { archived: false }, token);
+    expect((unarchived.json.group as Json).archivedAt).toBeNull();
+    expect(await stateArchivedAt()).toBeNull();
+  });
+
+  it("PATCH /api/groups/:id rejects a non-boolean archived → 400", async () => {
+    expect((await patch(`/api/groups/${groupId}`, { archived: "yes" }, token)).status).toBe(400);
+  });
+
   it("PATCH a member renames them", async () => {
     const { status, json } = await patch(`/api/groups/${groupId}/members/${b}`, { displayName: "Benjamin" }, token);
     expect(status).toBe(200);

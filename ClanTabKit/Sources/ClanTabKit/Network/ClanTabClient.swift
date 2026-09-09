@@ -59,10 +59,18 @@ public actor ClanTabClient {
 
     // MARK: - Group & member settings (DESIGN.md §2)
 
-    /// Rename the group and/or change its default currency for new expenses.
-    /// Existing expenses keep their own currency.
-    public func updateGroup(groupId: String, name: String? = nil, currency: String? = nil, emoji: FieldUpdate<String> = .unchanged, accessToken: String? = nil) async throws -> UpdateGroupResponse {
-        try await patch("api/groups/\(groupId)", body: UpdateGroupRequest(name: name, currency: currency, emoji: emoji), accessToken: accessToken)
+    /// Rename the group, change its default currency for new expenses, set its
+    /// emoji, and/or archive it (`CHECKLIST.md` "Archive a group"). Existing
+    /// expenses keep their own currency.
+    public func updateGroup(
+        groupId: String, name: String? = nil, currency: String? = nil,
+        emoji: FieldUpdate<String> = .unchanged, archived: Bool? = nil, accessToken: String? = nil
+    ) async throws -> UpdateGroupResponse {
+        try await patch(
+            "api/groups/\(groupId)",
+            body: UpdateGroupRequest(name: name, currency: currency, emoji: emoji, archived: archived),
+            accessToken: accessToken
+        )
     }
 
     /// Rename a member and/or set their UPI VPA (`FEATURE_BACKLOG.md` "UPI

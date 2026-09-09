@@ -40,6 +40,7 @@ struct GroupSettingsView: View {
     @State private var confirmingLeave = false
     @State private var confirmingRegenerate = false
     @State private var isRegenerating = false
+    @State private var isArchiving = false
     @State private var myUpiVpa = ""
     @State private var isSavingUpiVpa = false
     /// Drives the "Report a Problem" sheet (`FEATURE_BACKLOG.md`,
@@ -195,6 +196,23 @@ struct GroupSettingsView: View {
                 .disabled(isRegenerating)
             } footer: {
                 Text("Makes a fresh invite link and code; the old ones stop working immediately, for anyone still holding them. Not undoable.")
+            }
+
+            Section {
+                Button {
+                    Task { await setArchived(state.group.archivedAt == nil) }
+                } label: {
+                    if isArchiving {
+                        ProgressView()
+                    } else {
+                        Text(state.group.archivedAt == nil ? "Archive Group" : "Unarchive Group")
+                    }
+                }
+                .disabled(isArchiving)
+            } footer: {
+                Text(state.group.archivedAt == nil
+                     ? "Hides the group from everyone's list once the trip's over. Nothing is deleted, and any member can bring it back."
+                     : "This group is archived. Unarchive it to move it back into everyone's list.")
             }
 
             Section {
@@ -366,6 +384,20 @@ struct GroupSettingsView: View {
         let update: FieldUpdate<String> = trimmedMyUpiVpa.isEmpty ? .cleared : .set(trimmedMyUpiVpa)
         do {
             _ = try await client.renameMember(groupId: groupId, memberId: myMemberId, upiVpa: update, accessToken: accessToken)
+            onChanged()
+        } catch {
+            errorMessage = friendlyMessage(for: error)
+        }
+    }
+
+    /// Archive / unarchive the group (`CHECKLIST.md` "Archive a group") — a
+    /// group-wide, reversible "hide it, the trip's done" flag.
+    private func setArchived(_ archived: Bool) async {
+        errorMessage = nil
+        isArchiving = true
+        defer { isArchiving = false }
+        do {
+            _ = try await client.updateGroup(groupId: groupId, archived: archived, accessToken: accessToken)
             onChanged()
         } catch {
             errorMessage = friendlyMessage(for: error)

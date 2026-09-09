@@ -164,6 +164,7 @@ final class GroupViewModel {
         )
         WidgetCenter.shared.reloadTimelines(ofKind: AppConfig.balanceWidgetKind)
         knownGroups.updateBalances(groupId: groupId, myBalances: myBalances)
+        knownGroups.setArchivedAt(groupId: groupId, archivedAt: state.group.archivedAt)
         balanceAging.observe(groupId: groupId, groupName: state.group.name, balances: myBalances)
 
         // Off-device ledger backup (`CHECKLIST.md` "CloudKit backup, tier 2").

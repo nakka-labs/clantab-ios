@@ -84,10 +84,14 @@ public struct MyGroupsResponse: Decodable, Sendable {
 public struct GroupBalanceSummary: Decodable, Sendable, Equatable {
     public let groupId: String
     public let balances: [Balance]
+    /// When the group was archived (`CHECKLIST.md` "Archive a group"), so the
+    /// dashboard can hide it without opening every group. `nil` = active.
+    public let archivedAt: Date?
 
-    public init(groupId: String, balances: [Balance]) {
+    public init(groupId: String, balances: [Balance], archivedAt: Date? = nil) {
         self.groupId = groupId
         self.balances = balances
+        self.archivedAt = archivedAt
     }
 }
 

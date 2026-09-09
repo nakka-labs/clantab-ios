@@ -61,6 +61,15 @@ export function optionalStringOrNull(obj: Obj, key: string): string | null | und
   return v;
 }
 
+export function optionalBoolean(obj: Obj, key: string): boolean | undefined {
+  const v = obj[key];
+  if (v === undefined) return undefined;
+  if (typeof v !== "boolean") {
+    throw new BadRequestError(`Field "${key}", if present, must be a boolean.`);
+  }
+  return v;
+}
+
 export function requireInteger(obj: Obj, key: string): number {
   const v = obj[key];
   if (typeof v !== "number" || !Number.isInteger(v)) {

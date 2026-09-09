@@ -142,6 +142,12 @@ export const META_KEYS = {
    * key in an existing key/value table, so no `SCHEMA_VERSION` bump (same as
    * `access_token`). Absent ("no row") = the group has no emoji. */
   emoji: "emoji",
+  /** ISO 8601 timestamp the group was archived at (`CHECKLIST.md` "Archive a
+   * group") — a group-wide "this trip is over, hide it" flag, reversible by
+   * any member. Absent ("no row") = active. A new key in the existing
+   * key/value table, so no `SCHEMA_VERSION` bump (same as `emoji` /
+   * `access_token`). Purely organizational — it doesn't block mutations. */
+  archivedAt: "archived_at",
 } as const;
 
 /**

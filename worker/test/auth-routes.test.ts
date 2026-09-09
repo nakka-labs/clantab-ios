@@ -385,12 +385,18 @@ describe("GET /api/auth/groups/balances (dashboard fallback sync)", () => {
       bearer: aliceBearer, token: (g2.json.group as Json).accessToken as string,
     });
 
+    // g2 gets archived — the response still lists it, with archivedAt set.
+    await call("PATCH", `/api/groups/${g2Id}`, { bearer: aliceBearer, body: { archived: true } });
+
     const res = await call("GET", "/api/auth/groups/balances", { bearer: aliceBearer });
     expect(res.status).toBe(200);
     const groups = res.json.groups as Json[];
     const byId = Object.fromEntries(groups.map((g) => [g.groupId, g.balances]));
     expect(byId[g1Id]).toEqual([{ memberId: a1, currency: "INR", netMinor: 500 }]);
     expect(byId[g2Id]).toEqual([]); // settled -> no nonzero buckets
+    const archivedById = Object.fromEntries(groups.map((g) => [g.groupId, g.archivedAt]));
+    expect(archivedById[g1Id]).toBeNull();
+    expect(archivedById[g2Id]).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
     // Bob sees his own side.
     const forBob = await call("GET", "/api/auth/groups/balances", { bearer: bobBearer });

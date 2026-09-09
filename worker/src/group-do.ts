@@ -207,7 +207,7 @@ export class GroupDO extends DurableObject {
     this.setMeta(META_KEYS.accessToken, accessToken);
 
     const member = this.insertMember(creatorDisplayName, now);
-    return { member, group: { name, currency, createdAt, joinCode, accessToken, emoji: null } };
+    return { member, group: { name, currency, createdAt, joinCode, accessToken, emoji: null, archivedAt: null } };
   }
 
   async addMember(displayName: string): Promise<{ member: Member }> {
@@ -222,11 +222,16 @@ export class GroupDO extends DurableObject {
     currency?: string;
     /** `string` sets the group's emoji, `null` clears it, absent leaves it. */
     emoji?: string | null;
+    /** `true` archives (stamps `archived_at` = now), `false` unarchives
+     * (clears it), absent leaves it (`CHECKLIST.md` "Archive a group"). */
+    archived?: boolean;
   }): Promise<{ group: GroupSummary }> {
     if (patch.name !== undefined) this.setMeta(META_KEYS.name, patch.name);
     if (patch.currency !== undefined) this.setMeta(META_KEYS.currency, patch.currency);
     if (patch.emoji === null) this.deleteMeta(META_KEYS.emoji);
     else if (patch.emoji !== undefined) this.setMeta(META_KEYS.emoji, patch.emoji);
+    if (patch.archived === true) this.setMeta(META_KEYS.archivedAt, isoSeconds(Date.now()));
+    else if (patch.archived === false) this.deleteMeta(META_KEYS.archivedAt);
     return { group: this.groupSummary() };
   }
 
@@ -291,6 +296,7 @@ export class GroupDO extends DurableObject {
       joinCode: this.requireMeta(META_KEYS.joinCode),
       accessToken: this.meta(META_KEYS.accessToken),
       emoji: this.meta(META_KEYS.emoji),
+      archivedAt: this.meta(META_KEYS.archivedAt),
     };
   }
 
@@ -461,13 +467,16 @@ export class GroupDO extends DurableObject {
    * a stale `UserDO` membership can't surface another identity's balance;
    * returns `null` when it no longer matches.
    */
-  async myBalances(sub: string, myMemberId: string): Promise<{ balances: Balance[] } | null> {
+  async myBalances(sub: string, myMemberId: string): Promise<{ balances: Balance[]; archivedAt: string | null } | null> {
     const mine = this.sql
       .exec<{ id: string }>("SELECT id FROM members WHERE id = ? AND identity_sub = ?", myMemberId, sub)
       .toArray();
     if (mine.length === 0) return null;
     const balances = computeBalances(this.readMembers(), this.readExpenses(), this.readSettlements());
-    return { balances: balances.filter((b) => b.memberId === myMemberId) };
+    return {
+      balances: balances.filter((b) => b.memberId === myMemberId),
+      archivedAt: this.meta(META_KEYS.archivedAt),
+    };
   }
 
   async getState(): Promise<GroupStateResponse> {

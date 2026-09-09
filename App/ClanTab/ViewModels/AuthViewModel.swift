@@ -253,6 +253,10 @@ final class AuthViewModel {
             let names = Dictionary(knownGroups.all().map { ($0.groupId, $0.name) }, uniquingKeysWith: { a, _ in a })
             for group in response.groups {
                 knownGroups.updateBalances(groupId: group.groupId, myBalances: group.balances)
+                // Pick up an archive/unarchive done on another device — the
+                // groups list hides archived groups (`CHECKLIST.md` "Archive a
+                // group").
+                knownGroups.setArchivedAt(groupId: group.groupId, archivedAt: group.archivedAt)
                 // Balance-aging nudge (`FEATURE_BACKLOG.md`) — the reconcile is
                 // the one path that sees every group's balance, opened or not.
                 let name = names[group.groupId] ?? ""

@@ -1026,12 +1026,28 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       Simulator**: buttons appear on focus, `+` appends, the expression
       resolves on Done. Tests: `MoneyFormatTests` +4 (kit). `make check`
       green.
-- [ ] **Archive a group.** `~35k tokens` (CLI)
-      1. Add a nullable `archived_at` to the group schema.
-      2. Add "Archive"/"Unarchive" to Group Settings, distinct from
-         Leave/Remove/Delete.
-      3. Filter archived groups out of the default groups list, with a
-         toggle to see them.
+- [x] **Archive a group.** Done 2026-09-09. **Worker:** `group_meta.archived_at`
+      (nullable ISO timestamp, a new key — no `SCHEMA_VERSION` bump, same as
+      `emoji`); `PATCH /api/groups/:id` takes `{ archived: boolean }` and the
+      server stamps / clears the timestamp itself; `GroupSummary.archivedAt`
+      and the `/api/auth/groups/balances` per-group row both carry it.
+      Group-wide, reversible, any member can toggle; purely organizational —
+      **doesn't block mutations.** **Kit:** `GroupSummary.archivedAt`,
+      `KnownGroup.archivedAt` + `.isArchived` (cached like `emoji`),
+      `ClanTabClient.updateGroup(archived:)`, `KnownGroupsStoring.setArchivedAt`,
+      `GroupBalanceSummary.archivedAt`. **App:** an "Archive Group" /
+      "Unarchive Group" button in Group Settings (its own section, blue —
+      distinct from the red "Leave This Group"); `GroupViewModel` +
+      `AuthViewModel.reconcileGroupBalances` cache the state; `StartView`
+      splits the list into active + an "Archived (N)" `DisclosureGroup`
+      (collapsed), and `DashboardTotalsHeader` gets only the active groups so
+      an archived group's balance drops out of the cross-group totals.
+      **Verified end-to-end in the Simulator** (archive → group leaves the
+      list + totals, appears under the disclosure with its emoji + balance;
+      button flips to Unarchive). Tests: `routes.test.ts` +2,
+      `auth-routes.test.ts` balances test extended, `KnownGroupsStoreTests`
+      +2. `make check` green.
+      (Follow-up: a subtle "Archived" hint on Group Home itself.)
 - [ ] **Image storage backend (R2).** `~35k tokens` (CLI), blocked on
       an Owner step — unblocks the three items below (profile photos,
       group cover images, receipt attachments) and any future

@@ -20,6 +20,7 @@ import { newExpensePayload, notifyGroup, settlementPayload } from "./lib/notify.
 import { SessionError, mintSession, verifySession } from "./lib/session.ts";
 import {
   assertPlainObject,
+  optionalBoolean,
   optionalString,
   optionalStringOrNull,
   readJsonObject,
@@ -204,13 +205,15 @@ async function handleGetState(request: Request, env: Env, params: Params): Promi
 async function handleUpdateGroup(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
   const body = await readJsonObject(request);
-  rejectUnknownKeys(body, ["name", "currency", "emoji"]);
+  rejectUnknownKeys(body, ["name", "currency", "emoji", "archived"]);
   const name = optionalString(body, "name");
   const currency = optionalString(body, "currency");
   // `null` clears the group's emoji; a string sets it; absent leaves it.
   const emoji = optionalStringOrNull(body, "emoji");
-  if (name === undefined && currency === undefined && emoji === undefined) {
-    throw new BadRequestError('Provide "name", "currency", and/or "emoji".');
+  // `true` archives, `false` unarchives, absent leaves it (`CHECKLIST.md`).
+  const archived = optionalBoolean(body, "archived");
+  if (name === undefined && currency === undefined && emoji === undefined && archived === undefined) {
+    throw new BadRequestError('Provide "name", "currency", "emoji", and/or "archived".');
   }
   // A single emoji can be several code points (ZWJ sequences, skin tones,
   // flags); 16 is generous headroom while still rejecting a text label
@@ -219,7 +222,7 @@ async function handleUpdateGroup(request: Request, env: Env, params: Params): Pr
   if (typeof emoji === "string" && [...emoji].length > 16) {
     throw new BadRequestError('Field "emoji" must be a single emoji.');
   }
-  return json(200, await group.updateGroup({ name, currency, emoji }));
+  return json(200, await group.updateGroup({ name, currency, emoji, archived }));
 }
 
 /**
@@ -635,7 +638,7 @@ async function handleAuthGroupBalances(request: Request, env: Env): Promise<Resp
   const results = await Promise.all(
     groups.map(async (g) => {
       const view = await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).myBalances(sub, g.memberId);
-      return view === null ? null : { groupId: g.groupId, balances: view.balances };
+      return view === null ? null : { groupId: g.groupId, balances: view.balances, archivedAt: view.archivedAt };
     }),
   );
 

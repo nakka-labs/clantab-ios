@@ -26,14 +26,22 @@ public struct GroupSummary: Codable, Sendable, Equatable {
     /// "Group visual identity"), or `nil` if it has none. Shown in the groups
     /// list and the Group Home header; set via `updateGroup`.
     public let emoji: String?
+    /// When the group was archived (`CHECKLIST.md` "Archive a group") — a
+    /// group-wide "this trip is over, hide it" flag, `nil` while active.
+    /// Toggled via `updateGroup(archived:)`.
+    public let archivedAt: Date?
 
-    public init(name: String, currency: String, createdAt: Date, joinCode: String, accessToken: String? = nil, emoji: String? = nil) {
+    public init(
+        name: String, currency: String, createdAt: Date, joinCode: String,
+        accessToken: String? = nil, emoji: String? = nil, archivedAt: Date? = nil
+    ) {
         self.name = name
         self.currency = currency
         self.createdAt = createdAt
         self.joinCode = joinCode
         self.accessToken = accessToken
         self.emoji = emoji
+        self.archivedAt = archivedAt
     }
 }
 
@@ -142,19 +150,28 @@ public struct UpdateGroupRequest: Encodable, Sendable {
     /// identity") — `.unchanged` omits the key, `.cleared` sends `null`,
     /// `.set` sends the emoji, matching the worker's `optionalStringOrNull`.
     private let emojiUpdate: FieldUpdate<String>
+    /// Archive (`true`) / unarchive (`false`) the group (`CHECKLIST.md`
+    /// "Archive a group"); `nil` omits the key. The server stamps / clears
+    /// the `archived_at` timestamp itself.
+    private let archived: Bool?
 
-    public init(name: String? = nil, currency: String? = nil, emoji: FieldUpdate<String> = .unchanged) {
+    public init(
+        name: String? = nil, currency: String? = nil,
+        emoji: FieldUpdate<String> = .unchanged, archived: Bool? = nil
+    ) {
         self.name = name
         self.currency = currency
         self.emojiUpdate = emoji
+        self.archived = archived
     }
 
-    private enum CodingKeys: String, CodingKey { case name, currency, emoji }
+    private enum CodingKeys: String, CodingKey { case name, currency, emoji, archived }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(name, forKey: .name)
         try container.encodeIfPresent(currency, forKey: .currency)
+        try container.encodeIfPresent(archived, forKey: .archived)
         switch emojiUpdate {
         case .unchanged: break
         case .cleared: try container.encodeNil(forKey: .emoji)

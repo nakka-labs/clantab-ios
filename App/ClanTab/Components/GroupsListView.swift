@@ -9,13 +9,18 @@ struct GroupsListView: View {
     let groups: [KnownGroup]
     let onOpenGroup: (_ groupId: String) -> Void
     let onRemoveGroup: (_ groupId: String) -> Void
+    /// The section caption; `nil` drops it (e.g. inside the "Archived"
+    /// disclosure, which has its own label).
+    var caption: String? = "YOUR GROUPS"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("YOUR GROUPS")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 6)
+            if let caption {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 6)
+            }
 
             ForEach(groups) { group in
                 Button {
