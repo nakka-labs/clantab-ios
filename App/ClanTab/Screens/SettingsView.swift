@@ -9,11 +9,16 @@ import ClanTabKit
 struct SettingsView: View {
     let auth: AuthViewModel
     let client: ClanTabClient
+    let knownGroups: KnownGroupsStoring
     let onDone: () -> Void
 
     @State private var confirmingDelete = false
     @State private var sheetError: String?
     @AppStorage("clantab.theme") private var theme = AppTheme.system
+    /// Which screen a returning user lands on (`CHECKLIST.md` "Settings:
+    /// launch-screen preference"). `""` — the dashboard; a groupId — that
+    /// group. Read on launch by `RootView.launchRoute`.
+    @AppStorage("clantab.launchGroupId") private var launchGroupId = ""
 
     private let deletionCaveat =
         "Your groups and expenses stay. You'll lose cross-device sync and can't recover this account."
@@ -81,6 +86,14 @@ struct SettingsView: View {
                 Picker("Appearance", selection: $theme) {
                     ForEach(AppTheme.allCases) { Text($0.label).tag($0) }
                 }
+                if auth.isSignedIn, !launchGroups.isEmpty {
+                    Picker("Open at Launch", selection: $launchGroupId) {
+                        Text("Dashboard").tag("")
+                        ForEach(launchGroups) { group in
+                            Text(Self.launchLabel(for: group)).tag(group.groupId)
+                        }
+                    }
+                }
                 LabeledContent("Version", value: Self.appVersion)
             }
         }
@@ -109,6 +122,18 @@ struct SettingsView: View {
         } message: {
             Text(deletionCaveat)
         }
+    }
+
+    /// The known-groups list for the "Open at Launch" picker — same source and
+    /// order (most-recently-opened first) as the start screen's list.
+    private var launchGroups: [KnownGroup] { knownGroups.all() }
+
+    /// A group's row label in the launch picker: its emoji (if any) + name,
+    /// matching `GroupsListView`'s `"Group"` fallback for an unnamed group.
+    static func launchLabel(for group: KnownGroup) -> String {
+        let name = group.name.isEmpty ? "Group" : group.name
+        if let emoji = group.emoji, !emoji.isEmpty { return "\(emoji) \(name)" }
+        return name
     }
 
     private static var appVersion: String {

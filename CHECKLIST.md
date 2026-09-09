@@ -333,10 +333,21 @@
       unchanged. Stale rationale comments in `GroupHomeView` (the "Your
       Groups" toolbar button + `onCreateNewGroup`, both still needed as
       the screen's way back out) refreshed. `make check` green.
-- [ ] **Settings: launch-screen preference (Dashboard vs. a chosen
-      group).** `~15k tokens` (CLI) — an explicit override for the
-      default above, in `SettingsView`'s existing `Form`/`@AppStorage`
-      pattern (same shape as the `theme` picker already there).
+- [x] **Settings: launch-screen preference (Dashboard vs. a chosen
+      group).** Done 2026-09-09. New `@AppStorage("clantab.launchGroupId")`
+      (`""` = dashboard, else a groupId), shared by `SettingsView` and
+      `RootView`. `SettingsView` gained an "Open at Launch" `Picker` in
+      the existing "App" section next to the Appearance picker —
+      "Dashboard" + one row per known group (emoji + name, most-recently-
+      opened first, `"Group"` fallback for an unnamed one), shown only
+      when signed in with ≥1 group. `RootView.launchRoute(preferredGroupId:
+      isSignedIn:isKnownGroup:)` — pure, tested — resolves the pin on
+      launch in `body`'s `.task`; a pin to a group that's no longer in
+      `knownGroups` (left it, or a different account signed in) falls back
+      to the dashboard and clears itself. Deep links / push taps / the
+      quick action still run after and override. Tests:
+      `RootViewDeepLinkTests` +4 (`launchRoute`), new `SettingsViewTests`
+      x3 (`launchLabel`). `make check` green.
 - [ ] **Currency-bucketed totals header on the dashboard.** `~15k
       tokens` (CLI) — above `StartView`'s `GroupsListView`, bucket
       `KnownGroup.myBalances` by currency ("You owe ₹500 · You're owed

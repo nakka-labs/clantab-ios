@@ -20,6 +20,27 @@ final class RootViewDeepLinkTests: XCTestCase {
         XCTAssertFalse(RootView.shouldPresentOnboarding(InMemoryOnboardingStore(completed: true)))
     }
 
+    // MARK: - launchRoute (CHECKLIST.md "Settings: launch-screen preference")
+
+    func testLaunchRouteIsDashboardWhenNoPreferenceSet() {
+        XCTAssertNil(RootView.launchRoute(preferredGroupId: "", isSignedIn: true, isKnownGroup: { _ in true }))
+    }
+
+    func testLaunchRouteIsDashboardWhenSignedOut() {
+        XCTAssertNil(RootView.launchRoute(preferredGroupId: "G1", isSignedIn: false, isKnownGroup: { _ in true }))
+    }
+
+    func testLaunchRouteOpensThePinnedGroupWhenStillKnown() {
+        XCTAssertEqual(
+            RootView.launchRoute(preferredGroupId: "G1", isSignedIn: true, isKnownGroup: { $0 == "G1" }),
+            .group(groupId: "G1")
+        )
+    }
+
+    func testLaunchRouteFallsBackToDashboardWhenThePinnedGroupIsGone() {
+        XCTAssertNil(RootView.launchRoute(preferredGroupId: "G1", isSignedIn: true, isKnownGroup: { _ in false }))
+    }
+
     // MARK: - extractGroupId
 
     func testExtractsGroupIdFromDevScheme() {

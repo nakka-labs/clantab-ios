@@ -30,12 +30,30 @@ struct RootView: View {
     static func shouldPresentOnboarding(_ store: OnboardingStoring) -> Bool {
         !store.hasCompletedOnboarding()
     }
+
+    /// The route to show on launch given the saved launch-screen preference
+    /// (`CHECKLIST.md` "Settings: launch-screen preference"). `nil` means "stay
+    /// on the dashboard" — either that's the preference (`""`), or the pinned
+    /// group is gone / the user is signed out, in which case the caller also
+    /// clears the stale preference. Pure, so it's testable without a host view.
+    static func launchRoute(
+        preferredGroupId: String,
+        isSignedIn: Bool,
+        isKnownGroup: (String) -> Bool
+    ) -> AppRoute? {
+        guard isSignedIn, !preferredGroupId.isEmpty, isKnownGroup(preferredGroupId) else { return nil }
+        return .group(groupId: preferredGroupId)
+    }
     /// A deep link opened while signed out (`MANDATORY_LOGIN_PLAN.md` Part 3 —
     /// viewing a group requires signing in first). Resumed once sign-in succeeds.
     @State private var pendingDeepLink: (groupId: String, accessToken: String?)?
     /// Bumped when the local group list changes without an `auth.groups` change
     /// (removing a group locally), to recompute `yourGroups`.
     @State private var knownGroupsRevision = 0
+    /// The launch-screen preference (`CHECKLIST.md` "Settings: launch-screen
+    /// preference"), set in `SettingsView`. `""` — land on the dashboard
+    /// (`StartView`); a groupId — open straight into that group.
+    @AppStorage("clantab.launchGroupId") private var launchGroupId = ""
 
     var body: some View {
         NavigationStack {
@@ -53,11 +71,22 @@ struct RootView: View {
         }
         .task {
             await auth.handleLaunch()
-            // No auto-route on launch: a returning user always lands on
-            // `StartView` — the "your groups" dashboard — never straight in a
-            // specific group (`CHECKLIST.md` "Dashboard becomes the launch
-            // screen"). Deep links, push taps and the Home Screen quick action
-            // below still route on their own.
+            // Launch routing: the dashboard (`StartView`) by default, or
+            // straight into a group the user pinned in Settings (`CHECKLIST.md`
+            // "Settings: launch-screen preference"). A pin to a group that's no
+            // longer known (left it, or a different account) falls back to the
+            // dashboard and clears itself. Deep links, push taps and the Home
+            // Screen quick action below still route on their own.
+            if let launch = Self.launchRoute(
+                preferredGroupId: launchGroupId,
+                isSignedIn: auth.isSignedIn,
+                isKnownGroup: { id in knownGroups.all().contains { $0.groupId == id } }
+            ) {
+                route = launch
+            } else if !launchGroupId.isEmpty, auth.isSignedIn,
+                      !knownGroups.all().contains(where: { $0.groupId == launchGroupId }) {
+                launchGroupId = ""
+            }
             refreshQuickAction()
             // A quick action that cold-launched the app, buffered until now
             // (`CHECKLIST.md` "Home Screen quick action").
@@ -101,7 +130,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
-                SettingsView(auth: auth, client: client, onDone: { showingSettings = false })
+                SettingsView(auth: auth, client: client, knownGroups: knownGroups, onDone: { showingSettings = false })
             }
             .materialSheet()
         }
