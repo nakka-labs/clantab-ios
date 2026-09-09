@@ -235,20 +235,23 @@
          entries for the new type (harmless — the app writes only to
          `privateCloudDatabase`). `GroupBackup` confirmed present in the
          Production environment.
-      2. [x] CLI: archive + export done 2026-09-09. `make bump-build`
-         (build 4→5), `xcodebuild archive` + `-exportArchive` with an
-         `app-store-connect` `ExportOptions.plist`, `-allowProvisioningUpdates`.
-         Output: `ClanTab.ipa` (2.4 MB, `1.0 (5)`), signed
-         `Apple Distribution: Indra Dev Nakka (UK652GNPP7)` (cloud-managed —
-         nothing added to the local keychain), profile "iOS Team Store
-         Provisioning Profile: com.clantab.app", `aps-environment: production`,
-         `associated-domains: *`, `beta-reports-active: true`, widget
-         extension embedded. Archive also copied into
-         `~/Library/Developer/Xcode/Archives/2026-09-09/` for Organizer.
-         **Upload still pending** — no App Store Connect API key on this
-         machine; owner uploads via Transporter.app / Xcode Organizer, or
-         provides an ASC API key (Issuer ID + Key ID + `AuthKey_*.p8`) for a
-         CLI `xcrun altool --upload-app`.
+      2. [x] CLI: archive + export + **upload done 2026-09-09**. Build
+         number bumped to `7` (App Store Connect already had a `6` from an
+         earlier upload — `altool --validate-app` caught it, `5` was
+         rejected). `xcodebuild archive` + `-exportArchive`
+         (`app-store-connect` `ExportOptions.plist`,
+         `-allowProvisioningUpdates`) → `ClanTab.ipa` `1.0 (7)`, signed
+         `Apple Distribution: Indra Dev Nakka (UK652GNPP7)` (cloud-managed),
+         profile "iOS Team Store Provisioning Profile: com.clantab.app",
+         `aps-environment: production`, `associated-domains: *`,
+         `beta-reports-active: true`, widget embedded.
+         `xcrun altool --validate-app` → VERIFY SUCCEEDED (no errors);
+         `--upload-app` → UPLOAD SUCCEEDED (Delivery UUID
+         `05c21652-dfaf-433a-8db5-c78d97730101`), using an ASC API key
+         (`58887ALLXT`, App Manager) at
+         `~/.appstoreconnect/private_keys/`. Now processing in App Store
+         Connect; will appear under TestFlight in ~10–30 min. Archive also
+         in `~/Library/Developer/Xcode/Archives/2026-09-09/`.
       3. Owner: on a real device, verify Sign in with Apple/Google, a
          push notification, one recurring-reminder delivery, a shared
          `clantab.nakka.dev/g/…` link opening the app, and a `GroupBackup`
