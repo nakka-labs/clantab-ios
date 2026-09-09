@@ -954,6 +954,23 @@ describe("routing", () => {
     expect(body).toContain("clantab://g/somegroup");
   });
 
+  it("carries ?token= through to the capability page's clantab:// link", async () => {
+    const res = await SELF.fetch(`${BASE}/g/somegroup?token=tok123`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("clantab://g/somegroup?token=tok123");
+  });
+
+  it("serves the apple-app-site-association as application/json, scoped to /g/*", async () => {
+    const res = await SELF.fetch(`${BASE}/.well-known/apple-app-site-association`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/json");
+    const body = (await res.json()) as {
+      applinks: { details: [{ appIDs: string[]; components: [{ "/": string }] }] };
+    };
+    expect(body.applinks.details[0].appIDs).toEqual(["UK652GNPP7.com.clantab.app"]);
+    expect(body.applinks.details[0].components[0]["/"]).toBe("/g/*");
+  });
+
   it("serves a plain page at /", async () => {
     const res = await SELF.fetch(`${BASE}/`);
     expect(res.status).toBe(200);

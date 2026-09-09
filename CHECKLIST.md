@@ -122,21 +122,45 @@
       bearer → `401`, the real token → `200` with the report log JSON (one
       pre-existing 2026-09-05 smoke-test report). Was `404` before the
       secret existed, as designed ("safe until configured").
-- [ ] **Custom domain + Universal Links.** `~45k tokens` (CLI) + `Owner`
-      DNS/portal work. Scope is the *app's* deep-link domain only — the
-      marketing/legal site is already handled: `clantab.nakka.dev` went
-      live 2026-09-09 as its own repo (`nakka-labs/clantab-website`) on
-      Cloudflare Pages, and App Store Connect's Privacy/Support URLs now
-      point there (see the two metadata items below). This item is the
-      separate question of a branded host for group-invite links that
-      opens the app instead of Safari.
-      1. Owner: pick + point the deep-link host's DNS (a `clantab.nakka.dev`
-         path or a dedicated subdomain) at the Cloudflare Worker route.
-      2. CLI: add the `apple-app-site-association` file + wire the
-         Worker route for it.
-      3. Owner: add the Associated Domains entitlement value in Xcode.
-      4. CLI + Owner: install a TestFlight build and confirm a shared
-         link opens the app, not Safari.
+- [~] **Custom domain + Universal Links.** CLI parts done 2026-09-09;
+      owner steps + TestFlight verification remain. Host decision (owner):
+      invite links use `clantab.nakka.dev/g/:groupId?token=…` — same host as
+      the marketing site, `/g/*` routed to the Worker, AASA on Pages scoped
+      to `/g/*` so the marketing pages stay web.
+      **Done (CLI):**
+      - AASA live at `https://clantab.nakka.dev/.well-known/apple-app-site-association`
+        (`nakka-labs/clantab-website@9aeaac4`) — verified `200`,
+        `content-type: application/json`, no redirect; app ID
+        `UK652GNPP7.com.clantab.app`, `components: [{ "/": "/g/*" }]`. Root
+        copy + a `_redirects` 200-rewrite as a Workers-Static-Assets
+        belt-and-suspenders.
+      - Worker: `GET /.well-known/apple-app-site-association` route (same
+        JSON, for the workers.dev host); `/g/:groupId` now carries `?token=`
+        through to its `clantab://` fallback button. Typechecked, 66 route
+        tests green — **needs `make worker-deploy`** (blocked by the perms
+        classifier this session; owner or a follow-up runs it).
+      - App: `com.apple.developer.associated-domains: [applinks:clantab.nakka.dev]`
+        in `project.yml`; `AppConfig.shareLinkBaseURL` (`clantab.nakka.dev`,
+        decoupled from `apiBaseURL`); `SceneDelegate` rewritten to funnel
+        every URL — cold + warm, `clantab://` + Universal Link — through the
+        new `IncomingURL` helper (a custom `UISceneDelegate` suppresses
+        SwiftUI's `.onOpenURL`). App tests green (`RootViewDeepLinkTests` 17,
+        `IncomingURLTests` 4); `clantab://` receive path smoke-tested in the
+        Simulator, no crash.
+      **Remaining:**
+      1. CLI/owner: `make worker-deploy` (the AASA route + token pass-through).
+      2. Owner: Cloudflare dashboard → add Worker Route `clantab.nakka.dev/g/*`
+         → the `clantab` Worker (Workers & Pages → `clantab` → Settings →
+         Domains & Routes). If a Route can't coexist with the website's
+         Custom Domain on that host, fall back to a static `g/` page in the
+         website repo instead.
+      3. Owner: enable the **Associated Domains** capability on the
+         `com.clantab.app` App ID (Apple Developer portal) — same portal
+         caveat as Sign in with Apple / push / CloudKit.
+      4. Owner: TestFlight build (automatic signing picks up the entitlement)
+         → on a real device, tap a shared `https://clantab.nakka.dev/g/…`
+         link and confirm it opens the app, not Safari. Universal Links
+         can't be verified in the Simulator or without a provisioned build.
 - [x] **Trademark + reverse-image checks.** Done 2026-09-08, owner-run.
       Wordmark: "ClanTab" through USPTO's trademark search
       (`tmsearch.uspto.gov` — TESS was retired), Basic Search plus an

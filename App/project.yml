@@ -85,6 +85,16 @@ targets:
           - CloudKit
         com.apple.developer.icloud-container-identifiers:
           - iCloud.com.clantab.app
+        # Universal Links (`CHECKLIST.md` "Custom domain + Universal Links").
+        # `AppConfig.shareLinkBaseURL` builds share links at this host; the AASA
+        # is served from the `nakka-labs/clantab-website` Pages repo, scoped to
+        # `/g/*`. The Associated Domains capability must also be enabled on the
+        # `com.clantab.app` App ID in the Apple Developer portal before a
+        # TestFlight build — same portal caveat as the capabilities above. Until
+        # then the `clantab://g/:id` scheme below still works for Simulator
+        # testing.
+        com.apple.developer.associated-domains:
+          - applinks:clantab.nakka.dev
     info:
       path: ClanTab/Info.plist
       properties:
@@ -112,11 +122,11 @@ targets:
         # self-classification is needed. Declaring this here skips the
         # export-compliance prompt on every TestFlight upload.
         ITSAppUsesNonExemptEncryption: false
-        # Development-only deep link scheme, testable in Simulator without a real
-        # domain: `xcrun simctl openurl booted "clantab://g/<groupId>"`. Universal
-        # Links (`https://<host>/g/:groupId`, DESIGN.md's actual share link) need
-        # an Associated Domains entitlement + apple-app-site-association file once
-        # a production domain exists — deliberately deferred, not forgotten.
+        # `clantab://g/<groupId>` deep link scheme — the fallback path and the
+        # only one testable in the Simulator (`xcrun simctl openurl booted
+        # "clantab://g/<groupId>?token=<t>"`). The real share link is a Universal
+        # Link (`https://clantab.nakka.dev/g/:groupId`) — see the
+        # `associated-domains` entitlement above and `AppConfig.shareLinkBaseURL`.
         CFBundleURLTypes:
           - CFBundleURLSchemes: [clantab]
             CFBundleURLName: com.clantab.app

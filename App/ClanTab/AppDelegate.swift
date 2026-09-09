@@ -13,6 +13,13 @@ extension Notification.Name {
     /// (`CHECKLIST.md`) — carries the target group id in `userInfo["groupId"]`.
     /// A cold launch buffers it instead (`AppDelegate.consumePendingQuickAction`).
     static let quickActionAddExpense = Notification.Name("clantab.quickActionAddExpense")
+
+    /// Posted by `SceneDelegate` for every incoming URL — a `clantab://` custom
+    /// scheme link or a tapped Universal Link (`CHECKLIST.md` "Custom domain +
+    /// Universal Links") — carrying it in `userInfo["url"]`. A cold launch
+    /// buffers it instead (`IncomingURL.consumePending`). Replaces SwiftUI's
+    /// `.onOpenURL`, which a custom `UISceneDelegate` suppresses.
+    static let urlOpened = Notification.Name("clantab.urlOpened")
 }
 
 /// Bridges the UIKit-only push-notification APIs into the SwiftUI app —

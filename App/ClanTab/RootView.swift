@@ -50,8 +50,19 @@ struct RootView: View {
             if let groupId = QuickActions.consumePending() {
                 handleQuickActionAddExpense(groupId: groupId)
             }
+            // A `clantab://` or Universal Link that cold-launched the app,
+            // buffered by `SceneDelegate` (`CHECKLIST.md` "Custom domain +
+            // Universal Links").
+            if let url = IncomingURL.consumePending() {
+                handleDeepLink(url)
+            }
         }
-        .onOpenURL { url in handleDeepLink(url) }
+        .onReceive(NotificationCenter.default.publisher(for: .urlOpened)) { notification in
+            // Every warm-open link — `clantab://` scheme or tapped Universal
+            // Link — routed through `SceneDelegate` → `IncomingURL`.
+            guard let url = notification.userInfo?["url"] as? URL else { return }
+            handleDeepLink(url)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .pushNotificationTapped)) { notification in
             // A tapped push is handled exactly like any other incoming URL
             // (`AppDelegate`, `FEATURE_BACKLOG.md` "Push notifications").
@@ -258,9 +269,10 @@ struct RootView: View {
             : .claimMember(groupId: groupId, accessToken: accessToken)
     }
 
-    /// Recognizes both a real capability link (`https://<host>/g/:groupId`, per
-    /// `DESIGN.md` §1) and the `clantab://g/:groupId` scheme registered in
-    /// `project.yml` for Simulator testing before a production domain exists.
+    /// Recognizes both the Universal Link (`https://clantab.nakka.dev/g/:groupId`,
+    /// per `DESIGN.md` §1) and the `clantab://g/:groupId` fallback scheme —
+    /// the latter is also the only form testable in the Simulator, which can't
+    /// associate the domain without a provisioned entitlement.
     nonisolated static func extractGroupId(from url: URL) -> String? {
         if url.scheme == "clantab", url.host == "g" {
             return url.pathComponents.dropFirst().first

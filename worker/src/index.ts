@@ -114,6 +114,7 @@ const ROUTES: Route[] = [
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
   route("GET", "/api/admin/reports", handleAdminReports),
   route("GET", "/g/:groupId", handleCapabilityPage),
+  route("GET", "/.well-known/apple-app-site-association", handleAppleAppSiteAssociation),
   route("GET", "/", handleRoot),
 ];
 
@@ -375,15 +376,52 @@ async function handleRestoreExpense(request: Request, env: Env, params: Params):
   return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
 }
 
+/** The app's Apple-assigned application identifier — `<TeamID>.<bundleId>`
+ * (`CHECKLIST.md` "Custom domain + Universal Links"). Same team as the
+ * `APNS_*` / `SIWA_*` secrets. Used only in the AASA below. */
+const APPLE_APP_ID = "UK652GNPP7.com.clantab.app";
+
 /**
- * The human-facing capability link (`DESIGN.md` §1/§8). A stub for now: a
- * noindex page pointing at the app. A richer landing page + Universal Links
- * (`apple-app-site-association`) come with a production domain — `BACKEND_PLAN.md`
- * §6. Deliberately reveals nothing about the group.
+ * `apple-app-site-association` for Universal Links (`CHECKLIST.md` "Custom
+ * domain + Universal Links", `DESIGN.md` §1/§8). Scoped to `/g/*` so a group
+ * invite link opens the app directly; nothing else on the host is claimed.
+ * Must be `application/json`, HTTP 200, no redirect — served here for the
+ * workers.dev host; the production `clantab.nakka.dev` copy lives in the
+ * `nakka-labs/clantab-website` Pages repo (same JSON).
  */
-function handleCapabilityPage(_request: Request, _env: Env, params: Params): Promise<Response> {
+function handleAppleAppSiteAssociation(): Promise<Response> {
+  const body = {
+    applinks: {
+      details: [
+        {
+          appIDs: [APPLE_APP_ID],
+          components: [{ "/": "/g/*", comment: "Group invite links open directly in the ClanTab app" }],
+        },
+      ],
+    },
+  };
+  return Promise.resolve(
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "content-type": "application/json", "cache-control": "public, max-age=3600" },
+    }),
+  );
+}
+
+/**
+ * The human-facing capability link (`DESIGN.md` §1/§8). With Universal Links
+ * live (see `handleAppleAppSiteAssociation`), a device with the app installed
+ * opens it directly and never sees this — it's the fallback for no app,
+ * desktop, or a long-press "open in browser". The `clantab://` button carries
+ * the `?token=` through so the manual path still reaches the group.
+ * Deliberately reveals nothing about the group.
+ */
+function handleCapabilityPage(request: Request, _env: Env, params: Params): Promise<Response> {
   const groupId = params.groupId ?? "";
-  const deepLink = `clantab://g/${encodeURIComponent(groupId)}`;
+  const token = new URL(request.url).searchParams.get("token");
+  const deepLink = token
+    ? `clantab://g/${encodeURIComponent(groupId)}?token=${encodeURIComponent(token)}`
+    : `clantab://g/${encodeURIComponent(groupId)}`;
   const html = `<!doctype html>
 <html lang="en">
 <head>
