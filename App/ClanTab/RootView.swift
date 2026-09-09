@@ -183,6 +183,14 @@ struct RootView: View {
                 onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
+            // SwiftUI treats `.group("A")` → `.group("B")` as the same view
+            // identity (same `switch` case, same position), so `GroupHomeView`'s
+            // `init` — which seeds `@State var viewModel` from `groupId` — never
+            // re-runs on a switch and the view stays pinned to the first group
+            // opened. Tie identity to `groupId` so a switch tears down and
+            // rebuilds (`CHECKLIST.md` "Fix: group switching doesn't actually
+            // switch").
+            .id(groupId)
         }
     }
 

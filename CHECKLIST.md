@@ -280,16 +280,20 @@
 > before touching this section — this list is *what*, not *why*; update
 > `DESIGN.md` first if the *why* changes, then this list.
 
-- [ ] **Fix: group switching doesn't actually switch.** `~10k tokens`
-      (CLI) — root cause, not a UI issue: `RootView`'s `.group(groupId)`
-      case renders `GroupHomeView`, which seeds `@State var viewModel`
-      from `groupId` only in `init`. SwiftUI treats `.group("A")` →
+- [x] **Fix: group switching doesn't actually switch.** Done 2026-09-09.
+      Root cause, not a UI issue: `RootView`'s `.group(groupId)` case
+      renders `GroupHomeView`, which seeds `@State var viewModel` from
+      `groupId` only in `init`. SwiftUI treats `.group("A")` →
       `.group("B")` as the same view identity (same case, same switch
       position), so `init` never re-runs and `viewModel` stays pinned to
-      the first group opened. Fix: `.id(groupId)` on that view in
-      `RootView.content` so SwiftUI tears down and rebuilds on switch.
-      Do this first — everything else below assumes switching actually
-      works.
+      the first group opened. Fix applied: `.id(groupId)` on the
+      `GroupHomeView` branch in `RootView.content` so SwiftUI tears down
+      and rebuilds every `@State` (`viewModel` included) on switch — the
+      switcher sheet's `onSwitchGroup` → `enterGroup` → `route =
+      .group(…)` path now actually re-seeds. `make check` green (kit +
+      worker + iOS build + `ClanTabTests`). Purely a view-tree identity
+      change; the actual multi-group switch is exercised by the "TestFlight
+      on-device end-to-end pass".
 - [ ] **Audit: same view-identity footgun, anywhere else in the app.**
       `~15k tokens` (CLI) — found 2026-09-09 fixing the item above:
       SwiftUI reuses a view's `@State` across a same-position, different-
