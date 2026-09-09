@@ -169,10 +169,16 @@
       Advanced/Expert-mode pass scoped to classes 9/36/42 — no close
       matches, live or dead. Icon: `icon-1024.png` through both Google
       Lens and TinEye — no close matches either. Clear on both fronts.
-- [ ] **Update App Store Connect support-contact field.** `Owner` — no
-      CLI budget
-      1. Owner: log into App Store Connect, set the public support
-         contact to `indra@nakka.dev`.
+- [x] **Update App Store Connect support-contact field.** Done 2026-09-09.
+      Modern App Store Connect has no standalone support-email field on the
+      app page — only Support URL / Marketing URL / Privacy Policy URL.
+      Owner set **Support URL** to `https://clantab.nakka.dev/support`,
+      which carries `indra@nakka.dev` prominently (support `mailto:`, the
+      deletion-request `mailto:`, and the footer) — satisfies Guideline
+      1.2's "published contact information". Privacy Policy URL →
+      `https://clantab.nakka.dev/privacy` (see the metadata items above).
+      The reviewer-only contact in **App Review Information** is filled at
+      submission time, not here.
 - [x] **Rewrite privacy policy + App Privacy answers.** Done 2026-09-08,
       owner-approved. `docs/privacy-policy.md` rewritten end to end for
       mandatory Apple/Google sign-in: what each provider returns (Apple —
