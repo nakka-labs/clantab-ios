@@ -278,13 +278,174 @@
          record in the CloudKit Dashboard's *Production* environment.
       5. Owner: tag the version once it passes.
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
-      1. Owner: submit only after every item above **and** every item
-         under "Design & UX polish" below.
+      1. Owner: submit only after every item above, every item under
+         "Design & UX polish" below, **and** every item under "Friend
+         playtest + competitive gap-fill, round 2" below (accepted
+         2026-09-10 as a small, bounded launch delay — see that section
+         for why).
       Pricing is done: Price = Free across all 175 territories, set via
       the ASC API 2026-09-10 (`POST /v1/appPriceSchedules`, base
       territory USA at the free price point); 0 IAP products / 0
       subscription groups. So the only gates left are the real-device
       TestFlight pass (step 4 above) + tagging + this submit decision.
+
+### Friend playtest + competitive gap-fill, round 2 — accepted 2026-09-10
+
+Real-device feedback from a friend using the app (not the owner), plus a
+second competitive scan against Splitwise/Tricount/Settle Up/Splid,
+critically triaged in chat 2026-09-10. Accepted as ship-blocking — a
+small, bounded launch delay, not a reopen of "what should this app be."
+Everything that came up in that scan and is NOT listed here was
+deliberately cut, not missed — see "Parked" below for the ones worth
+writing down, "Non-goals" for the rest.
+
+- [ ] **Friends/contacts list with live cross-group balances + private
+      1:1 tabs.** `~60-100k tokens` (CLI — largest item in this batch,
+      real architecture, not a screen). The reason for the delay.
+      1. [x] **Spike done 2026-09-10 — no new identity plumbing needed.**
+         The "claim a placeholder member" mechanism already links a group
+         `Member` to an authenticated account: `members.identity_sub`
+         (schema v5, nullable), the composite `"<provider>:<sub>"` string,
+         with `claim()` enforcing one identity per member per group
+         (`GroupDO.claim` rejects a second member for the same `sub`). So
+         "same person across groups" keys on `identity_sub` for free — and
+         `GET /api/auth/people` → `handleAuthPeople` → `PeopleView`
+         ("Settle Across Groups") **already** does the read-side
+         cross-group peer aggregation over `GroupDO.peerSettlements`,
+         concurrently fanned out over `UserDO.listGroups()`. Remaining
+         work is therefore a first-class **Friends tab** (promote/extend
+         the `people` aggregation, add zero-balance friends, per-person
+         drill-in), **hidden 2-person groups** for 1:1 tabs (auto-created,
+         `UISceneDelegate`-hidden, reuse every existing piece), and the
+         **member profile screen** (shared with item 8 below). Not started.
+      2. Private 1:1 tabs (two people, no formal group): implement as
+         an auto-created, UI-hidden 2-person group the moment two
+         registered accounts start a tab — no invite/join ceremony,
+         reuses every already-tested piece (splits, settle-up, CSV
+         export, balances). Do not build a second, separate ledger
+         type for this.
+      3. Friends list screen: for the signed-in account, aggregate
+         balances across every group (formal + hidden 1:1) shared with
+         each claimed member. This directly reverses the "no second
+         cross-group ledger" non-goal below — see that section for the
+         note on why.
+      4. Tapping a member anywhere (not just this list) opens their
+         profile — build the profile item below once, use it from both
+         places.
+- [ ] **CSV import: identify failed rows, not just a count.** `~10-15k
+      tokens`. Friend imported `Future.csv`; 3 of N rows were skipped
+      with no way to tell which or why. Surface the specific row (line
+      number + field) and reason per skip, not an aggregate count.
+- [x] **Bubble graph: legibility floor, not just a zero-balance dot.**
+      Done 2026-09-10. `CirclePack.layout` gained a `minNonZeroRadius`
+      parameter (default `0` = disabled, so existing callers/tests are
+      unchanged) — a floor applied only to items with a *nonzero* weight,
+      re-applied after the scale-to-fit shrink so a crowded box can't push
+      a real balance back under the label threshold (at the cost of a
+      slight overlap in that rare case). A genuine zero still floors at
+      `minRadius`. `BalanceBubbleView` passes `minNonZeroRadius: 20` and
+      the initials threshold dropped `20 → 19` for float headroom, so any
+      nonzero balance now shows at least initials. Test:
+      `CirclePackTests.testNonZeroFloor`. `make check` green.
+- [ ] **All Insights graphs interactive — tap a member to filter.**
+      `~25-35k tokens`. Selecting a member in any chart filters that
+      chart's data to them; wire one shared selection state across
+      `InsightsView`'s charts rather than per-chart ad hoc state.
+- [ ] **Category pie chart in Insights.** `~15-20k tokens`. New chart
+      type; categories already carry the formula-driven pastel colors
+      (`CategoryPickerView`) and SF Symbol icons — reuse both instead of
+      inventing a new palette.
+- [ ] **Split by shares (ratio split).** `~25-30k tokens`. 5th
+      `SplitType` case alongside `equal/exact/percentage/itemized` —
+      e.g. A:4 B:2 C:1 D:3 → A gets 4/10 of the amount. Touches the kit
+      model, wire types, worker validation (still an exact-sum check,
+      just a different resolution step), `AddExpenseView`, CSV
+      round-trip.
+- [ ] **Add member inline from Add Expense, + search on the member
+      picker.** `~15-20k tokens`. The "add member by name" (placeholder,
+      claimable later) backend already exists and shipped as its own
+      screen (Mandatory login work, 2026-09-05) — this exposes it
+      inline instead of requiring a trip to group settings, plus a
+      search field on the payer/split picker for large groups.
+- [ ] **Member profile screen: settle-up amount + UPI ID.** `~10-15k
+      tokens`. Tapping a member (anywhere) opens a screen with their net
+      balance in this group and `Member.upiVpa` if set — both already
+      stored; this is a new read-only screen, not new data.
+- [ ] **"Remind" button on an outstanding balance.** `~10-15k tokens`.
+      Today `BalanceAgingScheduler` only nudges *you* about what you
+      owe; add a button that sends a push to the *other* person you're
+      owed by. Same notification infra, opposite direction.
+- [ ] **Comments on an expense.** `~20-25k tokens`. New `Comment`
+      model (`id`, `expenseId`, `authorMemberId`, `text`, `createdAt`,
+      soft-delete via `deletedAt`/`deletedBy` — same pattern as
+      `Expense`/`Settlement`), stored under `GroupDO` alongside
+      expenses. Wire types + worker endpoints (add/list/delete). App:
+      a comment thread section on the expense-detail sheet, reuses
+      `MemberAvatar` for authorship. Route comment reporting through
+      the existing `ReportContentView`/block path rather than building
+      a parallel moderation flow.
+- [ ] **Multiple payers on one expense.** `~35-45k tokens`. Replace
+      `Expense.payerId: String` with `payers: [ExpensePayment]`
+      (`memberId` + `amountMinor`), contributions summing to
+      `amountMinor` — mirrors how `splits` already works, so the
+      "must sum to the total" validation is a copy of an existing
+      pattern, not new design. Needs a schema migration: old rows keep
+      their single `payerId`, the read path maps it into a one-payer
+      `payers` array — no data rewrite. `Balances.compute` credits each
+      payer their own contribution instead of crediting one payer the
+      full amount. Touches kit model, wire types, worker validation,
+      `AddExpenseView` (payer picker becomes multi-select w/ amount
+      entry — same UI shape as exact/percentage split), CSV
+      import/export, PDF report. Comparable in size to Split by shares;
+      no real reason to leave it out if that one's in.
+- [ ] **Tax/tip proportional split on itemized expenses.** `~15-20k
+      tokens`. Only worth doing now that itemized survives (the drop
+      was reversed) — without it, itemized's most common real
+      complaint (tax/tip split evenly instead of by what each person
+      actually ordered) stays unfixed. Add optional tax + tip fields to
+      the itemized flow; distribute both proportionally by each
+      person's item subtotal, resolved at the same point
+      `Validation.itemizedSplit` already turns items into exact shares.
+- [ ] **"What's New" sheet, versioned.** `~15-20k tokens`. Swap the
+      onboarding store's single sticky bool (`OnboardingStoring`) for a
+      last-seen-build string; on launch, if the current build number is
+      newer than what's stored **and** the user has already finished
+      the first-run walkthrough, show a short sheet listing what
+      shipped since their last open. Not urgent while the app is
+      internal-only (2026-09-10 — no real returning-user base to reach
+      yet), but worth writing now while this round's feature list
+      (friends/tabs, comments, multiple payers, shares split) is fresh
+      — it's the only real mechanism for surfacing a round like this
+      once actual users exist. Content is a static list per release,
+      same shape as this file's own "Done (condensed)" entries.
+- [ ] **Empty-state calls-to-action.** `~8-10k tokens`. The empty-state
+      illustrations already shipped (Design & UX polish, 2026-09-05/07)
+      — this wires real copy + a button per screen ("No expenses yet —
+      add your first one", "No groups yet — create or join one")
+      instead of decoration alone. No new infra.
+- [ ] **Returning-user balance summary.** `~15-20k tokens`. On launch
+      after a gap (reuse the `firstLaunchAt`/nudge-timing pattern
+      already in `AuthViewModel`), show a one-time "Welcome back —
+      here's where things stand" card summarizing net balance across
+      groups. Build it against today's per-group balances first; swap
+      in the aggregated cross-group number once the Friends item above
+      ships rather than waiting on it.
+- [ ] **One-time contextual coach marks.** `~20-25k tokens`. A small
+      reusable "point at this, once" component (a UserDefaults flag per
+      tip id, same pattern as `OnboardingStoring`), then wire 3-4
+      initial tips: the bubble-view swipe on Group Home, the inline
+      add-member button on Add Expense, and — once it ships — the new
+      Friends tab. Bigger upfront cost than the rest of this batch; the
+      payoff is every future feature gets a free hook to explain
+      itself.
+- [ ] **Settings → "Show tips again."** `~5k tokens`. Resets the
+      onboarding-walkthrough and coach-mark flags. Trivial — bundle
+      with whichever of the above ships, so none of this becomes
+      permanently naggy.
+- [ ] **Name-wise filter accuracy — blocked, need repro.** No CLI budget
+      yet. Friend said "not accurate" with no specifics. Get an exact
+      case (which name, which group, expected vs. actual result) before
+      this gets an estimate or a fix.
 
 ### Group dashboard, switching fix & backend read efficiency — locked 2026-09-09
 
@@ -1276,12 +1437,33 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
 - Google Drive backup integration — needs its own OAuth scope-
   verification with Google and there's no Android client to justify it
   yet; revisit if an Android build ever happens.
+- Pending-approval on an expense someone else added on your behalf —
+  new expense-state machine (pending/approved/rejected), touching
+  edit/delete/settle-up/export/recurring-reminders wherever they read
+  an expense's status, not just a new screen. Highest risk-to-value
+  item reviewed 2026-09-10: no actual user asked for this, it only
+  came out of the competitive scan, and it doesn't fit how loose this
+  app's trust model already is by design. Hold until real friction
+  shows up, not on spec.
+- JSON/Excel export — still parked 2026-09-10 on re-review. No demand
+  signal (nobody asked; competitive-scan-only), CSV already round-trips
+  with ClanTab's own format plus Splitwise/Splid import, and a real
+  `.xlsx` writer isn't free on iOS — no first-party framework, so it
+  means pulling in a third-party SPM dependency for a format nobody's
+  requested.
 
 ## Non-goals — will not be built
 
-FX / currency conversion · payment processing or money transfer · a
-second cross-group ledger (cross-group settling still fires one
-`addSettlement` per underlying group) · paid cloud AI.
+FX / currency conversion · payment processing or money transfer ·
+paid cloud AI.
+
+**Reversed 2026-09-10:** "a second cross-group ledger" was a non-goal
+here through 2026-09-09. The friend playtest (round 2 above) surfaced
+real demand for private 1:1 tabs + cross-group friend balances —
+reopened deliberately, not by drift. Cross-group *settling* still fires
+one `addSettlement` per underlying group; the new work is a read-side
+aggregation layer plus hidden 2-person groups for 1:1 tabs, not a new
+write-side ledger.
 
 ## Done (condensed)
 

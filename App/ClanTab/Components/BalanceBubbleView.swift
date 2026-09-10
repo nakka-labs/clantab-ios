@@ -29,7 +29,10 @@ struct BalanceBubbleView: View {
                 width: geo.size.width,
                 height: geo.size.height,
                 minRadius: 11,
-                maxRadius: min(geo.size.height, geo.size.width) / 2.6
+                maxRadius: min(geo.size.height, geo.size.width) / 2.6,
+                // Any nonzero balance clears the initials threshold below, so a
+                // small-but-real debt never reads as an anonymous settled dot.
+                minNonZeroRadius: 20
             )
             ZStack {
                 ForEach(packed) { circle in
@@ -60,7 +63,7 @@ struct BalanceBubbleView: View {
                     if owed { Circle().strokeBorder(color, lineWidth: 2) }
                 }
 
-            if circle.radius >= 20, let member {
+            if circle.radius >= 19, let member {
                 VStack(spacing: 1) {
                     Text(MemberAvatar.initials(from: member.displayName))
                         .font(.system(size: min(circle.radius * 0.5, 16), weight: .semibold, design: .rounded))

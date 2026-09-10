@@ -57,6 +57,18 @@ struct CirclePackTests {
         }
     }
 
+    @Test("minNonZeroRadius floors a tiny nonzero weight but leaves a real zero a dot")
+    func testNonZeroFloor() {
+        let c = CirclePack.layout(
+            [(id: "big", weight: 10_000), (id: "tiny", weight: 1), (id: "zero", weight: 0)],
+            width: 900, height: 700,
+            minRadius: 11, minNonZeroRadius: 20
+        )
+        let byId = Dictionary(uniqueKeysWithValues: c.map { ($0.id, $0.radius) })
+        #expect(byId["tiny"]! >= 20)
+        #expect(byId["zero"] == 11)
+    }
+
     @Test("deterministic — input order doesn't change the layout")
     func testDeterministic() {
         let a = pack([("y", 100), ("x", 100), ("z", 100)])

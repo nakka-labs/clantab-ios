@@ -31,6 +31,13 @@ public enum CirclePack {
     ///     sit in the middle of it.
     ///   - radius: `minRadius…maxRadius`, scaled by `sqrt(weight / maxWeight)`
     ///     so **area** tracks weight.
+    ///   - minNonZeroRadius: a legibility floor applied only to items with a
+    ///     *nonzero* weight — so a tiny-but-real balance still renders big
+    ///     enough to carry a label, while a genuine zero stays a `minRadius`
+    ///     dot. `0` (the default) disables it: every item floors at
+    ///     `minRadius`, the historical behaviour. Re-applied after the
+    ///     scale-to-fit shrink, so a crowded box can nudge floored circles
+    ///     into a slight overlap — acceptable for the rare tiny-balance case.
     ///   - gap: clear space kept between circles.
     public static func layout(
         _ items: [(id: String, weight: Double)],
@@ -38,6 +45,7 @@ public enum CirclePack {
         height: Double,
         minRadius: Double = 12,
         maxRadius: Double = 68,
+        minNonZeroRadius: Double = 0,
         gap: Double = 6
     ) -> [PackedCircle] {
         guard !items.isEmpty, width > 0, height > 0 else { return [] }
@@ -46,11 +54,12 @@ public enum CirclePack {
             a.weight != b.weight ? a.weight > b.weight : a.id < b.id
         }
         let maxWeight = sorted.first!.weight
+        let nonZeroIds = Set(items.filter { $0.weight > 0 }.map(\.id))
 
         func radius(for weight: Double) -> Double {
             guard maxWeight > 0, weight > 0 else { return minRadius }
             let t = (weight / maxWeight).squareRoot()
-            return (minRadius + (maxRadius - minRadius) * t).rounded()
+            return max(minNonZeroRadius, (minRadius + (maxRadius - minRadius) * t).rounded())
         }
 
         var placed: [PackedCircle] = []
@@ -77,11 +86,12 @@ public enum CirclePack {
         let dy = height / 2 - scale * (minY + maxY) / 2
 
         return placed.map {
-            PackedCircle(
+            let scaled = ($0.radius * scale).rounded()
+            return PackedCircle(
                 id: $0.id,
                 x: $0.x * scale + dx,
                 y: $0.y * scale + dy,
-                radius: ($0.radius * scale).rounded()
+                radius: nonZeroIds.contains($0.id) ? max(minNonZeroRadius, scaled) : scaled
             )
         }
     }
