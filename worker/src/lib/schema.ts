@@ -40,7 +40,11 @@ CREATE TABLE IF NOT EXISTS expenses (
   -- expense (FEATURE_BACKLOG.md "Itemized expense entry"); NULL otherwise. Read
   -- and written whole with the expense, never queried into -- so a column, not
   -- its own table.
-  items         TEXT
+  items         TEXT,
+  -- JSON array of R2 object keys (expenses/<groupId>/<expenseId>/<id>) for
+  -- receipt photos (CHECKLIST.md "Photo attachment on an expense"); NULL when
+  -- there are none. Written whole with the expense.
+  attachments   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expense_splits (
@@ -213,5 +217,8 @@ export const META_KEYS = {
  *  - `9` → `members.avatar_key` added (nullable). Denormalised profile-photo
  *          key (`CHECKLIST.md` "Profile photos"); every existing member has
  *          none. Plain `ALTER TABLE ... ADD COLUMN` — no rebuild.
+ *  - `10` → `expenses.attachments` (nullable JSON array of R2 keys) added.
+ *          Receipt photos (`CHECKLIST.md` "Photo attachment on an expense");
+ *          every existing expense has none. Plain `ALTER TABLE ... ADD COLUMN`.
  */
-export const SCHEMA_VERSION = "9";
+export const SCHEMA_VERSION = "10";

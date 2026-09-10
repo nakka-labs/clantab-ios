@@ -123,7 +123,8 @@ Request:  { id?: string, payerId, amountMinor, currency?, description, date,
             splitType: "equal"|"exact"|"percentage"|"itemized",
             splits: [{ memberId, amountMinor }],
             items?: [{ id, name, amountMinor, participantIds: [memberId] }],
-            category?: string, categoryIcon?: string }
+            category?: string, categoryIcon?: string,
+            attachments?: [string] }
 Response: 201 { expense: {...} }
 Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor, or (itemized)
                                  the line items don't, or an item has no participants
@@ -139,6 +140,8 @@ Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor, or (itemized
 `items` is present **iff** `splitType` is `"itemized"` (`FEATURE_BACKLOG.md` "Itemized expense entry"): the line items the expense was built from — each a positive amount shared equally by a non-empty `participantIds`, the items together summing to `amountMinor` (no separate tax/tip bucket — a shared surcharge is its own line). `splits` stays the balance source of truth; `items` is stored alongside so reopening the expense shows the breakdown and an edit starts from it. The server validates both. Editing an expense to a non-itemized `splitType` drops its stored `items`.
 
 `category` is a free-form label and `categoryIcon` its SF Symbol name (`ClanTabKit.ExpenseCategory`). Both optional — omitted entirely when unset. Stored verbatim, not validated against a list; the icon is stored per expense so any client renders it without a shared name→icon table.
+
+`attachments` (`CHECKLIST.md` "Photo attachment on an expense") is the full list of receipt-photo R2 keys. The client uploads each image to `expenses/<groupId>/<id>/<random>` via `POST /api/media/presign` first (so an *add* with attachments must also send `id`), then lists the keys here; the route rejects any key that isn't `expenses/<groupId>/<thisExpense>/<one segment>`. On `PUT`, omitting the key keeps the stored list, `[]` clears it, and any key dropped from the list has its R2 object deleted (an expense soft-deletes to trash and never hard-deletes, so this edit is the only cleanup point). Restore keeps whatever attachments the trashed expense had.
 
 `currency` (ISO 4217, both endpoints) is optional and defaults server-side to the group's currency — the iOS client always sends it explicitly (its last-used currency for the group). `amountMinor` and every split are in this currency. It is stored verbatim, not validated against a list.
 
@@ -241,7 +244,8 @@ CREATE TABLE expenses (
   currency      TEXT,          -- nullable in DDL; added + backfilled in v4, always written since
   deleted_at    INTEGER,       -- nullable; soft-delete timestamp, added in v6
   deleted_by    TEXT,          -- nullable; memberId that deleted it, added in v6 — client-supplied, trusted like every other id here
-  items         TEXT           -- nullable JSON array of { id, name, amountMinor, participantIds } for an 'itemized' expense, added in v8; NULL otherwise
+  items         TEXT,          -- nullable JSON array of { id, name, amountMinor, participantIds } for an 'itemized' expense, added in v8; NULL otherwise
+  attachments   TEXT           -- nullable JSON array of R2 keys (expenses/<groupId>/<expenseId>/<id>) for receipt photos (CHECKLIST.md), added in v10; NULL when none
 );
 
 CREATE TABLE expense_splits (
@@ -430,6 +434,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`7`** — `members.upi_vpa` added (nullable, user-supplied). Plain `ADD COLUMN`, in place. Powers the optional "Pay via UPI" deep link on Settle Up — ClanTab never verifies or processes it, just builds a `upi://pay?...` URI the OS opens.
 - **`8`** — `expenses.split_type`'s `CHECK` widened to allow `'itemized'`, and `expenses.items` (nullable JSON) added. Like v2, SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table — now with every v7 column plus `items`, so the copy names columns explicitly. Powers itemized expense entry (`FEATURE_BACKLOG.md`); `items` is the line-item breakdown, `NULL` for every non-itemized expense.
 - **`9`** — `members.avatar_key` added (nullable). Plain `ADD COLUMN`, in place. The linked identity's profile-photo R2 key (`CHECKLIST.md` "Profile photos"), denormalised so `getState` can hand it to every member without exposing identity subjects; `NULL` for a guest or a photoless identity.
+- **`10`** — `expenses.attachments` added (nullable JSON array of R2 keys). Plain `ADD COLUMN`, in place. Receipt photos (`CHECKLIST.md` "Photo attachment on an expense"); `NULL` for every existing expense. Each key is `expenses/<groupId>/<expenseId>/<id>`; a `PUT` that drops a key makes the route delete its R2 object (an expense never hard-deletes, so that's the only cleanup point).
 
 `group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8), an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji), an `archived_at` row (2026-09-09, §2 — the archive flag), a `default_split` row (2026-09-09, §2 — the saved default split JSON), and a `cover_key` row (2026-09-10, §2 — the group cover image's R2 key, `CHECKLIST.md`) — all new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has none of them until it sets one.
 

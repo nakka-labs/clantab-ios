@@ -47,6 +47,10 @@ public struct Expense: Identifiable, Codable, Sendable {
     /// truth for balances; `items` is the breakdown that produced them, kept so
     /// reopening the expense shows it and an edit starts from it.
     public let items: [LineItem]?
+    /// Receipt-photo R2 keys (`CHECKLIST.md` "Photo attachment on an expense") —
+    /// `nil` (key absent) when the expense has none. Resolve each to a URL with
+    /// `ClanTabClient.presignMediaView`.
+    public let attachments: [String]?
     /// Free-form spending category. `nil` for expenses that predate categories or
     /// were left unset — render via `ExpenseCategory.resolve(name:symbolName:)`.
     public let category: String?
@@ -72,6 +76,7 @@ public struct Expense: Identifiable, Codable, Sendable {
         splitType: SplitType,
         splits: [ExpenseSplit],
         items: [LineItem]? = nil,
+        attachments: [String]? = nil,
         category: String? = nil,
         categoryIcon: String? = nil,
         deletedAt: Date? = nil,
@@ -86,6 +91,7 @@ public struct Expense: Identifiable, Codable, Sendable {
         self.splitType = splitType
         self.splits = splits
         self.items = items
+        self.attachments = attachments
         self.category = category
         self.categoryIcon = categoryIcon
         self.deletedAt = deletedAt

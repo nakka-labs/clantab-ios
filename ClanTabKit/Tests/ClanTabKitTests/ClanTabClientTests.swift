@@ -208,6 +208,48 @@ struct ClanTabClientTests {
         #expect(unset["categoryIcon"] == nil)
     }
 
+    @Test("addExpense encodes attachments when set, omits the key when nil; decodes them back")
+    func testAddExpenseAttachments() async throws {
+        let keys = ["expenses/g1/e1/r1", "expenses/g1/e1/r2"]
+        let transport = FakeTransport(statusCode: 201, body: jsonData([
+            "expense": [
+                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "USD", "description": "Cab",
+                "date": "2026-01-15T10:00:00Z", "splitType": "equal",
+                "splits": [["memberId": "m1", "amountMinor": 100]],
+                "attachments": keys,
+            ],
+        ]))
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport).addExpense(
+            groupId: "g1",
+            AddExpenseRequest(
+                id: "e1", payerId: "m1", amountMinor: 100, currency: "USD", description: "Cab",
+                date: Date(timeIntervalSince1970: 0), splitType: .equal,
+                splits: [ExpenseSplit(memberId: "m1", amountMinor: 100)],
+                attachments: keys
+            )
+        )
+        #expect(response.expense.attachments == keys)
+        #expect(decodeBody(await transport.lastRequest)["attachments"] as? [String] == keys)
+
+        // nil → key omitted
+        let without = FakeTransport(statusCode: 201, body: jsonData([
+            "expense": [
+                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "USD", "description": "Cab",
+                "date": "2026-01-15T10:00:00Z", "splitType": "equal",
+                "splits": [["memberId": "m1", "amountMinor": 100]],
+            ],
+        ]))
+        _ = try await ClanTabClient(baseURL: baseURL, transport: without).addExpense(
+            groupId: "g1",
+            AddExpenseRequest(
+                payerId: "m1", amountMinor: 100, currency: "USD", description: "Cab",
+                date: Date(timeIntervalSince1970: 0), splitType: .equal,
+                splits: [ExpenseSplit(memberId: "m1", amountMinor: 100)]
+            )
+        )
+        #expect(decodeBody(await without.lastRequest)["attachments"] == nil)
+    }
+
     @Test("updateGroup PATCHes name + currency and decodes the group summary")
     func testUpdateGroup() async throws {
         let transport = FakeTransport(statusCode: 200, body: jsonData([

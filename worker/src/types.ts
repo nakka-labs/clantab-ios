@@ -114,6 +114,12 @@ export interface AddExpenseRequest {
   items?: LineItem[];
   category?: string;
   categoryIcon?: string;
+  /** R2 object keys for receipt photos (`CHECKLIST.md` "Photo attachment on an
+   * expense"). The full desired list — an edit that drops a key deletes its R2
+   * object. Each must be `expenses/<groupId>/<expenseId>/<id>` for *this*
+   * expense (the route handler checks). Absent leaves the stored list; `[]`
+   * clears it. */
+  attachments?: string[];
 }
 export interface AddExpenseResponse {
   expense: Expense;

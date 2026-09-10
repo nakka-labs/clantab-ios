@@ -549,6 +549,53 @@ describe("POST /api/groups/:groupId/expenses", () => {
       { fromId: a, toId: b, amountMinor: 400, currency: "USD" },
     ]);
   });
+
+  // --- receipt photos (CHECKLIST.md "Photo attachment on an expense") ---
+
+  it("stores receipt attachments and returns them; an edit that drops one deletes its R2 object", async () => {
+    const eid = "aaaaaaaa-bbbb-cccc-dddd-000000000001";
+    const k1 = `expenses/${groupId}/${eid}/r1`;
+    const k2 = `expenses/${groupId}/${eid}/r2`;
+    await env.MEDIA.put(k1, new Uint8Array([1]));
+    await env.MEDIA.put(k2, new Uint8Array([2]));
+
+    const base = {
+      id: eid, payerId: a, amountMinor: 1000, description: "Dinner", date: "2026-02-01T20:00:00Z",
+      splitType: "equal", splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
+    };
+
+    const added = await post(`/api/groups/${groupId}/expenses`, { ...base, attachments: [k1, k2] }, token);
+    expect(added.status).toBe(201);
+    expect((added.json.expense as Json).attachments).toEqual([k1, k2]);
+
+    // Edit down to just k1 → k2's object is deleted.
+    const edited = await put(`/api/groups/${groupId}/expenses/${eid}`, { ...base, id: undefined, attachments: [k1] }, token);
+    expect(edited.status).toBe(200);
+    expect((edited.json.expense as Json).attachments).toEqual([k1]);
+    expect(await env.MEDIA.head(k2)).toBeNull();
+    expect(await env.MEDIA.head(k1)).not.toBeNull();
+
+    // Omitting `attachments` on a later edit leaves the stored list alone.
+    const renamed = await put(`/api/groups/${groupId}/expenses/${eid}`, { ...base, id: undefined, description: "Late dinner" }, token);
+    expect((renamed.json.expense as Json).attachments).toEqual([k1]);
+  });
+
+  it("rejects an attachment key that isn't this expense's, and attachments with no id", async () => {
+    const base = {
+      payerId: a, amountMinor: 100, description: "x", date: "2026-02-01T20:00:00Z",
+      splitType: "equal", splits: [{ memberId: a, amountMinor: 50 }, { memberId: b, amountMinor: 50 }],
+    };
+    // attachments but no client id
+    expect((await post(`/api/groups/${groupId}/expenses`, { ...base, attachments: ["expenses/x/y/z"] }, token)).status).toBe(400);
+    // a key for a different expense
+    const eid = "aaaaaaaa-bbbb-cccc-dddd-000000000002";
+    const foreign = await post(
+      `/api/groups/${groupId}/expenses`,
+      { ...base, id: eid, attachments: [`expenses/${groupId}/SOMEONE-ELSE/r1`] },
+      token,
+    );
+    expect(foreign.status).toBe(400);
+  });
 });
 
 describe("POST /api/groups/:groupId/settlements", () => {

@@ -380,6 +380,7 @@ struct GroupHomeView: View {
                     currentMemberId: viewModel.myIdentity?.memberId,
                     client: client,
                     accessToken: viewModel.accessToken,
+                    sessionToken: auth.session?.token,
                     defaultSplit: viewModel.state?.group.defaultSplit,
                     onSaved: {
                         isPresentingAddExpense = false
@@ -435,6 +436,7 @@ struct GroupHomeView: View {
                     currentMemberId: viewModel.myIdentity?.memberId,
                     client: client,
                     accessToken: viewModel.accessToken,
+                    sessionToken: auth.session?.token,
                     editing: expense,
                     onSaved: {
                         editingExpense = nil
@@ -456,6 +458,7 @@ struct GroupHomeView: View {
                     currentMemberId: viewModel.myIdentity?.memberId,
                     client: client,
                     accessToken: viewModel.accessToken,
+                    sessionToken: auth.session?.token,
                     duplicating: expense,
                     onSaved: {
                         duplicatingExpense = nil

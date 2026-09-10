@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import ClanTabKit
 
 /// Amount, payer, description, and an equal / exact / percentage split — the
@@ -15,6 +16,9 @@ struct AddExpenseView: View {
     let currentMemberId: String?
     let client: ClanTabClient
     let accessToken: String?
+    /// The signed-in identity's session token — the media-presign endpoint needs
+    /// it for a receipt upload (`CHECKLIST.md` "Photo attachment on an expense").
+    var sessionToken: String?
     /// When set, the form edits this expense (`PUT`) instead of adding a new one.
     let editing: Expense?
     let onSaved: () -> Void
@@ -51,6 +55,14 @@ struct AddExpenseView: View {
     @State private var category: ExpenseCategory = .uncategorized
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    /// Receipt photos (`CHECKLIST.md` "Photo attachment on an expense"). The
+    /// expense id is fixed up front so receipts can be uploaded to
+    /// `expenses/<groupId>/<expenseId>/…` before the expense is saved.
+    @State private var expenseId: String
+    @State private var attachmentKeys: [String]
+    @State private var pickedReceipts: [PhotosPickerItem] = []
+    @State private var isUploadingReceipt = false
+    @Environment(\.avatarImageLoader) private var avatarLoader
 
     /// The currencies the user can pick — the supported set, plus the default if
     /// it's somehow outside it (an older group on a currency since removed).
@@ -67,6 +79,7 @@ struct AddExpenseView: View {
         currentMemberId: String?,
         client: ClanTabClient,
         accessToken: String? = nil,
+        sessionToken: String? = nil,
         editing: Expense? = nil,
         /// Pre-fill from this expense (same payer/split/category) but leave
         /// `editing` `nil` — `save()` then POSTs a fresh expense with today's
@@ -96,9 +109,15 @@ struct AddExpenseView: View {
         self.currentMemberId = currentMemberId
         self.client = client
         self.accessToken = accessToken
+        self.sessionToken = sessionToken
         self.editing = editing
         self.onSaved = onSaved
         self.onCancel = onCancel
+
+        // Fixed for the life of the sheet — receipts upload against it, and an
+        // add sends it as the idempotency id (`CHECKLIST.md`).
+        _expenseId = State(initialValue: editing?.id ?? UUID().uuidString)
+        _attachmentKeys = State(initialValue: editing?.attachments ?? [])
 
         if let template = recurringTemplate {
             _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: template.amountMinor))
@@ -275,6 +294,8 @@ struct AddExpenseView: View {
                 splitDetail
             }
 
+            receiptsSection
+
             if let errorMessage {
                 Section {
                     Text(errorMessage).foregroundStyle(.red)
@@ -315,6 +336,83 @@ struct AddExpenseView: View {
             }
         }
         .dismissibleKeyboard()
+        .onChange(of: pickedReceipts) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await uploadPickedReceipts(items) }
+        }
+    }
+
+    // MARK: - Receipts (CHECKLIST.md "Photo attachment on an expense")
+
+    @ViewBuilder
+    private var receiptsSection: some View {
+        Section {
+            if !attachmentKeys.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(attachmentKeys, id: \.self) { key in
+                            ReceiptThumbnail(
+                                key: key,
+                                accessToken: accessToken,
+                                size: 72,
+                                onRemove: { attachmentKeys.removeAll { $0 == key } }
+                            )
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 8))
+            }
+
+            PhotosPicker(
+                selection: $pickedReceipts,
+                maxSelectionCount: 5,
+                matching: .images,
+                preferredItemEncoding: .compatible,
+                photoLibrary: .shared()
+            ) {
+                HStack {
+                    Label(attachmentKeys.isEmpty ? "Add Receipt" : "Add Another", systemImage: "paperclip")
+                    Spacer()
+                    if isUploadingReceipt { ProgressView() }
+                }
+            }
+            .disabled(isUploadingReceipt)
+        } header: {
+            Text("Receipts")
+        }
+    }
+
+    private func uploadPickedReceipts(_ items: [PhotosPickerItem]) async {
+        defer { pickedReceipts = [] }
+        guard let sessionToken else {
+            errorMessage = "Sign in to attach a receipt."
+            return
+        }
+        isUploadingReceipt = true
+        defer { isUploadingReceipt = false }
+
+        for item in items {
+            guard
+                let data = try? await item.loadTransferable(type: Data.self),
+                let picked = UIImage(data: data),
+                let jpeg = ReceiptImage.jpegData(from: picked)
+            else {
+                errorMessage = "Couldn't read one of those photos."
+                continue
+            }
+            do {
+                let ticket = try await client.presignMediaUpload(
+                    .receipt, contentType: "image/jpeg", contentLength: jpeg.count,
+                    groupId: groupId, expenseId: expenseId, token: sessionToken, accessToken: accessToken
+                )
+                try await client.uploadImage(jpeg, using: ticket)
+                if let small = UIImage(data: jpeg) { avatarLoader?.prime(ticket.key, with: small) }
+                attachmentKeys.append(ticket.key)
+            } catch {
+                errorMessage = friendlyMessage(for: error)
+            }
+        }
     }
 
     /// Broken out of `body` on its own: a `switch` mixed directly into a
@@ -644,8 +742,12 @@ struct AddExpenseView: View {
             // `.uncategorized` is the "no category" sentinel — send nil, not the
             // placeholder name, so it stays distinguishable from a real category.
             let isCategorised = category != .uncategorized
+            // Omit the key entirely when there were no receipts and are none —
+            // otherwise send the full desired list (an edit that dropped one
+            // deletes its R2 object server-side).
+            let hadAttachments = !(editing?.attachments ?? []).isEmpty
             let request = AddExpenseRequest(
-                id: isEditing ? nil : UUID().uuidString,
+                id: isEditing ? nil : expenseId,
                 payerId: payerId,
                 amountMinor: amountMinor,
                 currency: currency,
@@ -657,7 +759,8 @@ struct AddExpenseView: View {
                 splits: splits,
                 items: items,
                 category: isCategorised ? category.name : nil,
-                categoryIcon: isCategorised ? category.symbolName : nil
+                categoryIcon: isCategorised ? category.symbolName : nil,
+                attachments: (attachmentKeys.isEmpty && !hadAttachments) ? nil : attachmentKeys
             )
             if let editing {
                 _ = try await client.updateExpense(groupId: groupId, expenseId: editing.id, request, accessToken: accessToken)

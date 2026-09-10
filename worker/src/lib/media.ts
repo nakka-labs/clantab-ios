@@ -86,6 +86,20 @@ export function receiptKey(groupId: string, expenseId: string, recordId: string)
   return `expenses/${groupId}/${expenseId}/${recordId}`;
 }
 
+/** Every key in `keys` must be a receipt object for exactly this
+ * group + expense (`expenses/<groupId>/<expenseId>/<id>`, one trailing
+ * segment) — guards an expense-write from attaching another expense's or
+ * group's objects (`CHECKLIST.md` "Photo attachment on an expense"). */
+export function assertReceiptKeysBelong(keys: string[], groupId: string, expenseId: string): void {
+  const prefix = `expenses/${groupId}/${expenseId}/`;
+  for (const key of keys) {
+    const tail = key.startsWith(prefix) ? key.slice(prefix.length) : null;
+    if (tail === null || tail.length === 0 || tail.includes("/")) {
+      throw new BadRequestError(`Attachment "${key}" doesn't belong to this expense.`);
+    }
+  }
+}
+
 /** The group a stored key belongs to, for view-time authorization — `null` for
  * keys with no group scope (avatars, which any signed-in user may view). */
 export function groupIdForKey(key: string): string | null {

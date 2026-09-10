@@ -86,6 +86,13 @@ test/               logic + validation (Node) · join-codes/group/routes/user/au
   `groups/<id>/cover` (400 if the object isn't in the bucket), `{ coverImage:
   null }` removes it and deletes the R2 object. The key is a `cover_key`
   `group_meta` row, surfaced as `GroupSummary.coverKey`.
+- **Receipt photos** (`CHECKLIST.md` "Photo attachment on an expense"):
+  `expenses.attachments` (schema v10, nullable JSON array of R2 keys). The
+  POST/PUT expense body takes `attachments: [key]` — the client uploads each to
+  `expenses/<groupId>/<expenseId>/<id>` via presign first (an *add* with
+  attachments must send `id` too); the route (`assertReceiptKeysBelong`)
+  rejects a key for another expense. A `PUT` that drops a key deletes its R2
+  object — the only cleanup point, since expenses soft-delete and never purge.
 - `GET /g/:groupId` is a stub landing page (noindex + app deep link). A real page +
   Universal Links come with a production domain — see `CHECKLIST.md`'s
   "custom domain + Universal Links" item.

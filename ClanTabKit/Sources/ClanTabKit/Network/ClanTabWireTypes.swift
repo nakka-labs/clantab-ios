@@ -268,6 +268,11 @@ public struct AddExpenseRequest: Sendable {
     public let items: [LineItem]?
     public let category: String?
     public let categoryIcon: String?
+    /// Receipt-photo R2 keys (`CHECKLIST.md` "Photo attachment on an expense") —
+    /// the full desired list. `nil` omits the key (server keeps the stored
+    /// list); `[]` clears them; a list replaces them. On an *add*, a non-empty
+    /// list also requires `id` (the keys are `expenses/<groupId>/<id>/…`).
+    public let attachments: [String]?
 
     public init(
         id: String? = nil,
@@ -280,7 +285,8 @@ public struct AddExpenseRequest: Sendable {
         splits: [ExpenseSplit],
         items: [LineItem]? = nil,
         category: String? = nil,
-        categoryIcon: String? = nil
+        categoryIcon: String? = nil,
+        attachments: [String]? = nil
     ) {
         self.id = id
         self.payerId = payerId
@@ -293,12 +299,14 @@ public struct AddExpenseRequest: Sendable {
         self.items = items
         self.category = category
         self.categoryIcon = categoryIcon
+        self.attachments = attachments
     }
 }
 
 extension AddExpenseRequest: Encodable {
     private enum CodingKeys: String, CodingKey {
-        case id, payerId, amountMinor, currency, description, date, splitType, splits, items, category, categoryIcon
+        case id, payerId, amountMinor, currency, description, date, splitType, splits,
+             items, category, categoryIcon, attachments
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -316,6 +324,7 @@ extension AddExpenseRequest: Encodable {
         try container.encodeIfPresent(items, forKey: .items)
         try container.encodeIfPresent(category, forKey: .category)
         try container.encodeIfPresent(categoryIcon, forKey: .categoryIcon)
+        try container.encodeIfPresent(attachments, forKey: .attachments)
     }
 }
 

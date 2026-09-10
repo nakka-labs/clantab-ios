@@ -244,12 +244,12 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("9");
+      expect(version).toBe("10");
 
       // The legacy expense survived the v2 + v8 rebuilds, gained null category
       // columns, had its currency backfilled from the group (USD), gained null
-      // deleted_at/deleted_by (v6) — i.e. it's active, not trashed — and gained
-      // a null `items` column (v8).
+      // deleted_at/deleted_by (v6), a null `items` column (v8), and a null
+      // `attachments` column (v10).
       const legacy = sql
         .exec<{
           category: string | null;
@@ -258,13 +258,15 @@ describe("GroupDO", () => {
           deleted_at: number | null;
           deleted_by: string | null;
           items: string | null;
+          attachments: string | null;
         }>(
-          "SELECT category, category_icon, currency, deleted_at, deleted_by, items FROM expenses WHERE id = 'old-1'",
+          "SELECT category, category_icon, currency, deleted_at, deleted_by, items, attachments FROM expenses WHERE id = 'old-1'",
         )
         .toArray()[0];
       expect(legacy).toEqual({
         category: null,
         category_icon: null,
+        attachments: null,
         currency: "USD",
         deleted_at: null,
         deleted_by: null,

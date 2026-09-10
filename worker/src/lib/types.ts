@@ -58,6 +58,10 @@ export interface Expense {
    * other `splitType`. `splits` stays the source of truth for balances — this
    * is the breakdown that produced them. */
   items?: LineItem[];
+  /** R2 object keys for receipt photos (`CHECKLIST.md` "Photo attachment on an
+   * expense"), resolved to URLs via `POST /api/media/presign`. Absent when the
+   * expense has none. */
+  attachments?: string[];
   /** Free-form spending category; absent for expenses that predate categories
    * or were left unset. Not used by the balance math. */
   category?: string;

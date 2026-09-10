@@ -17,6 +17,7 @@ import {
 import { newGroupId, newRecordId } from "./lib/ids.ts";
 import { reserveJoinCode, resolveJoinCode } from "./lib/join-codes.ts";
 import {
+  assertReceiptKeysBelong,
   assertUploadAllowed,
   avatarKey,
   groupCoverKey,
@@ -376,6 +377,7 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     "items",
     "category",
     "categoryIcon",
+    "attachments",
   ]);
 
   const splitType = requireString(body, "splitType");
@@ -419,6 +421,19 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
       })
     : undefined;
 
+  // `attachments` absent → leave the stored receipt list alone; `[]` → clear
+  // it; a list → replace it. The route handler checks each key belongs to this
+  // expense before it's stored.
+  const attachments =
+    body.attachments === undefined
+      ? undefined
+      : requireArray(body, "attachments").map((a, i) => {
+          if (typeof a !== "string") {
+            throw new BadRequestError(`Field "attachments[${i}]" must be a string.`);
+          }
+          return a;
+        });
+
   return {
     id: allowId ? optionalString(body, "id") : undefined,
     payerId: requireString(body, "payerId"),
@@ -431,6 +446,7 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     items,
     category: optionalString(body, "category"),
     categoryIcon: optionalString(body, "categoryIcon"),
+    attachments,
   };
 }
 
@@ -456,6 +472,17 @@ async function handleAddExpense(request: Request, env: Env, params: Params, ctx:
   const groupId = params.groupId ?? "";
   const group = await requireGroup(request, env, groupId);
   const req = parseExpenseBody(await readJsonObject(request), true);
+
+  // Receipt keys must belong to this exact expense (`CHECKLIST.md`). On add the
+  // client supplies the id it uploaded the receipts under; a bare add with
+  // attachments but no id has nowhere valid for the keys to point.
+  if (req.attachments && req.attachments.length > 0) {
+    if (req.id === undefined) {
+      throw new BadRequestError('An expense with "attachments" must also supply an "id".');
+    }
+    assertReceiptKeysBelong(req.attachments, groupId, req.id);
+  }
+
   const result = await group.addExpense(req);
   if (!result.ok) return domainErrorResponse(result.error);
 
@@ -487,10 +514,20 @@ async function handleAddExpense(request: Request, env: Env, params: Params, ctx:
 }
 
 async function handleUpdateExpense(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(request, env, params.groupId ?? "");
+  const groupId = params.groupId ?? "";
+  const expenseId = params.expenseId ?? "";
+  const group = await requireGroup(request, env, groupId);
   const req = parseExpenseBody(await readJsonObject(request), false);
-  const result = await group.updateExpense(params.expenseId ?? "", req);
-  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+
+  if (req.attachments && req.attachments.length > 0) {
+    assertReceiptKeysBelong(req.attachments, groupId, expenseId);
+  }
+
+  const result = await group.updateExpense(expenseId, req);
+  if (!result.ok) return domainErrorResponse(result.error);
+  // Delete the R2 objects for any receipts this edit dropped.
+  await Promise.all(result.value.removedAttachments.map((key) => env.MEDIA.delete(key)));
+  return json(200, { expense: result.value.expense });
 }
 
 async function handleDeleteExpense(request: Request, env: Env, params: Params): Promise<Response> {

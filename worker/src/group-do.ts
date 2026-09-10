@@ -53,6 +53,7 @@ type ExpenseRow = Row<{
   deleted_at: number | null;
   deleted_by: string | null;
   items: string | null;
+  attachments: string | null;
 }>;
 type SplitRow = Row<{
   expense_id: string;
@@ -230,6 +231,15 @@ export class GroupDO extends DurableObject {
       this.sql.exec("ALTER TABLE members ADD COLUMN avatar_key TEXT");
       this.setMeta(META_KEYS.schemaVersion, "9");
       current = "9";
+    }
+
+    if (current === "9") {
+      // v10: add `expenses.attachments` (nullable JSON array) — receipt-photo R2
+      // keys (`CHECKLIST.md` "Photo attachment on an expense"). Every existing
+      // expense has none. In-place, no rebuild.
+      this.sql.exec("ALTER TABLE expenses ADD COLUMN attachments TEXT");
+      this.setMeta(META_KEYS.schemaVersion, "10");
+      current = "10";
     }
   }
 
@@ -638,21 +648,30 @@ export class GroupDO extends DurableObject {
    * is preserved so the row keeps its place in the activity feed. Balances are
    * derived on read, so nothing else needs touching. `NOT_FOUND` → 404.
    */
-  async updateExpense(id: string, req: AddExpenseRequest): Promise<Result<{ expense: Expense }>> {
-    if (this.readExpenseById(id) === null) {
+  async updateExpense(
+    id: string,
+    req: AddExpenseRequest,
+  ): Promise<Result<{ expense: Expense; removedAttachments: string[] }>> {
+    const old = this.readExpenseById(id);
+    if (old === null) {
       return fail("NOT_FOUND", `Expense "${id}" is not in this group.`);
     }
     const invalid = this.validateExpense(req);
     if (invalid !== null) return invalid;
 
+    // `attachments` absent → keep the stored list; `[]` or a list → replace it.
+    // The Worker handler deletes the R2 objects for any keys dropped here.
+    const nextAttachments = req.attachments ?? old.attachments ?? [];
+    const removedAttachments = (old.attachments ?? []).filter((k) => !nextAttachments.includes(k));
+
     const createdAt = this.originalCreatedAt("expenses", id);
     this.sql.exec("DELETE FROM expenses WHERE id = ?", id);
     this.sql.exec("DELETE FROM expense_splits WHERE expense_id = ?", id);
-    this.writeExpense(id, createdAt, req);
+    this.writeExpense(id, createdAt, { ...req, attachments: nextAttachments });
 
     const expense = this.readExpenseById(id);
     if (expense === null) throw new Error("Expense vanished immediately after update");
-    return ok({ expense });
+    return ok({ expense, removedAttachments });
   }
 
   /** Soft-delete: stamps `deleted_at`/`deleted_by` instead of a real `DELETE`
@@ -802,8 +821,9 @@ export class GroupDO extends DurableObject {
   private writeExpense(id: string, createdAt: number, req: AddExpenseRequest): void {
     const currency = req.currency ?? this.requireMeta(META_KEYS.currency);
     const items = req.splitType === "itemized" && req.items ? JSON.stringify(req.items) : null;
+    const attachments = req.attachments && req.attachments.length > 0 ? JSON.stringify(req.attachments) : null;
     this.sql.exec(
-      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency, items, attachments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       req.payerId,
       req.amountMinor,
@@ -815,6 +835,7 @@ export class GroupDO extends DurableObject {
       req.categoryIcon ?? null,
       currency,
       items,
+      attachments,
     );
     for (const s of req.splits) {
       this.sql.exec(
@@ -948,6 +969,7 @@ export class GroupDO extends DurableObject {
       // Omit the keys entirely when unset (nullable columns → `undefined` →
       // dropped by JSON.stringify), matching the `category?` wire shape.
       ...(e.items != null ? { items: JSON.parse(e.items) as LineItem[] } : {}),
+      ...(e.attachments != null ? { attachments: JSON.parse(e.attachments) as string[] } : {}),
       ...(e.category != null ? { category: e.category } : {}),
       ...(e.category_icon != null ? { categoryIcon: e.category_icon } : {}),
       ...(e.deleted_at != null ? { deletedAt: isoSeconds(e.deleted_at) } : {}),

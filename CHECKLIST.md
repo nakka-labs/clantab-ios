@@ -1220,20 +1220,28 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
          add/change + "Remove Cover". `GroupCoverImage` view (reuses
          `AvatarImageLoader`) shows it on the dashboard row (rounded-
          square badge) and as a banner at the top of Group Home.
-- [ ] **Photo attachment on an expense (receipts).** `~30k tokens`
-      (CLI) — needs the R2 backend above. Plain photo attachment
-      only; receipt OCR stays out of scope (see Parked below). The
-      `receipt` `MediaPurpose` + presign path (server-random key,
-      `requireGroup` gate) are already built; `CoverImage` /
-      `GroupCoverImage` / `AvatarImageLoader` are the reuse pattern.
-      1. Add an `attachments: [String]` (R2 object keys) field to the
-         expense model, worker + `ClanTabKit`.
-      2. Add Expense: attach-photo action (camera or picker), same
-         resize/compress step as above.
-      3. Expense detail: thumbnail + full-screen view via the
-         presigned-URL flow.
-      4. Include in the delete-on-delete cleanup from the backend
-         item.
+- [ ] **Photo attachment on an expense (receipts).** Code-complete
+      2026-09-10 across worker + kit + app; all unit tests green
+      (worker 258 / kit 272 / app 136). **Sim-verify the picker →
+      upload → view flow** (debug-button approach). Plain photo
+      attachment only; OCR stays parked.
+      1. ✅ Worker: `expenses.attachments` (schema v10, nullable JSON
+         array). POST/PUT expense body takes `attachments: [key]`;
+         `assertReceiptKeysBelong` rejects a key for another expense;
+         an *add* with attachments must send `id`. A `PUT` that drops
+         a key deletes its R2 object (the only cleanup point —
+         expenses soft-delete, never purge; Restore keeps them).
+      2. ✅ Kit: `Expense.attachments` / `AddExpenseRequest.attachments`
+         (`[String]?`). `ReceiptImage` (app) — fit 2000px long edge,
+         q0.8, **no crop** (receipts must stay legible).
+      3. ✅ Add/Edit Expense: a "Receipts" section — multi-select
+         `PhotosPicker`, thumbnail strip with per-item remove; expense
+         id fixed up front so receipts upload before the first save.
+         `ReceiptThumbnail` + `ReceiptViewer` (pinch-zoom full screen,
+         via `AvatarImageLoader`). Activity feed row gets a paperclip.
+      Follow-up: a receipt removed during an *add* that's then
+      cancelled leaves an R2 orphan (rare; no client delete-object
+      API). Camera capture (picker only for now).
 
 ### Parked — not dropped, revisit deliberately
 

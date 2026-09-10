@@ -94,6 +94,13 @@ struct ActivityItem: Identifiable {
         }
     }
 
+    /// Whether this expense has a receipt photo attached (`CHECKLIST.md` "Photo
+    /// attachment on an expense") — the feed row shows a paperclip.
+    var hasAttachments: Bool {
+        if case .expense(let expense) = kind { return !(expense.attachments ?? []).isEmpty }
+        return false
+    }
+
     private func name(for memberId: String) -> String {
         members.first { $0.id == memberId }?.displayName ?? "Someone"
     }
@@ -149,6 +156,10 @@ struct ActivityRow: View {
                 Text("·")
             }
             Text(item.date, style: .date)
+            if item.hasAttachments {
+                Image(systemName: "paperclip")
+                    .accessibilityLabel("Has a receipt")
+            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
