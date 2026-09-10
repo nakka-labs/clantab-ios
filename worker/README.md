@@ -61,6 +61,18 @@ test/               logic + validation (Node) · join-codes/group/routes/user/au
   configured in production since 2026-09-04 (`DESIGN.md` §13 Config).
 - **Auth is additive** — the group routes are still `groupId`-possession only.
   Never add a session check to them.
+- **Image storage** (`CHECKLIST.md` "Image storage backend (R2)"): one R2 bucket
+  (`MEDIA` binding). `POST /api/media/presign` hands the client a 5-minute
+  presigned S3 URL — the Worker never proxies image bytes. Uploads pin
+  `Content-Type`/`Content-Length` (signed into the URL); 5 MB / JPEG-PNG-WebP
+  cap in `lib/media.ts`. Keys are derived server-side (`avatars/<hash>`,
+  `groups/<id>/cover`, `expenses/<gid>/<eid>/<id>`), never taken from the
+  client. Group-scoped ops need claimed membership, not just the capability
+  link. `lib/s3-presign.ts` is a hand-rolled SigV4 signer (zero deps, checked
+  against AWS's documented vector in `test/media.test.ts`). Config:
+  `R2_BUCKET` var + `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`
+  secrets; all unset → the endpoint 503s (safe until configured). Delete-on-
+  delete cleanup is wired per-surface as profile-photo / cover / receipt ship.
 - `GET /g/:groupId` is a stub landing page (noindex + app deep link). A real page +
   Universal Links come with a production domain — see `CHECKLIST.md`'s
   "custom domain + Universal Links" item.

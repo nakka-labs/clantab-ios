@@ -16,6 +16,16 @@ import {
 } from "./lib/errors.ts";
 import { newGroupId, newRecordId } from "./lib/ids.ts";
 import { reserveJoinCode, resolveJoinCode } from "./lib/join-codes.ts";
+import {
+  assertUploadAllowed,
+  avatarKey,
+  groupCoverKey,
+  groupIdForKey,
+  presignDownload,
+  presignUpload,
+  r2CredentialsFromEnv,
+  receiptKey,
+} from "./lib/media.ts";
 import { newExpensePayload, notifyGroup, settlementPayload } from "./lib/notify.ts";
 import { SessionError, mintSession, verifySession } from "./lib/session.ts";
 import {
@@ -67,6 +77,18 @@ interface Env {
   APNS_PRIVATE_KEY?: string;
   APNS_TOPIC?: string;
   APNS_ENVIRONMENT?: string;
+  /** Image storage (`CHECKLIST.md` "Image storage backend (R2)"). The `MEDIA`
+   * bucket binding is used only for server-side deletes; uploads and views go
+   * through short-lived presigned S3 URLs signed with the R2 API credentials
+   * (`src/lib/media.ts`). `R2_BUCKET` is a `vars` entry (overridden to the
+   * preview bucket in `worker/.dev.vars`); the three credential values are
+   * secrets. All unset → `POST /api/media/presign` returns 503, same
+   * "safe until configured" posture as `APNS_*`. */
+  MEDIA: R2Bucket;
+  R2_BUCKET: string;
+  R2_ACCOUNT_ID?: string;
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
   /** Gates `GET /api/admin/reports` (`SHIP_PLAN.md` Track 3 §7, Apple
    * Guideline 1.2) — a bearer shared secret, not a real auth system; there's
    * exactly one owner. Unset means the endpoint refuses every request
@@ -115,6 +137,7 @@ const ROUTES: Route[] = [
   route("DELETE", "/api/auth/devices/:token", handleUnregisterDevice),
   route("GET", "/api/auth/people", handleAuthPeople),
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
+  route("POST", "/api/media/presign", handleMediaPresign),
   route("GET", "/api/admin/reports", handleAdminReports),
   route("GET", "/g/:groupId/balances", handleBalancesPage),
   route("GET", "/g/:groupId", handleCapabilityPage),
@@ -1015,6 +1038,81 @@ async function handleReport(request: Request, env: Env, params: Params): Promise
     .get(env.REPORTS_DO.idFromName("global"))
     .file({ groupId, targetType, targetId, reason, details, reportedBy }, newRecordId());
   return json(201, { report });
+}
+
+/**
+ * Hand the client a short-lived presigned S3 URL for one image, so R2 does the
+ * byte transfer and the Worker's compute cost stays flat regardless of image
+ * volume (`CHECKLIST.md` "Image storage backend (R2)").
+ *
+ * `operation: "upload"` → a `PUT` URL for a new object; the key is derived
+ * server-side from `purpose` (+ `groupId` / `expenseId`), never taken from the
+ * client, and the declared `contentType` / `contentLength` are validated and
+ * signed into the URL so the actual PUT can't deviate. `operation: "view"` → a
+ * `GET` URL for an existing `key`.
+ *
+ * Auth: a valid session, plus — for anything group-scoped — claimed membership
+ * of that group (stricter than the capability check on the group routes, since
+ * an upload is identity-attributable). Avatars are viewable by any signed-in
+ * user.
+ */
+async function handleMediaPresign(request: Request, env: Env): Promise<Response> {
+  const creds = r2CredentialsFromEnv(env);
+  if (creds === null) {
+    throw new HttpError(503, "NOT_CONFIGURED", "Image uploads aren't available yet.");
+  }
+  const sub = await requireSession(request, env);
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["operation", "purpose", "groupId", "expenseId", "key", "contentType", "contentLength"]);
+
+  const operation = requireString(body, "operation");
+  if (operation === "view") {
+    const key = requireString(body, "key");
+    const groupId = groupIdForKey(key);
+    if (groupId !== null) await requireClaimedMember(env, sub, groupId);
+    return json(200, { url: await presignDownload(creds, key), key });
+  }
+  if (operation !== "upload") {
+    throw new BadRequestError('Field "operation" must be "upload" or "view".');
+  }
+
+  const contentType = requireString(body, "contentType");
+  const contentLength = requireInteger(body, "contentLength");
+  assertUploadAllowed(contentType, contentLength);
+
+  const purpose = requireString(body, "purpose");
+  let key: string;
+  if (purpose === "avatar") {
+    key = await avatarKey(sub);
+  } else if (purpose === "groupCover") {
+    const groupId = requireString(body, "groupId");
+    await requireClaimedMember(env, sub, groupId);
+    key = groupCoverKey(groupId);
+  } else if (purpose === "receipt") {
+    const groupId = requireString(body, "groupId");
+    const expenseId = requireString(body, "expenseId");
+    await requireClaimedMember(env, sub, groupId);
+    key = receiptKey(groupId, expenseId, newRecordId());
+  } else {
+    throw new BadRequestError('Field "purpose" must be "avatar", "groupCover", or "receipt".');
+  }
+
+  return json(200, {
+    url: await presignUpload(creds, key, contentType, contentLength),
+    key,
+    method: "PUT",
+    // The client must echo these exactly on the PUT — they're signed into the URL.
+    headers: { "Content-Type": contentType, "Content-Length": String(contentLength) },
+  });
+}
+
+/** A media operation tied to a group requires the caller to be a *claimed
+ * member* of it — not merely to hold the capability link. Uploads and receipt
+ * views are identity-attributable, so they get the stricter gate. */
+async function requireClaimedMember(env: Env, sub: string, groupId: string): Promise<void> {
+  const stub = env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId));
+  if (!(await stub.exists())) throw new GroupNotFoundError();
+  if (!(await stub.hasClaimedMember(sub))) throw new ForbiddenError();
 }
 
 /** The owner's one place to see every report across every group — gated by

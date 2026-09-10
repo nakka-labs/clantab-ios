@@ -15,6 +15,7 @@ export default defineWorkersProject({
       "test/apns.test.ts",
       "test/notify.test.ts",
       "test/reports.test.ts",
+      "test/media.test.ts",
     ],
     poolOptions: {
       workers: {
@@ -29,6 +30,15 @@ export default defineWorkersProject({
           bindings: {
             SESSION_SIGNING_KEY: "test-only-session-signing-key",
             ADMIN_TOKEN: "test-only-admin-token",
+            // R2 presign credentials (`src/lib/media.ts`) — dummy values so
+            // `r2CredentialsFromEnv` returns non-null and the presign path runs.
+            // The tests check URL shape / signing / auth, never a real R2 round
+            // trip; the `MEDIA` binding itself is miniflare's simulated bucket,
+            // configured from `wrangler.jsonc`'s `preview_bucket_name`.
+            R2_BUCKET: "clantab-media-test",
+            R2_ACCOUNT_ID: "test-account-id",
+            R2_ACCESS_KEY_ID: "test-access-key-id",
+            R2_SECRET_ACCESS_KEY: "test-secret-access-key",
           },
         },
       },

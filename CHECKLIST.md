@@ -1130,37 +1130,44 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       `auth-routes.test.ts` balances test extended, `KnownGroupsStoreTests`
       +2. `make check` green.
       (Follow-up: a subtle "Archived" hint on Group Home itself.)
-- [ ] **Image storage backend (R2).** `~35k tokens` (CLI), blocked on
-      an Owner step — unblocks the three items below (profile photos,
-      group cover images, receipt attachments) and any future
-      "attach an image" feature. Was parked 2026-09-06 because R2
-      needs a billing card, breaking the zero-card invariant kept
-      everywhere else in this project — that invariant stops applying
-      once monetization ships (App Store Connect already needs
-      bank/tax details for paid IAP), so this is unparked pending the
-      monetization-stance decision (`Decide the monetization stance`,
-      above). Cost is negligible regardless: R2 has no egress fee and
-      free tiers of 10GB storage / 1M writes / 10M reads per month;
-      realistic usage stays inside or barely above that even at 1M
-      users (~$3-15/mo). Build once, wire to all three surfaces
-      below — don't build three separate upload paths.
-      1. Owner: enable R2 on the Cloudflare account (adds a billing
-         card to that account, nothing user-facing).
-      2. Add an `r2_buckets` binding in `wrangler.jsonc`, one bucket,
-         objects namespaced by path (`avatars/{userId}`,
-         `groups/{groupId}/cover`, `expenses/{expenseId}/receipt-{n}`).
-      3. Worker: an authenticated endpoint that checks the caller's
-         session + group membership and returns a short-lived
-         presigned R2 URL for PUT (upload) or GET (view) — the Worker
-         never proxies the image bytes itself, keeping compute/
-         duration cost flat regardless of image volume.
-      4. Server-side validation on upload: mimetype whitelist, size
-         cap (reject >5MB pre-compression) — don't trust client-side
-         compression alone.
-      5. Delete-on-delete: hook the existing member-remove /
-         expense-delete / group-delete paths to also delete the
-         associated R2 object(s), so storage doesn't grow with
-         orphans.
+- [x] **Image storage backend (R2).** Done 2026-09-10 — built, tested,
+      deployed, and verified with a live presigned PUT+GET round-trip
+      against `clantab-media-preview` (real R2). A length-mismatched
+      PUT is rejected 403, so the size cap is enforced by R2, not just
+      advisory. `deleteExpense` cleanup left for the receipt item (§6).
+      Unblocks the three items below (profile photos, group cover
+      images, receipt attachments) and any future "attach an image"
+      feature. Was parked 2026-09-06 for the zero-card invariant —
+      unparked once monetization was decided. Cost is negligible: R2
+      has no egress fee, free tiers 10GB / 1M writes / 10M reads per
+      month (~$3-15/mo even at 1M users). Built once, all three
+      surfaces below wire to the one endpoint.
+      1. ✅ Owner enabled R2 + created `clantab-media` /
+         `clantab-media-preview` buckets + an Object Read & Write API
+         token.
+      2. ✅ `r2_buckets` binding `MEDIA` in `wrangler.jsonc`
+         (`bucket_name` / `preview_bucket_name`). Keys:
+         `avatars/<sha256(sub)>`, `groups/<groupId>/cover`,
+         `expenses/<groupId>/<expenseId>/<recordId>` — derived
+         server-side, never from the client.
+      3. ✅ `POST /api/media/presign` (`src/index.ts`,
+         `src/lib/media.ts`, `src/lib/s3-presign.ts` — hand-rolled
+         SigV4, zero deps, checked vs. AWS's documented vector).
+         Session required; group-scoped ops require *claimed
+         membership*, not just the capability link. 5-minute
+         presigned PUT / GET; the Worker never proxies bytes.
+      4. ✅ Upload validation: JPEG/PNG/WebP whitelist, 5MB cap,
+         `Content-Type`/`Content-Length` signed into the PUT URL so
+         the client can't deviate. `test/media.test.ts` (16).
+      5. ✅ `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`
+         set as prod secrets + in `worker/.dev.vars`; deployed
+         (version `0103d3e9`). Deployed endpoint 401s without a
+         session (not 503), confirming creds are wired.
+      6. ⏳ Delete-on-delete: wired per-surface as each of the three
+         items below ships (nothing to orphan until then; expenses
+         soft-delete to trash and are never purged, so receipt
+         cleanup hangs off account-deletion / group-deletion, not
+         `deleteExpense`).
 - [ ] **Profile photos (replacing/supplementing initials avatars).**
       `~25k tokens` (CLI) — needs the R2 backend above shipped first.
       1. iOS: image picker + client-side resize to ~512px + JPEG

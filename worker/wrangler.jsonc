@@ -10,7 +10,15 @@
     "APPLE_AUDIENCE": "com.clantab.app",
     // The `aud` a Google identity token must carry — the iOS OAuth client id
     // (`MANDATORY_LOGIN_PLAN.md` Part 1). Created 2026-09-05.
-    "GOOGLE_AUDIENCE": "785063933196-ieaukpoat5r6v5jjr65315o9rniaaahn.apps.googleusercontent.com"
+    "GOOGLE_AUDIENCE": "785063933196-ieaukpoat5r6v5jjr65315o9rniaaahn.apps.googleusercontent.com",
+    // The R2 bucket the presigned-URL signer targets (`src/lib/media.ts`). This
+    // is the production bucket; `wrangler dev` overrides it to the preview
+    // bucket via `worker/.dev.vars` so local uploads never touch prod objects.
+    // This and the `MEDIA` binding below must name the same bucket per
+    // environment. The R2 S3-API credentials are secrets, not vars —
+    // `wrangler secret put R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` /
+    // `R2_SECRET_ACCESS_KEY`; see `.dev.vars.example`.
+    "R2_BUCKET": "clantab-media"
     // SESSION_SIGNING_KEY is deliberately NOT here. `wrangler deploy` applies
     // `vars` and a plain var overwrites a same-named secret, so putting it here
     // clobbers the production secret on every deploy. Instead:
@@ -55,6 +63,19 @@
     // `joinCode -> groupId`, write-once at group creation, read-many on
     // lookup (`src/lib/join-codes.ts`).
     { "binding": "JOIN_CODES", "id": "77e548b600ef46f190955c4aa5e4f6aa" }
+  ],
+  "r2_buckets": [
+    // Image storage (`CHECKLIST.md` "Image storage backend (R2)"). One bucket,
+    // objects namespaced by path (`avatars/…`, `groups/<id>/cover`,
+    // `expenses/<gid>/<eid>/<id>`). The binding is only for server-side
+    // deletes; uploads/views go through presigned S3 URLs (`src/lib/media.ts`).
+    // `preview_bucket_name` is what `wrangler dev --remote` and the vitest
+    // pool use, so prod objects are never touched by dev or tests.
+    {
+      "binding": "MEDIA",
+      "bucket_name": "clantab-media",
+      "preview_bucket_name": "clantab-media-preview"
+    }
   ],
   "unsafe": {
     "bindings": [

@@ -11,5 +11,10 @@ declare module "cloudflare:test" {
     RESOLVE_RATE_LIMITER: RateLimit;
     SESSION_SIGNING_KEY: string;
     APPLE_AUDIENCE: string;
+    MEDIA: R2Bucket;
+    R2_BUCKET: string;
+    R2_ACCOUNT_ID: string;
+    R2_ACCESS_KEY_ID: string;
+    R2_SECRET_ACCESS_KEY: string;
   }
 }

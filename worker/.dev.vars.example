@@ -24,3 +24,21 @@ SESSION_SIGNING_KEY=dev-only-not-a-secret
 # never wide open by default. Production sets this as a real secret
 # (`wrangler secret put ADMIN_TOKEN`) — pick any strong random value.
 # ADMIN_TOKEN=
+
+# Image storage (CHECKLIST.md "Image storage backend (R2)") — the R2 S3-API
+# credentials POST /api/media/presign signs upload/view URLs with. All three
+# unset → that endpoint returns 503, same "safe until configured" posture as
+# APNS_*. Get them from the Cloudflare dashboard: R2 → Manage R2 API Tokens →
+# Create API Token (Object Read & Write, scoped to the buckets); the Account ID
+# is on the R2 overview page.
+#
+# R2_BUCKET here points local uploads at the PREVIEW bucket so `wrangler dev
+# --remote` never touches prod objects (prod's value lives in wrangler.jsonc
+# `vars`). Production sets the three credentials as real secrets:
+#   wrangler secret put R2_ACCOUNT_ID
+#   wrangler secret put R2_ACCESS_KEY_ID
+#   wrangler secret put R2_SECRET_ACCESS_KEY
+# R2_BUCKET=clantab-media-preview
+# R2_ACCOUNT_ID=
+# R2_ACCESS_KEY_ID=
+# R2_SECRET_ACCESS_KEY=
