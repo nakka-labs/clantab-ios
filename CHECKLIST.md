@@ -1169,20 +1169,38 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
          cleanup hangs off account-deletion / group-deletion, not
          `deleteExpense`).
 - [ ] **Profile photos (replacing/supplementing initials avatars).**
-      `~25k tokens` (CLI) — needs the R2 backend above shipped first.
-      1. iOS: image picker + client-side resize to ~512px + JPEG
-         compress (~q0.7) before upload — the actual cost/UX lever,
-         do this even though the server also caps size.
-      2. Wire upload through the presigned-URL flow; store the R2
-         object key on the user record (`UserDO`), not the blob.
-      3. Swap the existing `MemberColor` initials avatar for the
-         photo wherever it renders, falling back to initials when
-         unset.
+      Code-complete 2026-09-10 across worker + kit + app, all unit
+      tests green; **the PhotosPicker → upload → display flow is not
+      yet verified in the Simulator** (picker automation is unreliable
+      there — do it by hand on a device, or at least a manual sim run).
+      1. ✅ `ProfileImage` (app) — centre-crop + downscale to 512 px +
+         JPEG q0.7 before upload (`ProfileImageTests`, 4).
+      2. ✅ Upload via the presign flow; `members.avatar_key` is
+         denormalised from the identity (schema v9), seeded at claim,
+         kept current by the `/api/auth/avatar` fan-out (worker half,
+         committed 6ebb54d). `GET /api/auth/avatar` → the caller's own
+         key for Settings.
+      3. ✅ `MemberAvatar` shows the photo (via `AvatarImageLoader`, an
+         env-injected memory cache with a generation counter so a
+         same-key photo swap still re-renders), falls back to
+         `MemberColor` initials. Every `MemberAvatar(member:)` call
+         site lights up for free; name-only sites keep initials.
+      4. ✅ Settings → Account: `PhotosPicker` add/change + "Remove
+         Photo"; `AuthViewModel.setAvatar/removeAvatar/fetchMyAvatarKey`.
+      Follow-ups: disk cache for avatars (memory-only today); show
+      other members' photos on the name-only surfaces (SettleUp,
+      Insights, PeopleView) if worth the plumbing.
 - [ ] **Group cover image.** `~20k tokens` (CLI) — needs the R2
-      backend above; reuses the same upload/compress/display pattern
-      as profile photos with the object keyed to the group instead of
-      the user.
-      1. Add an optional cover-image field to the group record.
+      backend above; reuses the profile-photo machinery directly:
+      `ProfileImage` for resize, `presignMediaUpload(.groupCover,
+      groupId:)` + `uploadImage`, `AvatarImageLoader` for display
+      (the loader is key-agnostic — a `groups/<id>/cover` key works as
+      well as an `avatars/…` one). `groupCover` is already a
+      `MediaPurpose` and the presign endpoint already gates it on
+      claimed membership.
+      1. Add an optional cover-image key to the group record + a
+         commit endpoint (mirror `PUT /api/auth/avatar`, or fold into
+         `PATCH /api/groups/:id`).
       2. Group Settings: upload/replace/remove UI.
       3. Show it on the group's dashboard entry and header.
 - [ ] **Photo attachment on an expense (receipts).** `~30k tokens`

@@ -293,6 +293,13 @@ public actor ClanTabClient {
         guard (200..<300).contains(statusCode) else { throw ClanTabClientError.invalidResponse }
     }
 
+    /// This identity's own current profile-photo key, or `nil`. For rendering
+    /// "my photo" in Settings before any group is loaded.
+    public func myAvatarKey(token: String) async throws -> String? {
+        let response: MyAvatarResponse = try await get("api/auth/avatar", bearer: token)
+        return response.key
+    }
+
     /// Commit the profile photo just uploaded to this identity's avatar key
     /// (`CHECKLIST.md` "Profile photos") — the server verifies the object is in
     /// the bucket, sets the "has photo" flag, and fans the key out to every

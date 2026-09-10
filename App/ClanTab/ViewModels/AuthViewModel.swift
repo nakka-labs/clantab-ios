@@ -69,6 +69,12 @@ final class AuthViewModel {
     private(set) var groups: [GroupMembershipSummary] = []
     private(set) var isBusy = false
     private(set) var errorMessage: String?
+    /// The signed-in identity's own profile-photo key (`CHECKLIST.md` "Profile
+    /// photos"), or `nil`. Fetched on launch/sign-in; drives what Settings shows.
+    private(set) var myAvatarKey: String?
+    /// A separate busy flag for the photo upload/remove so it doesn't gate the
+    /// "Delete Account" button (which reads `isBusy`).
+    private(set) var isUpdatingAvatar = false
     /// Mirrors `syncNudge.isDismissed()` so a dismissal re-renders observers.
     private(set) var syncNudgeDismissed: Bool
 
@@ -198,6 +204,7 @@ final class AuthViewModel {
             self.session = session
             applyGroups(response.groups ?? [])
             requestPushAuthorizationIfNeeded()
+            await fetchMyAvatarKey()
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
         }
@@ -218,6 +225,7 @@ final class AuthViewModel {
             self.session = session
             applyGroups(response.groups ?? [])
             requestPushAuthorizationIfNeeded()
+            await fetchMyAvatarKey()
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
         }
@@ -332,6 +340,7 @@ final class AuthViewModel {
         sessionStore.clear()
         session = nil
         groups = []
+        myAvatarKey = nil
     }
 
     /// Delete the account (Apple Guideline 5.1.1(v), `ACCOUNTS_DESIGN.md` §11):
@@ -355,6 +364,63 @@ final class AuthViewModel {
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
             return false
+        }
+    }
+
+    // MARK: - Profile photo (CHECKLIST.md "Profile photos")
+
+    /// Pull the identity's own photo key so Settings can render it on a cold
+    /// launch. Silent — a failure just leaves `myAvatarKey` as-is.
+    func fetchMyAvatarKey() async {
+        guard let token = session?.token else { return }
+        do {
+            myAvatarKey = try await client.myAvatarKey(token: token)
+        } catch ClanTabClientError.server(let code, _) where code == "INVALID_SESSION" {
+            signOut()
+        } catch {
+            // Transient — keep whatever we had.
+        }
+    }
+
+    /// Upload `jpegData` as the identity's profile photo: presigned PUT to R2,
+    /// then commit (which fans the key out to every claimed group). On success
+    /// `myAvatarKey` is set; returns the key so the caller can prime the image
+    /// loader with the picked image. `nil` on failure, with `errorMessage` set.
+    func setAvatar(jpegData: Data) async -> String? {
+        guard let token = session?.token else { return nil }
+        isUpdatingAvatar = true
+        errorMessage = nil
+        defer { isUpdatingAvatar = false }
+        do {
+            let ticket = try await client.presignMediaUpload(
+                .avatar, contentType: "image/jpeg", contentLength: jpegData.count, token: token
+            )
+            try await client.uploadImage(jpegData, using: ticket)
+            try await client.setAvatar(token: token)
+            myAvatarKey = ticket.key
+            return ticket.key
+        } catch {
+            errorMessage = Self.friendlyMessage(for: error)
+            return nil
+        }
+    }
+
+    /// Remove the identity's profile photo — clears it across every claimed
+    /// group and deletes the R2 object. Returns the key that was removed (for
+    /// the caller to invalidate in the image loader), or `nil` on failure.
+    func removeAvatar() async -> String? {
+        guard let token = session?.token else { return nil }
+        let removed = myAvatarKey
+        isUpdatingAvatar = true
+        errorMessage = nil
+        defer { isUpdatingAvatar = false }
+        do {
+            try await client.clearAvatar(token: token)
+            myAvatarKey = nil
+            return removed
+        } catch {
+            errorMessage = Self.friendlyMessage(for: error)
+            return nil
         }
     }
 
@@ -382,9 +448,11 @@ final class AuthViewModel {
         case .refresh:
             await refreshSession()
         }
-        // Session survived — refresh the authoritative group list (§7).
+        // Session survived — refresh the authoritative group list (§7) and the
+        // identity's own profile-photo key.
         if session != nil {
             await refreshGroups()
+            await fetchMyAvatarKey()
         }
     }
 

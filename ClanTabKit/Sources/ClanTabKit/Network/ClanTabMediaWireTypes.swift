@@ -91,3 +91,13 @@ public struct MediaViewURL: Decodable, Sendable {
         self.key = key
     }
 }
+
+/// `GET /api/auth/avatar` — the signed-in identity's own profile-photo key, or
+/// `nil` if it has none. For rendering "my photo" in Settings on a cold launch.
+public struct MyAvatarResponse: Decodable, Sendable {
+    public let key: String?
+
+    public init(key: String?) {
+        self.key = key
+    }
+}

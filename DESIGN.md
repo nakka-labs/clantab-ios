@@ -505,7 +505,7 @@ model didn't change, only which paths the app lets a signed-out user reach.
 | `GET /api/groups/:groupId`, `POST .../expenses`, `POST .../settlements`, `POST .../members`, `GET /api/groups/resolve/:joinCode` | **`groupId` possession** (unchanged) |
 | `POST /api/auth/apple` | an Apple identity token |
 | `POST /api/auth/google` | a Google identity token |
-| `POST /api/auth/refresh`, `GET /api/auth/groups`, `GET /api/auth/groups/balances`, `GET /api/auth/people`, `DELETE /api/auth/account`, `PUT`/`DELETE /api/auth/avatar`, `POST /api/media/presign` | **session token** (`Authorization: Bearer`) |
+| `POST /api/auth/refresh`, `GET /api/auth/groups`, `GET /api/auth/groups/balances`, `GET /api/auth/people`, `DELETE /api/auth/account`, `GET`/`PUT`/`DELETE /api/auth/avatar`, `POST /api/media/presign` | **session token** (`Authorization: Bearer`) |
 | `GET /api/groups/:groupId/claimable`, `POST /api/groups/:groupId/members/:memberId/claim` | **session token** + `groupId` possession |
 
 ### Routes
@@ -555,9 +555,12 @@ DELETE /api/auth/account    (Bearer)  → 204
        Member rows, names, and all expenses/settlements stay; the member reverts to a
        placeholder.
 
+GET    /api/auth/avatar     (Bearer)  → 200 { key: string | null }
 PUT    /api/auth/avatar     (Bearer)  → 204
 DELETE /api/auth/avatar     (Bearer)  → 204
-       Profile photos (CHECKLIST.md). The client first uploads the image to its
+       Profile photos (CHECKLIST.md). GET is the identity's own current photo
+       key (or null) for rendering "my photo" in Settings on a cold launch.
+       The client first uploads the image to its
        own avatars/<sha256(sub)> key via POST /api/media/presign, then PUTs here
        to commit (400 if the object isn't in the bucket). DELETE removes the R2
        object. Either way the new state is fanned out to members.avatar_key in

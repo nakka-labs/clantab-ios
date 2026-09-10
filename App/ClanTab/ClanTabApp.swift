@@ -8,6 +8,7 @@ struct ClanTabApp: App {
     private let knownGroups: KnownGroupsStoring
     private let onboarding: OnboardingStoring
     @State private var auth: AuthViewModel
+    @State private var avatarImageLoader: AvatarImageLoader
     @AppStorage("clantab.theme") private var theme = AppTheme.system
 
     init() {
@@ -16,19 +17,21 @@ struct ClanTabApp: App {
         self.client = client
         self.knownGroups = knownGroups
         self.onboarding = UserDefaultsOnboardingStore()
-        _auth = State(initialValue: AuthViewModel(
+        let auth = AuthViewModel(
             client: client,
             sessionStore: KeychainSessionStore(),
             knownGroups: knownGroups,
             syncNudge: UserDefaultsSyncNudgeStore(),
             backupNudge: UserDefaultsBackupNudgeStore(),
             balanceAging: .live
-        ))
+        )
+        _auth = State(initialValue: auth)
+        _avatarImageLoader = State(initialValue: AvatarImageLoader(client: client, auth: auth))
     }
 
     var body: some Scene {
         WindowGroup {
-            RootView(client: client, knownGroups: knownGroups, auth: auth, onboarding: onboarding)
+            RootView(client: client, knownGroups: knownGroups, auth: auth, avatarImageLoader: avatarImageLoader, onboarding: onboarding)
                 .preferredColorScheme(theme.colorScheme)
                 .task {
                     appDelegate.authViewModel = auth

@@ -137,6 +137,7 @@ const ROUTES: Route[] = [
   route("DELETE", "/api/auth/devices/:token", handleUnregisterDevice),
   route("GET", "/api/auth/people", handleAuthPeople),
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
+  route("GET", "/api/auth/avatar", handleGetAvatar),
   route("PUT", "/api/auth/avatar", handleSetAvatar),
   route("DELETE", "/api/auth/avatar", handleClearAvatar),
   route("POST", "/api/media/presign", handleMediaPresign),
@@ -1027,6 +1028,15 @@ async function handleClaim(request: Request, env: Env, params: Params): Promise<
  * state is fanned out to `members.avatar_key` in every group this identity has
  * claimed, so other members see the change without any identity-subject leak.
  */
+/** This identity's current profile-photo key, or `null` — for the client to
+ * render "my photo" in Settings on a cold launch (`CHECKLIST.md`). The key is
+ * deterministic from the subject; the `UserDO` flag is what says it's real. */
+async function handleGetAvatar(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const has = await env.USER_DO.get(env.USER_DO.idFromName(sub)).hasAvatar();
+  return json(200, { key: has ? await avatarKey(sub) : null });
+}
+
 async function handleSetAvatar(request: Request, env: Env): Promise<Response> {
   const sub = await requireSession(request, env);
   const key = await avatarKey(sub);

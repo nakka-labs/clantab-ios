@@ -368,6 +368,19 @@ struct ClanTabAuthClientTests {
         }
     }
 
+    @Test("myAvatarKey GETs api/auth/avatar and unwraps the nullable key")
+    func testMyAvatarKey() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData(["key": "avatars/abc"]))
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        #expect(try await client.myAvatarKey(token: "sess") == "avatars/abc")
+        #expect(await transport.lastRequest?.httpMethod == "GET")
+        #expect(await transport.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/auth/avatar")
+
+        await transport.setStub(statusCode: 200, body: jsonData(["key": NSNull()]))
+        #expect(try await client.myAvatarKey(token: "sess") == nil)
+    }
+
     @Test("setAvatar / clearAvatar hit api/auth/avatar with a bearer and tolerate a 204")
     func testSetAndClearAvatar() async throws {
         let transport = FakeTransport(statusCode: 204, body: Data())

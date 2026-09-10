@@ -484,6 +484,18 @@ describe('PUT / DELETE /api/auth/avatar (CHECKLIST.md "Profile photos")', () => 
     expect((await call("PUT", "/api/auth/avatar", { bearer })).status).toBe(400);
   });
 
+  it("GET returns null before a photo is set and the key after", async () => {
+    const sub = "avatar.get.1";
+    const bearer = await token(sub);
+    const key = await avatarKey(sub);
+
+    expect((await call("GET", "/api/auth/avatar", { bearer })).json).toEqual({ key: null });
+
+    await env.MEDIA.put(key, new Uint8Array([1]));
+    await call("PUT", "/api/auth/avatar", { bearer });
+    expect((await call("GET", "/api/auth/avatar", { bearer })).json).toEqual({ key });
+  });
+
   it("commits a photo, fans avatarKey out to every claimed group, and reverses on DELETE", async () => {
     const sub = "avatar.commit.1";
     const bearer = await token(sub);

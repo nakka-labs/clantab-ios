@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import ClanTabKit
 
 /// Account settings, reachable from the start screen and Group Home. Sign in
@@ -12,8 +13,11 @@ struct SettingsView: View {
     let knownGroups: KnownGroupsStoring
     let onDone: () -> Void
 
+    @Environment(\.avatarImageLoader) private var avatarLoader
     @State private var confirmingDelete = false
     @State private var sheetError: String?
+    @State private var pickedPhoto: PhotosPickerItem?
+    @State private var photoError: String?
     @AppStorage("clantab.theme") private var theme = AppTheme.system
     /// Which screen a returning user lands on (`CHECKLIST.md` "Settings:
     /// launch-screen preference"). `""` — the dashboard; a groupId — that
@@ -32,6 +36,9 @@ struct SettingsView: View {
                         systemImage: "checkmark.seal.fill"
                     )
                     .foregroundStyle(.secondary)
+
+                    profilePhotoRow
+
                     Button("Sign Out") { auth.signOut() }
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
@@ -60,7 +67,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 }
 
-                if let message = auth.errorMessage ?? sheetError {
+                if let message = auth.errorMessage ?? sheetError ?? photoError {
                     Text(message).font(.caption).foregroundStyle(.red)
                 }
 
@@ -110,6 +117,10 @@ struct SettingsView: View {
                 Button("Done", action: onDone)
             }
         }
+        .onChange(of: pickedPhoto) { _, item in
+            guard let item else { return }
+            Task { await handlePickedPhoto(item) }
+        }
         .confirmationDialog(
             "Delete your account?",
             isPresented: $confirmingDelete,
@@ -122,6 +133,69 @@ struct SettingsView: View {
         } message: {
             Text(deletionCaveat)
         }
+    }
+
+    // MARK: - Profile photo (CHECKLIST.md "Profile photos")
+
+    @ViewBuilder
+    private var profilePhotoRow: some View {
+        HStack(spacing: 12) {
+            MemberAvatar(name: myDisplayName, avatarKey: auth.myAvatarKey, size: 44)
+
+            PhotosPicker(
+                selection: $pickedPhoto,
+                matching: .images,
+                preferredItemEncoding: .compatible,
+                photoLibrary: .shared()
+            ) {
+                Text(auth.myAvatarKey == nil ? "Add Profile Photo" : "Change Photo")
+            }
+            .disabled(auth.isUpdatingAvatar)
+
+            Spacer()
+
+            if auth.isUpdatingAvatar {
+                ProgressView()
+            }
+        }
+
+        if auth.myAvatarKey != nil {
+            Button("Remove Photo", role: .destructive) {
+                Task {
+                    if let key = await auth.removeAvatar() {
+                        avatarLoader?.invalidate(key)
+                    }
+                }
+            }
+            .disabled(auth.isUpdatingAvatar)
+        }
+    }
+
+    /// The signed-in user's name for the initials fallback — their name in the
+    /// most-recently-claimed group, or a neutral placeholder.
+    private var myDisplayName: String {
+        auth.groups.first?.displayName ?? "You"
+    }
+
+    private func handlePickedPhoto(_ item: PhotosPickerItem) async {
+        photoError = nil
+        defer { pickedPhoto = nil }
+
+        guard
+            let data = try? await item.loadTransferable(type: Data.self),
+            let picked = UIImage(data: data),
+            let jpeg = ProfileImage.jpegData(from: picked),
+            let compressed = UIImage(data: jpeg)
+        else {
+            photoError = "Couldn't read that photo. Try another."
+            return
+        }
+
+        if let key = await auth.setAvatar(jpegData: jpeg) {
+            // Show the new photo immediately, everywhere, without a round-trip.
+            avatarLoader?.prime(key, with: compressed)
+        }
+        // A failure leaves `auth.errorMessage` set (shown above).
     }
 
     /// The known-groups list for the "Open at Launch" picker — same source and

@@ -5,6 +5,7 @@ struct RootView: View {
     let client: ClanTabClient
     let knownGroups: KnownGroupsStoring
     let auth: AuthViewModel
+    let avatarImageLoader: AvatarImageLoader
     let onboarding: OnboardingStoring
 
     @State private var route: AppRoute = .start
@@ -16,10 +17,17 @@ struct RootView: View {
     /// then route into — `GroupHomeView` opens Add Expense for it once.
     @State private var pendingAddExpenseGroupId: String?
 
-    init(client: ClanTabClient, knownGroups: KnownGroupsStoring, auth: AuthViewModel, onboarding: OnboardingStoring) {
+    init(
+        client: ClanTabClient,
+        knownGroups: KnownGroupsStoring,
+        auth: AuthViewModel,
+        avatarImageLoader: AvatarImageLoader,
+        onboarding: OnboardingStoring
+    ) {
         self.client = client
         self.knownGroups = knownGroups
         self.auth = auth
+        self.avatarImageLoader = avatarImageLoader
         self.onboarding = onboarding
         _showOnboarding = State(initialValue: Self.shouldPresentOnboarding(onboarding))
     }
@@ -70,6 +78,7 @@ struct RootView: View {
                 .id(route)
                 .transition(Self.routeTransition)
         }
+        .environment(\.avatarImageLoader, avatarImageLoader)
         .task {
             await auth.handleLaunch()
             // Launch routing: the dashboard (`StartView`) by default, or
@@ -122,7 +131,11 @@ struct RootView: View {
             guard let groupId = notification.userInfo?[QuickActions.groupIdKey] as? String else { return }
             handleQuickActionAddExpense(groupId: groupId)
         }
-        .onChange(of: auth.isSignedIn) { _, _ in refreshQuickAction() }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            refreshQuickAction()
+            // A new identity must never see the previous one's cached photos.
+            if !signedIn { avatarImageLoader.clearAll() }
+        }
         .onChange(of: auth.groups) { _, _ in refreshQuickAction() }
         .onChange(of: knownGroupsRevision) { _, _ in refreshQuickAction() }
         .onChange(of: auth.isSignedIn) { _, signedIn in
@@ -138,6 +151,7 @@ struct RootView: View {
             NavigationStack {
                 SettingsView(auth: auth, client: client, knownGroups: knownGroups, onDone: { showingSettings = false })
             }
+            .environment(\.avatarImageLoader, avatarImageLoader)
             .materialSheet()
         }
         .fullScreenCover(isPresented: $showOnboarding) {
