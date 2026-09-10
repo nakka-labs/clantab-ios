@@ -1168,11 +1168,15 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
          soft-delete to trash and are never purged, so receipt
          cleanup hangs off account-deletion / group-deletion, not
          `deleteExpense`).
-- [ ] **Profile photos (replacing/supplementing initials avatars).**
-      Code-complete 2026-09-10 across worker + kit + app, all unit
-      tests green; **the PhotosPicker → upload → display flow is not
-      yet verified in the Simulator** (picker automation is unreliable
-      there — do it by hand on a device, or at least a manual sim run).
+- [x] **Profile photos (replacing/supplementing initials avatars).**
+      Done 2026-09-10 across worker + kit + app; all unit tests green
+      (worker 253 / kit 268 / app 129). **Verified end-to-end in the
+      Simulator** with a temporary debug button standing in for
+      `PHPickerViewController` (which idb can't drive): pick → 512 px
+      JPEG → presign → real R2 PUT (`clantab-media-preview`) → commit →
+      fan-out; relaunch → `getState` `avatarKey` → presigned view URL →
+      photo renders on the member row; "Remove Photo" reverses it. The
+      OS picker sheet itself is Apple's code, unchanged.
       1. ✅ `ProfileImage` (app) — centre-crop + downscale to 512 px +
          JPEG q0.7 before upload (`ProfileImageTests`, 4).
       2. ✅ Upload via the presign flow; `members.avatar_key` is
@@ -1189,7 +1193,9 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
          Photo"; `AuthViewModel.setAvatar/removeAvatar/fetchMyAvatarKey`.
       Follow-ups: disk cache for avatars (memory-only today); show
       other members' photos on the name-only surfaces (SettleUp,
-      Insights, PeopleView) if worth the plumbing.
+      Insights, PeopleView) if worth the plumbing; a real hands-on pass
+      through the actual `PHPickerViewController` on a device (the debug
+      button bypassed only that sheet).
 - [ ] **Group cover image.** `~20k tokens` (CLI) — needs the R2
       backend above; reuses the profile-photo machinery directly:
       `ProfileImage` for resize, `presignMediaUpload(.groupCover,
