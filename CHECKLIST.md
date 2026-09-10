@@ -1196,10 +1196,15 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       Insights, PeopleView) if worth the plumbing; a real hands-on pass
       through the actual `PHPickerViewController` on a device (the debug
       button bypassed only that sheet).
-- [ ] **Group cover image.** Code-complete 2026-09-10 across worker +
-      kit + app; all unit tests green (worker 256 / kit 271 / app 133).
-      **Sim-verify the PhotosPicker → upload → display flow** (same
-      debug-button approach as profile photos).
+- [x] **Group cover image.** Done 2026-09-10 across worker + kit + app;
+      all unit tests green (worker 256 / kit 271 / app 133).
+      **Verified end-to-end in the Simulator** (debug button standing in
+      for `PHPickerViewController`): pick → 16:9 1280px JPEG → presign →
+      real R2 PUT (`clantab-media-preview`, confirmed a 1280×720 JPEG
+      landed) → `PATCH { coverImage: true }` → relaunch → dashboard row
+      thumbnail + Group Home banner both load fresh from the presigned
+      view URL; "Remove Cover" clears the record and the UI. Only remaining
+      real-device check is the actual OS picker sheet.
       1. ✅ Worker: `cover_key` `group_meta` row (no schema bump);
          `PATCH /api/groups/:id` `{ coverImage: true | null }` commits
          (with an R2 head-check) / removes (deletes the R2 object).
