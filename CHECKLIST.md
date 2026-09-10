@@ -374,9 +374,16 @@ writing down, "Non-goals" for the rest.
       rehydrates the stored weights directly (no back-computing).
       **CSV / JSON export / CloudKit backup:** unchanged — `splitType`
       isn't in the CSV, and `shares` rides `Expense`'s Codable for JSON /
-      backup, same as `items`. `DESIGN.md` §2/§6/§10 updated. Deploy +
-      Simulator verification pending (this commit is code + `make check`
-      green; the live v10→v11 migration + a shares POST get verified next).
+      backup, same as `items`. `DESIGN.md` §2/§6/§10 updated.
+      **Deployed to production 2026-09-10** (version `b40d4b6b`) and
+      verified live over HTTPS against `clantab.nakka-labs.workers.dev`: a
+      `shares` POST (Ana : 7, Ben : 3 of ₹1000, Ana paid) returned `201`
+      with the weights, `getState` round-tripped `splitType: "shares"` +
+      the `shares` array, balances resolved to Ana +300 / Ben −300, and
+      all-zero weights returned `400 SPLIT_MISMATCH`. The v10→v11 table
+      rebuild is additive (copies every column) and unit-tested end to end
+      in `group.test.ts` (v1→v11 walk); existing production groups run it
+      on next access.
 - [ ] **Add member inline from Add Expense, + search on the member
       picker.** `~15-20k tokens`. The "add member by name" (placeholder,
       claimable later) backend already exists and shipped as its own
