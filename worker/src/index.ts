@@ -322,13 +322,14 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     "date",
     "splitType",
     "splits",
+    "items",
     "category",
     "categoryIcon",
   ]);
 
   const splitType = requireString(body, "splitType");
-  if (splitType !== "equal" && splitType !== "exact" && splitType !== "percentage") {
-    throw new BadRequestError('Field "splitType" must be "equal", "exact", or "percentage".');
+  if (splitType !== "equal" && splitType !== "exact" && splitType !== "percentage" && splitType !== "itemized") {
+    throw new BadRequestError('Field "splitType" must be "equal", "exact", "percentage", or "itemized".');
   }
 
   const splits = requireArray(body, "splits").map((raw, i) => {
@@ -336,6 +337,36 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     rejectUnknownKeys(raw, ["memberId", "amountMinor"]);
     return { memberId: requireString(raw, "memberId"), amountMinor: requireInteger(raw, "amountMinor") };
   });
+
+  // `items` and `splitType: "itemized"` are the same choice from opposite
+  // sides — each requires the other, neither is valid alone.
+  const hasItems = body.items !== undefined;
+  if (splitType === "itemized" && !hasItems) {
+    throw new BadRequestError('An "itemized" expense requires an "items" array.');
+  }
+  if (splitType !== "itemized" && hasItems) {
+    throw new BadRequestError('Field "items" is only valid when "splitType" is "itemized".');
+  }
+  const items = hasItems
+    ? requireArray(body, "items").map((raw, i) => {
+        assertPlainObject(raw, `items[${i}]`);
+        rejectUnknownKeys(raw, ["id", "name", "amountMinor", "participantIds"]);
+        if (typeof raw.name !== "string") {
+          throw new BadRequestError(`Field "items[${i}].name" must be a string.`);
+        }
+        return {
+          id: requireString(raw, "id"),
+          name: raw.name, // may be empty — the amount and the people are what matter
+          amountMinor: requireInteger(raw, "amountMinor"),
+          participantIds: requireArray(raw, "participantIds").map((p, j) => {
+            if (typeof p !== "string") {
+              throw new BadRequestError(`Field "items[${i}].participantIds[${j}]" must be a string.`);
+            }
+            return p;
+          }),
+        };
+      })
+    : undefined;
 
   return {
     id: allowId ? optionalString(body, "id") : undefined,
@@ -346,6 +377,7 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     date: requireString(body, "date"),
     splitType,
     splits,
+    items,
     category: optionalString(body, "category"),
     categoryIcon: optionalString(body, "categoryIcon"),
   };

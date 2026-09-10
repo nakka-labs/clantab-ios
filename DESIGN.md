@@ -102,7 +102,7 @@ Response: 200 {
   group: { name, currency, createdAt, joinCode },
   members: [{ id, displayName }],
   expenses: [{ id, payerId, amountMinor, currency, description, date, splitType,
-               splits: [...], category?, categoryIcon? }],
+               splits: [...], items?, category?, categoryIcon? }],
   settlements: [{ id, fromId, toId, amountMinor, currency, date }],
   balances: [{ memberId, currency, netMinor }],           // per-currency, nonzero only
   simplifiedSettlements: [{ fromId, toId, amountMinor, currency }]
@@ -114,17 +114,23 @@ Response: 200 {
 ### `POST /api/groups/:groupId/expenses`
 ```
 Request:  { id?: string, payerId, amountMinor, currency?, description, date,
-            splitType: "equal"|"exact"|"percentage",
+            splitType: "equal"|"exact"|"percentage"|"itemized",
             splits: [{ memberId, amountMinor }],
+            items?: [{ id, name, amountMinor, participantIds: [memberId] }],
             category?: string, categoryIcon?: string }
 Response: 201 { expense: {...} }
-Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor
-          400 UNKNOWN_MEMBER   — payerId or a split memberId isn't in this group
-          400 INVALID_AMOUNT   — amountMinor <= 0, or not an integer
+Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor, or (itemized)
+                                 the line items don't, or an item has no participants
+          400 UNKNOWN_MEMBER   — payerId, a split memberId, or an item
+                                 participant isn't in this group
+          400 INVALID_AMOUNT   — amountMinor (or an item amount) <= 0, or not an integer
+          400 BAD_REQUEST      — `items` present without splitType "itemized", or vice versa
 ```
 `id` is optional and client-generated (UUID). If provided and it already exists, the DO treats this as a no-op replay (idempotent retry-safe) rather than a duplicate — covers the case where a client times out and retries a POST that actually succeeded.
 
-`splitType` is a label describing how the client divided the amount; `percentage` reaches the server already resolved to exact minor-unit `splits` (the client does the division, exactly as `equal` resolves its own remainder — see §6). The server validates `splits` sum to `amountMinor` regardless of `splitType`.
+`splitType` is a label describing how the client divided the amount; `percentage` and `itemized` reach the server already resolved to exact minor-unit `splits` (the client does the division, exactly as `equal` resolves its own remainder — see §6). The server validates `splits` sum to `amountMinor` regardless of `splitType`.
+
+`items` is present **iff** `splitType` is `"itemized"` (`FEATURE_BACKLOG.md` "Itemized expense entry"): the line items the expense was built from — each a positive amount shared equally by a non-empty `participantIds`, the items together summing to `amountMinor` (no separate tax/tip bucket — a shared surcharge is its own line). `splits` stays the balance source of truth; `items` is stored alongside so reopening the expense shows the breakdown and an edit starts from it. The server validates both. Editing an expense to a non-itemized `splitType` drops its stored `items`.
 
 `category` is a free-form label and `categoryIcon` its SF Symbol name (`ClanTabKit.ExpenseCategory`). Both optional — omitted entirely when unset. Stored verbatim, not validated against a list; the icon is stored per expense so any client renders it without a shared name→icon table.
 
@@ -221,13 +227,14 @@ CREATE TABLE expenses (
   amount_minor  INTEGER NOT NULL,
   description   TEXT NOT NULL,
   expense_date  TEXT NOT NULL,
-  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
+  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage','itemized')),  -- 'itemized' added in v8
   created_at    INTEGER NOT NULL,
   category      TEXT,          -- nullable; added in schema v3
   category_icon TEXT,          -- nullable; SF Symbol name
   currency      TEXT,          -- nullable in DDL; added + backfilled in v4, always written since
   deleted_at    INTEGER,       -- nullable; soft-delete timestamp, added in v6
-  deleted_by    TEXT           -- nullable; memberId that deleted it, added in v6 — client-supplied, trusted like every other id here
+  deleted_by    TEXT,          -- nullable; memberId that deleted it, added in v6 — client-supplied, trusted like every other id here
+  items         TEXT           -- nullable JSON array of { id, name, amountMinor, participantIds } for an 'itemized' expense, added in v8; NULL otherwise
 );
 
 CREATE TABLE expense_splits (
@@ -348,10 +355,11 @@ sequenceDiagram
 
 The UI should prevent invalid input, but the DO validates independently — never trust the client, even though there's no auth to abuse here beyond "someone submits garbage."
 
-- Every `splits[].amountMinor` sums to exactly `amountMinor`. No tolerance — if an `equal` or `percentage` split doesn't divide evenly, the remainder is assigned to one deterministic member (the payer) client-side before the request is even sent, so the server-side check is always an exact match.
-- Every `memberId` referenced (payer, splits, settlement from/to) must exist in this group.
-- All amounts are positive integers.
-- `splitType` is exactly `"equal"`, `"exact"`, or `"percentage"`. It is descriptive only — the server never re-derives shares from it; `percentage` splits arrive pre-resolved to minor units (`ClanTabKit.Validation.percentageSplit`), so the balance math is identical for all three.
+- Every `splits[].amountMinor` sums to exactly `amountMinor`. No tolerance — if an `equal`, `percentage`, or `itemized` split doesn't divide evenly, the remainder is assigned to one deterministic member (the payer) client-side before the request is even sent, so the server-side check is always an exact match.
+- Every `memberId` referenced (payer, splits, settlement from/to, itemized-item participants) must exist in this group.
+- All amounts are positive integers — the expense `amountMinor` and every line item's.
+- `splitType` is exactly `"equal"`, `"exact"`, `"percentage"`, or `"itemized"`. It is descriptive only — the server never re-derives `splits` from it; `percentage` and `itemized` splits arrive pre-resolved to minor units (`ClanTabKit.Validation.percentageSplit` / `.itemizedSplit`), so the balance math is identical for all four.
+- `items` is present **iff** `splitType` is `"itemized"` — each item has ≥1 participant, and the item amounts sum to `amountMinor` (`ClanTabKit.Validation.validateItems`). The items are stored but never feed the balance math; `splits` does.
 - Reject unknown fields rather than silently ignoring them (fail loud during development).
 
 ---
@@ -413,6 +421,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`5`** — `members.identity_sub` added (nullable). Every existing member becomes a placeholder (`NULL`); claiming links it to an Apple or Google identity. In-place, no rebuild. Accounts are additive — the capability-link model is unchanged. See §13.
 - **`6`** — `expenses.deleted_at`/`deleted_by` + `settlements.deleted_at`/`deleted_by` added (all nullable). Plain `ADD COLUMN`s, in place. `DELETE` now soft-deletes rather than removing the row; a trashed expense/settlement is excluded from balances and the activity feed but stays restorable (`POST .../restore`).
 - **`7`** — `members.upi_vpa` added (nullable, user-supplied). Plain `ADD COLUMN`, in place. Powers the optional "Pay via UPI" deep link on Settle Up — ClanTab never verifies or processes it, just builds a `upi://pay?...` URI the OS opens.
+- **`8`** — `expenses.split_type`'s `CHECK` widened to allow `'itemized'`, and `expenses.items` (nullable JSON) added. Like v2, SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table — now with every v7 column plus `items`, so the copy names columns explicitly. Powers itemized expense entry (`FEATURE_BACKLOG.md`); `items` is the line-item breakdown, `NULL` for every non-itemized expense.
 
 `group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8), an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji), an `archived_at` row (2026-09-09, §2 — the archive flag), and a `default_split` row (2026-09-09, §2 — the saved default split JSON) — all new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has none of them until it sets one.
 
@@ -442,6 +451,7 @@ The **`UserDO`** (one per signed-in identity, `idFromName("<provider>:" + sub)`,
 - WebSocket live updates (upgrade path exists — same DO, add a WebSocket handler alongside the HTTP one — but not built yet, and only if usage shows people actually have the app open simultaneously)
 - Optimistic UI updates on mutation
 - ~~**percentage/shares splitting**~~ — **shipped** (2026-09-01). `splitType` now includes `"percentage"`; the client resolves percentages to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.percentageSplit`), so it's a UI/label change only — the wire contract and balance math are unchanged. See §2, §6, §10 (schema v2).
+- ~~**itemized expense entry**~~ — **shipped** (2026-09-10). `splitType` now includes `"itemized"`; the client resolves line items to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.itemizedSplit`) exactly as `percentage` does, so the balance math is unchanged. New: `expenses.items` (nullable JSON, schema v8) stores the line-item breakdown alongside for display / re-edit, and the server validates the items sum to the amount and their participants exist. See §2, §6, §10 (schema v8).
 - ~~**multi-currency**~~ — **shipped** (2026-09-01). A group holds expenses in any currency; balances and the settle-up plan are computed per currency and never blended (no FX conversion — that stays a hard non-goal). `currency` on expenses/settlements (schema v4), on `Balance`/`SimplifiedSettlement`; the group's `currency` is now just the default for new expenses. See §2, §3, §10.
 - FX conversion, recurring expenses, receipt OCR — still out of scope (see the non-goals list at the top), listed here only so nobody mistakes their absence in this doc for an oversight
 - ~~**Access token / credential decoupling**~~ — **shipped** (2026-09-05). `group_meta.access_token` (§1), `?token=` on every group route, `POST .../regenerate-link` (§2), dual-auth against a claimed member's Bearer session as an always-valid alternate path (§8). Backward-compatible: a group with no token stays open until it first regenerates.

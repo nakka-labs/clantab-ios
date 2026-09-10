@@ -234,6 +234,11 @@ public struct AddExpenseRequest: Sendable {
     public let date: Date
     public let splitType: SplitType
     public let splits: [ExpenseSplit]
+    /// The line items an `itemized` expense was built from — `nil` (key omitted)
+    /// for every other `splitType`. `splits` is still resolved client-side and
+    /// carries the balance-affecting shares; the server stores `items` alongside
+    /// for display / re-edit and validates the two agree (`DESIGN.md` §6).
+    public let items: [LineItem]?
     public let category: String?
     public let categoryIcon: String?
 
@@ -246,6 +251,7 @@ public struct AddExpenseRequest: Sendable {
         date: Date,
         splitType: SplitType,
         splits: [ExpenseSplit],
+        items: [LineItem]? = nil,
         category: String? = nil,
         categoryIcon: String? = nil
     ) {
@@ -257,6 +263,7 @@ public struct AddExpenseRequest: Sendable {
         self.date = date
         self.splitType = splitType
         self.splits = splits
+        self.items = items
         self.category = category
         self.categoryIcon = categoryIcon
     }
@@ -264,7 +271,7 @@ public struct AddExpenseRequest: Sendable {
 
 extension AddExpenseRequest: Encodable {
     private enum CodingKeys: String, CodingKey {
-        case id, payerId, amountMinor, currency, description, date, splitType, splits, category, categoryIcon
+        case id, payerId, amountMinor, currency, description, date, splitType, splits, items, category, categoryIcon
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -279,6 +286,7 @@ extension AddExpenseRequest: Encodable {
         try container.encode(date, forKey: .date)
         try container.encode(splitType, forKey: .splitType)
         try container.encode(splits, forKey: .splits)
+        try container.encodeIfPresent(items, forKey: .items)
         try container.encodeIfPresent(category, forKey: .category)
         try container.encodeIfPresent(categoryIcon, forKey: .categoryIcon)
     }

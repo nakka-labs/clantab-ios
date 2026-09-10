@@ -4,13 +4,14 @@
 import type {
   Balance,
   Expense,
+  LineItem,
   Member,
   Settlement,
   SimplifiedSettlement,
   SplitType,
 } from "./lib/types.ts";
 
-export type { Balance, Expense, Member, Settlement, SimplifiedSettlement, SplitType };
+export type { Balance, Expense, LineItem, Member, Settlement, SimplifiedSettlement, SplitType };
 
 /**
  * The subset of a group returned alongside its state. `joinCode` is included per
@@ -102,6 +103,10 @@ export interface AddExpenseRequest {
   date: string; // ISO 8601
   splitType: SplitType;
   splits: { memberId: string; amountMinor: number }[];
+  /** Required (and non-empty) when `splitType` is `"itemized"`, rejected
+   * otherwise. The client resolves these into `splits` before dispatch; the
+   * server validates both and stores the items for display / re-edit. */
+  items?: LineItem[];
   category?: string;
   categoryIcon?: string;
 }

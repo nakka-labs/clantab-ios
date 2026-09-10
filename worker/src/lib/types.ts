@@ -13,15 +13,28 @@ export interface Member {
   upiVpa?: string;
 }
 
-// `percentage` is a resolved label, not a stored basis — the iOS client turns
-// entered percentages into exact minor-unit shares before dispatch, exactly as
-// `equal` resolves its own remainder client-side (`DESIGN.md` §6). The server
-// still only ever validates that `splits` sum to `amountMinor`.
-export type SplitType = "equal" | "exact" | "percentage";
+// `percentage` and `itemized` are resolved labels, not a stored basis — the iOS
+// client turns entered percentages / line items into exact minor-unit shares
+// before dispatch, exactly as `equal` resolves its own remainder client-side
+// (`DESIGN.md` §6). The server still only ever validates that `splits` sum to
+// `amountMinor`; for `itemized` it additionally checks `items` are well-formed
+// and sum to the amount, and stores them for display / re-edit.
+export type SplitType = "equal" | "exact" | "percentage" | "itemized";
 
 export interface ExpenseSplit {
   memberId: string;
   amountMinor: number;
+}
+
+/** One line of an itemized expense (`FEATURE_BACKLOG.md` "Itemized expense
+ * entry") — mirrors `ClanTabKit.LineItem`. Present only on an `itemized`
+ * expense. `participantIds` is never empty; the items together sum to the
+ * expense `amountMinor`. */
+export interface LineItem {
+  id: string;
+  name: string;
+  amountMinor: number;
+  participantIds: string[];
 }
 
 export interface Expense {
@@ -35,6 +48,10 @@ export interface Expense {
   date: string;
   splitType: SplitType;
   splits: ExpenseSplit[];
+  /** The line items an `itemized` expense was built from; absent for every
+   * other `splitType`. `splits` stays the source of truth for balances — this
+   * is the breakdown that produced them. */
+  items?: LineItem[];
   /** Free-form spending category; absent for expenses that predate categories
    * or were left unset. Not used by the balance math. */
   category?: string;

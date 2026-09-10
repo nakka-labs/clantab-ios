@@ -953,13 +953,34 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       - No `CSVImport` change; header detection already can't misfire on any
         of these shapes (falls through to `unrecognizedFormat`). Same call
         as Splid: not worth starting without demand.
-- [ ] **Itemized expense entry, manual.** `~130k tokens` (CLI)
-      1. Add an `items: [LineItem]` shape (name, price, assignees) to
-         the expense model, worker + `ClanTabKit`.
-      2. Add a UI for typing line items within Add Expense.
-      3. Compute per-person totals from item assignments, reusing the
-         existing split-math patterns.
-      4. Test worker, `ClanTabKit`, and App.
+- [x] **Itemized expense entry, manual.** Done 2026-09-10. A 4th
+      `SplitType.itemized` alongside equal/exact/percentage. **Model
+      (`ClanTabKit`):** `LineItem { id, name, amountMinor, participantIds }`
+      (`Model/LineItem.swift`); `Expense.items: [LineItem]?` (nil for every
+      other split type). **Resolution:** `Validation.itemizedSplit` — each
+      item split equally among its own participants (`equalSplit`'s exact
+      remainder rule, leftover to the payer when they share the item, else
+      the item's first participant), summed per member; `Validation.validateItems`
+      checks ≥1 item, each a positive amount with ≥1 real member, and the
+      items summing exactly to `amountMinor` (no separate tax/tip bucket — a
+      shared surcharge is its own line). Client resolves items → exact
+      `splits` before dispatch exactly as `percentage` does; the items ride
+      along and are stored for display / re-edit. 13 kit test cases incl.
+      fuzz. **Worker:** schema **v8** — `expenses.split_type` CHECK widened
+      + `expenses.items` (nullable JSON) added, one `expenses`-table rebuild
+      (same dance as v2); `assertItemsValid`; `parseExpenseBody` enforces
+      items ⟺ splitType itemized; migration + 7 route/DO test cases.
+      **App:** `AddExpenseView` "Items" segment — per-item name + amount
+      fields, a participant menu ("Shared by everyone" / "Shared by Ana,
+      Ben"), Add Item / swipe-to-delete, a running "X unassigned" footer with
+      a "set amount to Σ items" shortcut; edit rehydrates the items, dup
+      regenerates their ids. **CSV export** unchanged (splitType isn't in the
+      CSV; `Splits` already carries the resolved outcome — same as
+      percentage); **JSON export / CloudKit backup** carry `items` for free
+      via Codable. `DESIGN.md` §2/§3/§6/§10 updated. Verified in the
+      Simulator: v7→v8 migration on a live group, an itemized POST resolving
+      to correct balances, and the edit sheet rehydrating all line items
+      with their shared-by labels.
 - [x] **Default split config per group.** Done 2026-09-09. **Model:**
       `DefaultSplit { weights: [DefaultSplitWeight] }` (ClanTabKit) — a
       percentage split (weights positive, distinct, summing to 100);

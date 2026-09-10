@@ -14,6 +14,12 @@ func friendlyMessage(for error: Error) -> String {
             return "One of the selected people isn't in this group."
         case .invalidAmount:
             return "Enter an amount greater than zero."
+        case .emptyItems:
+            return "Add at least one item."
+        case .itemWithoutParticipants:
+            return "Every item needs at least one person sharing it."
+        case .itemSumMismatch:
+            return "The items don't add up to the total amount."
         }
     }
     if let clientError = error as? ClanTabClientError {

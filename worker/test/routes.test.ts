@@ -395,6 +395,80 @@ describe("POST /api/groups/:groupId/expenses", () => {
     expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
   });
 
+  it("records an itemized expense and round-trips its line items", async () => {
+    const { status, json } = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a,
+        amountMinor: 1000,
+        description: "Groceries",
+        date: "2026-01-02T09:00:00Z",
+        splitType: "itemized",
+        splits: [
+          { memberId: a, amountMinor: 700 },
+          { memberId: b, amountMinor: 300 },
+        ],
+        items: [
+          { id: "li1", name: "Cheese", amountMinor: 600, participantIds: [a, b] },
+          { id: "li2", name: "Wine", amountMinor: 400, participantIds: [a] },
+        ],
+      },
+      token,
+    );
+    expect(status).toBe(201);
+    expect(json.expense).toMatchObject({ splitType: "itemized", amountMinor: 1000 });
+    expect((json.expense as Json).items).toEqual([
+      { id: "li1", name: "Cheese", amountMinor: 600, participantIds: [a, b] },
+      { id: "li2", name: "Wine", amountMinor: 400, participantIds: [a] },
+    ]);
+
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    expect(state.json.balances).toEqual([
+      { memberId: a, currency: "INR", netMinor: 300 },
+      { memberId: b, currency: "INR", netMinor: -300 },
+    ]);
+  });
+
+  it("rejects splitType itemized without items, and items without itemized", async () => {
+    const noItems = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        splitType: "itemized", splits: [{ memberId: a, amountMinor: 100 }],
+      },
+      token,
+    );
+    expect(noItems.status).toBe(400);
+    expect((noItems.json.error as Json).code).toBe("BAD_REQUEST");
+
+    const strayItems = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        splitType: "equal", splits: [{ memberId: a, amountMinor: 100 }],
+        items: [{ id: "i", name: "n", amountMinor: 100, participantIds: [a] }],
+      },
+      token,
+    );
+    expect(strayItems.status).toBe(400);
+    expect((strayItems.json.error as Json).code).toBe("BAD_REQUEST");
+  });
+
+  it("rejects itemized line items that don't sum to the amount (SPLIT_MISMATCH)", async () => {
+    const { status, json } = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a, amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
+        splitType: "itemized",
+        splits: [{ memberId: a, amountMinor: 1000 }],
+        items: [{ id: "i", name: "Only", amountMinor: 900, participantIds: [a] }],
+      },
+      token,
+    );
+    expect(status).toBe(400);
+    expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
+  });
+
   it("round-trips a category and its icon", async () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,

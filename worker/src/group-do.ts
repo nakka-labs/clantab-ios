@@ -6,6 +6,7 @@ import { type Result, fail, ok } from "./lib/result.ts";
 import { GROUP_SCHEMA, META_KEYS, SCHEMA_VERSION } from "./lib/schema.ts";
 import {
   ValidationFailure,
+  assertItemsValid,
   assertMembersExist,
   assertPositiveAmount,
   assertSplitsSum,
@@ -18,6 +19,7 @@ import type {
   Expense,
   GroupStateResponse,
   GroupSummary,
+  LineItem,
   Member,
   Settlement,
 } from "./types.ts";
@@ -43,12 +45,13 @@ type ExpenseRow = Row<{
   amount_minor: number;
   description: string;
   expense_date: string;
-  split_type: "equal" | "exact" | "percentage";
+  split_type: "equal" | "exact" | "percentage" | "itemized";
   category: string | null;
   category_icon: string | null;
   currency: string;
   deleted_at: number | null;
   deleted_by: string | null;
+  items: string | null;
 }>;
 type SplitRow = Row<{
   expense_id: string;
@@ -179,6 +182,44 @@ export class GroupDO extends DurableObject {
       this.sql.exec("ALTER TABLE members ADD COLUMN upi_vpa TEXT");
       this.setMeta(META_KEYS.schemaVersion, "7");
       current = "7";
+    }
+
+    if (current === "7") {
+      // v8: widen `expenses.split_type` CHECK to allow 'itemized' and add
+      // `expenses.items` (nullable JSON). Same rebuild dance as v2 — SQLite
+      // can't alter a CHECK in place. The new table carries every v7 column
+      // plus `items`, so the copy names columns explicitly (a bare
+      // `INSERT ... SELECT *` would misalign against the extra column).
+      // `FEATURE_BACKLOG.md` "Itemized expense entry".
+      this.sql.exec(`
+        ALTER TABLE expenses RENAME TO expenses_v7;
+        CREATE TABLE expenses (
+          id            TEXT PRIMARY KEY,
+          payer_id      TEXT NOT NULL,
+          amount_minor  INTEGER NOT NULL,
+          description   TEXT NOT NULL,
+          expense_date  TEXT NOT NULL,
+          split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage','itemized')),
+          created_at    INTEGER NOT NULL,
+          category      TEXT,
+          category_icon TEXT,
+          currency      TEXT,
+          deleted_at    INTEGER,
+          deleted_by    TEXT,
+          items         TEXT
+        );
+        INSERT INTO expenses (
+          id, payer_id, amount_minor, description, expense_date, split_type,
+          created_at, category, category_icon, currency, deleted_at, deleted_by
+        )
+        SELECT
+          id, payer_id, amount_minor, description, expense_date, split_type,
+          created_at, category, category_icon, currency, deleted_at, deleted_by
+        FROM expenses_v7;
+        DROP TABLE expenses_v7;
+      `);
+      this.setMeta(META_KEYS.schemaVersion, "8");
+      current = "8";
     }
   }
 
@@ -696,6 +737,14 @@ export class GroupDO extends DurableObject {
       const memberIds = new Set(this.readMembers().map((m) => m.id));
       assertMembersExist([req.payerId, ...req.splits.map((s) => s.memberId)], memberIds);
       assertSplitsSum(req.amountMinor, req.splits);
+      // An itemized expense carries its line items too — they must be
+      // well-formed and sum to the amount. The resolved `splits` are still the
+      // source of truth for balances (checked above); `items` is the breakdown.
+      // `parseExpenseBody` guarantees `items` is present iff `splitType` is
+      // `"itemized"`.
+      if (req.splitType === "itemized") {
+        assertItemsValid(req.amountMinor, req.items ?? [], memberIds);
+      }
       return null;
     } catch (e) {
       if (e instanceof ValidationFailure) return fail(e.code, e.message);
@@ -720,8 +769,9 @@ export class GroupDO extends DurableObject {
 
   private writeExpense(id: string, createdAt: number, req: AddExpenseRequest): void {
     const currency = req.currency ?? this.requireMeta(META_KEYS.currency);
+    const items = req.splitType === "itemized" && req.items ? JSON.stringify(req.items) : null;
     this.sql.exec(
-      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       req.payerId,
       req.amountMinor,
@@ -732,6 +782,7 @@ export class GroupDO extends DurableObject {
       req.category ?? null,
       req.categoryIcon ?? null,
       currency,
+      items,
     );
     for (const s of req.splits) {
       this.sql.exec(
@@ -862,6 +913,7 @@ export class GroupDO extends DurableObject {
         .map((s) => ({ memberId: s.member_id, amountMinor: s.amount_minor })),
       // Omit the keys entirely when unset (nullable columns → `undefined` →
       // dropped by JSON.stringify), matching the `category?` wire shape.
+      ...(e.items != null ? { items: JSON.parse(e.items) as LineItem[] } : {}),
       ...(e.category != null ? { category: e.category } : {}),
       ...(e.category_icon != null ? { categoryIcon: e.category_icon } : {}),
       ...(e.deleted_at != null ? { deletedAt: isoSeconds(e.deleted_at) } : {}),

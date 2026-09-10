@@ -1,4 +1,4 @@
-import type { ExpenseSplit } from "./types.ts";
+import type { ExpenseSplit, LineItem } from "./types.ts";
 
 // Money is integer minor units. JavaScript `number` is exact for integers up to
 // 2^53; a group's running totals stay many orders of magnitude below that, so
@@ -68,5 +68,40 @@ export function assertMembersExist(referencedIds: readonly string[], groupMember
     if (!groupMemberIds.has(id)) {
       throw new ValidationFailure("UNKNOWN_MEMBER", `Member "${id}" is not in this group.`);
     }
+  }
+}
+
+/**
+ * The line items of an `itemized` expense (`FEATURE_BACKLOG.md` "Itemized
+ * expense entry"). At least one item; every item a positive integer amount,
+ * shared by at least one real group member; and the item amounts summing to
+ * exactly `amountMinor` — there is no separate tax/tip bucket, a shared
+ * surcharge is entered as its own line. Mirrors `ClanTabKit.Validation.validateItems`.
+ * The resolved `splits` are checked separately by `assertSplitsSum`.
+ */
+export function assertItemsValid(
+  amountMinor: number,
+  items: LineItem[],
+  groupMemberIds: ReadonlySet<string>,
+): void {
+  if (items.length === 0) {
+    throw new ValidationFailure("SPLIT_MISMATCH", "An itemized expense must have at least one line item.");
+  }
+  let total = 0;
+  for (const item of items) {
+    if (typeof item.amountMinor !== "number" || !Number.isInteger(item.amountMinor) || item.amountMinor <= 0) {
+      throw new ValidationFailure("INVALID_AMOUNT", "Each line item amount must be a positive integer in minor units.");
+    }
+    if (item.participantIds.length === 0) {
+      throw new ValidationFailure("SPLIT_MISMATCH", `Line item "${item.name}" has no-one sharing it.`);
+    }
+    assertMembersExist(item.participantIds, groupMemberIds);
+    total += item.amountMinor;
+  }
+  if (total !== amountMinor) {
+    throw new ValidationFailure(
+      "SPLIT_MISMATCH",
+      `Line items sum to ${total} but the expense amount is ${amountMinor}.`,
+    );
   }
 }

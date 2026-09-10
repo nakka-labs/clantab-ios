@@ -25,6 +25,27 @@ struct CloudBackupTests {
         )
     }
 
+    private func itemizedExpense(id: String = "ei") -> Expense {
+        Expense(
+            id: id,
+            payerId: alice.id,
+            amountMinor: 1000,
+            currency: "USD",
+            description: "Groceries",
+            date: t0,
+            splitType: .itemized,
+            splits: [
+                ExpenseSplit(memberId: alice.id, amountMinor: 700),
+                ExpenseSplit(memberId: bob.id, amountMinor: 300),
+            ],
+            items: [
+                LineItem(id: "li1", name: "Cheese", amountMinor: 600, participantIds: [alice.id, bob.id]),
+                LineItem(id: "li2", name: "Wine", amountMinor: 400, participantIds: [alice.id]),
+            ],
+            category: nil
+        )
+    }
+
     private func settlement(id: String = "s1") -> Settlement {
         Settlement(id: id, fromId: bob.id, toId: alice.id, amountMinor: 625, currency: "USD", date: t0)
     }
@@ -73,6 +94,20 @@ struct CloudBackupTests {
         #expect(decoded.groupId == snapshot.groupId)
         #expect(decoded.expenses.map(\.id) == ["e1", "e2"])
         #expect(decoded.settlements.map(\.id) == ["s1", "s2"])
+    }
+
+    @Test("an itemized expense round-trips its line items")
+    func testItemizedRoundTrip() throws {
+        let snapshot = makeSnapshot(expenses: [expense(), itemizedExpense()])
+        let data = try CloudBackup.encode(snapshot)
+        let decoded = try CloudBackup.decode(data)
+        #expect(try CloudBackup.encode(decoded) == data)
+        let ei = try #require(decoded.expenses.first { $0.id == "ei" })
+        #expect(ei.splitType == .itemized)
+        #expect(ei.items?.map(\.name) == ["Cheese", "Wine"])
+        #expect(ei.items?.first?.participantIds == ["alice", "bob"])
+        // A plain expense still carries no items key.
+        #expect(decoded.expenses.first { $0.id == "e1" }?.items == nil)
     }
 
     @Test("encoding is deterministic — same input, identical bytes")

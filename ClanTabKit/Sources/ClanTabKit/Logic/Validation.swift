@@ -7,6 +7,12 @@ public enum ValidationError: Error, Equatable, Sendable {
     case splitMismatch(expected: Int64, actual: Int64)
     case unknownMember(String)
     case invalidAmount(Int64)
+    /// An itemized expense with no line items.
+    case emptyItems
+    /// A line item with no-one sharing it.
+    case itemWithoutParticipants
+    /// The line items don't sum to the expense amount.
+    case itemSumMismatch(expected: Int64, actual: Int64)
 }
 
 /// Split-sum validation and deterministic remainder distribution.
@@ -99,5 +105,67 @@ public enum Validation {
             )
         }
         return splits
+    }
+
+    /// Resolves an itemized expense (`LineItem`s) into one `ExpenseSplit` per
+    /// member who's on at least one item. Each item is divided equally among its
+    /// own participants — `equalSplit`'s exact rule, with that item's own
+    /// leftover minor unit(s) going to `remainderRecipient` (the payer) when
+    /// they're a participant, else the item's first participant — and each
+    /// member's shares are then summed across every item.
+    ///
+    /// If the items sum to `amountMinor` (which `validateItems` enforces before
+    /// this is relied on), the returned splits sum to `amountMinor` exactly,
+    /// because every item resolves exactly. Members not on any item are omitted
+    /// entirely rather than carried at `0` — they simply aren't part of the
+    /// expense.
+    ///
+    /// This is the `itemized` counterpart to `equalSplit` / `percentageSplit`:
+    /// the UI works in line items, the wire only ever carries resolved
+    /// minor-unit splits (`DESIGN.md` §6).
+    public static func itemizedSplit(
+        items: [LineItem],
+        remainderRecipient: String
+    ) -> [ExpenseSplit] {
+        var totals: [String: Int64] = [:]
+        var order: [String] = []
+
+        for item in items where !item.participantIds.isEmpty {
+            let itemSplits = equalSplit(
+                amountMinor: item.amountMinor,
+                memberIds: item.participantIds,
+                remainderRecipient: remainderRecipient
+            )
+            for split in itemSplits {
+                if totals[split.memberId] == nil { order.append(split.memberId) }
+                totals[split.memberId, default: 0] += split.amountMinor
+            }
+        }
+
+        return order.map { ExpenseSplit(memberId: $0, amountMinor: totals[$0] ?? 0) }
+    }
+
+    /// Checks an itemized expense's line items: at least one item, every item
+    /// shared by at least one member, every participant a real group member, and
+    /// the item amounts summing to exactly `amountMinor` (no separate tax/tip
+    /// bucket — a shared surcharge is its own line). Individual item amounts must
+    /// be positive.
+    public static func validateItems(
+        amountMinor: Int64,
+        items: [LineItem],
+        validMemberIds: Set<String>
+    ) throws {
+        guard !items.isEmpty else { throw ValidationError.emptyItems }
+
+        var total: Int64 = 0
+        for item in items {
+            guard item.amountMinor > 0 else { throw ValidationError.invalidAmount(item.amountMinor) }
+            guard !item.participantIds.isEmpty else { throw ValidationError.itemWithoutParticipants }
+            try validateMembersExist(memberIds: item.participantIds, validMemberIds: validMemberIds)
+            total += item.amountMinor
+        }
+        guard total == amountMinor else {
+            throw ValidationError.itemSumMismatch(expected: amountMinor, actual: total)
+        }
     }
 }

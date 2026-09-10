@@ -23,13 +23,18 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount_minor  INTEGER NOT NULL,
   description   TEXT NOT NULL,
   expense_date  TEXT NOT NULL,
-  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage')),
+  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage','itemized')),
   created_at    INTEGER NOT NULL,
   category      TEXT,
   category_icon TEXT,
   currency      TEXT,
   deleted_at    INTEGER,
-  deleted_by    TEXT
+  deleted_by    TEXT,
+  -- JSON array of { id, name, amountMinor, participantIds } for an 'itemized'
+  -- expense (FEATURE_BACKLOG.md "Itemized expense entry"); NULL otherwise. Read
+  -- and written whole with the expense, never queried into -- so a column, not
+  -- its own table.
+  items         TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expense_splits (
@@ -181,5 +186,10 @@ export const META_KEYS = {
  *  - `7` → `members.upi_vpa` added (nullable). User-supplied, never verified —
  *          `FEATURE_BACKLOG.md` "UPI deep link on Settle Up". Plain
  *          `ALTER TABLE ... ADD COLUMN` — no rebuild.
+ *  - `8` → `expenses.split_type` CHECK widened again to allow `'itemized'`, and
+ *          `expenses.items` (nullable JSON) added. Like v2, SQLite can't alter a
+ *          CHECK in place, so `GroupDO.migrate` rebuilds the `expenses` table
+ *          (now with all v7 columns + `items`). `FEATURE_BACKLOG.md` "Itemized
+ *          expense entry".
  */
-export const SCHEMA_VERSION = "7";
+export const SCHEMA_VERSION = "8";

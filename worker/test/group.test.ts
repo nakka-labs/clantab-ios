@@ -96,6 +96,110 @@ describe("GroupDO", () => {
     ]);
   });
 
+  describe("itemized-split expense (FEATURE_BACKLOG.md — itemized expense entry)", () => {
+    it("records the line items and balances off the pre-resolved splits", async () => {
+      const g = group("g-items-ok");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ITM234");
+      const { member: ben } = await g.addMember("Ben");
+
+      const r = await g.addExpense({
+        payerId: ana.id,
+        amountMinor: 1000,
+        description: "Groceries",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "itemized",
+        splits: [
+          { memberId: ana.id, amountMinor: 700 },
+          { memberId: ben.id, amountMinor: 300 },
+        ],
+        items: [
+          { id: "li1", name: "Cheese", amountMinor: 600, participantIds: [ana.id, ben.id] },
+          { id: "li2", name: "Wine", amountMinor: 400, participantIds: [ana.id] },
+        ],
+      });
+      expect(r.ok).toBe(true);
+
+      const state = await g.getState();
+      expect(state.expenses[0]).toMatchObject({ splitType: "itemized", currency: "USD" });
+      expect(state.expenses[0]!.items).toEqual([
+        { id: "li1", name: "Cheese", amountMinor: 600, participantIds: [ana.id, ben.id] },
+        { id: "li2", name: "Wine", amountMinor: 400, participantIds: [ana.id] },
+      ]);
+      expect(state.balances).toEqual([
+        { memberId: ana.id, currency: "USD", netMinor: 300 }, // paid 1000, own share 700
+        { memberId: ben.id, currency: "USD", netMinor: -300 },
+      ]);
+    });
+
+    it("rejects items that don't sum to the amount", async () => {
+      const g = group("g-items-sum");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ITM235");
+      const r = await g.addExpense({
+        payerId: ana.id,
+        amountMinor: 1000,
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "itemized",
+        splits: [{ memberId: ana.id, amountMinor: 1000 }],
+        items: [{ id: "li1", name: "Only", amountMinor: 900, participantIds: [ana.id] }],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe("SPLIT_MISMATCH");
+    });
+
+    it("rejects an item whose participant isn't in the group", async () => {
+      const g = group("g-items-ghost");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ITM236");
+      const r = await g.addExpense({
+        payerId: ana.id,
+        amountMinor: 500,
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "itemized",
+        splits: [{ memberId: ana.id, amountMinor: 500 }],
+        items: [{ id: "li1", name: "Thing", amountMinor: 500, participantIds: [ana.id, "ghost"] }],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe("UNKNOWN_MEMBER");
+    });
+
+    it("an edit can replace the itemization wholesale", async () => {
+      const g = group("g-items-edit");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ITM237");
+      const { member: ben } = await g.addMember("Ben");
+      const added = await g.addExpense({
+        payerId: ana.id,
+        amountMinor: 600,
+        description: "Lunch",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "itemized",
+        splits: [
+          { memberId: ana.id, amountMinor: 300 },
+          { memberId: ben.id, amountMinor: 300 },
+        ],
+        items: [{ id: "a", name: "Shared", amountMinor: 600, participantIds: [ana.id, ben.id] }],
+      });
+      expect(added.ok).toBe(true);
+      const id = added.ok ? added.value.expense.id : "";
+
+      const edited = await g.updateExpense(id, {
+        payerId: ana.id,
+        amountMinor: 600,
+        description: "Lunch",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "exact",
+        splits: [
+          { memberId: ana.id, amountMinor: 200 },
+          { memberId: ben.id, amountMinor: 400 },
+        ],
+      });
+      expect(edited.ok).toBe(true);
+      const state = await g.getState();
+      expect(state.expenses[0]).toMatchObject({ splitType: "exact" });
+      expect(state.expenses[0]!.items).toBeUndefined();
+    });
+  });
+
   it("migrate() upgrades a v1 expenses table through every schema version", async () => {
     const g = group("g-migrate");
     const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "MIG234");
@@ -140,11 +244,12 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("7");
+      expect(version).toBe("8");
 
-      // The legacy expense survived the v2 rebuild, gained null category columns,
-      // had its currency backfilled from the group (USD), and gained null
-      // deleted_at/deleted_by (v6) — i.e. it's active, not trashed.
+      // The legacy expense survived the v2 + v8 rebuilds, gained null category
+      // columns, had its currency backfilled from the group (USD), gained null
+      // deleted_at/deleted_by (v6) — i.e. it's active, not trashed — and gained
+      // a null `items` column (v8).
       const legacy = sql
         .exec<{
           category: string | null;
@@ -152,9 +257,19 @@ describe("GroupDO", () => {
           currency: string;
           deleted_at: number | null;
           deleted_by: string | null;
-        }>("SELECT category, category_icon, currency, deleted_at, deleted_by FROM expenses WHERE id = 'old-1'")
+          items: string | null;
+        }>(
+          "SELECT category, category_icon, currency, deleted_at, deleted_by, items FROM expenses WHERE id = 'old-1'",
+        )
         .toArray()[0];
-      expect(legacy).toEqual({ category: null, category_icon: null, currency: "USD", deleted_at: null, deleted_by: null });
+      expect(legacy).toEqual({
+        category: null,
+        category_icon: null,
+        currency: "USD",
+        deleted_at: null,
+        deleted_by: null,
+        items: null,
+      });
 
       // The legacy member gained a null identity_sub (v5) — i.e. it's a
       // placeholder — and a null upi_vpa (v7).
@@ -182,6 +297,29 @@ describe("GroupDO", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.expense).toMatchObject({ category: "Travel", categoryIcon: "airplane", currency: "EUR" });
+    }
+
+    // itemized (needs the v8 CHECK widen + items column) post-migration. Only
+    // Ana survived the rewind above, so a single-participant itemization.
+    const ri = await g.addExpense({
+      payerId: ana.id,
+      amountMinor: 1000,
+      description: "Groceries",
+      date: "2026-01-02T00:00:00Z",
+      splitType: "itemized",
+      splits: [{ memberId: ana.id, amountMinor: 1000 }],
+      items: [
+        { id: "li1", name: "Cheese", amountMinor: 600, participantIds: [ana.id] },
+        { id: "li2", name: "Wine", amountMinor: 400, participantIds: [ana.id] },
+      ],
+    });
+    expect(ri.ok).toBe(true);
+    if (ri.ok) {
+      expect(ri.value.expense.splitType).toBe("itemized");
+      expect(ri.value.expense.items).toEqual([
+        { id: "li1", name: "Cheese", amountMinor: 600, participantIds: [ana.id] },
+        { id: "li2", name: "Wine", amountMinor: 400, participantIds: [ana.id] },
+      ]);
     }
   });
 

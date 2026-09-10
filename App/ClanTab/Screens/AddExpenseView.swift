@@ -28,6 +28,26 @@ struct AddExpenseView: View {
     @State private var includedMemberIds: Set<String>
     @State private var exactAmountText: [String: String] = [:]
     @State private var percentText: [String: String] = [:]
+    /// Line-item drafts for an `.itemized` split (`FEATURE_BACKLOG.md`
+    /// "Itemized expense entry"). Empty until the user picks "Items" for the
+    /// first time (or when editing an itemized expense), when it's seeded.
+    @State private var itemDrafts: [ItemDraft] = []
+
+    /// One editable line item — the mutable, string-typed counterpart to
+    /// `ClanTabKit.LineItem`, resolved to exact splits only on save.
+    struct ItemDraft: Identifiable {
+        let id: String
+        var name: String
+        var amountText: String
+        var participantIds: Set<String>
+
+        init(id: String = UUID().uuidString, name: String = "", amountText: String = "", participantIds: Set<String>) {
+            self.id = id
+            self.name = name
+            self.amountText = amountText
+            self.participantIds = participantIds
+        }
+    }
     @State private var category: ExpenseCategory = .uncategorized
     @State private var isSubmitting = false
     @State private var errorMessage: String?
@@ -138,6 +158,20 @@ struct AddExpenseView: View {
             }
         }
         _percentText = State(initialValue: percent)
+
+        // An itemized expense stores its line items directly — rehydrate them
+        // as drafts. Duplicating gets fresh item ids (a fresh expense); editing
+        // keeps them so a save diffs rather than rebuilds.
+        if expense.splitType == .itemized, let items = expense.items {
+            _itemDrafts = State(initialValue: items.map { item in
+                ItemDraft(
+                    id: editing != nil ? item.id : UUID().uuidString,
+                    name: item.name,
+                    amountText: MoneyFormat.plainString(minorUnits: item.amountMinor),
+                    participantIds: Set(item.participantIds)
+                )
+            })
+        }
     }
 
     private var isEditing: Bool { editing != nil }
@@ -225,9 +259,18 @@ struct AddExpenseView: View {
                 Picker("Split type", selection: $splitType) {
                     Text("Equally").tag(SplitType.equal)
                     Text("Exact").tag(SplitType.exact)
-                    Text("Percentage").tag(SplitType.percentage)
+                    Text("%").tag(SplitType.percentage)
+                    Text("Items").tag(SplitType.itemized)
                 }
                 .pickerStyle(.segmented)
+                .onChange(of: splitType) { _, newValue in
+                    // Seed the first line item the moment the user picks "Items"
+                    // (unless editing already filled them), so the section isn't
+                    // an empty shell.
+                    if newValue == .itemized, itemDrafts.isEmpty {
+                        itemDrafts = [ItemDraft(participantIds: includedMemberIds.isEmpty ? Set(members.map(\.id)) : includedMemberIds)]
+                    }
+                }
 
                 splitDetail
             }
@@ -308,6 +351,8 @@ struct AddExpenseView: View {
             exactSplitRows
         case .percentage:
             percentSplitRows
+        case .itemized:
+            itemizedSplitRows
         }
     }
 
@@ -369,6 +414,98 @@ struct AddExpenseView: View {
         Text(percentRemainingLabel)
             .font(.footnote)
             .foregroundStyle(percentTotal == 100 ? Color.secondary : Color.red)
+    }
+
+    // MARK: Itemized split
+
+    private var itemizedTotal: Int64 {
+        itemDrafts.reduce(Int64(0)) { $0 + (MoneyFormat.minorUnits(from: $1.amountText) ?? 0) }
+    }
+
+    /// `true` once the amount is known and the line items don't add up to it.
+    private var itemizedMismatch: Bool {
+        guard let amountMinor else { return false }
+        return amountMinor != itemizedTotal
+    }
+
+    @ViewBuilder
+    private var itemizedSplitRows: some View {
+        ForEach($itemDrafts) { $item in
+            VStack(spacing: 6) {
+                HStack(spacing: 8) {
+                    TextField("Item", text: $item.name)
+                    TextField("0.00", text: $item.amountText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                        .foregroundStyle(itemizedMismatch && (MoneyFormat.minorUnits(from: item.amountText) ?? 0) > 0 ? Color.red : Color.primary)
+                }
+                HStack {
+                    Menu {
+                        ForEach(members) { member in
+                            Button {
+                                if item.participantIds.contains(member.id) {
+                                    item.participantIds.remove(member.id)
+                                } else {
+                                    item.participantIds.insert(member.id)
+                                }
+                            } label: {
+                                if item.participantIds.contains(member.id) {
+                                    Label(member.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(member.displayName)
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(participantSummary(item.participantIds))
+                            .font(.footnote)
+                            .foregroundStyle(item.participantIds.isEmpty ? Color.red : Color.accentColor)
+                    }
+                    Spacer()
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Line item \(item.name.isEmpty ? "unnamed" : item.name)")
+        }
+        .onDelete { itemDrafts.remove(atOffsets: $0) }
+
+        Button {
+            itemDrafts.append(ItemDraft(participantIds: Set(members.map(\.id))))
+        } label: {
+            Label("Add Item", systemImage: "plus.circle")
+        }
+        .font(.footnote)
+
+        if let amountMinor {
+            HStack {
+                Text(remainingLabel(amountMinor - itemizedTotal))
+                    .font(.footnote)
+                    .foregroundStyle(amountMinor == itemizedTotal ? Color.secondary : Color.red)
+                Spacer()
+                if itemizedMismatch, itemizedTotal > 0 {
+                    Button("Use \(MoneyFormat.string(minorUnits: itemizedTotal, currency: currency))") {
+                        amountText = MoneyFormat.plainString(minorUnits: itemizedTotal)
+                    }
+                    .font(.footnote)
+                }
+            }
+        } else if itemizedTotal > 0 {
+            // No amount typed yet — offer the items' sum as the amount.
+            Button("Set amount to \(MoneyFormat.string(minorUnits: itemizedTotal, currency: currency))") {
+                amountText = MoneyFormat.plainString(minorUnits: itemizedTotal)
+            }
+            .font(.footnote)
+        }
+    }
+
+    /// "Everyone" / "Ana, Ben" / "No one" — the menu label for a line item's
+    /// participant set.
+    private func participantSummary(_ ids: Set<String>) -> String {
+        guard !ids.isEmpty else { return "No one — tap to add" }
+        if ids.count == members.count { return "Shared by everyone" }
+        let names = members.filter { ids.contains($0.id) }.map(\.displayName)
+        return "Shared by \(names.joined(separator: ", "))"
     }
 
     private func includedBinding(for memberId: String) -> Binding<Bool> {
@@ -437,6 +574,11 @@ struct AddExpenseView: View {
             return exactSplitsTotal == amountMinor
         case .percentage:
             return percentTotal == 100
+        case .itemized:
+            guard !itemDrafts.isEmpty, itemizedTotal == amountMinor else { return false }
+            return itemDrafts.allSatisfy { item in
+                (MoneyFormat.minorUnits(from: item.amountText) ?? 0) > 0 && !item.participantIds.isEmpty
+            }
         }
     }
 
@@ -448,6 +590,8 @@ struct AddExpenseView: View {
 
         do {
             let splits: [ExpenseSplit]
+            // Only an itemized expense carries `items` on the wire.
+            var items: [LineItem]?
             switch splitType {
             case .equal:
                 let memberIds = members.map(\.id).filter { includedMemberIds.contains($0) }
@@ -470,6 +614,26 @@ struct AddExpenseView: View {
                     weights: weights,
                     remainderRecipient: payerId
                 )
+            case .itemized:
+                // Order each item's participants by the group's member order so
+                // the resolved splits are deterministic regardless of tap order.
+                let resolved = itemDrafts.map { draft in
+                    LineItem(
+                        id: draft.id,
+                        name: draft.name.trimmingCharacters(in: .whitespaces),
+                        amountMinor: MoneyFormat.minorUnits(from: draft.amountText) ?? 0,
+                        participantIds: members.map(\.id).filter { draft.participantIds.contains($0) }
+                    )
+                }
+                items = resolved
+                // Resolve the line items to exact per-member shares — the wire
+                // carries both, and the server checks they agree (DESIGN.md §6).
+                try Validation.validateItems(
+                    amountMinor: amountMinor,
+                    items: resolved,
+                    validMemberIds: Set(members.map(\.id))
+                )
+                splits = Validation.itemizedSplit(items: resolved, remainderRecipient: payerId)
             }
 
             // The same rule the server enforces (DESIGN.md §6) - catching a
@@ -491,6 +655,7 @@ struct AddExpenseView: View {
                 date: editing?.date ?? Date(),
                 splitType: splitType,
                 splits: splits,
+                items: items,
                 category: isCategorised ? category.name : nil,
                 categoryIcon: isCategorised ? category.symbolName : nil
             )

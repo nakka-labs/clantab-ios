@@ -163,4 +163,112 @@ struct ValidationTests {
             try Validation.validateSplitsSum(amountMinor: amount, splits: splits)
         }
     }
+
+    // MARK: - Itemized split
+
+    private func item(_ id: String, _ amount: Int64, _ people: [String]) -> LineItem {
+        LineItem(id: id, name: id, amountMinor: amount, participantIds: people)
+    }
+
+    @Test("Itemized: each line splits equally among its own people, summed per member")
+    func testItemizedSplitBasic() throws {
+        // Pizza 900 shared a/b/c (300 each); Beer 400 shared a/b (200 each).
+        let items = [item("pizza", 900, ["a", "b", "c"]), item("beer", 400, ["a", "b"])]
+        let splits = Validation.itemizedSplit(items: items, remainderRecipient: "a")
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["a"] == 500)
+        #expect(byId["b"] == 500)
+        #expect(byId["c"] == 300)
+        try Validation.validateSplitsSum(amountMinor: 1300, splits: splits)
+    }
+
+    @Test("Itemized: a per-item rounding remainder lands on the payer when they share the item")
+    func testItemizedSplitRemainderToPayer() throws {
+        // 100 split 3 ways → 34/33/33, remainder to the payer "b".
+        let splits = Validation.itemizedSplit(items: [item("x", 100, ["a", "b", "c"])], remainderRecipient: "b")
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["b"] == 34)
+        #expect(byId["a"] == 33)
+        #expect(byId["c"] == 33)
+    }
+
+    @Test("Itemized: members on no item are left out entirely")
+    func testItemizedSplitOmitsUninvolved() {
+        let splits = Validation.itemizedSplit(items: [item("x", 100, ["a", "b"])], remainderRecipient: "a")
+        #expect(Set(splits.map(\.memberId)) == ["a", "b"])
+    }
+
+    @Test("Itemized: member order follows first appearance across items")
+    func testItemizedSplitOrder() {
+        let items = [item("x", 100, ["c", "a"]), item("y", 100, ["a", "b"])]
+        let splits = Validation.itemizedSplit(items: items, remainderRecipient: "a")
+        #expect(splits.map(\.memberId) == ["c", "a", "b"])
+    }
+
+    @Test("validateItems accepts a well-formed itemization")
+    func testValidateItemsPasses() throws {
+        let items = [item("x", 600, ["a", "b"]), item("y", 400, ["a"])]
+        try Validation.validateItems(amountMinor: 1000, items: items, validMemberIds: ["a", "b", "c"])
+    }
+
+    @Test("validateItems: no items throws emptyItems")
+    func testValidateItemsEmpty() {
+        #expect(throws: ValidationError.emptyItems) {
+            try Validation.validateItems(amountMinor: 0, items: [], validMemberIds: ["a"])
+        }
+    }
+
+    @Test("validateItems: an item with no participants throws")
+    func testValidateItemsNoParticipants() {
+        #expect(throws: ValidationError.itemWithoutParticipants) {
+            try Validation.validateItems(amountMinor: 100, items: [item("x", 100, [])], validMemberIds: ["a"])
+        }
+    }
+
+    @Test("validateItems: an unknown participant throws unknownMember")
+    func testValidateItemsUnknownMember() {
+        #expect(throws: ValidationError.unknownMember("ghost")) {
+            try Validation.validateItems(amountMinor: 100, items: [item("x", 100, ["a", "ghost"])], validMemberIds: ["a"])
+        }
+    }
+
+    @Test("validateItems: items not summing to the amount throw itemSumMismatch")
+    func testValidateItemsSumMismatch() {
+        #expect(throws: ValidationError.itemSumMismatch(expected: 1000, actual: 900)) {
+            try Validation.validateItems(
+                amountMinor: 1000,
+                items: [item("x", 600, ["a"]), item("y", 300, ["a"])],
+                validMemberIds: ["a"]
+            )
+        }
+    }
+
+    @Test("validateItems: a non-positive item amount throws invalidAmount")
+    func testValidateItemsNonPositive() {
+        #expect(throws: ValidationError.invalidAmount(0)) {
+            try Validation.validateItems(amountMinor: 100, items: [item("x", 0, ["a"])], validMemberIds: ["a"])
+        }
+    }
+
+    @Test("Random fuzz: a validated itemization always resolves to splits summing to the amount")
+    func testItemizedSplitFuzzNeverDriftsSum() throws {
+        var generator = SeededGenerator(seed: 23)
+        for _ in 0..<200 {
+            let memberCount = Int.random(in: 1...8, using: &generator)
+            let members = (0..<memberCount).map { "m\($0)" }
+            let itemCount = Int.random(in: 1...6, using: &generator)
+            var items: [LineItem] = []
+            var total: Int64 = 0
+            for i in 0..<itemCount {
+                let amount = Int64.random(in: 1...200_000, using: &generator)
+                let people = members.filter { _ in Bool.random(using: &generator) }
+                let participants = people.isEmpty ? [members[0]] : people
+                items.append(LineItem(id: "i\(i)", name: "i\(i)", amountMinor: amount, participantIds: participants))
+                total += amount
+            }
+            try Validation.validateItems(amountMinor: total, items: items, validMemberIds: Set(members))
+            let splits = Validation.itemizedSplit(items: items, remainderRecipient: members[0])
+            try Validation.validateSplitsSum(amountMinor: total, splits: splits)
+        }
+    }
 }
