@@ -71,8 +71,15 @@ test/               logic + validation (Node) · join-codes/group/routes/user/au
   link. `lib/s3-presign.ts` is a hand-rolled SigV4 signer (zero deps, checked
   against AWS's documented vector in `test/media.test.ts`). Config:
   `R2_BUCKET` var + `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`
-  secrets; all unset → the endpoint 503s (safe until configured). Delete-on-
-  delete cleanup is wired per-surface as profile-photo / cover / receipt ship.
+  secrets; all unset → the endpoint 503s (safe until configured).
+- **Profile photos** (`CHECKLIST.md`): `PUT`/`DELETE /api/auth/avatar` commit or
+  remove the photo an identity uploaded to its `avatars/<sha256(sub)>` key
+  (`PUT` 400s if the object isn't in the bucket). Both fan the new state out to
+  `members.avatar_key` (schema v9) in every group the identity has claimed —
+  `UserDO.setAvatarUploaded` + `GroupDO.setMemberAvatar` per group — so other
+  members see it without an identity-subject leak. `GroupDO.claim` seeds
+  `avatar_key` from the identity's current photo; `unclaim` and account
+  deletion clear it (deletion also removes the R2 object).
 - `GET /g/:groupId` is a stub landing page (noindex + app deep link). A real page +
   Universal Links come with a production domain — see `CHECKLIST.md`'s
   "custom domain + Universal Links" item.

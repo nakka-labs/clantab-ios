@@ -1,6 +1,7 @@
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { mintSession, verifySession } from "../src/lib/session.ts";
+import { avatarKey } from "../src/lib/media.ts";
 
 const BASE = "https://api.test";
 
@@ -466,5 +467,80 @@ describe("GET /api/admin/reports (Apple Guideline 1.2, SHIP_PLAN.md Track 3 §7)
     expect(groupIds).toContain(g2.groupId);
     // Newest first: g2's report was filed after g1's.
     expect(groupIds.indexOf(g2.groupId)).toBeLessThan(groupIds.indexOf(g1.groupId));
+  });
+});
+
+describe('PUT / DELETE /api/auth/avatar (CHECKLIST.md "Profile photos")', () => {
+  const memberNamed = (state: Json, name: string) =>
+    (state.members as Json[]).find((m) => (m.displayName as string) === name);
+
+  it("401s without a session", async () => {
+    expect((await call("PUT", "/api/auth/avatar")).status).toBe(401);
+    expect((await call("DELETE", "/api/auth/avatar")).status).toBe(401);
+  });
+
+  it("400s a PUT when nothing was uploaded to the identity's key", async () => {
+    const bearer = await token("avatar.noupload.1");
+    expect((await call("PUT", "/api/auth/avatar", { bearer })).status).toBe(400);
+  });
+
+  it("commits a photo, fans avatarKey out to every claimed group, and reverses on DELETE", async () => {
+    const sub = "avatar.commit.1";
+    const bearer = await token(sub);
+    const key = await avatarKey(sub);
+
+    const g1 = await makeGroup();
+    const g2 = await makeGroup();
+    const m1 = await addMember(g1.groupId, "Me", g1.token);
+    const m2 = await addMember(g2.groupId, "Me", g2.token);
+    await call("POST", `/api/groups/${g1.groupId}/members/${m1}/claim`, { bearer, token: g1.token });
+    await call("POST", `/api/groups/${g2.groupId}/members/${m2}/claim`, { bearer, token: g2.token });
+
+    // Stand in for the client's presigned upload.
+    await env.MEDIA.put(key, new Uint8Array([1, 2, 3]));
+    expect((await call("PUT", "/api/auth/avatar", { bearer })).status).toBe(204);
+
+    for (const g of [g1, g2]) {
+      const state = (await call("GET", `/api/groups/${g.groupId}`, { token: g.token })).json;
+      expect(memberNamed(state, "Me")?.avatarKey).toBe(key);
+    }
+
+    expect((await call("DELETE", "/api/auth/avatar", { bearer })).status).toBe(204);
+    expect(await env.MEDIA.head(key)).toBeNull();
+    const after = (await call("GET", `/api/groups/${g1.groupId}`, { token: g1.token })).json;
+    expect(memberNamed(after, "Me")?.avatarKey).toBeUndefined();
+  });
+
+  it("seeds avatarKey when a claim happens after the photo is set", async () => {
+    const sub = "avatar.claimseed.1";
+    const bearer = await token(sub);
+    const key = await avatarKey(sub);
+
+    await env.MEDIA.put(key, new Uint8Array([9]));
+    expect((await call("PUT", "/api/auth/avatar", { bearer })).status).toBe(204); // no groups yet
+
+    const g = await makeGroup();
+    const m = await addMember(g.groupId, "Latecomer", g.token);
+    await call("POST", `/api/groups/${g.groupId}/members/${m}/claim`, { bearer, token: g.token });
+
+    const state = (await call("GET", `/api/groups/${g.groupId}`, { token: g.token })).json;
+    expect(memberNamed(state, "Latecomer")?.avatarKey).toBe(key);
+  });
+
+  it("clears avatarKey on the member row when the account is deleted", async () => {
+    const sub = "avatar.accountdelete.1";
+    const bearer = await token(sub);
+    const key = await avatarKey(sub);
+
+    const g = await makeGroup();
+    const m = await addMember(g.groupId, "Goner", g.token);
+    await call("POST", `/api/groups/${g.groupId}/members/${m}/claim`, { bearer, token: g.token });
+    await env.MEDIA.put(key, new Uint8Array([7]));
+    await call("PUT", "/api/auth/avatar", { bearer });
+
+    expect((await call("DELETE", "/api/auth/account", { bearer })).status).toBe(204);
+    expect(await env.MEDIA.head(key)).toBeNull();
+    const state = (await call("GET", `/api/groups/${g.groupId}`, { token: g.token })).json;
+    expect(memberNamed(state, "Goner")?.avatarKey).toBeUndefined();
   });
 });

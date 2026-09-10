@@ -38,6 +38,7 @@ type MemberRow = Row<{
   display_name: string;
   identity_sub: string | null;
   upi_vpa: string | null;
+  avatar_key: string | null;
 }>;
 type ExpenseRow = Row<{
   id: string;
@@ -220,6 +221,15 @@ export class GroupDO extends DurableObject {
       `);
       this.setMeta(META_KEYS.schemaVersion, "8");
       current = "8";
+    }
+
+    if (current === "8") {
+      // v9: add `members.avatar_key` (nullable) — the denormalised profile-photo
+      // key (`CHECKLIST.md` "Profile photos"). Every existing member has none.
+      // In-place, no rebuild.
+      this.sql.exec("ALTER TABLE members ADD COLUMN avatar_key TEXT");
+      this.setMeta(META_KEYS.schemaVersion, "9");
+      current = "9";
     }
   }
 
@@ -455,19 +465,18 @@ export class GroupDO extends DurableObject {
    * composite `"<provider>:<sub>"` string (`MANDATORY_LOGIN_PLAN.md` Part 2),
    * not a bare provider subject id. Idempotent: re-claiming the same member
    * with the same `sub` is a no-op success. */
-  async claim(memberId: string, sub: string): Promise<Result<{ member: Member }>> {
+  async claim(memberId: string, sub: string, avatarKey: string | null = null): Promise<Result<{ member: Member }>> {
     const rows = this.sql
-      .exec<MemberRow>("SELECT id, display_name, identity_sub FROM members WHERE id = ?", memberId)
+      .exec<MemberRow>("SELECT * FROM members WHERE id = ?", memberId)
       .toArray();
     const row = rows[0];
     if (row === undefined) {
       return fail("UNKNOWN_MEMBER", `Member "${memberId}" is not in this group.`);
     }
-    const member: Member = { id: row.id, displayName: row.display_name };
 
     if (row.identity_sub !== null) {
       return row.identity_sub === sub
-        ? ok({ member })
+        ? ok({ member: this.toMember(row) })
         : fail("ALREADY_CLAIMED", "That member has already been linked to another account.");
     }
 
@@ -478,15 +487,25 @@ export class GroupDO extends DurableObject {
       return fail("IDENTITY_ALREADY_IN_GROUP", "You already have a membership in this group.");
     }
 
-    this.sql.exec("UPDATE members SET identity_sub = ? WHERE id = ?", sub, memberId);
-    return ok({ member });
+    // Seed `avatar_key` from the identity in the same write — the caller passes
+    // it (or `null`) from the `UserDO` "has a photo" bit (`CHECKLIST.md`).
+    this.sql.exec("UPDATE members SET identity_sub = ?, avatar_key = ? WHERE id = ?", sub, avatarKey, memberId);
+    return ok({ member: this.toMember({ ...row, identity_sub: sub, avatar_key: avatarKey }) });
+  }
+
+  /** Point every member this identity holds across this group at (or away from)
+   * a profile-photo key — the per-group leg of the `PUT`/`DELETE
+   * /api/auth/avatar` fan-out (`CHECKLIST.md` "Profile photos"). A no-op if the
+   * identity isn't a claimed member here. */
+  async setMemberAvatar(sub: string, avatarKey: string | null): Promise<void> {
+    this.sql.exec("UPDATE members SET avatar_key = ? WHERE identity_sub = ?", avatarKey, sub);
   }
 
   /** Revert a member to a placeholder, but only if it's currently `sub`'s —
    * for account deletion (`ACCOUNTS_DESIGN.md` §11). Idempotent. */
   async unclaim(memberId: string, sub: string): Promise<void> {
     this.sql.exec(
-      "UPDATE members SET identity_sub = NULL WHERE id = ? AND identity_sub = ?",
+      "UPDATE members SET identity_sub = NULL, avatar_key = NULL WHERE id = ? AND identity_sub = ?",
       memberId,
       sub,
     );
@@ -861,12 +880,14 @@ export class GroupDO extends DurableObject {
       .map((r) => this.toMember(r));
   }
 
-  /** Omits `upiVpa` entirely when unset, matching the `category?` wire shape. */
+  /** Omits `upiVpa` / `avatarKey` entirely when unset, matching the `category?`
+   * wire shape. */
   private toMember(row: MemberRow): Member {
     return {
       id: row.id,
       displayName: row.display_name,
       ...(row.upi_vpa != null ? { upiVpa: row.upi_vpa } : {}),
+      ...(row.avatar_key != null ? { avatarKey: row.avatar_key } : {}),
     };
   }
 

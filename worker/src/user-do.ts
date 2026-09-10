@@ -57,6 +57,22 @@ export class UserDO extends DurableObject {
     return this.meta(USER_META_KEYS.appleRefreshToken);
   }
 
+  /** Record (or clear) that this identity has a profile photo (`CHECKLIST.md`
+   * "Profile photos"). The claim path reads `hasAvatar()` to seed
+   * `members.avatar_key`; the value is an epoch-ms stamp for a future "photo
+   * since" display. */
+  async setAvatarUploaded(uploaded: boolean): Promise<void> {
+    if (uploaded) {
+      this.setMeta(USER_META_KEYS.avatarUploadedAt, String(Date.now()));
+    } else {
+      this.sql.exec("DELETE FROM user_meta WHERE key = ?", USER_META_KEYS.avatarUploadedAt);
+    }
+  }
+
+  async hasAvatar(): Promise<boolean> {
+    return this.meta(USER_META_KEYS.avatarUploadedAt) !== null;
+  }
+
   /** The identity's groups, newest-claimed first. Returns groupIds + the member
    * id within each — never group contents. */
   async listGroups(): Promise<{ groups: Membership[] }> {

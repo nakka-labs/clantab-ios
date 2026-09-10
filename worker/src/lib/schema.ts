@@ -14,7 +14,13 @@ CREATE TABLE IF NOT EXISTS members (
   display_name TEXT NOT NULL,
   created_at   INTEGER NOT NULL,
   identity_sub TEXT,
-  upi_vpa      TEXT
+  upi_vpa      TEXT,
+  -- R2 object key for the linked identity's profile photo (CHECKLIST.md
+  -- "Profile photos"), denormalised here so getState can hand it to every
+  -- member without exposing identity subjects. Seeded at claim; the
+  -- PUT/DELETE /api/auth/avatar fan-out keeps it current across the
+  -- identity's groups. NULL = guest, or a claimed member with no photo.
+  avatar_key   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
@@ -100,6 +106,12 @@ export const USER_META_KEYS = {
    * the identity is Apple's and the `SIWA_*` config is configured — Google's
    * flow requests no offline access, so this stays unset for Google identities. */
   appleRefreshToken: "apple_refresh_token",
+  /** Epoch-ms string, set when this identity uploads a profile photo and
+   * deleted when they remove it (`CHECKLIST.md` "Profile photos"). Presence is
+   * the "has a photo" bit the claim path reads to seed `members.avatar_key`;
+   * the value itself is only for a future "photo since" display. A new
+   * `user_meta` key — no `USER_SCHEMA_VERSION` bump. */
+  avatarUploadedAt: "avatar_uploaded_at",
 } as const;
 
 export const USER_SCHEMA_VERSION = "1";
@@ -191,5 +203,8 @@ export const META_KEYS = {
  *          CHECK in place, so `GroupDO.migrate` rebuilds the `expenses` table
  *          (now with all v7 columns + `items`). `FEATURE_BACKLOG.md` "Itemized
  *          expense entry".
+ *  - `9` → `members.avatar_key` added (nullable). Denormalised profile-photo
+ *          key (`CHECKLIST.md` "Profile photos"); every existing member has
+ *          none. Plain `ALTER TABLE ... ADD COLUMN` — no rebuild.
  */
-export const SCHEMA_VERSION = "8";
+export const SCHEMA_VERSION = "9";

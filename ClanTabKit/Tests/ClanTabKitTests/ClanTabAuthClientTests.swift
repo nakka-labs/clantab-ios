@@ -275,4 +275,113 @@ struct ClanTabAuthClientTests {
         #expect(request?.url?.absoluteString == "https://clantab.example.com/api/auth/devices/deadbeef")
         #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
     }
+
+    // MARK: - image storage (CHECKLIST.md "Profile photos")
+
+    @Test("presignMediaUpload posts the upload body with a bearer and decodes the ticket")
+    func testPresignMediaUpload() async throws {
+        let transport = FakeTransport(
+            statusCode: 200,
+            body: jsonData([
+                "url": "https://acc.r2.cloudflarestorage.com/clantab-media/avatars/abc?X-Amz-Signature=sig",
+                "key": "avatars/abc",
+                "method": "PUT",
+                "headers": ["Content-Type": "image/jpeg", "Content-Length": "1234"],
+            ])
+        )
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        let ticket = try await client.presignMediaUpload(
+            .avatar, contentType: "image/jpeg", contentLength: 1234, token: "sess"
+        )
+
+        #expect(ticket.key == "avatars/abc")
+        #expect(ticket.headers["Content-Length"] == "1234")
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "POST")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/media/presign")
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
+        let sent = decodeBody(request)
+        #expect(sent["operation"] as? String == "upload")
+        #expect(sent["purpose"] as? String == "avatar")
+        #expect(sent["contentLength"] as? Int == 1234)
+        #expect(sent["key"] == nil) // never client-supplied on upload
+    }
+
+    @Test("presignMediaUpload threads groupId/expenseId for a receipt")
+    func testPresignReceipt() async throws {
+        let transport = FakeTransport(
+            statusCode: 200,
+            body: jsonData(["url": "https://r2/x", "key": "expenses/g/e/r", "method": "PUT", "headers": [:] as [String: String]])
+        )
+        _ = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .presignMediaUpload(.receipt, contentType: "image/png", contentLength: 10,
+                                groupId: "g1", expenseId: "e1", token: "sess")
+        let sent = decodeBody(await transport.lastRequest)
+        #expect(sent["groupId"] as? String == "g1")
+        #expect(sent["expenseId"] as? String == "e1")
+    }
+
+    @Test("presignMediaView posts operation=view with the key")
+    func testPresignMediaView() async throws {
+        let transport = FakeTransport(
+            statusCode: 200,
+            body: jsonData(["url": "https://r2/get?sig", "key": "avatars/abc"])
+        )
+        let view = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .presignMediaView(key: "avatars/abc", token: "sess")
+
+        #expect(view.url.absoluteString == "https://r2/get?sig")
+        let sent = decodeBody(await transport.lastRequest)
+        #expect(sent["operation"] as? String == "view")
+        #expect(sent["key"] as? String == "avatars/abc")
+    }
+
+    @Test("uploadImage PUTs the bytes + ticket headers to the presigned URL with no ClanTab auth")
+    func testUploadImage() async throws {
+        let transport = FakeTransport(statusCode: 200, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+        let ticket = MediaUploadTicket(
+            url: URL(string: "https://acc.r2.cloudflarestorage.com/clantab-media/avatars/abc?sig")!,
+            key: "avatars/abc",
+            headers: ["Content-Type": "image/jpeg", "Content-Length": "3"]
+        )
+
+        try await client.uploadImage(Data([1, 2, 3]), using: ticket)
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "PUT")
+        #expect(request?.url?.host == "acc.r2.cloudflarestorage.com")
+        #expect(request?.value(forHTTPHeaderField: "Content-Type") == "image/jpeg")
+        #expect(request?.httpBody == Data([1, 2, 3]))
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == nil)
+    }
+
+    @Test("uploadImage throws on a non-2xx (R2 signature/size mismatch is a 403)")
+    func testUploadImageRejected() async {
+        let transport = FakeTransport(statusCode: 403, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+        let ticket = MediaUploadTicket(url: URL(string: "https://r2/x")!, key: "k", headers: [:])
+        await #expect(throws: ClanTabClientError.self) {
+            try await client.uploadImage(Data([9]), using: ticket)
+        }
+    }
+
+    @Test("setAvatar / clearAvatar hit api/auth/avatar with a bearer and tolerate a 204")
+    func testSetAndClearAvatar() async throws {
+        let transport = FakeTransport(statusCode: 204, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        try await client.setAvatar(token: "sess")
+        var request = await transport.lastRequest
+        #expect(request?.httpMethod == "PUT")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/auth/avatar")
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
+
+        try await client.clearAvatar(token: "sess")
+        request = await transport.lastRequest
+        #expect(request?.httpMethod == "DELETE")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/auth/avatar")
+    }
 }

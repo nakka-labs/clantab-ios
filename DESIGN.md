@@ -218,7 +218,8 @@ CREATE TABLE members (
   display_name TEXT NOT NULL,
   created_at   INTEGER NOT NULL,
   identity_sub TEXT,          -- nullable; the "provider:sub" this member is claimed by (§13), added in v5. NULL = placeholder
-  upi_vpa      TEXT           -- nullable; user-supplied UPI ID, added in v7 — never verified or processed by ClanTab
+  upi_vpa      TEXT,          -- nullable; user-supplied UPI ID, added in v7 — never verified or processed by ClanTab
+  avatar_key   TEXT           -- nullable; R2 key of the linked identity's profile photo (CHECKLIST.md), added in v9. Denormalised from the identity; seeded at claim, kept current by the /api/auth/avatar fan-out
 );
 
 CREATE TABLE expenses (
@@ -422,10 +423,11 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`6`** — `expenses.deleted_at`/`deleted_by` + `settlements.deleted_at`/`deleted_by` added (all nullable). Plain `ADD COLUMN`s, in place. `DELETE` now soft-deletes rather than removing the row; a trashed expense/settlement is excluded from balances and the activity feed but stays restorable (`POST .../restore`).
 - **`7`** — `members.upi_vpa` added (nullable, user-supplied). Plain `ADD COLUMN`, in place. Powers the optional "Pay via UPI" deep link on Settle Up — ClanTab never verifies or processes it, just builds a `upi://pay?...` URI the OS opens.
 - **`8`** — `expenses.split_type`'s `CHECK` widened to allow `'itemized'`, and `expenses.items` (nullable JSON) added. Like v2, SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table — now with every v7 column plus `items`, so the copy names columns explicitly. Powers itemized expense entry (`FEATURE_BACKLOG.md`); `items` is the line-item breakdown, `NULL` for every non-itemized expense.
+- **`9`** — `members.avatar_key` added (nullable). Plain `ADD COLUMN`, in place. The linked identity's profile-photo R2 key (`CHECKLIST.md` "Profile photos"), denormalised so `getState` can hand it to every member without exposing identity subjects; `NULL` for a guest or a photoless identity.
 
 `group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8), an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji), an `archived_at` row (2026-09-09, §2 — the archive flag), and a `default_split` row (2026-09-09, §2 — the saved default split JSON) — all new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has none of them until it sets one.
 
-The **`UserDO`** (one per signed-in identity, `idFromName("<provider>:" + sub)`, added with the accounts phase) carries its own `USER_SCHEMA_VERSION` (currently `1`): a `user_meta` key/value table and a `memberships` table (`group_id` PK, `member_id`, `display_name`, `added_at`). It's a self-healing index the Worker updates *after* the authoritative `GroupDO` write — never the source of truth for the membership↔identity link. No migrations yet; a `UserDO` is created fresh on first sign-in.
+The **`UserDO`** (one per signed-in identity, `idFromName("<provider>:" + sub)`, added with the accounts phase) carries its own `USER_SCHEMA_VERSION` (currently `1`): a `user_meta` key/value table and a `memberships` table (`group_id` PK, `member_id`, `display_name`, `added_at`). `user_meta` separately gained an `avatar_uploaded_at` key (2026-09-10, `CHECKLIST.md` "Profile photos") — presence is the "has a photo" bit the claim path reads; a new key, not a version bump. It's a self-healing index the Worker updates *after* the authoritative `GroupDO` write — never the source of truth for the membership↔identity link. No migrations yet; a `UserDO` is created fresh on first sign-in.
 
 ---
 
@@ -503,7 +505,7 @@ model didn't change, only which paths the app lets a signed-out user reach.
 | `GET /api/groups/:groupId`, `POST .../expenses`, `POST .../settlements`, `POST .../members`, `GET /api/groups/resolve/:joinCode` | **`groupId` possession** (unchanged) |
 | `POST /api/auth/apple` | an Apple identity token |
 | `POST /api/auth/google` | a Google identity token |
-| `POST /api/auth/refresh`, `GET /api/auth/groups`, `GET /api/auth/groups/balances`, `GET /api/auth/people`, `DELETE /api/auth/account` | **session token** (`Authorization: Bearer`) |
+| `POST /api/auth/refresh`, `GET /api/auth/groups`, `GET /api/auth/groups/balances`, `GET /api/auth/people`, `DELETE /api/auth/account`, `PUT`/`DELETE /api/auth/avatar`, `POST /api/media/presign` | **session token** (`Authorization: Bearer`) |
 | `GET /api/groups/:groupId/claimable`, `POST /api/groups/:groupId/members/:memberId/claim` | **session token** + `groupId` possession |
 
 ### Routes
@@ -549,15 +551,38 @@ DELETE /api/auth/account    (Bearer)  → 204
        SIWA_* configured only — no equivalent for Google), then unclaims
        every membership and wipes the UserDO.
        UserDO.listGroups() → GroupDO.unclaim(memberId, sub) for each → UserDO.deleteAll().
+       Also deletes the R2 profile-photo object, if any.
        Member rows, names, and all expenses/settlements stay; the member reverts to a
        placeholder.
+
+PUT    /api/auth/avatar     (Bearer)  → 204
+DELETE /api/auth/avatar     (Bearer)  → 204
+       Profile photos (CHECKLIST.md). The client first uploads the image to its
+       own avatars/<sha256(sub)> key via POST /api/media/presign, then PUTs here
+       to commit (400 if the object isn't in the bucket). DELETE removes the R2
+       object. Either way the new state is fanned out to members.avatar_key in
+       every group the identity has claimed (UserDO.setAvatarUploaded +
+       GroupDO.setMemberAvatar per group), so other members see it with no
+       identity-subject leak. A claim also seeds avatar_key from the identity's
+       current photo.
+
+POST   /api/media/presign   (Bearer)  → 200 { url, key, method, headers } | { url, key }
+       Short-lived (5-min) presigned S3 URL for one image on R2 — the Worker
+       never proxies the bytes. { operation: "upload", purpose:
+       "avatar"|"groupCover"|"receipt", groupId?, expenseId?, contentType,
+       contentLength } → a PUT URL with Content-Type/Content-Length signed in
+       (R2 rejects a mismatch, so the 5 MB / JPEG-PNG-WebP cap is enforced, not
+       advisory); the object key is derived server-side, never from the client.
+       { operation: "view", key } → a GET URL. Group-scoped ops require claimed
+       membership of that group, not just the capability link.
 
 GET    /api/groups/:groupId/claimable                 (Bearer)
        → 200 { members: [{ id, displayName }] }         this group's placeholders only
 POST   /api/groups/:groupId/members/:memberId/claim   (Bearer)
        → 200 { member }
-       GroupDO.claim(memberId, sub) sets members.identity_sub, then
-       UserDO.addMembership(...). 404 UNKNOWN_MEMBER, 409 ALREADY_CLAIMED /
+       GroupDO.claim(memberId, sub, avatarKey?) sets members.identity_sub (and
+       seeds avatar_key from the identity's photo), then UserDO.addMembership(...).
+       404 UNKNOWN_MEMBER, 409 ALREADY_CLAIMED /
        IDENTITY_ALREADY_IN_GROUP. iOS calls this after every sign-in-gated
        "join" outcome now — both picking
        an existing placeholder and adding yourself fresh (a plain

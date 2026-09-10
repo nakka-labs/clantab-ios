@@ -137,6 +137,8 @@ const ROUTES: Route[] = [
   route("DELETE", "/api/auth/devices/:token", handleUnregisterDevice),
   route("GET", "/api/auth/people", handleAuthPeople),
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
+  route("PUT", "/api/auth/avatar", handleSetAvatar),
+  route("DELETE", "/api/auth/avatar", handleClearAvatar),
   route("POST", "/api/media/presign", handleMediaPresign),
   route("GET", "/api/admin/reports", handleAdminReports),
   route("GET", "/g/:groupId/balances", handleBalancesPage),
@@ -977,9 +979,14 @@ async function handleAuthDeleteAccount(request: Request, env: Env): Promise<Resp
   }
 
   const { groups } = await user.listGroups();
-  // Release every claimed membership back to a placeholder, then wipe the index.
+  // Release every claimed membership back to a placeholder (also clears that
+  // member's `avatar_key`), then wipe the index.
   for (const g of groups) {
     await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).unclaim(g.memberId, sub);
+  }
+  // Remove the profile photo too, if any — nothing else references this key.
+  if (await user.hasAvatar()) {
+    await env.MEDIA.delete(await avatarKey(sub));
   }
   await user.deleteAll();
   return new Response(null, { status: 204 });
@@ -995,18 +1002,62 @@ async function handleClaim(request: Request, env: Env, params: Params): Promise<
   const sub = await requireSession(request, env);
   const groupId = params.groupId ?? "";
   const group = await requireGroup(request, env, groupId);
+  const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
 
-  const result = await group.claim(params.memberId ?? "", sub);
+  // Seed the new member's `avatar_key` from this identity's photo, if any
+  // (`CHECKLIST.md` "Profile photos") — one write, no follow-up fan-out to this
+  // group needed.
+  const avatarKeyForSub = (await user.hasAvatar()) ? await avatarKey(sub) : null;
+  const result = await group.claim(params.memberId ?? "", sub, avatarKeyForSub);
   if (!result.ok) {
     return json(result.error.code === "UNKNOWN_MEMBER" ? 404 : 409, { error: result.error });
   }
   // `GroupDO` is authoritative; the `UserDO` index is a self-healing cache we
   // update after the fact (a miss just briefly hides one group from
   // `GET /api/auth/groups`). ACCOUNTS_DESIGN.md §2.
-  await env.USER_DO
-    .get(env.USER_DO.idFromName(sub))
-    .addMembership(groupId, result.value.member.id, result.value.member.displayName);
+  await user.addMembership(groupId, result.value.member.id, result.value.member.displayName);
   return json(200, result.value);
+}
+
+/**
+ * Mark this identity as having (or no longer having) a profile photo
+ * (`CHECKLIST.md` "Profile photos"). The client uploads the image to its
+ * `avatars/<hash>` key via `POST /api/media/presign` first, then `PUT`s here to
+ * commit; `DELETE` removes both the flag and the R2 object. Either way the new
+ * state is fanned out to `members.avatar_key` in every group this identity has
+ * claimed, so other members see the change without any identity-subject leak.
+ */
+async function handleSetAvatar(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const key = await avatarKey(sub);
+
+  // Trust-but-verify: the object must actually be in the bucket. Guards against
+  // a client marking a photo it never uploaded, which would fan a 404ing key
+  // across every group.
+  if ((await env.MEDIA.head(key)) === null) {
+    throw new BadRequestError("No uploaded image found. Upload it via /api/media/presign first.");
+  }
+  await fanOutAvatar(env, sub, key);
+  return new Response(null, { status: 204 });
+}
+
+async function handleClearAvatar(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  await fanOutAvatar(env, sub, null);
+  await env.MEDIA.delete(await avatarKey(sub));
+  return new Response(null, { status: 204 });
+}
+
+/** Set (`key`) or clear (`null`) this identity's `avatar_uploaded_at` flag and
+ * push the same to `members.avatar_key` in each of its groups. Group fan-out is
+ * concurrent — independent `GroupDO`s, same shape as `handleAuthPeople`. */
+async function fanOutAvatar(env: Env, sub: string, key: string | null): Promise<void> {
+  const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
+  await user.setAvatarUploaded(key !== null);
+  const { groups } = await user.listGroups();
+  await Promise.all(
+    groups.map((g) => env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).setMemberAvatar(sub, key)),
+  );
 }
 
 /**

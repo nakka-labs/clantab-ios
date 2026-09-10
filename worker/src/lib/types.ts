@@ -11,6 +11,12 @@ export interface Member {
    * payer's UPI app; ClanTab itself never sees or moves money. Absent for a
    * member who hasn't set one. */
   upiVpa?: string;
+  /** R2 object key for this member's profile photo (`CHECKLIST.md` "Profile
+   * photos"), denormalised onto the member row from the linked identity —
+   * seeded at claim, kept current by the `PUT`/`DELETE /api/auth/avatar`
+   * fan-out. The client resolves it to a URL via `POST /api/media/presign`.
+   * Absent for a guest, or a claimed member whose identity has no photo. */
+  avatarKey?: string;
 }
 
 // `percentage` and `itemized` are resolved labels, not a stored basis — the iOS

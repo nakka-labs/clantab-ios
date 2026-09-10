@@ -9,10 +9,16 @@ public struct Member: Identifiable, Codable, Sendable, Hashable {
     /// processed by ClanTab (`FEATURE_BACKLOG.md` "UPI deep link on Settle
     /// Up") — `nil` for a member who hasn't set one.
     public let upiVpa: String?
+    /// R2 object key for this member's profile photo (`CHECKLIST.md` "Profile
+    /// photos"), set by the server from the linked identity — `nil` for a guest
+    /// or a claimed member whose identity has no photo. Resolve it to a URL with
+    /// `ClanTabClient.presignMediaView`; fall back to `MemberColor` initials.
+    public let avatarKey: String?
 
-    public init(id: String, displayName: String, upiVpa: String? = nil) {
+    public init(id: String, displayName: String, upiVpa: String? = nil, avatarKey: String? = nil) {
         self.id = id
         self.displayName = displayName
         self.upiVpa = upiVpa
+        self.avatarKey = avatarKey
     }
 }

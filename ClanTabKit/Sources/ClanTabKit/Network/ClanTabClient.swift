@@ -248,6 +248,71 @@ public actor ClanTabClient {
         _ = try await performNoContent(request)
     }
 
+    // MARK: - Image storage (CHECKLIST.md "Image storage backend (R2)" / "Profile photos")
+
+    /// Ask the server for a presigned URL to upload one image to R2. Follow with
+    /// `uploadImage(_:using:)` (or a plain `PUT` to `ticket.url` sending
+    /// `ticket.headers` verbatim + the bytes as the body). The object key is
+    /// derived server-side from `purpose` — the client never picks it.
+    public func presignMediaUpload(
+        _ purpose: MediaPurpose,
+        contentType: String,
+        contentLength: Int,
+        groupId: String? = nil,
+        expenseId: String? = nil,
+        token: String
+    ) async throws -> MediaUploadTicket {
+        try await post(
+            "api/media/presign",
+            body: MediaPresignRequest.upload(
+                purpose, contentType: contentType, contentLength: contentLength,
+                groupId: groupId, expenseId: expenseId
+            ),
+            bearer: token
+        )
+    }
+
+    /// A presigned `GET` URL for an existing object — e.g. a `Member.avatarKey`.
+    /// Valid ~5 minutes; fetch it, don't store it.
+    public func presignMediaView(key: String, token: String) async throws -> MediaViewURL {
+        try await post("api/media/presign", body: MediaPresignRequest.view(key: key), bearer: token)
+    }
+
+    /// PUT the image bytes straight to R2 using a ticket from
+    /// `presignMediaUpload`. No ClanTab auth — the presigned URL is the
+    /// credential. Throws `ClanTabClientError.invalidResponse` on a non-2xx
+    /// (a signature/size/type mismatch comes back 403).
+    public func uploadImage(_ data: Data, using ticket: MediaUploadTicket) async throws {
+        var request = URLRequest(url: ticket.url)
+        request.httpMethod = "PUT"
+        for (name, value) in ticket.headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+        request.httpBody = data
+        let (_, statusCode) = try await transport.send(request)
+        guard (200..<300).contains(statusCode) else { throw ClanTabClientError.invalidResponse }
+    }
+
+    /// Commit the profile photo just uploaded to this identity's avatar key
+    /// (`CHECKLIST.md` "Profile photos") — the server verifies the object is in
+    /// the bucket, sets the "has photo" flag, and fans the key out to every
+    /// group the identity has claimed. Call after `uploadImage` succeeds.
+    public func setAvatar(token: String) async throws {
+        var request = URLRequest(url: url(for: "api/auth/avatar"))
+        request.httpMethod = "PUT"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await performNoContent(request)
+    }
+
+    /// Remove the profile photo — clears `avatarKey` across every claimed group
+    /// and deletes the R2 object.
+    public func clearAvatar(token: String) async throws {
+        var request = URLRequest(url: url(for: "api/auth/avatar"))
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await performNoContent(request)
+    }
+
     /// This group's placeholder members — the "this is me" picker (§6). Needs
     /// the access token too, same as any other group route — a not-yet-claimed
     /// caller has no claimed-member fallback yet (`ACCESS_TOKEN_PLAN.md` Part 1).
