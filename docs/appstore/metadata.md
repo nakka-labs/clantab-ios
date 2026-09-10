@@ -12,9 +12,17 @@ App Privacy data-collection labels were filled in the UI (age rating
 verified via API; the App Privacy API surface is non-functional so trust
 the owner's UI entry against the table below).
 
-Everything for a version 1.0 submission is in place. Remaining is the
-`Owner` decision to submit (`CHECKLIST.md` "Submit for App Store review"),
-gated on the monetization stance and the TestFlight pass.
+Everything for a version 1.0 submission is in place. Monetization
+stance decided 2026-09-10: **free, no in-app purchases** (see
+`CHECKLIST.md` "Decide the monetization stance" and the repo's
+`production_priority.md` project memory for the reasoning — a
+network-effect group app can't carry a paywall without killing its own
+adoption, and realistic revenue at this app's scale doesn't offset that
+cost). Remaining is: Owner sets Price = Free / no IAP in App Store
+Connect's Pricing and Availability tab (not yet done via the ASC API —
+ASC's price-tier endpoints weren't part of the 2026-09-09 metadata
+push), then the `Owner` decision to submit (`CHECKLIST.md` "Submit for
+App Store review"), gated on the TestFlight pass.
 
 ---
 

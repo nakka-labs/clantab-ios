@@ -213,9 +213,20 @@
       sign-in section, the promo text, and a reasoned re-confirmation that
       4+ still holds given the UGC is confined to private invite-only
       groups with report+remove moderation.
-- [ ] **Decide the monetization stance.** `Owner` — no CLI budget
-      1. Owner: pick free / freemium / one-time (cost model already done,
-         ~$5-55/mo across 100-1M users).
+- [x] **Decide the monetization stance.** Done 2026-09-10, owner-decided.
+      Free, no paywall, full feature set open to anyone who installs —
+      rejected a mandatory one-time purchase: the app only works once a
+      whole group installs it, so gating install behind payment fights
+      the adoption mechanic directly (every competitor in the
+      competitive scan — Splitwise, Tricount, Settle Up, Splid — is
+      free-to-join for the same reason), and realistic revenue at this
+      app's scale rounds to zero against the infra cost it'd supposedly
+      offset (infra is already ~$5-55/mo regardless, per the cost model
+      above). Parked, not decided against: an optional one-time
+      "support the dev" tip IAP, non-blocking, same shape as the
+      GitHub Sponsors call made for the other portfolio apps — revisit
+      as its own later item if wanted for the StoreKit/IAP portfolio
+      value, never as a gate.
 - [x] **Add the `CLOUDFLARE_API_TOKEN` GitHub secret.** Done 2026-09-08.
       Owner generated a Cloudflare API token ("Edit Cloudflare Workers"
       template, scoped to the one account
