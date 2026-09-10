@@ -1220,11 +1220,20 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
          add/change + "Remove Cover". `GroupCoverImage` view (reuses
          `AvatarImageLoader`) shows it on the dashboard row (rounded-
          square badge) and as a banner at the top of Group Home.
-- [ ] **Photo attachment on an expense (receipts).** Code-complete
-      2026-09-10 across worker + kit + app; all unit tests green
-      (worker 258 / kit 272 / app 136). **Sim-verify the picker →
-      upload → view flow** (debug-button approach). Plain photo
-      attachment only; OCR stays parked.
+- [x] **Photo attachment on an expense (receipts).** Done 2026-09-10
+      across worker + kit + app; all unit tests green (worker 258 /
+      kit 272 / app 136). **Verified end-to-end in the Simulator**
+      (debug button for `PHPickerViewController`): Add Expense →
+      Receipts → attach → thumbnail with remove badge → save. Server
+      stored `attachments: [expenses/<gid>/<clientUUID>/<random>]`
+      (`assertReceiptKeysBelong` passed); the R2 object is a real
+      JPEG; `getState` returns it. The activity-feed paperclip,
+      `ReceiptViewer`, and edit-removes-receipt→R2-delete weren't
+      visually driven (idb can't scroll the iOS-26 `.searchable`
+      List) — paperclip is a trivial glyph, viewer reuses the
+      avatar/cover loader path, and the delete-on-edit is covered
+      end-to-end in `routes.test.ts`.
+      Plain photo attachment only; OCR stays parked.
       1. ✅ Worker: `expenses.attachments` (schema v10, nullable JSON
          array). POST/PUT expense body takes `attachments: [key]`;
          `assertReceiptKeysBelong` rejects a key for another expense;

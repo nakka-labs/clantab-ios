@@ -13,11 +13,14 @@ enum ReceiptImage {
 
     /// `nil` if the image can't be encoded.
     static func jpegData(from image: UIImage) -> Data? {
-        let longest = max(image.size.width, image.size.height)
+        // Work in pixels — a photo loaded from `Data` has scale 1, but an image
+        // rendered by `UIGraphicsImageRenderer` (tests, screenshots) does not.
+        let pixels = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        let longest = max(pixels.width, pixels.height)
         let scale = longest > maxEdge ? maxEdge / longest : 1
-        let target = CGSize(width: (image.size.width * scale).rounded(), height: (image.size.height * scale).rounded())
+        let target = CGSize(width: (pixels.width * scale).rounded(), height: (pixels.height * scale).rounded())
 
-        if scale == 1 {
+        if scale == 1, image.scale == 1 {
             return image.jpegData(compressionQuality: quality)
         }
         let format = UIGraphicsImageRendererFormat.default()
