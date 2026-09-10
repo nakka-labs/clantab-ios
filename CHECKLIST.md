@@ -427,11 +427,16 @@ writing down, "Non-goals" for the rest.
       — it's the only real mechanism for surfacing a round like this
       once actual users exist. Content is a static list per release,
       same shape as this file's own "Done (condensed)" entries.
-- [ ] **Empty-state calls-to-action.** `~8-10k tokens`. The empty-state
-      illustrations already shipped (Design & UX polish, 2026-09-05/07)
-      — this wires real copy + a button per screen ("No expenses yet —
-      add your first one", "No groups yet — create or join one")
-      instead of decoration alone. No new infra.
+- [x] **Empty-state calls-to-action.** Done 2026-09-10. Group Home's
+      "No Expenses Yet" and Recurring Reminders' "Nothing on Repeat Yet"
+      `ContentUnavailableView`s switched to the closure form with an
+      `actions:` button ("Add an Expense" → opens the Add Expense sheet;
+      "New Reminder" → opens the new-reminder sheet). `StartView`'s "No
+      groups yet" already pairs its copy with the always-docked
+      Create / Join buttons directly below it — left as-is. The
+      remaining zero-states (Insights, Recently Deleted, cross-group
+      "All Square", filtered no-match) have no meaningful action from
+      that state and keep plain copy. `make check` green.
 - [ ] **Returning-user balance summary.** `~15-20k tokens`. On launch
       after a gap (reuse the `firstLaunchAt`/nudge-timing pattern
       already in `AuthViewModel`), show a one-time "Welcome back —

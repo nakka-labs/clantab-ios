@@ -29,11 +29,16 @@ struct RecurringRemindersView: View {
     var body: some View {
         Form {
             if templates.isEmpty {
-                ContentUnavailableView(
-                    "Nothing on Repeat Yet",
-                    image: "EmptyStateGlyph",
-                    description: Text("Set one up for rent, the wifi bill, or anything that comes around like clockwork — ClanTab nudges you, you add the expense.")
-                )
+                ContentUnavailableView {
+                    Label { Text("Nothing on Repeat Yet") } icon: {
+                        Image("EmptyStateGlyph").renderingMode(.template)
+                    }
+                } description: {
+                    Text("Set one up for rent, the wifi bill, or anything that comes around like clockwork — ClanTab nudges you, you add the expense.")
+                } actions: {
+                    Button { isPresentingNew = true } label: { Text("New Reminder") }
+                        .buttonStyle(.borderedProminent)
+                }
             } else {
                 Section {
                     ForEach(templates) { template in

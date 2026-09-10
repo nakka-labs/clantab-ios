@@ -231,11 +231,20 @@ struct GroupHomeView: View {
                                 description: Text("No expense here fits that search. Try different words, or clear the filters.")
                             )
                         } else {
-                            ContentUnavailableView(
-                                "No Expenses Yet",
-                                image: "EmptyStateGlyph",
-                                description: Text("Add the first one and ClanTab keeps a running tally of who owes whom.")
-                            )
+                            ContentUnavailableView {
+                                Label { Text("No Expenses Yet") } icon: {
+                                    Image("EmptyStateGlyph").renderingMode(.template)
+                                }
+                            } description: {
+                                Text("Add the first one and ClanTab keeps a running tally of who owes whom.")
+                            } actions: {
+                                Button {
+                                    isPresentingAddExpense = true
+                                } label: {
+                                    Text("Add an Expense")
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
                         }
                     } else {
                         ForEach(items) { item in
