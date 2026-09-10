@@ -120,17 +120,44 @@ Given there's no self-serve path anymore, a Tricount importer would only
 help people with an old export file already sitting around — see the
 checklist item for the actual prioritization call.
 
-### Splid — no verified sample
-The parser added on 2026-09-08 was built and verified against `Future.csv`,
-which the person who exported it later confirmed was a **Settle Up** export,
-not Splid — so despite the header schema being shared, we have **zero
-verified coverage of an actual Splid export**. Splid's own iOS/macOS app
-does have a CSV export, but nobody's posted a real sample publicly and we
-haven't triggered one ourselves, so its exact column shape, decimal-locale
-convention, settlement-row encoding, and any per-row rounding quirk are all
-unverified. Same rule as Tricount: get a real 2-3-row Splid export, redact
-names, add it as a fixture, and check the parser against it before claiming
-Splid as supported — the current parser may or may not already handle it.
+### Splid — there is no CSV export (investigated 2026-09-10)
+Earlier notes here assumed "Splid's iOS/macOS app does have a CSV export…
+it shares the same `Who paid`/`For whom`/`Split amounts` header shape." That
+assumption came from `Future.csv` being taken for a Splid export before the
+person who made it confirmed it was **Settle Up**. On a proper look it does
+not hold up:
+
+- **Splid exports PDF or Excel, never CSV.** Its own App Store listing:
+  "Download summaries as PDF or Excel\* files" / "\*Excel export available via
+  in-app purchase" (Splid Plus, ~$3.99). PDF is free; the spreadsheet is a
+  paid in-app purchase. No CSV path exists at any tier, on any platform
+  ([apps.apple.com/app/id991473495](https://apps.apple.com/us/app/splid-split-group-bills/id991473495),
+  checked 2026-09-10).
+- **The `.xlsx` layout is undocumented and behind that paywall.** Nobody has
+  posted one; no third-party tool parses one; getting a sample means someone
+  buying Splid Plus and exporting a throwaway group. And `.xlsx` is a
+  zip-of-XML — `CSVImport.decode` can't touch it (it'd Latin-1-garble the zip
+  bytes and fall through to `unrecognizedFormat`). A real Splid importer via
+  this route needs an XLSX reader in the kit (unzip + `sharedStrings.xml` +
+  sheet XML — there's no lightweight pure-Swift one in the project today),
+  *then* a parser built against the unknown sheet layout.
+- **There is a reverse-engineered JSON API.** `splid-js`
+  ([github.com/LinusBolls/splid-js](https://github.com/LinusBolls/splid-js),
+  active Sept 2026) wraps Splid's sync backend: invite-code group access, full
+  model (payers, "profiteers" with share weights, amount + currency +
+  exchange rate, ISO date, custom category, separate payment/transfer
+  objects). Explicitly "not officially associated with Splid," no documented
+  ToS. This is the same shape as the Tricount unofficial scraper, and the
+  same rule applies: **don't build against a reverse-engineered backend** —
+  it can break without notice and the legal footing is unclear.
+
+**Conclusion:** the backlog item as written ("check `parseSettleUp` against a
+real Splid CSV") is not actionable — there is no such file. If Splid import is
+ever genuinely demanded, it's a from-scratch effort down one of two roads
+(a paid-export XLSX reader + parser, or an invite-code → API import), each
+much larger than the "~15k, parser may already handle it" the item assumed,
+and each gated on inputs we don't have. Not worth starting without a real
+demand signal — same call as Tricount.
 
 ### Splitwise sign convention — re-checked, confirmed correct, not a bug
 While researching the above, a secondary source (a competing app's
@@ -146,10 +173,10 @@ as a reminder that one plausible-sounding secondary source isn't enough to
 act on for a money-sign question, even when it's specifically about
 *correcting* something.
 
-Same rule as before for both Tricount and Splid: get a real 2-3-row
-export first, add it as a redacted fixture, build the parser against real
-data. See `CHECKLIST.md`'s Feature backlog for the actual next steps and
-effort estimates.
+For Tricount, the rule still holds: get a real export first (via bunq
+support), add it as a redacted fixture, build the parser against real data.
+For Splid there is no file to get — see above. Either way, see `CHECKLIST.md`'s
+Feature backlog for the prioritization call.
 
 ## Fixtures
 

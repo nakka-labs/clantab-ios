@@ -903,26 +903,29 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       the dominant currency (`showsBubblePage`). Kit-only logic, no worker /
       DESIGN.md contract change. Verified in the Simulator on a seeded
       5-member group (screenshot).
-- [ ] **Splid import — get a real sample.** `~15k tokens` investigation +
-      build (CLI) — surfaced 2026-09-08 when `Future.csv`, the file the CSV
-      importer was built and verified against, turned out to be a Settle Up
-      export, not Splid (the exporter confirmed it). Settle Up support is
-      done; actual Splid support is now the gap. Splid's iOS/macOS app does
-      have a CSV export, and it shares the same `Who paid`/`For whom`/`Split
-      amounts` header shape — but we have **no verified Splid sample**:
-      nobody's posted one publicly and we haven't triggered one ourselves,
-      so the exact column shape, decimal-locale convention, settlement-row
-      encoding, and any per-row rounding quirk are all unconfirmed for
-      Splid specifically.
-      1. Get someone to trigger Splid's own CSV export on a throwaway 2-3-row
-         group, redact names, hand over the file.
-      2. Check the existing `parseSettleUp` against that real file — it may
-         already handle Splid given the shared header, or it may not.
-         Verify the sign/share convention, decimal locale, settlement-row
-         shape, and any per-row rounding quirk (Settle Up's was a real
-         6%-of-rows bug a guess would've missed) before claiming Splid as
-         supported; branch the parser or split detection only if the real
-         file forces it.
+- [x] **Splid import — investigated 2026-09-10, not actionable as scoped.**
+      The item assumed Splid has a CSV export sharing Settle Up's header
+      shape, so the work was "get a sample, check `parseSettleUp` against
+      it." That premise was wrong — it came from `Future.csv` being taken
+      for a Splid file before it was confirmed to be Settle Up. What's
+      actually true (sources in `docs/csv-import-formats.md`):
+      - **Splid has no CSV export.** Its App Store listing says "Download
+        summaries as PDF or Excel\* files / \*Excel export available via
+        in-app purchase" (Splid Plus, ~$3.99). PDF free, spreadsheet paid,
+        CSV never — on any platform.
+      - The `.xlsx` layout is undocumented and behind the paywall; `.xlsx`
+        is zip-of-XML that `CSVImport.decode` can't read at all. A real
+        importer here needs an XLSX reader in the kit first (none exists),
+        then a parser against an unknown sheet layout.
+      - There's a reverse-engineered JSON API (`splid-js`, active) with
+        invite-code access and a full model — but it's unofficial with no
+        documented ToS, the same "don't build against a scraped backend"
+        case as the Tricount tool.
+      No `parseSettleUp` change, no fixture (nothing to fixture). If Splid
+      import is ever genuinely demanded it's a from-scratch effort down one
+      of those two roads — each far larger than the ~15k this item assumed,
+      each gated on inputs we don't have. Same call as Tricount: not worth
+      starting without a demand signal.
 - [ ] **Tricount import — get a sample first, likely low priority.**
       `~10k tokens` investigation, build TBD after (CLI) — researched
       2026-09-08 (`docs/csv-import-formats.md`). Tricount's self-serve
