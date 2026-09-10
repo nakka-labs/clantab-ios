@@ -158,22 +158,13 @@ struct SettleUpView: View {
     /// URI. `nil` unless the payee has set a UPI VPA and the settlement is
     /// actually in INR (UPI's only currency).
     private func upiPayURL(for settlement: SimplifiedSettlement) -> URL? {
-        guard settlement.currency == "INR",
-              let payee = members.first(where: { $0.id == settlement.toId }),
-              let vpa = payee.upiVpa, !vpa.isEmpty
-        else { return nil }
-        var components = URLComponents()
-        components.scheme = "upi"
-        components.host = "pay"
-        let amount = Decimal(settlement.amountMinor) / 100
-        components.queryItems = [
-            URLQueryItem(name: "pa", value: vpa),
-            URLQueryItem(name: "pn", value: payee.displayName),
-            URLQueryItem(name: "am", value: NSDecimalNumber(decimal: amount).stringValue),
-            URLQueryItem(name: "cu", value: "INR"),
-            URLQueryItem(name: "tn", value: "ClanTab settle up"),
-        ]
-        return components.url
+        guard let payee = members.first(where: { $0.id == settlement.toId }) else { return nil }
+        return UPIPayLink.url(
+            vpa: payee.upiVpa,
+            payeeName: payee.displayName,
+            amountMinor: settlement.amountMinor,
+            currency: settlement.currency
+        )
     }
 
     private func markPaid(_ settlement: SimplifiedSettlement, rowId: String) async {

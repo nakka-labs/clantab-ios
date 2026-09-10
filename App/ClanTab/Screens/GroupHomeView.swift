@@ -200,10 +200,19 @@ struct GroupHomeView: View {
             if let state = viewModel.state {
                 Section("Members") {
                     ForEach(state.members) { member in
-                        MemberBalanceRow(
-                            member: member,
-                            balances: viewModel.balances(forMember: member.id)
-                        )
+                        NavigationLink {
+                            MemberProfileView(
+                                member: member,
+                                balances: viewModel.balances(forMember: member.id),
+                                simplifiedSettlements: state.simplifiedSettlements,
+                                myMemberId: viewModel.myIdentity?.memberId
+                            )
+                        } label: {
+                            MemberBalanceRow(
+                                member: member,
+                                balances: viewModel.balances(forMember: member.id)
+                            )
+                        }
                     }
                 }
 

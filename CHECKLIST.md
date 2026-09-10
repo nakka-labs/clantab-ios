@@ -367,10 +367,19 @@ writing down, "Non-goals" for the rest.
       screen (Mandatory login work, 2026-09-05) — this exposes it
       inline instead of requiring a trip to group settings, plus a
       search field on the payer/split picker for large groups.
-- [ ] **Member profile screen: settle-up amount + UPI ID.** `~10-15k
-      tokens`. Tapping a member (anywhere) opens a screen with their net
-      balance in this group and `Member.upiVpa` if set — both already
-      stored; this is a new read-only screen, not new data.
+- [x] **Member profile screen: settle-up amount + UPI ID.** Done
+      2026-09-10. `MemberProfileView` (App) — a read-only `List`: avatar +
+      name, "Balance in this group" (per-currency owed/owes, green/red),
+      "Settle up" (the simplified-plan edge between you and them, phrased
+      "You pay X" / "X pays you", with a "Pay via UPI" `Link` when you owe
+      an INR amount and they've set a VPA), and "UPI ID" (the raw VPA,
+      selectable + a copy button) when set. All from existing group state.
+      Reached via a `NavigationLink` wrapping each `MemberBalanceRow` in
+      Group Home's Members section — will be reused from the Friends list
+      (item 1) once that lands. Refactor: the `upi://pay` URL builder
+      moved out of `SettleUpView` into a pure `UPIPayLink` (ClanTabKit,
+      `Logic/`) shared by both screens; `UPIPayLinkTests` (2). `make
+      check` green.
 - [ ] **"Remind" button on an outstanding balance.** `~10-15k tokens`.
       Today `BalanceAgingScheduler` only nudges *you* about what you
       owe; add a button that sends a push to the *other* person you're
