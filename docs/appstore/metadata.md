@@ -18,11 +18,19 @@ stance decided 2026-09-10: **free, no in-app purchases** (see
 `production_priority.md` project memory for the reasoning — a
 network-effect group app can't carry a paywall without killing its own
 adoption, and realistic revenue at this app's scale doesn't offset that
-cost). Remaining is: Owner sets Price = Free / no IAP in App Store
-Connect's Pricing and Availability tab (not yet done via the ASC API —
-ASC's price-tier endpoints weren't part of the 2026-09-09 metadata
-push), then the `Owner` decision to submit (`CHECKLIST.md` "Submit for
-App Store review"), gated on the TestFlight pass.
+cost). **Price set to Free** via the ASC API on 2026-09-10:
+`POST /v1/appPriceSchedules` with `baseTerritory = USA` at the free
+price point — USA base + all 174 automatic territories now `0.0`,
+effective immediately. Verified 0 IAP products and 0 subscription
+groups exist. Remaining is just the `Owner` decision to submit
+(`CHECKLIST.md` "Submit for App Store review"), gated on the TestFlight
+pass.
+
+**ASC API access** (for a future session): key `58887ALLXT` (Team key
+"clantab-upload", App Manager) at `~/.appstoreconnect/private_keys/`;
+issuer ID `6efff402-9490-4d58-ae2a-dcaba05b65e7`; app id `6807057518`.
+Neither is a secret (the `.p8` is); the App Privacy API surface stays
+non-functional so those labels are UI-only.
 
 ---
 

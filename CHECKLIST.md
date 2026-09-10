@@ -280,6 +280,11 @@
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above **and** every item
          under "Design & UX polish" below.
+      Pricing is done: Price = Free across all 175 territories, set via
+      the ASC API 2026-09-10 (`POST /v1/appPriceSchedules`, base
+      territory USA at the free price point); 0 IAP products / 0
+      subscription groups. So the only gates left are the real-device
+      TestFlight pass (step 4 above) + tagging + this submit decision.
 
 ### Group dashboard, switching fix & backend read efficiency — locked 2026-09-09
 

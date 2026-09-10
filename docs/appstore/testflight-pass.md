@@ -54,9 +54,8 @@ edge — send a browser-ish `User-Agent`.)
 
 ## After it passes
 
-Tag the release (`git tag v1.0-7` or similar). Monetization is already
-decided (free, no IAP — `CHECKLIST.md` "Decide the monetization stance");
-the only things between here and submission are Owner setting
-Price = Free in App Store Connect's Pricing and Availability tab, then
-the submit decision itself (`CHECKLIST.md` "Submit for App Store
-review").
+Tag the release (`git tag v1.0-7` or similar). Monetization is decided
+(free, no IAP — `CHECKLIST.md` "Decide the monetization stance") and the
+price is already set to Free across all territories via the ASC API
+(2026-09-10). The only thing left between here and submission is the
+submit decision itself (`CHECKLIST.md` "Submit for App Store review").
