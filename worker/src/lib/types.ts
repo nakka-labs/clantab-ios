@@ -25,11 +25,20 @@ export interface Member {
 // (`DESIGN.md` §6). The server still only ever validates that `splits` sum to
 // `amountMinor`; for `itemized` it additionally checks `items` are well-formed
 // and sum to the amount, and stores them for display / re-edit.
-export type SplitType = "equal" | "exact" | "percentage" | "itemized";
+export type SplitType = "equal" | "exact" | "percentage" | "itemized" | "shares";
 
 export interface ExpenseSplit {
   memberId: string;
   amountMinor: number;
+}
+
+/** One member's weight in a `shares` split (`CHECKLIST.md` "Split by shares") —
+ * mirrors `ClanTabKit.ShareWeight`. Present only on a `shares` expense. A
+ * non-negative whole number; the weights are arbitrary ratios (4 : 2 : 1) and
+ * needn't sum to anything. */
+export interface ShareWeight {
+  memberId: string;
+  weight: number;
 }
 
 /** One line of an itemized expense (`FEATURE_BACKLOG.md` "Itemized expense
@@ -58,6 +67,10 @@ export interface Expense {
    * other `splitType`. `splits` stays the source of truth for balances — this
    * is the breakdown that produced them. */
   items?: LineItem[];
+  /** The whole-number ratios a `shares` expense was built from; absent for
+   * every other `splitType`. `splits` stays the source of truth for balances —
+   * this is the breakdown that produced them, kept for re-edit. */
+  shares?: ShareWeight[];
   /** R2 object keys for receipt photos (`CHECKLIST.md` "Photo attachment on an
    * expense"), resolved to URLs via `POST /api/media/presign`. Absent when the
    * expense has none. */

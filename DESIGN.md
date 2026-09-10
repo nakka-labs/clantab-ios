@@ -120,24 +120,30 @@ Response: 200 {
 ### `POST /api/groups/:groupId/expenses`
 ```
 Request:  { id?: string, payerId, amountMinor, currency?, description, date,
-            splitType: "equal"|"exact"|"percentage"|"itemized",
+            splitType: "equal"|"exact"|"percentage"|"itemized"|"shares",
             splits: [{ memberId, amountMinor }],
             items?: [{ id, name, amountMinor, participantIds: [memberId] }],
+            shares?: [{ memberId, weight }],
             category?: string, categoryIcon?: string,
             attachments?: [string] }
 Response: 201 { expense: {...} }
 Errors:   400 SPLIT_MISMATCH   — splits don't sum to amountMinor, or (itemized)
-                                 the line items don't, or an item has no participants
-          400 UNKNOWN_MEMBER   — payerId, a split memberId, or an item
-                                 participant isn't in this group
-          400 INVALID_AMOUNT   — amountMinor (or an item amount) <= 0, or not an integer
-          400 BAD_REQUEST      — `items` present without splitType "itemized", or vice versa
+                                 the line items don't, or an item has no participants,
+                                 or (shares) every weight is zero
+          400 UNKNOWN_MEMBER   — payerId, a split memberId, an item
+                                 participant, or a shares memberId isn't in this group
+          400 INVALID_AMOUNT   — amountMinor (or an item amount) <= 0, or not an
+                                 integer; or a share weight is negative / non-integer
+          400 BAD_REQUEST      — `items` present without splitType "itemized", or
+                                 `shares` without splitType "shares", or vice versa
 ```
 `id` is optional and client-generated (UUID). If provided and it already exists, the DO treats this as a no-op replay (idempotent retry-safe) rather than a duplicate — covers the case where a client times out and retries a POST that actually succeeded.
 
-`splitType` is a label describing how the client divided the amount; `percentage` and `itemized` reach the server already resolved to exact minor-unit `splits` (the client does the division, exactly as `equal` resolves its own remainder — see §6). The server validates `splits` sum to `amountMinor` regardless of `splitType`.
+`splitType` is a label describing how the client divided the amount; `percentage`, `shares` and `itemized` reach the server already resolved to exact minor-unit `splits` (the client does the division, exactly as `equal` resolves its own remainder — see §6). The server validates `splits` sum to `amountMinor` regardless of `splitType`.
 
 `items` is present **iff** `splitType` is `"itemized"` (`FEATURE_BACKLOG.md` "Itemized expense entry"): the line items the expense was built from — each a positive amount shared equally by a non-empty `participantIds`, the items together summing to `amountMinor` (no separate tax/tip bucket — a shared surcharge is its own line). `splits` stays the balance source of truth; `items` is stored alongside so reopening the expense shows the breakdown and an edit starts from it. The server validates both. Editing an expense to a non-itemized `splitType` drops its stored `items`.
+
+`shares` is present **iff** `splitType` is `"shares"` (`CHECKLIST.md` "Split by shares"): the whole-number ratio weights the expense was divided by (A : 4, B : 2 → A owes 4/6). Each weight is a non-negative integer, for a real group member, with a positive total; the weights are otherwise unconstrained and needn't sum to anything. Same maths as `percentage` — `ClanTabKit.Validation.sharesSplit` is literally `percentageSplit` — so `splits` arrives pre-resolved and the balance math is unchanged. Like `items`, `shares` is stored alongside for display / re-edit and dropped when an expense is edited to another `splitType`.
 
 `category` is a free-form label and `categoryIcon` its SF Symbol name (`ClanTabKit.ExpenseCategory`). Both optional — omitted entirely when unset. Stored verbatim, not validated against a list; the icon is stored per expense so any client renders it without a shared name→icon table.
 
@@ -237,7 +243,7 @@ CREATE TABLE expenses (
   amount_minor  INTEGER NOT NULL,
   description   TEXT NOT NULL,
   expense_date  TEXT NOT NULL,
-  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage','itemized')),  -- 'itemized' added in v8
+  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage','itemized','shares')),  -- 'itemized' added in v8, 'shares' in v11
   created_at    INTEGER NOT NULL,
   category      TEXT,          -- nullable; added in schema v3
   category_icon TEXT,          -- nullable; SF Symbol name
@@ -245,7 +251,8 @@ CREATE TABLE expenses (
   deleted_at    INTEGER,       -- nullable; soft-delete timestamp, added in v6
   deleted_by    TEXT,          -- nullable; memberId that deleted it, added in v6 — client-supplied, trusted like every other id here
   items         TEXT,          -- nullable JSON array of { id, name, amountMinor, participantIds } for an 'itemized' expense, added in v8; NULL otherwise
-  attachments   TEXT           -- nullable JSON array of R2 keys (expenses/<groupId>/<expenseId>/<id>) for receipt photos (CHECKLIST.md), added in v10; NULL when none
+  attachments   TEXT,          -- nullable JSON array of R2 keys (expenses/<groupId>/<expenseId>/<id>) for receipt photos (CHECKLIST.md), added in v10; NULL when none
+  shares        TEXT           -- nullable JSON array of { memberId, weight } for a 'shares' expense (CHECKLIST.md), added in v11; NULL otherwise
 );
 
 CREATE TABLE expense_splits (
@@ -366,11 +373,12 @@ sequenceDiagram
 
 The UI should prevent invalid input, but the DO validates independently — never trust the client, even though there's no auth to abuse here beyond "someone submits garbage."
 
-- Every `splits[].amountMinor` sums to exactly `amountMinor`. No tolerance — if an `equal`, `percentage`, or `itemized` split doesn't divide evenly, the remainder is assigned to one deterministic member (the payer) client-side before the request is even sent, so the server-side check is always an exact match.
-- Every `memberId` referenced (payer, splits, settlement from/to, itemized-item participants) must exist in this group.
-- All amounts are positive integers — the expense `amountMinor` and every line item's.
-- `splitType` is exactly `"equal"`, `"exact"`, `"percentage"`, or `"itemized"`. It is descriptive only — the server never re-derives `splits` from it; `percentage` and `itemized` splits arrive pre-resolved to minor units (`ClanTabKit.Validation.percentageSplit` / `.itemizedSplit`), so the balance math is identical for all four.
+- Every `splits[].amountMinor` sums to exactly `amountMinor`. No tolerance — if an `equal`, `percentage`, `shares`, or `itemized` split doesn't divide evenly, the remainder is assigned to one deterministic member (the payer) client-side before the request is even sent, so the server-side check is always an exact match.
+- Every `memberId` referenced (payer, splits, settlement from/to, itemized-item participants, shares weights) must exist in this group.
+- All amounts are positive integers — the expense `amountMinor` and every line item's. Share weights are non-negative integers with a positive total.
+- `splitType` is exactly `"equal"`, `"exact"`, `"percentage"`, `"itemized"`, or `"shares"`. It is descriptive only — the server never re-derives `splits` from it; `percentage`, `shares` and `itemized` splits arrive pre-resolved to minor units (`ClanTabKit.Validation.percentageSplit` / `.sharesSplit` / `.itemizedSplit`), so the balance math is identical for all.
 - `items` is present **iff** `splitType` is `"itemized"` — each item has ≥1 participant, and the item amounts sum to `amountMinor` (`ClanTabKit.Validation.validateItems`). The items are stored but never feed the balance math; `splits` does.
+- `shares` is present **iff** `splitType` is `"shares"` — ≥1 weight, none negative, a positive total (`ClanTabKit.Validation.validateShares`). Stored for re-edit; never feeds the balance math.
 - Reject unknown fields rather than silently ignoring them (fail loud during development).
 
 ---
@@ -435,6 +443,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`8`** — `expenses.split_type`'s `CHECK` widened to allow `'itemized'`, and `expenses.items` (nullable JSON) added. Like v2, SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table — now with every v7 column plus `items`, so the copy names columns explicitly. Powers itemized expense entry (`FEATURE_BACKLOG.md`); `items` is the line-item breakdown, `NULL` for every non-itemized expense.
 - **`9`** — `members.avatar_key` added (nullable). Plain `ADD COLUMN`, in place. The linked identity's profile-photo R2 key (`CHECKLIST.md` "Profile photos"), denormalised so `getState` can hand it to every member without exposing identity subjects; `NULL` for a guest or a photoless identity.
 - **`10`** — `expenses.attachments` added (nullable JSON array of R2 keys). Plain `ADD COLUMN`, in place. Receipt photos (`CHECKLIST.md` "Photo attachment on an expense"); `NULL` for every existing expense. Each key is `expenses/<groupId>/<expenseId>/<id>`; a `PUT` that drops a key makes the route delete its R2 object (an expense never hard-deletes, so that's the only cleanup point).
+- **`11`** — `expenses.split_type`'s `CHECK` widened to allow `'shares'`, and `expenses.shares` (nullable JSON) added. Like v2/v8, SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table — every v10 column plus `shares`, columns named explicitly in the copy. Powers split-by-shares (`CHECKLIST.md`); `shares` is the `{ memberId, weight }` ratio breakdown, `NULL` for every non-shares expense.
 
 `group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8), an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji), an `archived_at` row (2026-09-09, §2 — the archive flag), a `default_split` row (2026-09-09, §2 — the saved default split JSON), and a `cover_key` row (2026-09-10, §2 — the group cover image's R2 key, `CHECKLIST.md`) — all new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has none of them until it sets one.
 
@@ -465,6 +474,7 @@ The **`UserDO`** (one per signed-in identity, `idFromName("<provider>:" + sub)`,
 - Optimistic UI updates on mutation
 - ~~**percentage/shares splitting**~~ — **shipped** (2026-09-01). `splitType` now includes `"percentage"`; the client resolves percentages to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.percentageSplit`), so it's a UI/label change only — the wire contract and balance math are unchanged. See §2, §6, §10 (schema v2).
 - ~~**itemized expense entry**~~ — **shipped** (2026-09-10). `splitType` now includes `"itemized"`; the client resolves line items to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.itemizedSplit`) exactly as `percentage` does, so the balance math is unchanged. New: `expenses.items` (nullable JSON, schema v8) stores the line-item breakdown alongside for display / re-edit, and the server validates the items sum to the amount and their participants exist. See §2, §6, §10 (schema v8).
+- ~~**split by shares (ratio split)**~~ — **shipped** (2026-09-10). `splitType` now includes `"shares"`; the client resolves whole-number ratio weights to exact minor-unit `splits` before dispatch (`ClanTabKit.Validation.sharesSplit`, which *is* `percentageSplit` — same maths), so the balance math is unchanged. New: `expenses.shares` (nullable JSON, schema v11) stores the `{ memberId, weight }` breakdown for display / re-edit; the server validates ≥1 weight, none negative, a positive total, members exist. See §2, §6, §10 (schema v11).
 - ~~**multi-currency**~~ — **shipped** (2026-09-01). A group holds expenses in any currency; balances and the settle-up plan are computed per currency and never blended (no FX conversion — that stays a hard non-goal). `currency` on expenses/settlements (schema v4), on `Balance`/`SimplifiedSettlement`; the group's `currency` is now just the default for new expenses. See §2, §3, §10.
 - FX conversion, recurring expenses, receipt OCR — still out of scope (see the non-goals list at the top), listed here only so nobody mistakes their absence in this doc for an oversight
 - ~~**Access token / credential decoupling**~~ — **shipped** (2026-09-05). `group_meta.access_token` (§1), `?token=` on every group route, `POST .../regenerate-link` (§2), dual-auth against a claimed member's Bearer session as an always-valid alternate path (§8). Backward-compatible: a group with no token stays open until it first regenerates.

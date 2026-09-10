@@ -20,6 +20,10 @@ func friendlyMessage(for error: Error) -> String {
             return "Every item needs at least one person sharing it."
         case .itemSumMismatch:
             return "The items don't add up to the total amount."
+        case .emptyShares:
+            return "Give at least one person a share."
+        case .invalidShareWeight:
+            return "Shares must be whole numbers, and at least one person needs a share."
         }
     }
     if let clientError = error as? ClanTabClientError {

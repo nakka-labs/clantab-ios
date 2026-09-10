@@ -469,6 +469,80 @@ describe("POST /api/groups/:groupId/expenses", () => {
     expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
   });
 
+  it("records a shares expense and round-trips its weights", async () => {
+    const { status, json } = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a,
+        amountMinor: 1000,
+        description: "Rent",
+        date: "2026-01-02T09:00:00Z",
+        splitType: "shares",
+        splits: [
+          { memberId: a, amountMinor: 700 },
+          { memberId: b, amountMinor: 300 },
+        ],
+        shares: [
+          { memberId: a, weight: 7 },
+          { memberId: b, weight: 3 },
+        ],
+      },
+      token,
+    );
+    expect(status).toBe(201);
+    expect(json.expense).toMatchObject({ splitType: "shares", amountMinor: 1000 });
+    expect((json.expense as Json).shares).toEqual([
+      { memberId: a, weight: 7 },
+      { memberId: b, weight: 3 },
+    ]);
+
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    expect(state.json.balances).toEqual([
+      { memberId: a, currency: "INR", netMinor: 300 },
+      { memberId: b, currency: "INR", netMinor: -300 },
+    ]);
+  });
+
+  it("rejects splitType shares without weights, and weights without shares", async () => {
+    const noShares = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        splitType: "shares", splits: [{ memberId: a, amountMinor: 100 }],
+      },
+      token,
+    );
+    expect(noShares.status).toBe(400);
+    expect((noShares.json.error as Json).code).toBe("BAD_REQUEST");
+
+    const strayShares = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        splitType: "equal", splits: [{ memberId: a, amountMinor: 100 }],
+        shares: [{ memberId: a, weight: 1 }],
+      },
+      token,
+    );
+    expect(strayShares.status).toBe(400);
+    expect((strayShares.json.error as Json).code).toBe("BAD_REQUEST");
+  });
+
+  it("rejects shares weights that are all zero (SPLIT_MISMATCH)", async () => {
+    const { status, json } = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        splitType: "shares",
+        splits: [{ memberId: a, amountMinor: 100 }],
+        shares: [{ memberId: a, weight: 0 }, { memberId: b, weight: 0 }],
+      },
+      token,
+    );
+    expect(status).toBe(400);
+    expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
+  });
+
   it("round-trips a category and its icon", async () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,

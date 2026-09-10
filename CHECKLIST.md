@@ -355,12 +355,28 @@ writing down, "Non-goals" for the rest.
       type; categories already carry the formula-driven pastel colors
       (`CategoryPickerView`) and SF Symbol icons — reuse both instead of
       inventing a new palette.
-- [ ] **Split by shares (ratio split).** `~25-30k tokens`. 5th
-      `SplitType` case alongside `equal/exact/percentage/itemized` —
-      e.g. A:4 B:2 C:1 D:3 → A gets 4/10 of the amount. Touches the kit
-      model, wire types, worker validation (still an exact-sum check,
-      just a different resolution step), `AddExpenseView`, CSV
-      round-trip.
+- [x] **Split by shares (ratio split).** Done 2026-09-10. 5th `SplitType`
+      case, `.shares` — divide by whole-number ratios (A : 4, B : 2 → A
+      owes 4/6). **Kit:** `ShareWeight { memberId, weight }`,
+      `Expense.shares` / `AddExpenseRequest.shares` (`[ShareWeight]?`, same
+      contract as `items`); `Validation.sharesSplit` (literally
+      `percentageSplit` — identical maths, named for call-site clarity) +
+      `Validation.validateShares` (≥1 weight, none negative, positive
+      total, members exist); new `ValidationError.emptyShares` /
+      `.invalidShareWeight`. 8 kit test cases incl. fuzz. **Worker:**
+      schema **v11** — `expenses.split_type` CHECK widened + `expenses.shares`
+      (nullable JSON) added, one `expenses`-table rebuild (same dance as
+      v8); `assertSharesValid`; `parseExpenseBody` enforces shares ⟺
+      splitType shares; migration test + 3 route/DO cases. **App:**
+      `AddExpenseView` "Shares" segment — per-member number field + a
+      `Stepper`, a live "4/10 · ₹400" line per member, and a "Split into N
+      shares" footer; picked "Shares" seeds every member at weight 1; edit
+      rehydrates the stored weights directly (no back-computing).
+      **CSV / JSON export / CloudKit backup:** unchanged — `splitType`
+      isn't in the CSV, and `shares` rides `Expense`'s Codable for JSON /
+      backup, same as `items`. `DESIGN.md` §2/§6/§10 updated. Deploy +
+      Simulator verification pending (this commit is code + `make check`
+      green; the live v10→v11 migration + a shares POST get verified next).
 - [ ] **Add member inline from Add Expense, + search on the member
       picker.** `~15-20k tokens`. The "add member by name" (placeholder,
       claimable later) backend already exists and shipped as its own

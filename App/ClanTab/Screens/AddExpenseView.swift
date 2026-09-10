@@ -32,6 +32,10 @@ struct AddExpenseView: View {
     @State private var includedMemberIds: Set<String>
     @State private var exactAmountText: [String: String] = [:]
     @State private var percentText: [String: String] = [:]
+    /// Per-member ratio weights for a `.shares` split (`CHECKLIST.md` "Split by
+    /// shares"), as strings. Empty until the user first picks "Shares" (or when
+    /// editing a shares expense), then seeded to `1` each.
+    @State private var shareText: [String: String] = [:]
     /// Line-item drafts for an `.itemized` split (`FEATURE_BACKLOG.md`
     /// "Itemized expense entry"). Empty until the user picks "Items" for the
     /// first time (or when editing an itemized expense), when it's seeded.
@@ -191,6 +195,15 @@ struct AddExpenseView: View {
                 )
             })
         }
+
+        // A shares expense stores its raw weights — rehydrate them directly
+        // (no back-computing, unlike percentage). Duplicating reuses the same
+        // weights; there are no per-item ids to regenerate.
+        if expense.splitType == .shares, let shares = expense.shares {
+            _shareText = State(initialValue: Dictionary(
+                uniqueKeysWithValues: shares.map { ($0.memberId, String($0.weight)) }
+            ))
+        }
     }
 
     private var isEditing: Bool { editing != nil }
@@ -279,6 +292,7 @@ struct AddExpenseView: View {
                     Text("Equally").tag(SplitType.equal)
                     Text("Exact").tag(SplitType.exact)
                     Text("%").tag(SplitType.percentage)
+                    Text("Shares").tag(SplitType.shares)
                     Text("Items").tag(SplitType.itemized)
                 }
                 .pickerStyle(.segmented)
@@ -288,6 +302,11 @@ struct AddExpenseView: View {
                     // an empty shell.
                     if newValue == .itemized, itemDrafts.isEmpty {
                         itemDrafts = [ItemDraft(participantIds: includedMemberIds.isEmpty ? Set(members.map(\.id)) : includedMemberIds)]
+                    }
+                    // Seed every member at weight 1 the first time "Shares" is
+                    // picked, so an equal split is the starting point.
+                    if newValue == .shares, shareText.isEmpty {
+                        shareText = Dictionary(uniqueKeysWithValues: members.map { ($0.id, "1") })
                     }
                 }
 
@@ -449,6 +468,8 @@ struct AddExpenseView: View {
             exactSplitRows
         case .percentage:
             percentSplitRows
+        case .shares:
+            shareSplitRows
         case .itemized:
             itemizedSplitRows
         }
@@ -512,6 +533,73 @@ struct AddExpenseView: View {
         Text(percentRemainingLabel)
             .font(.footnote)
             .foregroundStyle(percentTotal == 100 ? Color.secondary : Color.red)
+    }
+
+    // MARK: Shares split
+
+    /// Parsed whole-number weight for a member (blank / non-numeric → 0).
+    private func share(for memberId: String) -> Int {
+        max(0, Int(shareText[memberId]?.trimmingCharacters(in: .whitespaces) ?? "") ?? 0)
+    }
+
+    private var shareTotal: Int {
+        members.reduce(0) { $0 + share(for: $1.id) }
+    }
+
+    /// The resolved per-member splits at the current amount + weights — used for
+    /// the live "pays ₹x" line so it matches exactly what `save()` will send
+    /// (remainder rule included).
+    private func resolvedShareSplits(_ amountMinor: Int64) -> [ExpenseSplit] {
+        let weights = members
+            .map { (memberId: $0.id, weight: share(for: $0.id)) }
+            .filter { $0.weight > 0 }
+        guard !weights.isEmpty else { return [] }
+        return Validation.sharesSplit(amountMinor: amountMinor, weights: weights, remainderRecipient: payerId)
+    }
+
+    private func shareTextBinding(for memberId: String) -> Binding<String> {
+        Binding(
+            get: { shareText[memberId] ?? "" },
+            set: { shareText[memberId] = $0 }
+        )
+    }
+
+    private func shareStepperBinding(for memberId: String) -> Binding<Int> {
+        Binding(
+            get: { share(for: memberId) },
+            set: { shareText[memberId] = String(max(0, $0)) }
+        )
+    }
+
+    @ViewBuilder
+    private var shareSplitRows: some View {
+        let resolved = amountMinor.map { resolvedShareSplits($0) } ?? []
+        ForEach(members) { member in
+            let w = share(for: member.id)
+            let owed = resolved.first { $0.memberId == member.id }?.amountMinor
+            HStack(spacing: 10) {
+                MemberAvatar(member, size: 24)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(member.displayName)
+                    if w > 0, shareTotal > 0, let owed {
+                        Text("\(w)/\(shareTotal) · \(MoneyFormat.string(minorUnits: owed, currency: currency))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                TextField("0", text: shareTextBinding(for: member.id))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 36)
+                    .accessibilityLabel("\(member.displayName)'s shares")
+                Stepper("", value: shareStepperBinding(for: member.id), in: 0...999)
+                    .labelsHidden()
+            }
+        }
+        Text(shareTotal > 0 ? "Split into \(shareTotal) share\(shareTotal == 1 ? "" : "s")." : "Give at least one member a share.")
+            .font(.footnote)
+            .foregroundStyle(shareTotal > 0 ? Color.secondary : Color.red)
     }
 
     // MARK: Itemized split
@@ -672,6 +760,8 @@ struct AddExpenseView: View {
             return exactSplitsTotal == amountMinor
         case .percentage:
             return percentTotal == 100
+        case .shares:
+            return shareTotal > 0
         case .itemized:
             guard !itemDrafts.isEmpty, itemizedTotal == amountMinor else { return false }
             return itemDrafts.allSatisfy { item in
@@ -688,8 +778,10 @@ struct AddExpenseView: View {
 
         do {
             let splits: [ExpenseSplit]
-            // Only an itemized expense carries `items` on the wire.
+            // Only an itemized expense carries `items`, only a shares expense
+            // carries `shares`, on the wire.
             var items: [LineItem]?
+            var shares: [ShareWeight]?
             switch splitType {
             case .equal:
                 let memberIds = members.map(\.id).filter { includedMemberIds.contains($0) }
@@ -710,6 +802,23 @@ struct AddExpenseView: View {
                 splits = Validation.percentageSplit(
                     amountMinor: amountMinor,
                     weights: weights,
+                    remainderRecipient: payerId
+                )
+            case .shares:
+                // Resolve ratios to exact minor units here — same as percentage,
+                // the wire only carries `amountMinor` shares (DESIGN.md §6). The
+                // raw weights ride along too, for re-edit.
+                let entered = members
+                    .map { (member: $0, weight: share(for: $0.id)) }
+                    .filter { $0.weight > 0 }
+                shares = entered.map { ShareWeight(memberId: $0.member.id, weight: $0.weight) }
+                try Validation.validateShares(
+                    weights: shares ?? [],
+                    validMemberIds: Set(members.map(\.id))
+                )
+                splits = Validation.sharesSplit(
+                    amountMinor: amountMinor,
+                    weights: entered.map { (memberId: $0.member.id, weight: $0.weight) },
                     remainderRecipient: payerId
                 )
             case .itemized:
@@ -758,6 +867,7 @@ struct AddExpenseView: View {
                 splitType: splitType,
                 splits: splits,
                 items: items,
+                shares: shares,
                 category: isCategorised ? category.name : nil,
                 categoryIcon: isCategorised ? category.symbolName : nil,
                 attachments: (attachmentKeys.isEmpty && !hadAttachments) ? nil : attachmentKeys

@@ -13,6 +13,10 @@ public enum ValidationError: Error, Equatable, Sendable {
     case itemWithoutParticipants
     /// The line items don't sum to the expense amount.
     case itemSumMismatch(expected: Int64, actual: Int64)
+    /// A `shares` expense with no weights.
+    case emptyShares
+    /// A share weight is negative, or every weight is `0` (nothing to divide by).
+    case invalidShareWeight
 }
 
 /// Split-sum validation and deterministic remainder distribution.
@@ -105,6 +109,31 @@ public enum Validation {
             )
         }
         return splits
+    }
+
+    /// The `shares` counterpart to `percentageSplit` — identical maths (both
+    /// divide `amountMinor` by arbitrary non-negative integer weights, leftover
+    /// minor units to `remainderRecipient`), named separately only so call sites
+    /// read clearly. The weights are raw ratios (4 : 2 : 1), not percentages.
+    public static func sharesSplit(
+        amountMinor: Int64,
+        weights: [(memberId: String, weight: Int)],
+        remainderRecipient: String
+    ) -> [ExpenseSplit] {
+        percentageSplit(amountMinor: amountMinor, weights: weights, remainderRecipient: remainderRecipient)
+    }
+
+    /// Checks a `shares` expense's weights: at least one weight, none negative,
+    /// a positive total (something to divide by), and every member a real group
+    /// member. The weights themselves are unconstrained ratios.
+    public static func validateShares(
+        weights: [ShareWeight],
+        validMemberIds: Set<String>
+    ) throws {
+        guard !weights.isEmpty else { throw ValidationError.emptyShares }
+        guard weights.allSatisfy({ $0.weight >= 0 }) else { throw ValidationError.invalidShareWeight }
+        guard weights.reduce(0, { $0 + $1.weight }) > 0 else { throw ValidationError.invalidShareWeight }
+        try validateMembersExist(memberIds: weights.map(\.memberId), validMemberIds: validMemberIds)
     }
 
     /// Resolves an itemized expense (`LineItem`s) into one `ExpenseSplit` per

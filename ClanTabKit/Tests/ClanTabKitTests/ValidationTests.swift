@@ -271,4 +271,92 @@ struct ValidationTests {
             try Validation.validateSplitsSum(amountMinor: total, splits: splits)
         }
     }
+
+    // MARK: - Shares split
+
+    @Test("Shares: 4:2:1:3 divides the amount by the weight total")
+    func testSharesSplitBasic() throws {
+        let splits = Validation.sharesSplit(
+            amountMinor: 1_000,
+            weights: [("a", 4), ("b", 2), ("c", 1), ("d", 3)],
+            remainderRecipient: "a"
+        )
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["a"] == 400)
+        #expect(byId["b"] == 200)
+        #expect(byId["c"] == 100)
+        #expect(byId["d"] == 300)
+        try Validation.validateSplitsSum(amountMinor: 1_000, splits: splits)
+    }
+
+    @Test("Shares: an indivisible amount nudges the remainder onto the payer")
+    func testSharesSplitRemainder() throws {
+        let splits = Validation.sharesSplit(
+            amountMinor: 100,
+            weights: [("a", 1), ("b", 1), ("c", 1)],
+            remainderRecipient: "b"
+        )
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["b"] == 34)
+        #expect(byId["a"] == 33)
+        #expect(byId["c"] == 33)
+    }
+
+    @Test("validateShares accepts non-negative weights with a positive total")
+    func testValidateSharesOK() throws {
+        try Validation.validateShares(
+            weights: [ShareWeight(memberId: "a", weight: 2), ShareWeight(memberId: "b", weight: 0)],
+            validMemberIds: ["a", "b"]
+        )
+    }
+
+    @Test("validateShares: no weights throws emptyShares")
+    func testValidateSharesEmpty() {
+        #expect(throws: ValidationError.emptyShares) {
+            try Validation.validateShares(weights: [], validMemberIds: ["a"])
+        }
+    }
+
+    @Test("validateShares: all-zero weights throw invalidShareWeight")
+    func testValidateSharesAllZero() {
+        #expect(throws: ValidationError.invalidShareWeight) {
+            try Validation.validateShares(
+                weights: [ShareWeight(memberId: "a", weight: 0)],
+                validMemberIds: ["a"]
+            )
+        }
+    }
+
+    @Test("validateShares: a negative weight throws invalidShareWeight")
+    func testValidateSharesNegative() {
+        #expect(throws: ValidationError.invalidShareWeight) {
+            try Validation.validateShares(
+                weights: [ShareWeight(memberId: "a", weight: -1), ShareWeight(memberId: "b", weight: 2)],
+                validMemberIds: ["a", "b"]
+            )
+        }
+    }
+
+    @Test("validateShares: an unknown member throws unknownMember")
+    func testValidateSharesUnknownMember() {
+        #expect(throws: ValidationError.unknownMember("ghost")) {
+            try Validation.validateShares(
+                weights: [ShareWeight(memberId: "ghost", weight: 1)],
+                validMemberIds: ["a"]
+            )
+        }
+    }
+
+    @Test("Random fuzz: a validated shares split always sums to the amount")
+    func testSharesSplitFuzzNeverDriftsSum() throws {
+        var generator = SeededGenerator(seed: 41)
+        for _ in 0..<200 {
+            let memberCount = Int.random(in: 1...12, using: &generator)
+            let amount = Int64.random(in: 1...1_000_000, using: &generator)
+            let weights = (0..<memberCount).map { (memberId: "m\($0)", weight: Int.random(in: 0...20, using: &generator)) }
+            guard weights.contains(where: { $0.weight > 0 }) else { continue }
+            let splits = Validation.sharesSplit(amountMinor: amount, weights: weights, remainderRecipient: "m0")
+            try Validation.validateSplitsSum(amountMinor: amount, splits: splits)
+        }
+    }
 }

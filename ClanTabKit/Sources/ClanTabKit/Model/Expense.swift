@@ -2,17 +2,35 @@ import Foundation
 
 /// How an expense's amount was divided among its splits.
 ///
-/// `percentage` and `itemized` are resolved labels, not a stored basis: the
-/// client turns the entered percentages / line items into exact minor-unit
-/// shares (`Validation.percentageSplit` / `Validation.itemizedSplit`) before
-/// dispatch, exactly as `equal` resolves its own remainder, so the split
-/// integrity rule (`AGENTS.md`) and the server's exact-sum check are unchanged.
-/// An `itemized` expense also carries its `items` for display / re-edit.
+/// `percentage`, `shares` and `itemized` are resolved labels, not a stored
+/// basis: the client turns the entered percentages / ratios / line items into
+/// exact minor-unit shares (`Validation.percentageSplit` / `.sharesSplit` /
+/// `.itemizedSplit`) before dispatch, exactly as `equal` resolves its own
+/// remainder, so the split integrity rule (`AGENTS.md`) and the server's
+/// exact-sum check are unchanged. An `itemized` expense also carries its
+/// `items`, and a `shares` expense its `shares`, for display / re-edit.
 public enum SplitType: String, Codable, Sendable {
     case equal
     case exact
     case percentage
     case itemized
+    /// Divide the amount by whole-number ratios (A : 4, B : 2, C : 1 → A pays
+    /// 4/7). Same maths as `percentage`; the raw weights are kept in `shares`.
+    case shares
+}
+
+/// One member's weight in a `shares` split (`CHECKLIST.md` "Split by shares") —
+/// a non-negative whole number; a `0` puts the member on the expense owing
+/// nothing. The weights are arbitrary ratios and needn't sum to anything.
+public struct ShareWeight: Codable, Sendable, Equatable, Identifiable {
+    public var id: String { memberId }
+    public let memberId: String
+    public let weight: Int
+
+    public init(memberId: String, weight: Int) {
+        self.memberId = memberId
+        self.weight = weight
+    }
 }
 
 /// One member's share of an `Expense`. All expense splits for a given expense
@@ -47,6 +65,10 @@ public struct Expense: Identifiable, Codable, Sendable {
     /// truth for balances; `items` is the breakdown that produced them, kept so
     /// reopening the expense shows it and an edit starts from it.
     public let items: [LineItem]?
+    /// The whole-number ratios a `shares` expense was built from (`ShareWeight`)
+    /// — `nil` for every other `splitType`. Like `items`, the resolved `splits`
+    /// stay authoritative for balances; this is kept for display / re-edit.
+    public let shares: [ShareWeight]?
     /// Receipt-photo R2 keys (`CHECKLIST.md` "Photo attachment on an expense") —
     /// `nil` (key absent) when the expense has none. Resolve each to a URL with
     /// `ClanTabClient.presignMediaView`.
@@ -76,6 +98,7 @@ public struct Expense: Identifiable, Codable, Sendable {
         splitType: SplitType,
         splits: [ExpenseSplit],
         items: [LineItem]? = nil,
+        shares: [ShareWeight]? = nil,
         attachments: [String]? = nil,
         category: String? = nil,
         categoryIcon: String? = nil,
@@ -91,6 +114,7 @@ public struct Expense: Identifiable, Codable, Sendable {
         self.splitType = splitType
         self.splits = splits
         self.items = items
+        self.shares = shares
         self.attachments = attachments
         self.category = category
         self.categoryIcon = categoryIcon

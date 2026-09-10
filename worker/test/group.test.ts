@@ -244,12 +244,12 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("10");
+      expect(version).toBe("11");
 
-      // The legacy expense survived the v2 + v8 rebuilds, gained null category
-      // columns, had its currency backfilled from the group (USD), gained null
-      // deleted_at/deleted_by (v6), a null `items` column (v8), and a null
-      // `attachments` column (v10).
+      // The legacy expense survived the v2 + v8 + v11 rebuilds, gained null
+      // category columns, had its currency backfilled from the group (USD),
+      // gained null deleted_at/deleted_by (v6), a null `items` column (v8), a
+      // null `attachments` column (v10), and a null `shares` column (v11).
       const legacy = sql
         .exec<{
           category: string | null;
@@ -259,8 +259,9 @@ describe("GroupDO", () => {
           deleted_by: string | null;
           items: string | null;
           attachments: string | null;
+          shares: string | null;
         }>(
-          "SELECT category, category_icon, currency, deleted_at, deleted_by, items, attachments FROM expenses WHERE id = 'old-1'",
+          "SELECT category, category_icon, currency, deleted_at, deleted_by, items, attachments, shares FROM expenses WHERE id = 'old-1'",
         )
         .toArray()[0];
       expect(legacy).toEqual({
@@ -271,6 +272,7 @@ describe("GroupDO", () => {
         deleted_at: null,
         deleted_by: null,
         items: null,
+        shares: null,
       });
 
       // The legacy member gained a null identity_sub (v5) — i.e. it's a
@@ -322,6 +324,22 @@ describe("GroupDO", () => {
         { id: "li1", name: "Cheese", amountMinor: 600, participantIds: [ana.id] },
         { id: "li2", name: "Wine", amountMinor: 400, participantIds: [ana.id] },
       ]);
+    }
+
+    // shares (needs the v11 CHECK widen + shares column) post-migration.
+    const rs = await g.addExpense({
+      payerId: ana.id,
+      amountMinor: 900,
+      description: "Utilities",
+      date: "2026-01-03T00:00:00Z",
+      splitType: "shares",
+      splits: [{ memberId: ana.id, amountMinor: 900 }],
+      shares: [{ memberId: ana.id, weight: 2 }],
+    });
+    expect(rs.ok).toBe(true);
+    if (rs.ok) {
+      expect(rs.value.expense.splitType).toBe("shares");
+      expect(rs.value.expense.shares).toEqual([{ memberId: ana.id, weight: 2 }]);
     }
   });
 

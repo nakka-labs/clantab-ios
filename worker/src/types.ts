@@ -7,11 +7,12 @@ import type {
   LineItem,
   Member,
   Settlement,
+  ShareWeight,
   SimplifiedSettlement,
   SplitType,
 } from "./lib/types.ts";
 
-export type { Balance, Expense, LineItem, Member, Settlement, SimplifiedSettlement, SplitType };
+export type { Balance, Expense, LineItem, Member, Settlement, ShareWeight, SimplifiedSettlement, SplitType };
 
 /**
  * The subset of a group returned alongside its state. `joinCode` is included per
@@ -112,6 +113,10 @@ export interface AddExpenseRequest {
    * otherwise. The client resolves these into `splits` before dispatch; the
    * server validates both and stores the items for display / re-edit. */
   items?: LineItem[];
+  /** Required (and non-empty) when `splitType` is `"shares"`, rejected
+   * otherwise. Whole-number ratios the client also resolves into `splits`
+   * before dispatch; the server validates both and stores these for re-edit. */
+  shares?: ShareWeight[];
   category?: string;
   categoryIcon?: string;
   /** R2 object keys for receipt photos (`CHECKLIST.md` "Photo attachment on an

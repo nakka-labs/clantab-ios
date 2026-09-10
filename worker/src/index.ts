@@ -375,14 +375,21 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     "splitType",
     "splits",
     "items",
+    "shares",
     "category",
     "categoryIcon",
     "attachments",
   ]);
 
   const splitType = requireString(body, "splitType");
-  if (splitType !== "equal" && splitType !== "exact" && splitType !== "percentage" && splitType !== "itemized") {
-    throw new BadRequestError('Field "splitType" must be "equal", "exact", "percentage", or "itemized".');
+  if (
+    splitType !== "equal" &&
+    splitType !== "exact" &&
+    splitType !== "percentage" &&
+    splitType !== "itemized" &&
+    splitType !== "shares"
+  ) {
+    throw new BadRequestError('Field "splitType" must be "equal", "exact", "percentage", "itemized", or "shares".');
   }
 
   const splits = requireArray(body, "splits").map((raw, i) => {
@@ -421,6 +428,25 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
       })
     : undefined;
 
+  // `shares` and `splitType: "shares"` require each other, same as items.
+  const hasShares = body.shares !== undefined;
+  if (splitType === "shares" && !hasShares) {
+    throw new BadRequestError('A "shares" expense requires a "shares" array.');
+  }
+  if (splitType !== "shares" && hasShares) {
+    throw new BadRequestError('Field "shares" is only valid when "splitType" is "shares".');
+  }
+  const shares = hasShares
+    ? requireArray(body, "shares").map((raw, i) => {
+        assertPlainObject(raw, `shares[${i}]`);
+        rejectUnknownKeys(raw, ["memberId", "weight"]);
+        return {
+          memberId: requireString(raw, "memberId"),
+          weight: requireInteger(raw, "weight"),
+        };
+      })
+    : undefined;
+
   // `attachments` absent → leave the stored receipt list alone; `[]` → clear
   // it; a list → replace it. The route handler checks each key belongs to this
   // expense before it's stored.
@@ -444,6 +470,7 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     splitType,
     splits,
     items,
+    shares,
     category: optionalString(body, "category"),
     categoryIcon: optionalString(body, "categoryIcon"),
     attachments,

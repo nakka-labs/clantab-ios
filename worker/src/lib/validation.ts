@@ -1,4 +1,4 @@
-import type { ExpenseSplit, LineItem } from "./types.ts";
+import type { ExpenseSplit, LineItem, ShareWeight } from "./types.ts";
 
 // Money is integer minor units. JavaScript `number` is exact for integers up to
 // 2^53; a group's running totals stay many orders of magnitude below that, so
@@ -104,4 +104,32 @@ export function assertItemsValid(
       `Line items sum to ${total} but the expense amount is ${amountMinor}.`,
     );
   }
+}
+
+/**
+ * The ratio weights of a `shares` expense (`CHECKLIST.md` "Split by shares").
+ * At least one weight; every weight a non-negative integer, for a real group
+ * member; and a positive total (something to divide by). The weights themselves
+ * are arbitrary ratios and are not otherwise constrained. Mirrors
+ * `ClanTabKit.Validation.validateShares`. The resolved `splits` are checked
+ * separately by `assertSplitsSum`.
+ */
+export function assertSharesValid(
+  shares: ShareWeight[],
+  groupMemberIds: ReadonlySet<string>,
+): void {
+  if (shares.length === 0) {
+    throw new ValidationFailure("SPLIT_MISMATCH", "A shares expense must have at least one weight.");
+  }
+  let total = 0;
+  for (const share of shares) {
+    if (typeof share.weight !== "number" || !Number.isInteger(share.weight) || share.weight < 0) {
+      throw new ValidationFailure("INVALID_AMOUNT", "Each share weight must be a non-negative integer.");
+    }
+    total += share.weight;
+  }
+  if (total === 0) {
+    throw new ValidationFailure("SPLIT_MISMATCH", "Share weights add up to zero — nothing to divide by.");
+  }
+  assertMembersExist(shares.map((s) => s.memberId), groupMemberIds);
 }

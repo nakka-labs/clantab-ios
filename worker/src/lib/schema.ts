@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount_minor  INTEGER NOT NULL,
   description   TEXT NOT NULL,
   expense_date  TEXT NOT NULL,
-  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage','itemized')),
+  split_type    TEXT NOT NULL CHECK (split_type IN ('equal','exact','percentage','itemized','shares')),
   created_at    INTEGER NOT NULL,
   category      TEXT,
   category_icon TEXT,
@@ -44,7 +44,10 @@ CREATE TABLE IF NOT EXISTS expenses (
   -- JSON array of R2 object keys (expenses/<groupId>/<expenseId>/<id>) for
   -- receipt photos (CHECKLIST.md "Photo attachment on an expense"); NULL when
   -- there are none. Written whole with the expense.
-  attachments   TEXT
+  attachments   TEXT,
+  -- JSON array of { memberId, weight } for a 'shares' expense (CHECKLIST.md
+  -- "Split by shares"); NULL otherwise. Written whole with the expense.
+  shares        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expense_splits (
@@ -220,5 +223,9 @@ export const META_KEYS = {
  *  - `10` → `expenses.attachments` (nullable JSON array of R2 keys) added.
  *          Receipt photos (`CHECKLIST.md` "Photo attachment on an expense");
  *          every existing expense has none. Plain `ALTER TABLE ... ADD COLUMN`.
+ *  - `11` → `expenses.split_type` CHECK widened again to allow `'shares'`, and
+ *          `expenses.shares` (nullable JSON) added. Like v2/v8, SQLite can't
+ *          alter a CHECK in place, so `expenses` is rebuilt (all v10 columns +
+ *          `shares`). `CHECKLIST.md` "Split by shares".
  */
-export const SCHEMA_VERSION = "10";
+export const SCHEMA_VERSION = "11";
