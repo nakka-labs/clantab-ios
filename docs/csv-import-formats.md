@@ -96,7 +96,7 @@ compiled and ran it unchanged — no behaviour changes were needed.)
   (`ExpenseCategory`), so the emoji just becomes part of the category name
   rather than breaking anything. Cosmetic only.
 
-## Not supported — researched 2026-09-08, no fix (see `CHECKLIST.md`)
+## Not supported — researched 2026-09-08, re-investigated 2026-09-10, no fix (see `CHECKLIST.md`)
 
 Splitwise, Settle Up, Tricount, and Splid are the four apps this repo's own
 competitive scan treats as prominent; usage drops off sharply past them, so
@@ -104,21 +104,51 @@ this pass didn't chase anything further down the list. Splitwise and Settle Up
 are covered above. For the other two, here's what's actually true right
 now, sourced — not guessed:
 
-### Tricount — self-serve export doesn't exist anymore
-Tricount's CSV/PDF export was a **Premium feature that's now deprecated**.
-Its own FAQ says the only way to get your data out today is to email
-`support@bunq.com` and wait for them to send you a file
+### Tricount — no self-serve file export; the realistic path is the share link (re-investigated 2026-09-10)
+**Native export is gone.** Tricount's FAQ confirms "Export tricount in CSV
+and PDF" was removed as a deprecated Premium feature; the only way to get a
+file now is to email `support@bunq.com` and they send you CSV or ODF
 ([help.tricount.com/articles/tricount-faqs](https://help.tricount.com/articles/tricount-faqs),
-checked 2026-09-08). No column schema is published anywhere, because there's
-no self-serve export to inspect. `marcomc/tricount-exporter` on GitHub
-exists, but it's an **unofficial** scraper of Tricount's private API — its
-own docs are explicit about that — and its column shape (`Share <name>` /
-`Local Share <name>` / `Allocation Type <name>` per member, semicolon CSV)
-is that third-party tool's invented shape, not Tricount's. Don't build a
-parser against it; it would parse a file Tricount itself never produces.
-Given there's no self-serve path anymore, a Tricount importer would only
-help people with an old export file already sitting around — see the
-checklist item for the actual prioritization call.
+checked 2026-09-10). Nobody has posted the current support-issued CSV, so its
+column schema is still unseen — and since it's not self-serve, a file
+importer built for it only helps the rare person who already emailed support,
+not anyone switching in from Tricount going forward.
+
+**But Tricount has a first-class public share link.** Every tricount can
+generate a link (`tricount.com/...`) that renders every expense, reimbursement
+and balance in a browser — no app, no sign-up. Tricount promotes this
+("share a link with others… they can view or add expenses in a browser").
+The link's backend returns structured JSON, and several third-party tools
+already consume it —
+[marcomc/tricount-exporter](https://github.com/marcomc/tricount-exporter)
+("fetches transactions from a shared Tricount using its public key"),
+[tricount-exporter.pages.dev](https://tricount-exporter.pages.dev/),
+[tricountextractor.com](https://tricountextractor.com/) — paste a share
+link/ID, get the whole ledger, export CSV/JSON. The model is rich: payer(s),
+per-member share + allocation type, base + original currency + exchange rate,
+category, timestamp.
+
+That endpoint is **undocumented and carries no ToS blessing for programmatic
+use** — but the underlying capability (public read access to a tricount via a
+deliberately-generated link) is an intentional Tricount feature, which puts
+it a notch below Splid's reverse-engineered *sync* protocol on the risk
+scale, and a notch above a sanctioned API.
+
+**The `Date,Title,Paid by <name>…,Paid for <name>…,Currency,Category` CSV**
+that Sesterce's import docs and the exporter tools normalize to is *not*
+Tricount's own format either — it's a convention those third-party tools
+invented. Supporting it would mean "we import the output of
+tricount-exporter," which needs the user to run that tool first and is an odd
+thing to advertise.
+
+**If a Tricount importer is ever prioritized**, the one clean path is a
+**share-link import** (worker route: share link/ID → fetch the public
+tricount JSON → transform to drafts), not a file parser. Real work against an
+undocumented endpoint (~40–60k: fetch + JSON mapping + tests), and Tricount
+supports genuine multi-payer expenses that our single-payer `DraftExpense`
+can't represent losslessly — same limitation `parseSplitwise` documents, so
+those rows would be skipped with a warning. No demand signal today; same call
+as Splid — leave it unbuilt.
 
 ### Splid — there is no CSV export (investigated 2026-09-10)
 Earlier notes here assumed "Splid's iOS/macOS app does have a CSV export…
@@ -173,10 +203,11 @@ as a reminder that one plausible-sounding secondary source isn't enough to
 act on for a money-sign question, even when it's specifically about
 *correcting* something.
 
-For Tricount, the rule still holds: get a real export first (via bunq
-support), add it as a redacted fixture, build the parser against real data.
-For Splid there is no file to get — see above. Either way, see `CHECKLIST.md`'s
-Feature backlog for the prioritization call.
+Neither Tricount nor Splid has a self-serve CSV to build a parser against —
+and for both, the only real import path (a share-link / invite-code fetch
+against an undocumented backend) is a from-scratch effort much larger than a
+CSV parser, gated on demand we don't have. See `CHECKLIST.md`'s Feature
+backlog for the prioritization call.
 
 ## Fixtures
 

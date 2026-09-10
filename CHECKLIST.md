@@ -926,23 +926,33 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       of those two roads — each far larger than the ~15k this item assumed,
       each gated on inputs we don't have. Same call as Tricount: not worth
       starting without a demand signal.
-- [ ] **Tricount import — get a sample first, likely low priority.**
-      `~10k tokens` investigation, build TBD after (CLI) — researched
-      2026-09-08 (`docs/csv-import-formats.md`). Tricount's self-serve
-      CSV/PDF export was a Premium feature that's now **deprecated**
-      (help.tricount.com/articles/tricount-faqs, checked 2026-09-08): the
-      only way to get a file today is emailing support@bunq.com and waiting
-      for them to send one. No published column schema exists — the one
-      public "Tricount exporter" tool on GitHub scrapes Tricount's API and
-      invents its own CSV shape, which is not what Tricount itself would
-      ever hand a user.
-      1. If this is still wanted, get someone to request their own export
-         via bunq support, redact it, hand it over as the real sample —
-         don't build against the unofficial scraper's invented schema.
-      2. Weigh against the rest of the backlog before spending CLI budget:
-         since there's no self-serve export anymore, this only helps people
-         who already have an old export file sitting around, not anyone
-         swapping in from Tricount going forward.
+- [x] **Tricount import — investigated 2026-09-10, leave unbuilt (no demand
+      signal).** Full findings + sources in `docs/csv-import-formats.md`.
+      - **No self-serve file export.** Tricount's FAQ confirms CSV/PDF export
+        was removed as a deprecated Premium feature; you now email
+        `support@bunq.com` and they send CSV or ODF. The current
+        support-issued CSV schema is unseen (nobody's posted one), and a
+        file importer for it only helps someone who already emailed support
+        — not anyone switching in from Tricount going forward.
+      - **The realistic path is the public share link, not a file.** Every
+        tricount can generate a `tricount.com/...` link that renders the
+        whole ledger in a browser (no app, no sign-up) — a feature Tricount
+        promotes. Its backend returns rich JSON (payers, per-member share +
+        allocation type, multi-currency, category, timestamp); third-party
+        tools (marcomc/tricount-exporter et al.) already consume it. The
+        endpoint is undocumented with no ToS blessing, but the capability
+        itself is intentional — lower risk than Splid's reverse-engineered
+        sync protocol.
+      - **If ever prioritized:** a share-link import (worker route: link/ID
+        → fetch public JSON → transform to drafts), ~40–60k, against an
+        undocumented endpoint. Tricount's genuine multi-payer expenses can't
+        round-trip through our single-payer `DraftExpense` (same limit
+        `parseSplitwise` documents — skip-with-warning). The
+        `Paid by X / Paid for X` CSV that exporter tools normalize to is
+        *their* invented shape, not Tricount's — not worth targeting.
+      - No `CSVImport` change; header detection already can't misfire on any
+        of these shapes (falls through to `unrecognizedFormat`). Same call
+        as Splid: not worth starting without demand.
 - [ ] **Itemized expense entry, manual.** `~130k tokens` (CLI)
       1. Add an `items: [LineItem]` shape (name, price, assignees) to
          the expense model, worker + `ClanTabKit`.
