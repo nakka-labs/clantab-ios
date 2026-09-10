@@ -256,6 +256,26 @@ struct ClanTabClientTests {
         #expect(try await body(.cleared)["emoji"] is NSNull)
     }
 
+    @Test("updateGroup encodes coverImage: .unchanged absent, .commit true, .remove null; decodes coverKey back")
+    func testUpdateGroupCoverImage() async throws {
+        func body(_ update: CoverImageUpdate) async throws -> ([String: Any], UpdateGroupResponse) {
+            let transport = FakeTransport(statusCode: 200, body: jsonData([
+                "group": [
+                    "name": "Goa", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z",
+                    "joinCode": "K7M9P2", "coverKey": "groups/g1/cover",
+                ],
+            ]))
+            let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+                .updateGroup(groupId: "g1", coverImage: update)
+            return (decodeBody(await transport.lastRequest), response)
+        }
+
+        #expect(try await body(.unchanged).0["coverImage"] == nil)
+        #expect(try await body(.commit).0["coverImage"] as? Bool == true)
+        #expect(try await body(.remove).0["coverImage"] is NSNull)
+        #expect(try await body(.commit).1.group.coverKey == "groups/g1/cover")
+    }
+
     @Test("renameMember PATCHes and removeMember DELETEs the member path")
     func testMemberRenameRemove() async throws {
         let rename = FakeTransport(statusCode: 200, body: jsonData(["member": ["id": "m2", "displayName": "Benjamin"]]))

@@ -65,11 +65,15 @@ public actor ClanTabClient {
     public func updateGroup(
         groupId: String, name: String? = nil, currency: String? = nil,
         emoji: FieldUpdate<String> = .unchanged, archived: Bool? = nil,
-        defaultSplit: FieldUpdate<DefaultSplit> = .unchanged, accessToken: String? = nil
+        defaultSplit: FieldUpdate<DefaultSplit> = .unchanged,
+        coverImage: CoverImageUpdate = .unchanged, accessToken: String? = nil
     ) async throws -> UpdateGroupResponse {
         try await patch(
             "api/groups/\(groupId)",
-            body: UpdateGroupRequest(name: name, currency: currency, emoji: emoji, archived: archived, defaultSplit: defaultSplit),
+            body: UpdateGroupRequest(
+                name: name, currency: currency, emoji: emoji, archived: archived,
+                defaultSplit: defaultSplit, coverImage: coverImage
+            ),
             accessToken: accessToken
         )
     }
@@ -260,7 +264,8 @@ public actor ClanTabClient {
         contentLength: Int,
         groupId: String? = nil,
         expenseId: String? = nil,
-        token: String
+        token: String,
+        accessToken: String? = nil
     ) async throws -> MediaUploadTicket {
         try await post(
             "api/media/presign",
@@ -268,14 +273,20 @@ public actor ClanTabClient {
                 purpose, contentType: contentType, contentLength: contentLength,
                 groupId: groupId, expenseId: expenseId
             ),
-            bearer: token
+            bearer: token,
+            accessToken: accessToken
         )
     }
 
-    /// A presigned `GET` URL for an existing object — e.g. a `Member.avatarKey`.
-    /// Valid ~5 minutes; fetch it, don't store it.
-    public func presignMediaView(key: String, token: String) async throws -> MediaViewURL {
-        try await post("api/media/presign", body: MediaPresignRequest.view(key: key), bearer: token)
+    /// A presigned `GET` URL for an existing object — e.g. a `Member.avatarKey`
+    /// or a `GroupSummary.coverKey`. Valid ~5 minutes; fetch it, don't store it.
+    /// A group-scoped `key` needs `accessToken` unless the caller is a claimed
+    /// member of that group.
+    public func presignMediaView(key: String, token: String, accessToken: String? = nil) async throws -> MediaViewURL {
+        try await post(
+            "api/media/presign", body: MediaPresignRequest.view(key: key),
+            bearer: token, accessToken: accessToken
+        )
     }
 
     /// PUT the image bytes straight to R2 using a ticket from

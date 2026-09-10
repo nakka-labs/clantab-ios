@@ -176,6 +176,13 @@ export const META_KEYS = {
    * first time someone shares a view-only link; absent until then. A new
    * key, no `SCHEMA_VERSION` bump. */
   viewToken: "view_token",
+  /** R2 object key for the group's cover image (`CHECKLIST.md` "Group cover
+   * image") — always `groups/<groupId>/cover`, so its presence is the "has a
+   * cover" signal. Set/cleared via `PATCH /api/groups/:groupId` with
+   * `{ "coverImage": true | null }` (the client uploads the bytes to R2 via
+   * `POST /api/media/presign` first). Absent = no cover. A new key, no
+   * `SCHEMA_VERSION` bump (same as `emoji` / `archived_at`). */
+  coverKey: "cover_key",
 } as const;
 
 /**

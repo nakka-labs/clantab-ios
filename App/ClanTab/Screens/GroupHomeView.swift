@@ -104,6 +104,20 @@ struct GroupHomeView: View {
 
     var body: some View {
         List {
+            if let state = viewModel.state, let coverKey = state.group.coverKey {
+                Section {
+                    GroupCoverImage(
+                        groupId: viewModel.groupId,
+                        coverKey: coverKey,
+                        accessToken: viewModel.accessToken
+                    )
+                    .frame(height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(Color.clear)
+            }
+
             if auth.shouldShowSyncNudge() {
                 Section {
                     SyncNudgeCard(
@@ -310,6 +324,13 @@ struct GroupHomeView: View {
                 knownGroups.setEmoji(groupId: viewModel.groupId, emoji: emoji)
             }
         }
+        .onChange(of: viewModel.state?.group.coverKey) { _, coverKey in
+            // Cache the group's cover-image key for the "Your Groups" list
+            // (`CHECKLIST.md` "Group cover image").
+            if viewModel.state != nil {
+                knownGroups.setCoverKey(groupId: viewModel.groupId, coverKey: coverKey)
+            }
+        }
         .onChange(of: viewModel.accessToken) { _, token in
             // Keep the local cache current — picks up a rotation from
             // another device (via a refetch) or this one's own "Regenerate
@@ -463,6 +484,7 @@ struct GroupHomeView: View {
                         state: state,
                         client: client,
                         accessToken: viewModel.accessToken,
+                        sessionToken: auth.session?.token,
                         myMemberId: viewModel.myIdentity?.memberId,
                         onChanged: { Task { await viewModel.refetch() } },
                         onRegenerated: { viewModel.updateAccessToken($0) },

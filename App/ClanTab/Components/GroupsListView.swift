@@ -60,12 +60,18 @@ struct GroupsListView: View {
         .padding(.horizontal, 4)
     }
 
-    /// The group's identity badge: its chosen emoji on a light circle of its
-    /// formula accent, or — with no emoji — the group's initial in white on a
-    /// solid disc of that accent (the same shape as a `MemberAvatar`).
+    /// The group's identity badge: its cover photo (`CHECKLIST.md` "Group cover
+    /// image") as a rounded square when it has one, otherwise its chosen emoji
+    /// on a light circle of its formula accent, or — with neither — the group's
+    /// initial in white on a solid disc of that accent (the same shape as a
+    /// `MemberAvatar`).
     @ViewBuilder
     private func groupBadge(for group: KnownGroup) -> some View {
-        if let emoji = group.emoji, !emoji.isEmpty {
+        if let coverKey = group.coverKey {
+            GroupCoverImage(groupId: group.groupId, coverKey: coverKey, accessToken: group.accessToken)
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        } else if let emoji = group.emoji, !emoji.isEmpty {
             Text(emoji)
                 .font(.body)
                 .frame(width: 32, height: 32)

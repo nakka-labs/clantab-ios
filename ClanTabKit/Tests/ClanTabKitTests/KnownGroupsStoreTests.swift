@@ -282,4 +282,35 @@ struct KnownGroupsStoreTests {
         store.setArchivedAt(groupId: "g1", archivedAt: t0)
         #expect(store.all().first?.isArchived == true)
     }
+
+    // MARK: - coverKey (CHECKLIST.md "Group cover image")
+
+    @Test("setCoverKey sets, clears, round-trips through UserDefaults; unknown group is a no-op")
+    func testSetCoverKey() throws {
+        let suiteName = "com.clantab.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = udStore(defaults)
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+        #expect(store.all().first?.coverKey == nil)
+
+        store.setCoverKey(groupId: "g1", coverKey: "groups/g1/cover")
+        #expect(udStore(defaults).all().first?.coverKey == "groups/g1/cover")
+        #expect(store.all().first?.lastOpenedAt == t0) // untouched, like setEmoji
+
+        store.setCoverKey(groupId: "g1", coverKey: nil)
+        #expect(udStore(defaults).all().first?.coverKey == nil)
+
+        store.setCoverKey(groupId: "ghost", coverKey: "groups/ghost/cover") // no-op
+        #expect(store.all().map(\.groupId) == ["g1"])
+    }
+
+    @Test("InMemory store tracks coverKey too")
+    func testInMemoryCoverKey() {
+        let store = InMemoryKnownGroupsStore()
+        store.remember(groupId: "g1", name: "A", at: t0)
+        store.setCoverKey(groupId: "g1", coverKey: "groups/g1/cover")
+        #expect(store.all().first?.coverKey == "groups/g1/cover")
+    }
 }

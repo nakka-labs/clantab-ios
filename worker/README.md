@@ -67,8 +67,9 @@ test/               logic + validation (Node) · join-codes/group/routes/user/au
   `Content-Type`/`Content-Length` (signed into the URL); 5 MB / JPEG-PNG-WebP
   cap in `lib/media.ts`. Keys are derived server-side (`avatars/<hash>`,
   `groups/<id>/cover`, `expenses/<gid>/<eid>/<id>`), never taken from the
-  client. Group-scoped ops need claimed membership, not just the capability
-  link. `lib/s3-presign.ts` is a hand-rolled SigV4 signer (zero deps, checked
+  client. `avatar` is session-only; `groupCover` / `receipt` take the same
+  `requireGroup` capability check as every group route. `lib/s3-presign.ts` is
+  a hand-rolled SigV4 signer (zero deps, checked
   against AWS's documented vector in `test/media.test.ts`). Config:
   `R2_BUCKET` var + `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`
   secrets; all unset → the endpoint 503s (safe until configured).
@@ -80,6 +81,11 @@ test/               logic + validation (Node) · join-codes/group/routes/user/au
   members see it without an identity-subject leak. `GroupDO.claim` seeds
   `avatar_key` from the identity's current photo; `unclaim` and account
   deletion clear it (deletion also removes the R2 object).
+- **Group cover image** (`CHECKLIST.md`): `PATCH /api/groups/:id` with
+  `{ coverImage: true }` commits a cover the client uploaded to
+  `groups/<id>/cover` (400 if the object isn't in the bucket), `{ coverImage:
+  null }` removes it and deletes the R2 object. The key is a `cover_key`
+  `group_meta` row, surfaced as `GroupSummary.coverKey`.
 - `GET /g/:groupId` is a stub landing page (noindex + app deep link). A real page +
   Universal Links come with a production domain — see `CHECKLIST.md`'s
   "custom domain + Universal Links" item.

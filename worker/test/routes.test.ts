@@ -1,4 +1,4 @@
-import { SELF } from "cloudflare:test";
+import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 const BASE = "https://api.test";
@@ -914,6 +914,39 @@ describe("group + member settings", () => {
     const cleared = await patch(`/api/groups/${groupId}`, { defaultSplit: null }, token);
     expect((cleared.json.group as Json).defaultSplit).toBeNull();
     expect(await stateSplit()).toBeNull();
+  });
+
+  it("PATCH /api/groups/:id sets, keeps, and clears the cover image (CHECKLIST.md \"Group cover image\")", async () => {
+    const coverKeyState = async () =>
+      ((await get(`/api/groups/${groupId}`, undefined, token)).json.group as Json).coverKey;
+    const key = `groups/${groupId}/cover`;
+
+    expect(await coverKeyState()).toBeNull(); // fresh group
+
+    // committing without an uploaded object → 400
+    expect((await patch(`/api/groups/${groupId}`, { coverImage: true }, token)).status).toBe(400);
+
+    // stand in for the client's presigned upload, then commit
+    await env.MEDIA.put(key, new Uint8Array([1, 2, 3]));
+    const set = await patch(`/api/groups/${groupId}`, { coverImage: true }, token);
+    expect(set.status).toBe(200);
+    expect((set.json.group as Json).coverKey).toBe(key);
+    expect(await coverKeyState()).toBe(key);
+
+    // a rename leaves it alone
+    await patch(`/api/groups/${groupId}`, { name: "Renamed" }, token);
+    expect(await coverKeyState()).toBe(key);
+
+    // removing clears the record and deletes the object
+    const cleared = await patch(`/api/groups/${groupId}`, { coverImage: null }, token);
+    expect((cleared.json.group as Json).coverKey).toBeNull();
+    expect(await coverKeyState()).toBeNull();
+    expect(await env.MEDIA.head(key)).toBeNull();
+  });
+
+  it("PATCH /api/groups/:id rejects a non-true/null coverImage → 400", async () => {
+    expect((await patch(`/api/groups/${groupId}`, { coverImage: "yes" }, token)).status).toBe(400);
+    expect((await patch(`/api/groups/${groupId}`, { coverImage: false }, token)).status).toBe(400);
   });
 
   it("PATCH /api/groups/:id rejects a default split that doesn't sum to 100, or names an unknown member", async () => {

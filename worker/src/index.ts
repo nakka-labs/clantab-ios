@@ -231,9 +231,10 @@ async function handleGetState(request: Request, env: Env, params: Params): Promi
 }
 
 async function handleUpdateGroup(request: Request, env: Env, params: Params): Promise<Response> {
-  const group = await requireGroup(request, env, params.groupId ?? "");
+  const groupId = params.groupId ?? "";
+  const group = await requireGroup(request, env, groupId);
   const body = await readJsonObject(request);
-  rejectUnknownKeys(body, ["name", "currency", "emoji", "archived", "defaultSplit"]);
+  rejectUnknownKeys(body, ["name", "currency", "emoji", "archived", "defaultSplit", "coverImage"]);
   const name = optionalString(body, "name");
   const currency = optionalString(body, "currency");
   // `null` clears the group's emoji; a string sets it; absent leaves it.
@@ -242,11 +243,17 @@ async function handleUpdateGroup(request: Request, env: Env, params: Params): Pr
   const archived = optionalBoolean(body, "archived");
   // An object sets the default split, `null` clears it, absent leaves it.
   const defaultSplit = parseDefaultSplitPatch(body);
+  // `true` commits a cover the client just uploaded to R2, `null` removes it,
+  // absent leaves it (`CHECKLIST.md` "Group cover image").
+  const coverImage = "coverImage" in body ? body.coverImage : undefined;
+  if (coverImage !== undefined && coverImage !== null && coverImage !== true) {
+    throw new BadRequestError('Field "coverImage" must be true (commit an uploaded cover) or null (remove it).');
+  }
   if (
     name === undefined && currency === undefined && emoji === undefined &&
-    archived === undefined && defaultSplit === undefined
+    archived === undefined && defaultSplit === undefined && coverImage === undefined
   ) {
-    throw new BadRequestError('Provide "name", "currency", "emoji", "archived", and/or "defaultSplit".');
+    throw new BadRequestError('Provide "name", "currency", "emoji", "archived", "defaultSplit", and/or "coverImage".');
   }
   // A single emoji can be several code points (ZWJ sequences, skin tones,
   // flags); 16 is generous headroom while still rejecting a text label
@@ -255,8 +262,26 @@ async function handleUpdateGroup(request: Request, env: Env, params: Params): Pr
   if (typeof emoji === "string" && [...emoji].length > 16) {
     throw new BadRequestError('Field "emoji" must be a single emoji.');
   }
-  const result = await group.updateGroup({ name, currency, emoji, archived, defaultSplit });
-  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+
+  // Resolve `coverImage` to the `coverKey` patch the DO stores. `true` →
+  // verify the object is actually in the bucket first (same trust-but-verify
+  // as the avatar commit).
+  let coverKey: string | null | undefined;
+  if (coverImage === true) {
+    if ((await env.MEDIA.head(groupCoverKey(groupId))) === null) {
+      throw new BadRequestError("No uploaded cover image found. Upload it via /api/media/presign first.");
+    }
+    coverKey = groupCoverKey(groupId);
+  } else if (coverImage === null) {
+    coverKey = null;
+  }
+
+  const result = await group.updateGroup({ name, currency, emoji, archived, defaultSplit, coverKey });
+  if (!result.ok) return domainErrorResponse(result.error);
+  // Deleted the record — now delete the object. Best-effort after the fact:
+  // a leftover object is just wasted storage, never a correctness problem.
+  if (coverImage === null) await env.MEDIA.delete(groupCoverKey(groupId));
+  return json(200, result.value);
 }
 
 /** `undefined` (key absent) / `null` (clear) / a validated
@@ -1112,10 +1137,10 @@ async function handleReport(request: Request, env: Env, params: Params): Promise
  * signed into the URL so the actual PUT can't deviate. `operation: "view"` → a
  * `GET` URL for an existing `key`.
  *
- * Auth: a valid session, plus — for anything group-scoped — claimed membership
- * of that group (stricter than the capability check on the group routes, since
- * an upload is identity-attributable). Avatars are viewable by any signed-in
- * user.
+ * Auth: a valid session, plus — for anything group-scoped — the same
+ * `requireGroup` capability check as every other group route (a matching
+ * `?token=` or a claimed membership). Avatars are session-only (the key is the
+ * caller's own) and viewable by any signed-in user.
  */
 async function handleMediaPresign(request: Request, env: Env): Promise<Response> {
   const creds = r2CredentialsFromEnv(env);
@@ -1130,7 +1155,7 @@ async function handleMediaPresign(request: Request, env: Env): Promise<Response>
   if (operation === "view") {
     const key = requireString(body, "key");
     const groupId = groupIdForKey(key);
-    if (groupId !== null) await requireClaimedMember(env, sub, groupId);
+    if (groupId !== null) await requireGroup(request, env, groupId);
     return json(200, { url: await presignDownload(creds, key), key });
   }
   if (operation !== "upload") {
@@ -1147,12 +1172,12 @@ async function handleMediaPresign(request: Request, env: Env): Promise<Response>
     key = await avatarKey(sub);
   } else if (purpose === "groupCover") {
     const groupId = requireString(body, "groupId");
-    await requireClaimedMember(env, sub, groupId);
+    await requireGroup(request, env, groupId);
     key = groupCoverKey(groupId);
   } else if (purpose === "receipt") {
     const groupId = requireString(body, "groupId");
     const expenseId = requireString(body, "expenseId");
-    await requireClaimedMember(env, sub, groupId);
+    await requireGroup(request, env, groupId);
     key = receiptKey(groupId, expenseId, newRecordId());
   } else {
     throw new BadRequestError('Field "purpose" must be "avatar", "groupCover", or "receipt".');
@@ -1165,15 +1190,6 @@ async function handleMediaPresign(request: Request, env: Env): Promise<Response>
     // The client must echo these exactly on the PUT — they're signed into the URL.
     headers: { "Content-Type": contentType, "Content-Length": String(contentLength) },
   });
-}
-
-/** A media operation tied to a group requires the caller to be a *claimed
- * member* of it — not merely to hold the capability link. Uploads and receipt
- * views are identity-attributable, so they get the stricter gate. */
-async function requireClaimedMember(env: Env, sub: string, groupId: string): Promise<void> {
-  const stub = env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId));
-  if (!(await stub.exists())) throw new GroupNotFoundError();
-  if (!(await stub.hasClaimedMember(sub))) throw new ForbiddenError();
 }
 
 /** The owner's one place to see every report across every group — gated by

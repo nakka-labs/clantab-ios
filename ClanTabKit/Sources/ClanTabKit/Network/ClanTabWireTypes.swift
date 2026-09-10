@@ -34,11 +34,16 @@ public struct GroupSummary: Codable, Sendable, Equatable {
     /// config per group") — percentage weights that pre-fill Add Expense.
     /// `nil` = split equally among everyone. Set via `updateGroup(defaultSplit:)`.
     public let defaultSplit: DefaultSplit?
+    /// R2 object key for the group's cover image (`CHECKLIST.md` "Group cover
+    /// image"), or `nil` if it has none. Always `groups/<groupId>/cover`.
+    /// Resolve to a URL with `ClanTabClient.presignMediaView`; set via
+    /// `updateGroup(coverImage:)`.
+    public let coverKey: String?
 
     public init(
         name: String, currency: String, createdAt: Date, joinCode: String,
         accessToken: String? = nil, emoji: String? = nil, archivedAt: Date? = nil,
-        defaultSplit: DefaultSplit? = nil
+        defaultSplit: DefaultSplit? = nil, coverKey: String? = nil
     ) {
         self.name = name
         self.currency = currency
@@ -48,6 +53,7 @@ public struct GroupSummary: Codable, Sendable, Equatable {
         self.emoji = emoji
         self.archivedAt = archivedAt
         self.defaultSplit = defaultSplit
+        self.coverKey = coverKey
     }
 }
 
@@ -157,6 +163,18 @@ public struct UpdateMemberRequest: Encodable, Sendable {
 
 // MARK: - PATCH /api/groups/:groupId
 
+/// Cover-image side of `PATCH /api/groups/:id` (`CHECKLIST.md` "Group cover
+/// image"). The image bytes go to R2 via `presignMediaUpload(.groupCover,…)`
+/// first; this then commits or removes the record.
+public enum CoverImageUpdate: Sendable {
+    /// Omit the key — leave the cover as-is.
+    case unchanged
+    /// Send `true` — mark the group as having the cover just uploaded.
+    case commit
+    /// Send `null` — clear the record and delete the R2 object.
+    case remove
+}
+
 public struct UpdateGroupRequest: Encodable, Sendable {
     public let name: String?
     public let currency: String?
@@ -172,20 +190,24 @@ public struct UpdateGroupRequest: Encodable, Sendable {
     /// per group") — `.unchanged` omits the key, `.cleared` sends `null`
     /// ("split equally"), `.set` sends the weights.
     private let defaultSplitUpdate: FieldUpdate<DefaultSplit>
+    /// The group's cover image (`CHECKLIST.md` "Group cover image").
+    private let coverImageUpdate: CoverImageUpdate
 
     public init(
         name: String? = nil, currency: String? = nil,
         emoji: FieldUpdate<String> = .unchanged, archived: Bool? = nil,
-        defaultSplit: FieldUpdate<DefaultSplit> = .unchanged
+        defaultSplit: FieldUpdate<DefaultSplit> = .unchanged,
+        coverImage: CoverImageUpdate = .unchanged
     ) {
         self.name = name
         self.currency = currency
         self.emojiUpdate = emoji
         self.archived = archived
         self.defaultSplitUpdate = defaultSplit
+        self.coverImageUpdate = coverImage
     }
 
-    private enum CodingKeys: String, CodingKey { case name, currency, emoji, archived, defaultSplit }
+    private enum CodingKeys: String, CodingKey { case name, currency, emoji, archived, defaultSplit, coverImage }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
@@ -201,6 +223,11 @@ public struct UpdateGroupRequest: Encodable, Sendable {
         case .unchanged: break
         case .cleared: try container.encodeNil(forKey: .defaultSplit)
         case .set(let value): try container.encode(value, forKey: .defaultSplit)
+        }
+        switch coverImageUpdate {
+        case .unchanged: break
+        case .commit: try container.encode(true, forKey: .coverImage)
+        case .remove: try container.encodeNil(forKey: .coverImage)
         }
     }
 }

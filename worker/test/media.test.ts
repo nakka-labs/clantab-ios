@@ -168,13 +168,24 @@ describe("POST /api/media/presign", () => {
     expect(json.key).toBe(`groups/${groupId}/cover`);
   });
 
-  it("403s a group cover upload from a non-member", async () => {
+  it("403s a group cover upload from a non-member with no capability token", async () => {
     const { groupId } = await groupWithClaimedMember("apple:cover.owner.2");
     const { status } = await call("POST", "/api/media/presign", {
       bearer: await bearer("apple:cover.stranger"),
       body: { operation: "upload", purpose: "groupCover", groupId, contentType: JPEG, contentLength: ONE_MB },
     });
     expect(status).toBe(403);
+  });
+
+  it("presigns a group cover for a non-member who holds the capability token", async () => {
+    const { groupId, token: groupToken } = await groupWithClaimedMember("apple:cover.owner.2b");
+    const { status, json } = await call("POST", "/api/media/presign", {
+      bearer: await bearer("apple:cover.guest"),
+      token: groupToken,
+      body: { operation: "upload", purpose: "groupCover", groupId, contentType: JPEG, contentLength: ONE_MB },
+    });
+    expect(status).toBe(200);
+    expect(json.key).toBe(`groups/${groupId}/cover`);
   });
 
   it("404s a group cover upload for an unknown group", async () => {

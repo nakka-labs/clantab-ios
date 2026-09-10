@@ -37,6 +37,10 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     /// from the last group-state load or dashboard reconcile so the "Your
     /// Groups" list can hide it offline. `nil` = active.
     public var archivedAt: Date?
+    /// The group's cover-image R2 key (`CHECKLIST.md` "Group cover image"),
+    /// cached from the last group-state load so the "Your Groups" list can show
+    /// the cover. Always `groups/<groupId>/cover` when set; `nil` = no cover.
+    public var coverKey: String?
 
     public var isArchived: Bool { archivedAt != nil }
 
@@ -46,12 +50,13 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     /// synthesized `Codable` conformance uses these keys, so the token is
     /// never written to or read from the `UserDefaults` blob.
     enum CodingKeys: String, CodingKey {
-        case groupId, name, lastOpenedAt, emoji, myBalances, archivedAt
+        case groupId, name, lastOpenedAt, emoji, myBalances, archivedAt, coverKey
     }
 
     public init(
         groupId: String, name: String, lastOpenedAt: Date, accessToken: String? = nil,
-        emoji: String? = nil, myBalances: [Balance]? = nil, archivedAt: Date? = nil
+        emoji: String? = nil, myBalances: [Balance]? = nil, archivedAt: Date? = nil,
+        coverKey: String? = nil
     ) {
         self.groupId = groupId
         self.name = name
@@ -60,6 +65,7 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
         self.emoji = emoji
         self.myBalances = myBalances
         self.archivedAt = archivedAt
+        self.coverKey = coverKey
     }
 }
 
@@ -97,6 +103,11 @@ public protocol KnownGroupsStoring: Sendable {
     /// isn't known. Same "fires on every state load / reconcile" rationale as
     /// `setEmoji`.
     func setArchivedAt(groupId: String, archivedAt: Date?)
+
+    /// Update the cached cover-image key (`CHECKLIST.md` "Group cover image") —
+    /// `nil` clears it. No-op if the group isn't known. Same "fires on every
+    /// state load" rationale as `setEmoji`.
+    func setCoverKey(groupId: String, coverKey: String?)
 }
 
 public extension KnownGroupsStoring {
@@ -177,6 +188,14 @@ public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked 
         var groups = load()
         guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
         groups[index].archivedAt = archivedAt
+        save(groups)
+    }
+
+    public func setCoverKey(groupId: String, coverKey: String?) {
+        lock.lock(); defer { lock.unlock() }
+        var groups = load()
+        guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
+        groups[index].coverKey = coverKey
         save(groups)
     }
 
@@ -271,5 +290,11 @@ public final class InMemoryKnownGroupsStore: KnownGroupsStoring, @unchecked Send
         lock.lock(); defer { lock.unlock() }
         guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
         groups[index].archivedAt = archivedAt
+    }
+
+    public func setCoverKey(groupId: String, coverKey: String?) {
+        lock.lock(); defer { lock.unlock() }
+        guard let index = groups.firstIndex(where: { $0.groupId == groupId }) else { return }
+        groups[index].coverKey = coverKey
     }
 }

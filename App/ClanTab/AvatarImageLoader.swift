@@ -1,17 +1,18 @@
 import SwiftUI
 import ClanTabKit
 
-/// Resolves a `Member.avatarKey` to a `UIImage` for `MemberAvatar`
-/// (`CHECKLIST.md` "Profile photos").
+/// Resolves an R2 media key to a `UIImage` via a presigned view URL — used for
+/// member profile photos (`Member.avatarKey`, `CHECKLIST.md` "Profile photos")
+/// and group cover images (`GroupSummary.coverKey`, "Group cover image").
 ///
-/// - The key is stable per identity, so a resolved image is memory-cached and
-///   reused everywhere that member appears.
+/// - Keys are stable, so a resolved image is memory-cached and reused
+///   everywhere it appears.
 /// - A key that 404s or fails is remembered so we don't refetch it on every
-///   render — the member just shows `MemberColor` initials.
+///   render — the caller shows its fallback (initials / a plain surface).
 /// - Concurrent requests for the same key share one network round-trip.
 ///
 /// Injected into the environment at the app root; views without it (previews,
-/// tests) fall back to initials.
+/// tests) fall back cleanly.
 @MainActor
 @Observable
 final class AvatarImageLoader {
@@ -44,12 +45,14 @@ final class AvatarImageLoader {
     }
 
     /// The image for `key`: cache hit, or a presign + download. `nil` on any
-    /// failure (no session, 404, decode) — the caller shows initials.
-    func load(_ key: String) async -> UIImage? {
+    /// failure (no session, 403, 404, decode) — the caller shows its fallback.
+    /// `accessToken` is the group's capability token, needed only for a
+    /// group-scoped key when the caller isn't a claimed member of that group.
+    func load(_ key: String, accessToken: String? = nil) async -> UIImage? {
         if let hit = cache.object(forKey: key as NSString) { return hit }
         if failed.contains(key) { return nil }
 
-        let data = await fetchData(key)
+        let data = await fetchData(key, accessToken: accessToken)
         guard let data, let image = UIImage(data: data) else {
             failed.insert(key)
             return nil
@@ -58,14 +61,14 @@ final class AvatarImageLoader {
         return image
     }
 
-    private func fetchData(_ key: String) async -> Data? {
+    private func fetchData(_ key: String, accessToken: String?) async -> Data? {
         if let existing = inFlight[key] { return await existing.value }
         guard let token = sessionToken else { return nil }
 
         let client = self.client
         let task = Task<Data?, Never> {
             do {
-                let view = try await client.presignMediaView(key: key, token: token)
+                let view = try await client.presignMediaView(key: key, token: token, accessToken: accessToken)
                 let (data, response) = try await URLSession.shared.data(from: view.url)
                 guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                     return nil

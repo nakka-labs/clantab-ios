@@ -43,6 +43,11 @@ export interface GroupSummary {
    * config per group"), or `null` for "split equally". Set via
    * `PATCH /api/groups/:groupId` with `{ "defaultSplit": {...} | null }`. */
   defaultSplit: DefaultSplit | null;
+  /** R2 object key for the group's cover image (`CHECKLIST.md` "Group cover
+   * image"), or `null` if it has none. Always `groups/<groupId>/cover`.
+   * Resolve to a URL with `POST /api/media/presign` (`operation: "view"`).
+   * Set via `PATCH /api/groups/:groupId` with `{ "coverImage": true | null }`. */
+  coverKey: string | null;
 }
 
 /** Percentage weights per member; positive ints summing to 100. */

@@ -259,7 +259,13 @@ export class GroupDO extends DurableObject {
     this.setMeta(META_KEYS.accessToken, accessToken);
 
     const member = this.insertMember(creatorDisplayName, now);
-    return { member, group: { name, currency, createdAt, joinCode, accessToken, emoji: null, archivedAt: null, defaultSplit: null } };
+    return {
+      member,
+      group: {
+        name, currency, createdAt, joinCode, accessToken,
+        emoji: null, archivedAt: null, defaultSplit: null, coverKey: null,
+      },
+    };
   }
 
   async addMember(displayName: string): Promise<{ member: Member }> {
@@ -283,6 +289,10 @@ export class GroupDO extends DurableObject {
      * this checks the members exist. Returns a domain `Result` on a bad
      * member so the route can 400 rather than store garbage. */
     defaultSplit?: DefaultSplit | null;
+    /** `string` (`groups/<id>/cover`) records that the group now has a cover
+     * image, `null` clears it, absent leaves it (`CHECKLIST.md` "Group cover
+     * image"). The Worker handler does the R2 head-check / delete around this. */
+    coverKey?: string | null;
   }): Promise<Result<{ group: GroupSummary }>> {
     if (patch.defaultSplit !== undefined && patch.defaultSplit !== null) {
       const memberIds = new Set(this.readMembers().map((m) => m.id));
@@ -300,6 +310,8 @@ export class GroupDO extends DurableObject {
     else if (patch.archived === false) this.deleteMeta(META_KEYS.archivedAt);
     if (patch.defaultSplit === null) this.deleteMeta(META_KEYS.defaultSplit);
     else if (patch.defaultSplit !== undefined) this.setMeta(META_KEYS.defaultSplit, JSON.stringify(patch.defaultSplit));
+    if (patch.coverKey === null) this.deleteMeta(META_KEYS.coverKey);
+    else if (patch.coverKey !== undefined) this.setMeta(META_KEYS.coverKey, patch.coverKey);
 
     return ok({ group: this.groupSummary() });
   }
@@ -367,6 +379,7 @@ export class GroupDO extends DurableObject {
       emoji: this.meta(META_KEYS.emoji),
       archivedAt: this.meta(META_KEYS.archivedAt),
       defaultSplit: this.readDefaultSplit(),
+      coverKey: this.meta(META_KEYS.coverKey),
     };
   }
 

@@ -51,7 +51,8 @@ Response: 200 { groupId }  |  404 if unknown
 ### `PATCH /api/groups/:groupId`
 ```
 Request:  { name?: string, currency?, emoji?: string | null, archived?: boolean,
-            defaultSplit?: { weights: [{ memberId, weight }] } | null }
+            defaultSplit?: { weights: [{ memberId, weight }] } | null,
+            coverImage?: true | null }
           (at least one; unknown keys rejected)
 Response: 200 { group: {...} }            the updated GroupSummary
 ```
@@ -72,8 +73,13 @@ percentage `weights` per member (positive ints summing to 100; members must
 exist) sets it, `null` clears it ("split equally"), omitting leaves it. A
 *fresh* Add Expense opens on a percentage split pre-filled from it (when
 every weighted member is still current); editing an expense ignores it.
-`emoji` / `archived_at` / `default_split` are all nullable `group_meta` keys
-— new keys, not schema-version bumps, same as `access_token`.
+`coverImage` is the group's cover photo (`CHECKLIST.md` "Group cover image"):
+the client uploads the bytes to `groups/<groupId>/cover` via
+`POST /api/media/presign` first, then `true` here commits it (400 if the
+object isn't in the bucket), `null` removes it (and deletes the R2 object),
+omitting leaves it. The stored key comes back as `GroupSummary.coverKey`.
+`emoji` / `archived_at` / `default_split` / `cover_key` are all nullable
+`group_meta` keys — new keys, not schema-version bumps, same as `access_token`.
 
 ### `POST /api/groups/:groupId/members`
 Join an existing group (also how the app adds a placeholder member).
@@ -425,7 +431,7 @@ The UI should prevent invalid input, but the DO validates independently — neve
 - **`8`** — `expenses.split_type`'s `CHECK` widened to allow `'itemized'`, and `expenses.items` (nullable JSON) added. Like v2, SQLite can't alter a `CHECK` in place, so the migration rebuilds the `expenses` table — now with every v7 column plus `items`, so the copy names columns explicitly. Powers itemized expense entry (`FEATURE_BACKLOG.md`); `items` is the line-item breakdown, `NULL` for every non-itemized expense.
 - **`9`** — `members.avatar_key` added (nullable). Plain `ADD COLUMN`, in place. The linked identity's profile-photo R2 key (`CHECKLIST.md` "Profile photos"), denormalised so `getState` can hand it to every member without exposing identity subjects; `NULL` for a guest or a photoless identity.
 
-`group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8), an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji), an `archived_at` row (2026-09-09, §2 — the archive flag), and a `default_split` row (2026-09-09, §2 — the saved default split JSON) — all new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has none of them until it sets one.
+`group_meta` separately gained an `access_token` row (2026-09-05, §1/§2/§8), an `emoji` row (2026-09-07, §2 — the group's visual-identity emoji), an `archived_at` row (2026-09-09, §2 — the archive flag), a `default_split` row (2026-09-09, §2 — the saved default split JSON), and a `cover_key` row (2026-09-10, §2 — the group cover image's R2 key, `CHECKLIST.md`) — all new keys in an existing key/value table, not schema-version bumps; a pre-existing group simply has none of them until it sets one.
 
 The **`UserDO`** (one per signed-in identity, `idFromName("<provider>:" + sub)`, added with the accounts phase) carries its own `USER_SCHEMA_VERSION` (currently `1`): a `user_meta` key/value table and a `memberships` table (`group_id` PK, `member_id`, `display_name`, `added_at`). `user_meta` separately gained an `avatar_uploaded_at` key (2026-09-10, `CHECKLIST.md` "Profile photos") — presence is the "has a photo" bit the claim path reads; a new key, not a version bump. It's a self-healing index the Worker updates *after* the authoritative `GroupDO` write — never the source of truth for the membership↔identity link. No migrations yet; a `UserDO` is created fresh on first sign-in.
 
@@ -576,8 +582,10 @@ POST   /api/media/presign   (Bearer)  → 200 { url, key, method, headers } | { 
        contentLength } → a PUT URL with Content-Type/Content-Length signed in
        (R2 rejects a mismatch, so the 5 MB / JPEG-PNG-WebP cap is enforced, not
        advisory); the object key is derived server-side, never from the client.
-       { operation: "view", key } → a GET URL. Group-scoped ops require claimed
-       membership of that group, not just the capability link.
+       { operation: "view", key } → a GET URL. `avatar` is session-only (the key
+       is the caller's own); `groupCover` / `receipt` take the same requireGroup
+       capability check as every other group route (a `?token=` match or a
+       claimed membership).
 
 GET    /api/groups/:groupId/claimable                 (Bearer)
        → 200 { members: [{ id, displayName }] }         this group's placeholders only

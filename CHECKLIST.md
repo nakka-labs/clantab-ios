@@ -1196,22 +1196,31 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       Insights, PeopleView) if worth the plumbing; a real hands-on pass
       through the actual `PHPickerViewController` on a device (the debug
       button bypassed only that sheet).
-- [ ] **Group cover image.** `~20k tokens` (CLI) — needs the R2
-      backend above; reuses the profile-photo machinery directly:
-      `ProfileImage` for resize, `presignMediaUpload(.groupCover,
-      groupId:)` + `uploadImage`, `AvatarImageLoader` for display
-      (the loader is key-agnostic — a `groups/<id>/cover` key works as
-      well as an `avatars/…` one). `groupCover` is already a
-      `MediaPurpose` and the presign endpoint already gates it on
-      claimed membership.
-      1. Add an optional cover-image key to the group record + a
-         commit endpoint (mirror `PUT /api/auth/avatar`, or fold into
-         `PATCH /api/groups/:id`).
-      2. Group Settings: upload/replace/remove UI.
-      3. Show it on the group's dashboard entry and header.
+- [ ] **Group cover image.** Code-complete 2026-09-10 across worker +
+      kit + app; all unit tests green (worker 256 / kit 271 / app 133).
+      **Sim-verify the PhotosPicker → upload → display flow** (same
+      debug-button approach as profile photos).
+      1. ✅ Worker: `cover_key` `group_meta` row (no schema bump);
+         `PATCH /api/groups/:id` `{ coverImage: true | null }` commits
+         (with an R2 head-check) / removes (deletes the R2 object).
+         `GroupSummary.coverKey` surfaces it. The `groupCover` /
+         `receipt` presign gate was **relaxed from claimed-membership
+         to the standard `requireGroup` capability check** — a guest
+         who can rename the group can also set its cover (`presignMedia*`
+         now takes an `accessToken`).
+      2. ✅ Kit: `CoverImageUpdate` (.commit/.remove), `updateGroup(
+         coverImage:)`, `GroupSummary.coverKey`, `KnownGroup.coverKey`
+         + `setCoverKey`. `CoverImage` (app) — 16:9 crop + 1280px + q0.75.
+      3. ✅ Group Settings: a "Cover Image" section — `PhotosPicker`
+         add/change + "Remove Cover". `GroupCoverImage` view (reuses
+         `AvatarImageLoader`) shows it on the dashboard row (rounded-
+         square badge) and as a banner at the top of Group Home.
 - [ ] **Photo attachment on an expense (receipts).** `~30k tokens`
       (CLI) — needs the R2 backend above. Plain photo attachment
-      only; receipt OCR stays out of scope (see Parked below).
+      only; receipt OCR stays out of scope (see Parked below). The
+      `receipt` `MediaPurpose` + presign path (server-random key,
+      `requireGroup` gate) are already built; `CoverImage` /
+      `GroupCoverImage` / `AvatarImageLoader` are the reuse pattern.
       1. Add an `attachments: [String]` (R2 object keys) field to the
          expense model, worker + `ClanTabKit`.
       2. Add Expense: attach-photo action (camera or picker), same

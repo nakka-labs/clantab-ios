@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import ClanTabKit
 
 /// Rename the group, change its default currency, rename or remove members, or
@@ -13,6 +14,9 @@ struct GroupSettingsView: View {
     /// This group's capability-link credential (`ACCESS_TOKEN_PLAN.md`) — used
     /// to authorize "Regenerate Link" itself, same as any other group route.
     let accessToken: String?
+    /// The signed-in identity's session token — needed by the media-presign
+    /// endpoint for the cover-image upload (`CHECKLIST.md` "Group cover image").
+    var sessionToken: String?
     /// The signed-in member's own row in `state.members`, if any — gates the
     /// "My UPI ID" section (`FEATURE_BACKLOG.md` "UPI deep link on Settle
     /// Up"). `nil` for a device that hasn't claimed a member yet.
@@ -54,12 +58,17 @@ struct GroupSettingsView: View {
     /// action or the general entry point below.
     @State private var reportingTarget: (target: ReportTarget, label: String)?
     @State private var reportConfirmation: String?
+    /// Cover image (`CHECKLIST.md` "Group cover image").
+    @Environment(\.avatarImageLoader) private var avatarLoader
+    @State private var pickedCover: PhotosPickerItem?
+    @State private var isSavingCover = false
 
     init(
         groupId: String,
         state: GroupStateResponse,
         client: ClanTabClient,
         accessToken: String? = nil,
+        sessionToken: String? = nil,
         myMemberId: String? = nil,
         onChanged: @escaping () -> Void,
         onRegenerated: @escaping (String) -> Void = { _ in },
@@ -70,6 +79,7 @@ struct GroupSettingsView: View {
         self.state = state
         self.client = client
         self.accessToken = accessToken
+        self.sessionToken = sessionToken
         self.myMemberId = myMemberId
         self.onChanged = onChanged
         self.onRegenerated = onRegenerated
@@ -116,6 +126,8 @@ struct GroupSettingsView: View {
             } footer: {
                 Text("The default currency for new expenses. Existing expenses keep the currency they were entered in.")
             }
+
+            coverImageSection
 
             defaultSplitSection
 
@@ -261,6 +273,10 @@ struct GroupSettingsView: View {
         } message: {
             Text("The old link and join code stop working immediately, for anyone still holding them. Not undoable.")
         }
+        .onChange(of: pickedCover) { _, item in
+            guard let item else { return }
+            Task { await handlePickedCover(item) }
+        }
         .sheet(isPresented: Binding(get: { reportingTarget != nil }, set: { if !$0 { reportingTarget = nil } })) {
             if let reportingTarget {
                 ReportContentView(
@@ -294,6 +310,99 @@ struct GroupSettingsView: View {
                 }
                 .padding(.vertical, 2)
             }
+        }
+    }
+
+    // MARK: - Cover image (CHECKLIST.md "Group cover image")
+
+    private var coverKey: String { "groups/\(groupId)/cover" }
+
+    @ViewBuilder
+    private var coverImageSection: some View {
+        Section {
+            HStack(spacing: 12) {
+                Group {
+                    if state.group.coverKey != nil {
+                        GroupCoverImage(groupId: groupId, coverKey: coverKey, accessToken: accessToken)
+                    } else {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Surface.well)
+                            .overlay(Image(systemName: "photo").foregroundStyle(.tertiary))
+                    }
+                }
+                .frame(width: 72, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                PhotosPicker(
+                    selection: $pickedCover,
+                    matching: .images,
+                    preferredItemEncoding: .compatible,
+                    photoLibrary: .shared()
+                ) {
+                    Text(state.group.coverKey == nil ? "Add Cover Image" : "Change Cover")
+                }
+                .disabled(isSavingCover)
+
+                Spacer()
+                if isSavingCover { ProgressView() }
+            }
+
+            if state.group.coverKey != nil {
+                Button("Remove Cover", role: .destructive) {
+                    Task { await removeCover() }
+                }
+                .disabled(isSavingCover)
+            }
+        } header: {
+            Text("Cover Image")
+        } footer: {
+            Text("Shown on the group's card and at the top of the group. Any member can change it.")
+        }
+    }
+
+    private func handlePickedCover(_ item: PhotosPickerItem) async {
+        errorMessage = nil
+        defer { pickedCover = nil }
+        guard
+            let data = try? await item.loadTransferable(type: Data.self),
+            let picked = UIImage(data: data),
+            let jpeg = CoverImage.jpegData(from: picked),
+            let compressed = UIImage(data: jpeg)
+        else {
+            errorMessage = "Couldn't read that photo. Try another."
+            return
+        }
+
+        isSavingCover = true
+        defer { isSavingCover = false }
+        do {
+            guard let sessionToken else {
+                errorMessage = "Sign in to set a cover image."
+                return
+            }
+            let ticket = try await client.presignMediaUpload(
+                .groupCover, contentType: "image/jpeg", contentLength: jpeg.count,
+                groupId: groupId, token: sessionToken, accessToken: accessToken
+            )
+            try await client.uploadImage(jpeg, using: ticket)
+            _ = try await client.updateGroup(groupId: groupId, coverImage: .commit, accessToken: accessToken)
+            avatarLoader?.prime(coverKey, with: compressed) // show it instantly everywhere
+            onChanged()
+        } catch {
+            errorMessage = friendlyMessage(for: error)
+        }
+    }
+
+    private func removeCover() async {
+        errorMessage = nil
+        isSavingCover = true
+        defer { isSavingCover = false }
+        do {
+            _ = try await client.updateGroup(groupId: groupId, coverImage: .remove, accessToken: accessToken)
+            avatarLoader?.invalidate(coverKey)
+            onChanged()
+        } catch {
+            errorMessage = friendlyMessage(for: error)
         }
     }
 
