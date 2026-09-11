@@ -313,4 +313,29 @@ struct KnownGroupsStoreTests {
         store.setCoverKey(groupId: "g1", coverKey: "groups/g1/cover")
         #expect(store.all().first?.coverKey == "groups/g1/cover")
     }
+
+    @Test("hidden is set only on insert, never on a re-remember, and round-trips through UserDefaults")
+    func testHiddenSetOnceOnInsert() throws {
+        let suiteName = "com.clantab.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = udStore(defaults)
+        store.remember(groupId: "g1", name: "Private tab", hidden: true, at: t0)
+        #expect(store.all().first?.isHidden == true)
+        #expect(udStore(defaults).all().first?.isHidden == true) // survives a fresh load
+
+        // A hidden group's hidden-ness is set once, at creation — a later
+        // remember() (even without passing hidden: true again) leaves it alone.
+        store.remember(groupId: "g1", name: "Private tab", at: t0.addingTimeInterval(10))
+        #expect(store.all().first?.isHidden == true)
+    }
+
+    @Test("hidden defaults to nil/false for a normal group")
+    func testHiddenDefaultsFalse() {
+        let store = InMemoryKnownGroupsStore()
+        store.remember(groupId: "g1", name: "Goa Trip", at: t0)
+        #expect(store.all().first?.hidden == nil)
+        #expect(store.all().first?.isHidden == false)
+    }
 }

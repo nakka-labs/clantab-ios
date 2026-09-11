@@ -1172,8 +1172,8 @@ async function handleEnsureFriendTab(request: Request, env: Env): Promise<Respon
     // peer's own `GET /api/auth/friends` / `GET /api/auth/groups` now lists
     // it too.
     await Promise.all([
-      me.addMembership(tabGroupId, mine.id, myDisplayName),
-      peer.addMembership(tabGroupId, theirs.id, theirDisplayName),
+      me.addMembership(tabGroupId, mine.id, myDisplayName, true),
+      peer.addMembership(tabGroupId, theirs.id, theirDisplayName, true),
     ]);
   }
 

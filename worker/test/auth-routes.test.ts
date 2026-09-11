@@ -169,7 +169,7 @@ describe("claim flow", () => {
 
     const groups = await call("GET", "/api/auth/groups", { bearer });
     expect(groups.json.groups).toEqual([
-      { groupId, memberId: placeholderId, displayName: "Priya" },
+      { groupId, memberId: placeholderId, displayName: "Priya", hidden: false },
     ]);
 
     // The claimed member is no longer a placeholder. Note: no `token` needed

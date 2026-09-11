@@ -86,7 +86,14 @@ CREATE TABLE IF NOT EXISTS memberships (
   group_id     TEXT PRIMARY KEY,
   member_id    TEXT NOT NULL,
   display_name TEXT NOT NULL,
-  added_at     INTEGER NOT NULL
+  added_at     INTEGER NOT NULL,
+  -- Mirrors that GroupDO's own group_meta.hidden bit (CHECKLIST.md
+  -- "Friends/contacts list... + private 1:1 tabs") — cached here, at
+  -- addMembership time, so GET /api/auth/groups can tell a private 1:1 tab
+  -- apart from a normal group with zero extra GroupDO round-trips. Added in
+  -- USER_SCHEMA_VERSION 2; every pre-existing membership defaults to 0 (a
+  -- normal group — the feature didn't exist before, so that's exact).
+  hidden       INTEGER NOT NULL DEFAULT 0
 );
 
 -- Registered APNs device tokens, for push notifications
@@ -121,7 +128,15 @@ export const USER_META_KEYS = {
   avatarUploadedAt: "avatar_uploaded_at",
 } as const;
 
-export const USER_SCHEMA_VERSION = "1";
+/**
+ * Bump when `UserDO` needs an in-place migration (mirrors `SCHEMA_VERSION`,
+ * `DESIGN.md` §10, for `GroupDO`). History:
+ *  - `1` → initial shape.
+ *  - `2` → `memberships.hidden` added (`INTEGER NOT NULL DEFAULT 0`) — plain
+ *          `ALTER TABLE ... ADD COLUMN`, no rebuild (no `CHECK` involved).
+ *          Private 1:1 tabs (`CHECKLIST.md`).
+ */
+export const USER_SCHEMA_VERSION = "2";
 
 /**
  * `ReportsDO` — one global singleton (`idFromName("global")`), the content-

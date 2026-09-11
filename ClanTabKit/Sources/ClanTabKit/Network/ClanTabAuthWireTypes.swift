@@ -51,13 +51,22 @@ public struct GroupMembershipSummary: Codable, Sendable, Equatable, Identifiable
     public let groupId: String
     public let memberId: String
     public let displayName: String
+    /// `true` only for an auto-created private 1:1 tab (`CHECKLIST.md`
+    /// "Friends/contacts list... + private 1:1 tabs") — the client omits it
+    /// from the visible groups list / dashboard totals. Optional so a
+    /// response predating this field (or an older cached fixture) still
+    /// decodes; `nil` reads the same as `false`.
+    public let hidden: Bool?
 
     public var id: String { groupId }
+    /// `hidden`'s "or false" reading — the call-site-friendly form.
+    public var isHidden: Bool { hidden == true }
 
-    public init(groupId: String, memberId: String, displayName: String) {
+    public init(groupId: String, memberId: String, displayName: String, hidden: Bool? = nil) {
         self.groupId = groupId
         self.memberId = memberId
         self.displayName = displayName
+        self.hidden = hidden
     }
 }
 
@@ -159,6 +168,101 @@ public struct CrossGroupPerson: Codable, Sendable, Equatable, Identifiable {
 
 public struct PeopleAcrossGroupsResponse: Decodable, Sendable {
     public let people: [CrossGroupPerson]
+}
+
+// MARK: - GET /api/auth/friends (CHECKLIST.md "Friends/contacts list... + private 1:1 tabs")
+
+/// One group the caller shares with a `Friend` — a formal group, or (once it
+/// exists) their private 1:1 tab. Used both for display and as the proof pair
+/// for `ClanTabClient.ensureFriendTab` (the caller must have a claimed member
+/// here, and `theirMemberId` a different one).
+public struct FriendGroup: Codable, Sendable, Equatable, Identifiable {
+    public let groupId: String
+    public let groupName: String
+    /// `true` only for the private 1:1 tab, once it exists.
+    public let hidden: Bool
+    public let myMemberId: String
+    public let theirMemberId: String
+
+    public var id: String { groupId }
+
+    public init(groupId: String, groupName: String, hidden: Bool, myMemberId: String, theirMemberId: String) {
+        self.groupId = groupId
+        self.groupName = groupName
+        self.hidden = hidden
+        self.myMemberId = myMemberId
+        self.theirMemberId = theirMemberId
+    }
+}
+
+/// One other claimed person the caller shares a group with — formal or a
+/// private 1:1 tab — regardless of balance. Unlike `CrossGroupPerson` (a
+/// settle-up worklist, nonzero-only), this is a directory: a settled friend
+/// still appears.
+public struct Friend: Codable, Sendable, Equatable, Identifiable {
+    /// Opaque, server-assigned — never the Apple/Google `sub`.
+    public let id: String
+    public let displayName: String
+    public let net: [CrossGroupNet]
+    public let groups: [FriendGroup]
+
+    public init(id: String, displayName: String, net: [CrossGroupNet], groups: [FriendGroup]) {
+        self.id = id
+        self.displayName = displayName
+        self.net = net
+        self.groups = groups
+    }
+
+    /// The private 1:1 tab's groupId, if one already exists between the
+    /// caller and this friend.
+    public var existingTabGroupId: String? {
+        groups.first { $0.hidden }?.groupId
+    }
+
+    /// The group to send as proof when calling `ensureFriendTab` — the
+    /// existing private tab if there is one (re-opening it needs no new
+    /// proof), else any shared formal group. `nil` only if `groups` is
+    /// somehow empty, which shouldn't happen for a real friend.
+    public var tabProofGroup: FriendGroup? {
+        groups.first { $0.hidden } ?? groups.first
+    }
+}
+
+public struct FriendsResponse: Decodable, Sendable {
+    public let friends: [Friend]
+}
+
+// MARK: - POST /api/auth/friends/tab
+
+/// Ensure the private 1:1 tab between the caller and a friend exists, and
+/// return it — safe to call any number of times (`CHECKLIST.md`
+/// "Friends/contacts list... + private 1:1 tabs").
+public struct EnsureFriendTabRequest: Encodable, Sendable {
+    /// Any group the caller shares with this friend (`Friend.tabProofGroup`).
+    public let groupId: String
+    public let theirMemberId: String
+    /// The caller's own display name — seeds the tab's member row the first
+    /// time it's created; a no-op on every call after.
+    public let myDisplayName: String
+    /// The friend's display name, as the caller currently knows it (from
+    /// `Friend.displayName`) — same "seeds on first call only" contract.
+    public let theirDisplayName: String
+    /// The tab's starting currency, only used the first time it's created —
+    /// the currency of the shared group the friendship was found through.
+    public let currency: String
+
+    public init(groupId: String, theirMemberId: String, myDisplayName: String, theirDisplayName: String, currency: String) {
+        self.groupId = groupId
+        self.theirMemberId = theirMemberId
+        self.myDisplayName = myDisplayName
+        self.theirDisplayName = theirDisplayName
+        self.currency = currency
+    }
+}
+
+public struct EnsureFriendTabResponse: Decodable, Sendable {
+    public let groupId: String
+    public let accessToken: String
 }
 
 // MARK: - POST /api/auth/devices

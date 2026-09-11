@@ -41,8 +41,18 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     /// cached from the last group-state load so the "Your Groups" list can show
     /// the cover. Always `groups/<groupId>/cover` when set; `nil` = no cover.
     public var coverKey: String?
+    /// `true` only for an auto-created private 1:1 tab (`CHECKLIST.md`
+    /// "Friends/contacts list... + private 1:1 tabs"), set once when this
+    /// device first learns about it, never after. Optional so a blob written
+    /// before this field existed still decodes; `nil` reads the same as
+    /// `false` — see `isHidden`.
+    public var hidden: Bool?
 
     public var isArchived: Bool { archivedAt != nil }
+    /// `hidden`'s "or false" reading — the call-site-friendly form. `StartView`
+    /// / `DashboardTotalsHeader` filter these out entirely (unlike an archived
+    /// group, which still shows in a collapsed section).
+    public var isHidden: Bool { hidden == true }
 
     public var id: String { groupId }
 
@@ -50,13 +60,13 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
     /// synthesized `Codable` conformance uses these keys, so the token is
     /// never written to or read from the `UserDefaults` blob.
     enum CodingKeys: String, CodingKey {
-        case groupId, name, lastOpenedAt, emoji, myBalances, archivedAt, coverKey
+        case groupId, name, lastOpenedAt, emoji, myBalances, archivedAt, coverKey, hidden
     }
 
     public init(
         groupId: String, name: String, lastOpenedAt: Date, accessToken: String? = nil,
         emoji: String? = nil, myBalances: [Balance]? = nil, archivedAt: Date? = nil,
-        coverKey: String? = nil
+        coverKey: String? = nil, hidden: Bool? = nil
     ) {
         self.groupId = groupId
         self.name = name
@@ -66,6 +76,7 @@ public struct KnownGroup: Codable, Sendable, Equatable, Identifiable {
         self.myBalances = myBalances
         self.archivedAt = archivedAt
         self.coverKey = coverKey
+        self.hidden = hidden
     }
 }
 
@@ -81,7 +92,10 @@ public protocol KnownGroupsStoring: Sendable {
     /// `accessToken` — `nil` leaves whatever's already stored alone, so a
     /// caller that doesn't have the current token handy (e.g. mirroring
     /// `GET /api/auth/groups`) never clobbers one learned elsewhere.
-    func remember(groupId: String, name: String?, accessToken: String?, at date: Date)
+    /// `hidden` only takes effect the first time this group is seen (a
+    /// private 1:1 tab's hidden-ness is set once, at creation, and never
+    /// toggled) — ignored on a group already known.
+    func remember(groupId: String, name: String?, accessToken: String?, hidden: Bool?, at date: Date)
     /// Drop a group from the list (its capability URL now 404s, or the account
     /// was deleted).
     func forget(groupId: String)
@@ -111,8 +125,11 @@ public protocol KnownGroupsStoring: Sendable {
 }
 
 public extension KnownGroupsStoring {
-    func remember(groupId: String, name: String? = nil, accessToken: String? = nil, at date: Date = Date()) {
-        remember(groupId: groupId, name: name, accessToken: accessToken, at: date)
+    func remember(
+        groupId: String, name: String? = nil, accessToken: String? = nil,
+        hidden: Bool? = nil, at date: Date = Date()
+    ) {
+        remember(groupId: groupId, name: name, accessToken: accessToken, hidden: hidden, at: date)
     }
 }
 
@@ -146,14 +163,14 @@ public final class UserDefaultsKnownGroupsStore: KnownGroupsStoring, @unchecked 
             .sorted { $0.lastOpenedAt > $1.lastOpenedAt }
     }
 
-    public func remember(groupId: String, name: String?, accessToken: String?, at date: Date) {
+    public func remember(groupId: String, name: String?, accessToken: String?, hidden: Bool?, at date: Date) {
         lock.lock(); defer { lock.unlock() }
         var groups = load()
         if let index = groups.firstIndex(where: { $0.groupId == groupId }) {
             groups[index].lastOpenedAt = date
             if let name, !name.isEmpty { groups[index].name = name }
         } else {
-            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date))
+            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date, hidden: hidden))
         }
         save(groups)
         // `nil` never clobbers a token learned elsewhere (mirrors the
@@ -258,14 +275,16 @@ public final class InMemoryKnownGroupsStore: KnownGroupsStoring, @unchecked Send
         return groups.sorted { $0.lastOpenedAt > $1.lastOpenedAt }
     }
 
-    public func remember(groupId: String, name: String?, accessToken: String?, at date: Date) {
+    public func remember(groupId: String, name: String?, accessToken: String?, hidden: Bool?, at date: Date) {
         lock.lock(); defer { lock.unlock() }
         if let index = groups.firstIndex(where: { $0.groupId == groupId }) {
             groups[index].lastOpenedAt = date
             if let name, !name.isEmpty { groups[index].name = name }
             if let accessToken { groups[index].accessToken = accessToken }
         } else {
-            groups.append(KnownGroup(groupId: groupId, name: name ?? "", lastOpenedAt: date, accessToken: accessToken))
+            groups.append(KnownGroup(
+                groupId: groupId, name: name ?? "", lastOpenedAt: date, accessToken: accessToken, hidden: hidden
+            ))
         }
     }
 

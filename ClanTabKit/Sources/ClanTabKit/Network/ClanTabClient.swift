@@ -222,6 +222,21 @@ public actor ClanTabClient {
         try await get("api/auth/groups/balances", bearer: token)
     }
 
+    /// Every other claimed person the caller shares a group with, regardless of
+    /// balance — a directory (`CHECKLIST.md` "Friends/contacts list... +
+    /// private 1:1 tabs"), unlike `peopleAcrossGroups`'s nonzero-only worklist.
+    public func friends(token: String) async throws -> FriendsResponse {
+        try await get("api/auth/friends", bearer: token)
+    }
+
+    /// Ensure the private 1:1 tab between the caller and a friend exists, and
+    /// return its `groupId` + access token — safe to call any number of times,
+    /// from either side (`CHECKLIST.md` "Friends/contacts list... + private
+    /// 1:1 tabs"). Store the result exactly like joining any other group.
+    public func ensureFriendTab(token: String, _ request: EnsureFriendTabRequest) async throws -> EnsureFriendTabResponse {
+        try await post("api/auth/friends/tab", body: request, bearer: token)
+    }
+
     /// Delete the account: every claimed membership reverts to a placeholder and
     /// the server-side index is wiped (§11). Groups and expenses are untouched.
     public func deleteAccount(token: String) async throws {

@@ -1,11 +1,18 @@
 import { DurableObject } from "cloudflare:workers";
 import { USER_META_KEYS, USER_SCHEMA, USER_SCHEMA_VERSION } from "./lib/schema.ts";
 
+type MembershipRow = { group_id: string; member_id: string; display_name: string; hidden: number };
+
 /** One entry in a user's group index. */
 export interface Membership {
   groupId: string;
   memberId: string;
   displayName: string;
+  /** Mirrors `GroupSummary.hidden` — a private 1:1 tab (`CHECKLIST.md`
+   * "Friends/contacts list... + private 1:1 tabs"), cached here so the client
+   * can omit it from the visible groups list / dashboard totals without a
+   * per-group round-trip. */
+  hidden: boolean;
 }
 
 /**
@@ -25,7 +32,25 @@ export class UserDO extends DurableObject {
     this.sql = ctx.storage.sql;
     ctx.blockConcurrencyWhile(async () => {
       this.sql.exec(USER_SCHEMA);
+      this.migrate();
     });
+  }
+
+  /** In-place migrations, mirroring `GroupDO.migrate()` (`DESIGN.md` §10).
+   * Runs on every construction, before any request is served. An identity
+   * that hasn't `ensureExists`-ed yet has no `schema_version` row and is left
+   * alone — `USER_SCHEMA` already builds the current shape. */
+  private migrate(): void {
+    let current = this.meta(USER_META_KEYS.schemaVersion);
+    if (current === null) return;
+
+    if (current === "1") {
+      // v2: memberships.hidden (private 1:1 tabs, CHECKLIST.md). Every
+      // pre-existing row defaults to 0 — the feature didn't exist before.
+      this.sql.exec("ALTER TABLE memberships ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0");
+      this.setMeta(USER_META_KEYS.schemaVersion, "2");
+      current = "2";
+    }
   }
 
   /** Create the identity record on first sign-in. `identity` is the composite
@@ -77,8 +102,8 @@ export class UserDO extends DurableObject {
    * id within each — never group contents. */
   async listGroups(): Promise<{ groups: Membership[] }> {
     const rows = this.sql
-      .exec<{ group_id: string; member_id: string; display_name: string }>(
-        "SELECT group_id, member_id, display_name FROM memberships ORDER BY added_at DESC, rowid DESC",
+      .exec<MembershipRow>(
+        "SELECT group_id, member_id, display_name, hidden FROM memberships ORDER BY added_at DESC, rowid DESC",
       )
       .toArray();
     return {
@@ -86,24 +111,30 @@ export class UserDO extends DurableObject {
         groupId: r.group_id,
         memberId: r.member_id,
         displayName: r.display_name,
+        hidden: r.hidden !== 0,
       })),
     };
   }
 
   /** Record a claimed membership. Idempotent per group — a repeat with the same
    * group overwrites (a claim always follows a successful `GroupDO.claim`, which
-   * enforces one identity per group, so the group id is a safe key). */
-  async addMembership(groupId: string, memberId: string, displayName: string): Promise<void> {
+   * enforces one identity per group, so the group id is a safe key). `hidden`
+   * mirrors the group's own `group_meta.hidden` at the moment of claiming —
+   * `true` only for a private 1:1 tab (`CHECKLIST.md`); it doesn't change after
+   * (a group's hidden-ness is set once, at creation, and never toggled). */
+  async addMembership(groupId: string, memberId: string, displayName: string, hidden = false): Promise<void> {
     this.sql.exec(
-      `INSERT INTO memberships (group_id, member_id, display_name, added_at)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO memberships (group_id, member_id, display_name, added_at, hidden)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(group_id) DO UPDATE SET
          member_id = excluded.member_id,
-         display_name = excluded.display_name`,
+         display_name = excluded.display_name,
+         hidden = excluded.hidden`,
       groupId,
       memberId,
       displayName,
       Date.now(),
+      hidden ? 1 : 0,
     );
   }
 

@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 function user(sub: string) {
@@ -23,8 +23,8 @@ describe("UserDO", () => {
 
     expect(await u.listGroups()).toEqual({
       groups: [
-        { groupId: "g2", memberId: "m2", displayName: "Ana" },
-        { groupId: "g1", memberId: "m1", displayName: "Ana" },
+        { groupId: "g2", memberId: "m2", displayName: "Ana", hidden: false },
+        { groupId: "g1", memberId: "m1", displayName: "Ana", hidden: false },
       ],
     });
   });
@@ -35,7 +35,46 @@ describe("UserDO", () => {
     await u.addMembership("g1", "m-new", "New Name");
 
     const { groups } = await u.listGroups();
-    expect(groups).toEqual([{ groupId: "g1", memberId: "m-new", displayName: "New Name" }]);
+    expect(groups).toEqual([{ groupId: "g1", memberId: "m-new", displayName: "New Name", hidden: false }]);
+  });
+
+  it("addMembership records hidden (private 1:1 tabs, CHECKLIST.md)", async () => {
+    const u = user("sub-hidden");
+    await u.addMembership("g1", "m1", "Ana", true);
+    const { groups } = await u.listGroups();
+    expect(groups).toEqual([{ groupId: "g1", memberId: "m1", displayName: "Ana", hidden: true }]);
+  });
+
+  it("migrate() upgrades a v1 memberships table (no hidden column) to v2", async () => {
+    const u = user("sub-migrate");
+    await u.ensureExists("sub-migrate");
+    await u.addMembership("g1", "m1", "Ana");
+
+    await runInDurableObject(u, (instance, state) => {
+      const sql = state.storage.sql;
+      // Rewind to the original v1 shape: no `hidden` column, schema_version 1.
+      sql.exec("DROP TABLE memberships");
+      sql.exec(`CREATE TABLE memberships (
+        group_id     TEXT PRIMARY KEY,
+        member_id    TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        added_at     INTEGER NOT NULL
+      )`);
+      sql.exec("INSERT INTO memberships VALUES ('g1', 'm1', 'Ana', 1)");
+      sql.exec("UPDATE user_meta SET value = '1' WHERE key = 'schema_version'");
+      (instance as unknown as { migrate(): void }).migrate();
+
+      const version = sql
+        .exec<{ value: string }>("SELECT value FROM user_meta WHERE key = 'schema_version'")
+        .toArray()[0]?.value;
+      expect(version).toBe("2");
+    });
+
+    // The legacy membership survived, gained hidden = false, and a fresh
+    // addMembership (incl. a hidden one, for a private 1:1 tab) works.
+    expect((await u.listGroups()).groups).toEqual([{ groupId: "g1", memberId: "m1", displayName: "Ana", hidden: false }]);
+    await u.addMembership("g2", "m2", "Bob", true);
+    expect((await u.listGroups()).groups).toContainEqual({ groupId: "g2", memberId: "m2", displayName: "Bob", hidden: true });
   });
 
   it("removeMembership drops one entry", async () => {

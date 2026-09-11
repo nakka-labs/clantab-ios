@@ -148,6 +148,70 @@ struct ClanTabAuthClientTests {
         #expect(await transport.lastRequest?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
     }
 
+    @Test("friends decodes the directory, incl. a settled friend and an existing tab")
+    func testFriends() async throws {
+        let body = jsonData([
+            "friends": [[
+                "id": "abc123opaque",
+                "displayName": "Bob",
+                "net": [] as [Any],
+                "groups": [
+                    [
+                        "groupId": "g1", "groupName": "Goa", "hidden": false,
+                        "myMemberId": "m1", "theirMemberId": "m2",
+                    ],
+                    [
+                        "groupId": "tab-xyz", "groupName": "Private tab", "hidden": true,
+                        "myMemberId": "m9", "theirMemberId": "m8",
+                    ],
+                ],
+            ]],
+        ])
+        let transport = FakeTransport(statusCode: 200, body: body)
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        let response = try await client.friends(token: "sess")
+
+        #expect(response.friends.count == 1)
+        let bob = response.friends[0]
+        #expect(bob.id == "abc123opaque")
+        #expect(bob.net.isEmpty) // settled
+        #expect(bob.existingTabGroupId == "tab-xyz")
+        #expect(bob.tabProofGroup?.groupId == "tab-xyz") // prefers the existing tab
+        #expect(await transport.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/auth/friends")
+        #expect(await transport.lastRequest?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
+    }
+
+    @Test("a friend with no existing tab proves the relationship via any shared group")
+    func testFriendTabProofFallsBackToSharedGroup() {
+        let friend = Friend(
+            id: "x", displayName: "Ana", net: [],
+            groups: [FriendGroup(groupId: "g1", groupName: "Goa", hidden: false, myMemberId: "m1", theirMemberId: "m2")]
+        )
+        #expect(friend.existingTabGroupId == nil)
+        #expect(friend.tabProofGroup?.groupId == "g1")
+    }
+
+    @Test("ensureFriendTab posts the proof pair with a bearer and decodes groupId + accessToken")
+    func testEnsureFriendTab() async throws {
+        let body = jsonData(["groupId": "tab-xyz", "accessToken": "tabtok"])
+        let transport = FakeTransport(statusCode: 200, body: body)
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        let response = try await client.ensureFriendTab(
+            token: "sess",
+            EnsureFriendTabRequest(
+                groupId: "g1", theirMemberId: "m2", myDisplayName: "Ana", theirDisplayName: "Bob", currency: "INR"
+            )
+        )
+
+        #expect(response.groupId == "tab-xyz")
+        #expect(response.accessToken == "tabtok")
+        #expect(await transport.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/auth/friends/tab")
+        #expect(await transport.lastRequest?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
+        #expect(await transport.lastRequest?.httpMethod == "POST")
+    }
+
     @Test("an expired session surfaces as .server(INVALID_SESSION)")
     func testMyGroupsExpiredSession() async {
         let transport = FakeTransport(
