@@ -636,7 +636,12 @@ writing down, "Non-goals" for the rest.
       no-op, remainder-to-recipient, sum-check pass/fail, negative
       rejected), `group.test.ts` +5 (incl. the v13→v14 migration walk),
       `routes.test.ts` +1, `ClanTabClientTests` +1. worker 303 · kit
-      308. `make check` green.
+      308. `make check` green. **Deployed to production**
+      (version `048292df`) and verified live: a 750/250 (3:1) itemized
+      dinner with 60 tax + 40 tip resolves to 825/275 (75/25 of the
+      surcharge, not an even 50/50), balances match; items+tax+tip not
+      summing to the amount `400`s (`SPLIT_MISMATCH`); `taxMinor` on a
+      non-itemized expense `400`s (`BAD_REQUEST`).
 - [ ] **"What's New" sheet, versioned.** `~15-20k tokens`. Swap the
       onboarding store's single sticky bool (`OnboardingStoring`) for a
       last-seen-build string; on launch, if the current build number is
