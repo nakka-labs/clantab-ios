@@ -463,12 +463,24 @@ writing down, "Non-goals" for the rest.
       rebuild is additive (copies every column) and unit-tested end to end
       in `group.test.ts` (v1→v11 walk); existing production groups run it
       on next access.
-- [ ] **Add member inline from Add Expense, + search on the member
-      picker.** `~15-20k tokens`. The "add member by name" (placeholder,
-      claimable later) backend already exists and shipped as its own
-      screen (Mandatory login work, 2026-09-05) — this exposes it
-      inline instead of requiring a trip to group settings, plus a
-      search field on the payer/split picker for large groups.
+- [x] **Add member inline from Add Expense, + search on the member
+      picker.** Done 2026-09-11. `AddExpenseView.members` became
+      `@State` (was `let`) so adding someone here updates every picker
+      in the sheet immediately, with no round trip through the parent.
+      New `AddMemberSheet` (name field → `client.joinGroup`, the same
+      add-by-name-only placeholder `GroupSettingsView`'s own "Add
+      Someone" already uses) reachable via an "Add Someone" row under
+      the Equal split's member list — new members land in every other
+      split type too since they all read the same local list. The
+      "Paid by" single-payer row is now a `NavigationLink` to a new
+      `MemberPickerView` (mirrors `CategoryPickerView`'s existing
+      push-a-picker-screen shape) with `.searchable` search-or-add —
+      typing a name with no match offers "Add "<name>"" inline, same
+      backend call. The Equal/Exact/Percentage/Shares member lists
+      (not itemized's per-item participant `Menu` — a `Menu` isn't
+      list-shaped, left as-is) gain a plain search field once a group
+      has more than 8 members; it only filters which rows are visible,
+      every total/validation still sums over the full member list.
 - [x] **Member profile screen: settle-up amount + UPI ID.** Done
       2026-09-10. `MemberProfileView` (App) — a read-only `List`: avatar +
       name, "Balance in this group" (per-currency owed/owes, green/red),

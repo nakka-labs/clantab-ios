@@ -10,7 +10,11 @@ import ClanTabKit
 /// side (`Validation.percentageSplit`) — the wire only carries `amountMinor`.
 struct AddExpenseView: View {
     let groupId: String
-    let members: [Member]
+    /// Mutable, not `let` (`CHECKLIST.md` "Add member inline from Add
+    /// Expense") — adding someone by name from inside this sheet appends to
+    /// this local copy immediately, so the new member shows up in every
+    /// picker here without waiting for the parent to refetch group state.
+    @State private var members: [Member]
     /// The currency to pre-select — the group's last-used one.
     let defaultCurrency: String
     let currentMemberId: String?
@@ -37,6 +41,11 @@ struct AddExpenseView: View {
     @State private var currency: String
     @State private var splitType: SplitType = .equal
     @State private var includedMemberIds: Set<String>
+    /// Filters every member list on this screen at once (`CHECKLIST.md`
+    /// "...+ search on the member picker") — shown only once a group is big
+    /// enough that scanning it is real friction.
+    @State private var memberSearchText = ""
+    @State private var isPresentingAddMember = false
     @State private var exactAmountText: [String: String] = [:]
     @State private var percentText: [String: String] = [:]
     /// Per-member ratio weights for a `.shares` split (`CHECKLIST.md` "Split by
@@ -94,6 +103,46 @@ struct AddExpenseView: View {
             : [defaultCurrency] + AppConfig.supportedCurrencies
     }
 
+    // MARK: - Member search + inline add (CHECKLIST.md "Add member inline
+    // from Add Expense, + search on the member picker")
+
+    private var trimmedMemberSearch: String { memberSearchText.trimmingCharacters(in: .whitespaces) }
+
+    private var filteredMembers: [Member] {
+        guard !trimmedMemberSearch.isEmpty else { return members }
+        return members.filter { $0.displayName.localizedCaseInsensitiveContains(trimmedMemberSearch) }
+    }
+
+    /// A search field for whichever member list is on screen — only once a
+    /// group is big enough that scrolling to find someone is real friction.
+    @ViewBuilder
+    private var memberSearchField: some View {
+        if members.count > 8 {
+            HStack {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search members", text: $memberSearchText)
+                    .textInputAutocapitalization(.words)
+                if !memberSearchText.isEmpty {
+                    Button { memberSearchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// Adds someone by name alone, without leaving this sheet — the same
+    /// add-by-name-only placeholder `GroupSettingsView`'s "Add Someone"
+    /// already exposes as its own screen trip.
+    private var addMemberButton: some View {
+        Button {
+            isPresentingAddMember = true
+        } label: {
+            Label("Add Someone", systemImage: "person.badge.plus")
+        }
+    }
+
     init(
         groupId: String,
         members: [Member],
@@ -126,7 +175,7 @@ struct AddExpenseView: View {
         onCancel: @escaping () -> Void
     ) {
         self.groupId = groupId
-        self.members = members
+        _members = State(initialValue: members)
         self.defaultCurrency = defaultCurrency
         self.currentMemberId = currentMemberId
         self.client = client
@@ -302,9 +351,18 @@ struct AddExpenseView: View {
                 if isMultiPayer {
                     payerAmountRows
                 } else {
-                    Picker("Paid by", selection: $payerId) {
-                        ForEach(members) { member in
-                            Text(member.displayName).tag(member.id)
+                    NavigationLink {
+                        MemberPickerView(
+                            selection: $payerId, members: members, groupId: groupId,
+                            client: client, accessToken: accessToken,
+                            onMemberAdded: { members.append($0) }
+                        )
+                    } label: {
+                        HStack {
+                            Text("Paid by")
+                            Spacer()
+                            Text(members.first { $0.id == payerId }?.displayName ?? "")
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -419,6 +477,16 @@ struct AddExpenseView: View {
                     onSubmitted: { self.reportingComment = nil },
                     onCancel: { self.reportingComment = nil }
                 )
+            }
+        }
+        .sheet(isPresented: $isPresentingAddMember) {
+            AddMemberSheet(groupId: groupId, client: client, accessToken: accessToken) { member in
+                members.append(member)
+                // Fresh from "Add Expense" this is almost always someone who
+                // should be on the expense right away — the equal split
+                // (every split type's starting point) includes them by
+                // default, same as every other member.
+                includedMemberIds.insert(member.id)
             }
         }
     }
@@ -611,7 +679,8 @@ struct AddExpenseView: View {
     private var splitDetail: some View {
         switch splitType {
         case .equal:
-            ForEach(members) { member in
+            memberSearchField
+            ForEach(filteredMembers) { member in
                 Toggle(isOn: includedBinding(for: member.id)) {
                     HStack(spacing: 10) {
                         MemberAvatar(member, size: 24)
@@ -632,6 +701,7 @@ struct AddExpenseView: View {
                 }
                 .font(.footnote)
             }
+            addMemberButton
         case .exact:
             exactSplitRows
         case .percentage:
@@ -655,7 +725,8 @@ struct AddExpenseView: View {
 
     @ViewBuilder
     private var exactSplitRows: some View {
-        ForEach(members) { member in
+        memberSearchField
+        ForEach(filteredMembers) { member in
             HStack(spacing: 10) {
                 MemberAvatar(member, size: 24)
                 Text(member.displayName)
@@ -711,7 +782,8 @@ struct AddExpenseView: View {
 
     @ViewBuilder
     private var payerAmountRows: some View {
-        ForEach(members) { member in
+        memberSearchField
+        ForEach(filteredMembers) { member in
             HStack(spacing: 10) {
                 MemberAvatar(member, size: 24)
                 Text(member.displayName)
@@ -733,7 +805,8 @@ struct AddExpenseView: View {
 
     @ViewBuilder
     private var percentSplitRows: some View {
-        ForEach(members) { member in
+        memberSearchField
+        ForEach(filteredMembers) { member in
             HStack(spacing: 10) {
                 MemberAvatar(member, size: 24)
                 Text(member.displayName)
@@ -791,7 +864,8 @@ struct AddExpenseView: View {
     @ViewBuilder
     private var shareSplitRows: some View {
         let resolved = amountMinor.map { resolvedShareSplits($0) } ?? []
-        ForEach(members) { member in
+        memberSearchField
+        ForEach(filteredMembers) { member in
             let w = share(for: member.id)
             let owed = resolved.first { $0.memberId == member.id }?.amountMinor
             HStack(spacing: 10) {
