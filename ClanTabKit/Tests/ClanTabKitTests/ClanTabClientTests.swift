@@ -438,6 +438,59 @@ struct ClanTabClientTests {
         #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/expenses/e1/restore?token=tok1")
     }
 
+    @Test("addComment posts to the expense's comments path and decodes it back")
+    func testAddComment() async throws {
+        let responseBody = jsonData([
+            "comment": [
+                "id": "c1", "expenseId": "e1", "authorMemberId": "m1", "text": "Thanks!",
+                "createdAt": "2026-01-01T00:00:00Z",
+            ],
+        ])
+        let transport = FakeTransport(statusCode: 201, body: responseBody)
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .addComment(groupId: "g1", expenseId: "e1", AddCommentRequest(authorMemberId: "m1", text: "Thanks!"), accessToken: "tok1")
+
+        #expect(response.comment.id == "c1")
+        #expect(response.comment.expenseId == "e1")
+        #expect(response.comment.authorMemberId == "m1")
+        #expect(response.comment.text == "Thanks!")
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "POST")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/expenses/e1/comments?token=tok1")
+        #expect(decodeBody(request)["id"] == nil) // omitted entirely when the client didn't generate one
+    }
+
+    @Test("listComments GETs the expense's comments path and decodes them, oldest first")
+    func testListComments() async throws {
+        let responseBody = jsonData([
+            "comments": [
+                ["id": "c1", "expenseId": "e1", "authorMemberId": "m1", "text": "first", "createdAt": "2026-01-01T00:00:00Z"],
+                ["id": "c2", "expenseId": "e1", "authorMemberId": "m2", "text": "second", "createdAt": "2026-01-02T00:00:00Z"],
+            ],
+        ])
+        let transport = FakeTransport(statusCode: 200, body: responseBody)
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .listComments(groupId: "g1", expenseId: "e1", accessToken: "tok1")
+
+        #expect(response.comments.map(\.text) == ["first", "second"])
+        #expect(await transport.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/expenses/e1/comments?token=tok1")
+    }
+
+    @Test("deleteComment sends a DELETE to the comment's own path, carrying deletedBy + accessToken")
+    func testDeleteComment() async throws {
+        let transport = FakeTransport(statusCode: 204, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        try await client.deleteComment(groupId: "g1", expenseId: "e1", commentId: "c1", accessToken: "tok1", deletedBy: "m2")
+
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "DELETE")
+        let url = request?.url
+        #expect(url?.absoluteString.hasPrefix("https://clantab.example.com/api/groups/g1/expenses/e1/comments/c1?") == true)
+        let query = Set(URLComponents(url: url!, resolvingAgainstBaseURL: false)!.queryItems!)
+        #expect(query == [URLQueryItem(name: "token", value: "tok1"), URLQueryItem(name: "deletedBy", value: "m2")])
+    }
+
     @Test("trash decodes both soft-deleted expenses and settlements, incl. deletedAt/deletedBy")
     func testTrash() async throws {
         let responseBody = jsonData([

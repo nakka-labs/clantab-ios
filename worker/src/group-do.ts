@@ -16,6 +16,7 @@ import type {
   AddExpenseRequest,
   AddSettlementRequest,
   Balance,
+  Comment,
   DefaultSplit,
   Expense,
   GroupStateResponse,
@@ -70,6 +71,15 @@ type SettlementRow = Row<{
   amount_minor: number;
   settled_at: number;
   currency: string;
+  deleted_at: number | null;
+  deleted_by: string | null;
+}>;
+type CommentRow = Row<{
+  id: string;
+  expense_id: string;
+  author_member_id: string;
+  text: string;
+  created_at: number;
   deleted_at: number | null;
   deleted_by: string | null;
 }>;
@@ -284,6 +294,14 @@ export class GroupDO extends DurableObject {
       `);
       this.setMeta(META_KEYS.schemaVersion, "11");
       current = "11";
+    }
+
+    if (current === "11") {
+      // v12: `comments` table added. `GROUP_SCHEMA`'s `CREATE TABLE IF NOT
+      // EXISTS` already created it above, for every group regardless of
+      // version — nothing to do here but advance the recorded version.
+      this.setMeta(META_KEYS.schemaVersion, "12");
+      current = "12";
     }
   }
 
@@ -816,6 +834,88 @@ export class GroupDO extends DurableObject {
     const settlement = this.readSettlementById(id);
     if (settlement === null) throw new Error("Settlement vanished immediately after restore");
     return ok({ settlement });
+  }
+
+  // --- comments (CHECKLIST.md "Comments on an expense") -------------------
+
+  /** Idempotent on `id`, same as `addExpense`. `NOT_FOUND` if `expenseId`
+   * doesn't reference an active expense (a trashed one included — comment on
+   * the live version, or not at all); `UNKNOWN_MEMBER` if `authorMemberId`
+   * isn't a real member. `text` is already checked non-empty by the route
+   * handler's `requireString`. */
+  async addComment(
+    expenseId: string,
+    authorMemberId: string,
+    text: string,
+    id?: string,
+  ): Promise<Result<{ comment: Comment }>> {
+    if (id !== undefined) {
+      const existing = this.commentRow(id);
+      if (existing !== null) return ok({ comment: this.toComment(existing) });
+    }
+    if (this.readExpenseById(expenseId) === null) {
+      return fail("NOT_FOUND", `Expense "${expenseId}" is not in this group.`);
+    }
+    const memberIds = new Set(this.readMembers().map((m) => m.id));
+    if (!memberIds.has(authorMemberId)) {
+      return fail("UNKNOWN_MEMBER", `Member "${authorMemberId}" is not in this group.`);
+    }
+
+    const commentId = id ?? newRecordId();
+    this.sql.exec(
+      "INSERT INTO comments (id, expense_id, author_member_id, text, created_at) VALUES (?, ?, ?, ?, ?)",
+      commentId,
+      expenseId,
+      authorMemberId,
+      text,
+      Date.now(),
+    );
+    const comment = this.commentRow(commentId);
+    if (comment === null) throw new Error("Comment vanished immediately after insert");
+    return ok({ comment: this.toComment(comment) });
+  }
+
+  /** Active comments on one expense, oldest first — a thread reads top to
+   * bottom. Empty (not `NOT_FOUND`) for an expense with none, or one that
+   * doesn't exist — the route handler already 404s a bad `expenseId` via
+   * `readExpenseById` before this is reached. */
+  async listComments(expenseId: string): Promise<{ comments: Comment[] }> {
+    const rows = this.sql
+      .exec<CommentRow>(
+        "SELECT * FROM comments WHERE expense_id = ? AND deleted_at IS NULL ORDER BY created_at ASC, rowid ASC",
+        expenseId,
+      )
+      .toArray();
+    return { comments: rows.map((r) => this.toComment(r)) };
+  }
+
+  /** Soft-delete, same idempotent shape as `deleteExpense` — no restore path
+   * exists for a comment (`CHECKLIST.md`), this is a genuine, permanent
+   * removal from every list from here on. */
+  async deleteComment(id: string, deletedBy?: string): Promise<{ deleted: boolean }> {
+    const row = this.commentRow(id);
+    if (row === null) return { deleted: false };
+    if (row.deleted_at === null) {
+      this.sql.exec("UPDATE comments SET deleted_at = ?, deleted_by = ? WHERE id = ?", Date.now(), deletedBy ?? null, id);
+    }
+    return { deleted: true };
+  }
+
+  private commentRow(id: string): CommentRow | null {
+    const rows = this.sql.exec<CommentRow>("SELECT * FROM comments WHERE id = ?", id).toArray();
+    return rows.length > 0 ? rows[0]! : null;
+  }
+
+  private toComment(c: CommentRow): Comment {
+    return {
+      id: c.id,
+      expenseId: c.expense_id,
+      authorMemberId: c.author_member_id,
+      text: c.text,
+      createdAt: isoSeconds(c.created_at),
+      ...(c.deleted_at != null ? { deletedAt: isoSeconds(c.deleted_at) } : {}),
+      ...(c.deleted_by != null ? { deletedBy: c.deleted_by } : {}),
+    };
   }
 
   /** Soft-deleted expenses/settlements, newest-deleted first

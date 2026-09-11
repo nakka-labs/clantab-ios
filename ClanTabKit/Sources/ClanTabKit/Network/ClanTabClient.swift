@@ -57,6 +57,35 @@ public actor ClanTabClient {
         try await post("api/groups/\(groupId)/settlements", body: request, accessToken: accessToken)
     }
 
+    /// Post a comment on an expense (`CHECKLIST.md` "Comments on an expense").
+    public func addComment(
+        groupId: String, expenseId: String, _ request: AddCommentRequest, accessToken: String? = nil
+    ) async throws -> AddCommentResponse {
+        try await post("api/groups/\(groupId)/expenses/\(expenseId)/comments", body: request, accessToken: accessToken)
+    }
+
+    /// Active comments on one expense, oldest first — fetched only when the
+    /// expense's own detail sheet opens, never as part of `fetchGroupState`.
+    public func listComments(groupId: String, expenseId: String, accessToken: String? = nil) async throws -> ListCommentsResponse {
+        try await get("api/groups/\(groupId)/expenses/\(expenseId)/comments", accessToken: accessToken)
+    }
+
+    /// Soft-delete a comment — no restore path exists for one, unlike an
+    /// expense/settlement (`CHECKLIST.md`).
+    public func deleteComment(
+        groupId: String, expenseId: String, commentId: String, accessToken: String? = nil, deletedBy: String? = nil
+    ) async throws {
+        let extra = deletedBy.map { [URLQueryItem(name: "deletedBy", value: $0)] } ?? []
+        var request = URLRequest(
+            url: url(
+                for: "api/groups/\(groupId)/expenses/\(expenseId)/comments/\(commentId)",
+                accessToken: accessToken, extraQueryItems: extra
+            )
+        )
+        request.httpMethod = "DELETE"
+        try await performNoContent(request)
+    }
+
     // MARK: - Group & member settings (DESIGN.md §2)
 
     /// Rename the group, change its default currency for new expenses, set its

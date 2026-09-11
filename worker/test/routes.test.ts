@@ -923,6 +923,105 @@ describe("edit / delete", () => {
   });
 });
 
+describe('comments (CHECKLIST.md "Comments on an expense")', () => {
+  let groupId: string;
+  let token: string;
+  let a: string;
+  let b: string;
+  let expenseId: string;
+
+  beforeEach(async () => {
+    const g = await makeGroup();
+    groupId = g.groupId;
+    token = g.token;
+    a = g.creatorId;
+    b = await addMember(groupId, "Ben", token);
+    const { json } = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payerId: a, amountMinor: 500, description: "Taxi", date: "2026-01-01T12:00:00Z",
+        splitType: "equal", splits: [{ memberId: a, amountMinor: 250 }, { memberId: b, amountMinor: 250 }],
+      },
+      token,
+    );
+    expenseId = (json.expense as Json).id as string;
+  });
+
+  it("POST adds a comment, GET lists it; a second lists both, oldest first", async () => {
+    const first = await post(`/api/groups/${groupId}/expenses/${expenseId}/comments`, {
+      authorMemberId: a, text: "I'll cover the tip",
+    }, token);
+    expect(first.status).toBe(201);
+    expect(first.json.comment).toMatchObject({ expenseId, authorMemberId: a, text: "I'll cover the tip" });
+    expect(first.json.comment).toHaveProperty("id");
+    expect(first.json.comment).toHaveProperty("createdAt");
+
+    await post(`/api/groups/${groupId}/expenses/${expenseId}/comments`, { authorMemberId: b, text: "Thanks!" }, token);
+
+    const list = await get(`/api/groups/${groupId}/expenses/${expenseId}/comments`, undefined, token);
+    expect(list.status).toBe(200);
+    expect((list.json.comments as Json[]).map((c) => c.text)).toEqual(["I'll cover the tip", "Thanks!"]);
+  });
+
+  it("a client-generated id makes a retried POST an idempotent replay", async () => {
+    const body = { id: "c-fixed", authorMemberId: a, text: "original" };
+    const first = await post(`/api/groups/${groupId}/expenses/${expenseId}/comments`, body, token);
+    expect(first.status).toBe(201);
+    const retry = await post(
+      `/api/groups/${groupId}/expenses/${expenseId}/comments`,
+      { id: "c-fixed", authorMemberId: a, text: "different text" },
+      token,
+    );
+    expect(retry.status).toBe(201);
+    expect(retry.json.comment).toMatchObject({ text: "original" }); // unchanged, not a second row
+    const list = await get(`/api/groups/${groupId}/expenses/${expenseId}/comments`, undefined, token);
+    expect(list.json.comments).toHaveLength(1);
+  });
+
+  it("rejects an empty comment, an unknown author, and an unknown expense", async () => {
+    const empty = await post(`/api/groups/${groupId}/expenses/${expenseId}/comments`, { authorMemberId: a, text: "  " }, token);
+    expect(empty.status).toBe(400);
+
+    const ghostAuthor = await post(
+      `/api/groups/${groupId}/expenses/${expenseId}/comments`,
+      { authorMemberId: "ghost", text: "hi" },
+      token,
+    );
+    expect(ghostAuthor.status).toBe(400);
+    expect((ghostAuthor.json.error as Json).code).toBe("UNKNOWN_MEMBER");
+
+    const ghostExpense = await post(
+      `/api/groups/${groupId}/expenses/ghost/comments`,
+      { authorMemberId: a, text: "hi" },
+      token,
+    );
+    expect(ghostExpense.status).toBe(404);
+    expect((ghostExpense.json.error as Json).code).toBe("NOT_FOUND");
+  });
+
+  it("DELETE soft-deletes a comment — gone from the list, idempotent, no restore route", async () => {
+    const { json } = await post(`/api/groups/${groupId}/expenses/${expenseId}/comments`, {
+      authorMemberId: a, text: "oops",
+    }, token);
+    const commentId = (json.comment as Json).id as string;
+
+    const first = await del(`/api/groups/${groupId}/expenses/${expenseId}/comments/${commentId}`, token);
+    expect(first.status).toBe(204);
+    expect((await get(`/api/groups/${groupId}/expenses/${expenseId}/comments`, undefined, token)).json.comments).toEqual([]);
+
+    // idempotent — deleting again, or an id that never existed, is still 204
+    expect((await del(`/api/groups/${groupId}/expenses/${expenseId}/comments/${commentId}`, token)).status).toBe(204);
+    expect((await del(`/api/groups/${groupId}/expenses/${expenseId}/comments/ghost`, token)).status).toBe(204);
+  });
+
+  it("401/403s the same way any group route does without the right credential", async () => {
+    const noToken = await post(`/api/groups/${groupId}/expenses/${expenseId}/comments`, { authorMemberId: a, text: "hi" });
+    expect(noToken.status).toBe(403);
+    const wrongToken = await get(`/api/groups/${groupId}/expenses/${expenseId}/comments`, undefined, "wrong-token");
+    expect(wrongToken.status).toBe(403);
+  });
+});
+
 describe("group + member settings", () => {
   let groupId: string;
   let token: string;

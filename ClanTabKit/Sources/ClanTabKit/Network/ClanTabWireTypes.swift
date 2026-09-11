@@ -340,6 +340,31 @@ public struct AddExpenseResponse: Decodable, Sendable {
     public let expense: Expense
 }
 
+// MARK: - POST/GET /api/groups/:groupId/expenses/:expenseId/comments (CHECKLIST.md "Comments on an expense")
+
+public struct AddCommentRequest: Encodable, Sendable {
+    /// Optional client-generated id; a retried POST with the same id is an
+    /// idempotent replay, same contract as `AddExpenseRequest.id`.
+    public let id: String?
+    public let authorMemberId: String
+    public let text: String
+
+    public init(id: String? = nil, authorMemberId: String, text: String) {
+        self.id = id
+        self.authorMemberId = authorMemberId
+        self.text = text
+    }
+}
+
+public struct AddCommentResponse: Decodable, Sendable {
+    public let comment: Comment
+}
+
+/// Active (non-deleted) comments on one expense, oldest first.
+public struct ListCommentsResponse: Decodable, Sendable {
+    public let comments: [Comment]
+}
+
 // MARK: - POST /api/groups/:groupId/settlements
 
 public struct AddSettlementRequest: Sendable {

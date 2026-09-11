@@ -67,6 +67,23 @@ CREATE TABLE IF NOT EXISTS settlements (
   deleted_at   INTEGER,
   deleted_by   TEXT
 );
+
+-- Comments on an expense (CHECKLIST.md "Comments on an expense") — same
+-- soft-delete shape as expenses/settlements, but no restore path: a deleted
+-- comment stays deleted, there's no "Recently Deleted" for these. A brand new
+-- table needs no CHECK-widening rebuild, so every pre-existing group picks it
+-- up for free the next time its GroupDO boots (this CREATE TABLE IF NOT
+-- EXISTS runs unconditionally) -- see SCHEMA_VERSION's history for why the
+-- version bump is tracked anyway.
+CREATE TABLE IF NOT EXISTS comments (
+  id                TEXT PRIMARY KEY,
+  expense_id        TEXT NOT NULL,
+  author_member_id  TEXT NOT NULL,
+  text              TEXT NOT NULL,
+  created_at        INTEGER NOT NULL,
+  deleted_at        INTEGER,
+  deleted_by        TEXT
+);
 `;
 
 /**
@@ -250,5 +267,10 @@ export const META_KEYS = {
  *          `expenses.shares` (nullable JSON) added. Like v2/v8, SQLite can't
  *          alter a CHECK in place, so `expenses` is rebuilt (all v10 columns +
  *          `shares`). `CHECKLIST.md` "Split by shares".
+ *  - `12` → `comments` table added (`CHECKLIST.md` "Comments on an expense").
+ *          A brand new table, not an existing one, so `GROUP_SCHEMA`'s
+ *          `CREATE TABLE IF NOT EXISTS` already gives every pre-existing
+ *          group one the moment its `GroupDO` next boots — `migrate()`'s v12
+ *          step only advances the recorded version, no DDL of its own.
  */
-export const SCHEMA_VERSION = "11";
+export const SCHEMA_VERSION = "12";

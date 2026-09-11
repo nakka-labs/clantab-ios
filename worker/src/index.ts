@@ -121,6 +121,9 @@ const ROUTES: Route[] = [
   route("PUT", "/api/groups/:groupId/expenses/:expenseId", handleUpdateExpense),
   route("DELETE", "/api/groups/:groupId/expenses/:expenseId", handleDeleteExpense),
   route("POST", "/api/groups/:groupId/expenses/:expenseId/restore", handleRestoreExpense),
+  route("POST", "/api/groups/:groupId/expenses/:expenseId/comments", handleAddComment),
+  route("GET", "/api/groups/:groupId/expenses/:expenseId/comments", handleListComments),
+  route("DELETE", "/api/groups/:groupId/expenses/:expenseId/comments/:commentId", handleDeleteComment),
   route("POST", "/api/groups/:groupId/settlements", handleAddSettlement),
   route("PUT", "/api/groups/:groupId/settlements/:settlementId", handleUpdateSettlement),
   route("DELETE", "/api/groups/:groupId/settlements/:settlementId", handleDeleteSettlement),
@@ -572,6 +575,44 @@ async function handleRestoreExpense(request: Request, env: Env, params: Params):
   const group = await requireGroup(request, env, params.groupId ?? "");
   const result = await group.restoreExpense(params.expenseId ?? "");
   return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+}
+
+/**
+ * Comments on an expense (`CHECKLIST.md` "Comments on an expense") — a
+ * comment thread section on the expense-detail sheet. `id` is optional and
+ * client-generated, same idempotent-replay contract as an expense/settlement.
+ */
+async function handleAddComment(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["id", "authorMemberId", "text"]);
+  const result = await group.addComment(
+    params.expenseId ?? "",
+    requireString(body, "authorMemberId"),
+    requireString(body, "text"),
+    optionalString(body, "id"),
+  );
+  if (!result.ok) return domainErrorResponse(result.error);
+  return json(201, result.value);
+}
+
+/** Active comments on one expense, oldest first. Fetched only when the
+ * expense-detail sheet actually opens — never embedded in `GroupStateResponse`
+ * (`DESIGN.md` §9's row-read cost model: that response is polled every ~25s,
+ * comments aren't). */
+async function handleListComments(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  const result = await group.listComments(params.expenseId ?? "");
+  return json(200, result);
+}
+
+/** Soft-delete, no restore path (`CHECKLIST.md`) — a genuine, permanent
+ * removal from every future list. Same `?deletedBy=` attribution convention
+ * as deleting an expense/settlement. */
+async function handleDeleteComment(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  await group.deleteComment(params.commentId ?? "", deletedByParam(request));
+  return new Response(null, { status: 204 });
 }
 
 /** The app's Apple-assigned application identifier — `<TeamID>.<bundleId>`

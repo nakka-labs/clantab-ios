@@ -244,7 +244,7 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("11");
+      expect(version).toBe("12");
 
       // The legacy expense survived the v2 + v8 + v11 rebuilds, gained null
       // category columns, had its currency backfilled from the group (USD),
@@ -341,6 +341,86 @@ describe("GroupDO", () => {
       expect(rs.value.expense.splitType).toBe("shares");
       expect(rs.value.expense.shares).toEqual([{ memberId: ana.id, weight: 2 }]);
     }
+
+    // comments (needs the v12 `comments` table) post-migration.
+    if (r.ok) {
+      const rc = await g.addComment(r.value.expense.id, ana.id, "Thanks!");
+      expect(rc.ok).toBe(true);
+      if (rc.ok) {
+        expect(rc.value.comment).toMatchObject({
+          expenseId: r.value.expense.id, authorMemberId: ana.id, text: "Thanks!",
+        });
+        expect((await g.listComments(r.value.expense.id)).comments).toEqual([rc.value.comment]);
+      }
+    }
+  });
+
+  describe("comments (CHECKLIST.md — Comments on an expense)", () => {
+    it("adds, lists (oldest first), and idempotently replays on a repeated id", async () => {
+      const g = group("g-comments-ok");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CMT234");
+      const { member: ben } = await g.addMember("Ben");
+      const r = await g.addExpense({
+        payerId: ana.id, amountMinor: 500, description: "Taxi", date: "2026-01-01T00:00:00Z",
+        splitType: "equal", splits: [{ memberId: ana.id, amountMinor: 250 }, { memberId: ben.id, amountMinor: 250 }],
+      });
+      if (!r.ok) throw new Error("setup failed");
+      const expenseId = r.value.expense.id;
+
+      const c1 = await g.addComment(expenseId, ana.id, "I'll cover the tip", "c1");
+      const c2 = await g.addComment(expenseId, ben.id, "Thanks!", "c2");
+      expect(c1.ok && c2.ok).toBe(true);
+
+      const { comments } = await g.listComments(expenseId);
+      expect(comments.map((c) => c.text)).toEqual(["I'll cover the tip", "Thanks!"]);
+      expect(comments[0]).toMatchObject({ id: "c1", expenseId, authorMemberId: ana.id });
+
+      // idempotent replay — same id, doesn't insert a second row
+      const replay = await g.addComment(expenseId, ana.id, "different text now", "c1");
+      expect(replay.ok).toBe(true);
+      if (replay.ok) expect(replay.value.comment.text).toBe("I'll cover the tip"); // unchanged
+      expect((await g.listComments(expenseId)).comments).toHaveLength(2);
+    });
+
+    it("rejects a comment on an expense that doesn't exist", async () => {
+      const g = group("g-comments-noexpense");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CMT235");
+      const r = await g.addComment("ghost-expense", ana.id, "hi");
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe("NOT_FOUND");
+    });
+
+    it("rejects a comment from a member not in the group", async () => {
+      const g = group("g-comments-ghost-author");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CMT236");
+      const r = await g.addExpense({
+        payerId: ana.id, amountMinor: 100, description: "x", date: "2026-01-01T00:00:00Z",
+        splitType: "equal", splits: [{ memberId: ana.id, amountMinor: 100 }],
+      });
+      if (!r.ok) throw new Error("setup failed");
+      const c = await g.addComment(r.value.expense.id, "ghost-member", "hi");
+      expect(c.ok).toBe(false);
+      if (!c.ok) expect(c.error.code).toBe("UNKNOWN_MEMBER");
+    });
+
+    it("deleteComment soft-deletes: gone from listComments, idempotent, no restore path", async () => {
+      const g = group("g-comments-delete");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CMT237");
+      const r = await g.addExpense({
+        payerId: ana.id, amountMinor: 100, description: "x", date: "2026-01-01T00:00:00Z",
+        splitType: "equal", splits: [{ memberId: ana.id, amountMinor: 100 }],
+      });
+      if (!r.ok) throw new Error("setup failed");
+      const c = await g.addComment(r.value.expense.id, ana.id, "oops");
+      if (!c.ok) throw new Error("setup failed");
+
+      expect(await g.deleteComment(c.value.comment.id, ana.id)).toEqual({ deleted: true });
+      expect((await g.listComments(r.value.expense.id)).comments).toEqual([]);
+      // idempotent — deleting again is still { deleted: true }, not an error
+      expect(await g.deleteComment(c.value.comment.id, ana.id)).toEqual({ deleted: true });
+      // deleting an id that never existed is { deleted: false }
+      expect(await g.deleteComment("never-existed", ana.id)).toEqual({ deleted: false });
+    });
   });
 
   describe("claim flow", () => {

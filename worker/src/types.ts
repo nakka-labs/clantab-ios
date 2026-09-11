@@ -3,6 +3,7 @@
 
 import type {
   Balance,
+  Comment,
   Expense,
   LineItem,
   Member,
@@ -12,7 +13,7 @@ import type {
   SplitType,
 } from "./lib/types.ts";
 
-export type { Balance, Expense, LineItem, Member, Settlement, ShareWeight, SimplifiedSettlement, SplitType };
+export type { Balance, Comment, Expense, LineItem, Member, Settlement, ShareWeight, SimplifiedSettlement, SplitType };
 
 /**
  * The subset of a group returned alongside its state. `joinCode` is included per
@@ -165,6 +166,24 @@ export interface RestoreExpenseResponse {
 // POST /api/groups/:groupId/settlements/:settlementId/restore
 export interface RestoreSettlementResponse {
   settlement: Settlement;
+}
+
+// POST /api/groups/:groupId/expenses/:expenseId/comments
+export interface AddCommentRequest {
+  /** Optional client-generated UUID; a retry with the same id is a no-op replay. */
+  id?: string;
+  authorMemberId: string;
+  text: string;
+}
+export interface AddCommentResponse {
+  comment: Comment;
+}
+
+// GET /api/groups/:groupId/expenses/:expenseId/comments
+/** Active (non-deleted) comments only, oldest first — a thread reads top to
+ * bottom. `CHECKLIST.md` "Comments on an expense". */
+export interface ListCommentsResponse {
+  comments: Comment[];
 }
 
 /** `{ "error": { "code", "message" } }` — every non-bare error response (`DESIGN.md` §2). */

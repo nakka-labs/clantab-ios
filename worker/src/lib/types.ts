@@ -103,6 +103,22 @@ export interface Settlement {
   deletedBy?: string;
 }
 
+/** One comment on an expense (`CHECKLIST.md` "Comments on an expense") —
+ * fetched separately (`GET .../expenses/:expenseId/comments`), never embedded
+ * in `GroupStateResponse` (keeps the hot, frequently-polled group-state
+ * response from growing with every comment ever posted). Soft-deleted like
+ * an expense/settlement, but with no restore path — a deleted comment is
+ * gone from every list, permanently. */
+export interface Comment {
+  id: string;
+  expenseId: string;
+  authorMemberId: string;
+  text: string;
+  createdAt: string; // ISO 8601
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
 /**
  * A member's net position in one currency — positive = is owed, negative = owes.
  * Always derived, never stored. A member active in N currencies has N `Balance`
