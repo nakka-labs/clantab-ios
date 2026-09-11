@@ -68,6 +68,17 @@ struct AddExpenseView: View {
     @State private var isUploadingReceipt = false
     @Environment(\.avatarImageLoader) private var avatarLoader
 
+    // MARK: Comments (CHECKLIST.md "Comments on an expense")
+    /// Only meaningful once the expense actually exists server-side — i.e.
+    /// while editing; a fresh Add Expense has nothing to attach a comment to
+    /// until it's first saved, so the whole section stays hidden until then.
+    @State private var comments: [Comment] = []
+    @State private var isLoadingComments = false
+    @State private var newCommentText = ""
+    @State private var isPostingComment = false
+    @State private var commentError: String?
+    @State private var reportingComment: (target: ReportTarget, label: String, note: String)?
+
     /// The currencies the user can pick — the supported set, plus the default if
     /// it's somehow outside it (an older group on a currency since removed).
     private var currencyChoices: [String] {
@@ -315,6 +326,8 @@ struct AddExpenseView: View {
 
             receiptsSection
 
+            if isEditing { commentsSection }
+
             if let errorMessage {
                 Section {
                     Text(errorMessage).foregroundStyle(.red)
@@ -359,6 +372,21 @@ struct AddExpenseView: View {
             guard !items.isEmpty else { return }
             Task { await uploadPickedReceipts(items) }
         }
+        .task { if isEditing { await loadComments() } }
+        .sheet(isPresented: Binding(get: { reportingComment != nil }, set: { if !$0 { reportingComment = nil } })) {
+            if let reportingComment {
+                ReportContentView(
+                    groupId: groupId,
+                    target: reportingComment.target,
+                    targetLabel: reportingComment.label,
+                    client: client,
+                    accessToken: accessToken,
+                    contextNote: reportingComment.note,
+                    onSubmitted: { self.reportingComment = nil },
+                    onCancel: { self.reportingComment = nil }
+                )
+            }
+        }
     }
 
     // MARK: - Receipts (CHECKLIST.md "Photo attachment on an expense")
@@ -399,6 +427,112 @@ struct AddExpenseView: View {
             .disabled(isUploadingReceipt)
         } header: {
             Text("Receipts")
+        }
+    }
+
+    // MARK: - Comments (CHECKLIST.md "Comments on an expense")
+
+    @ViewBuilder
+    private var commentsSection: some View {
+        Section {
+            if isLoadingComments, comments.isEmpty {
+                HStack { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
+            } else {
+                ForEach(comments) { comment in
+                    commentRow(comment)
+                }
+            }
+
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Add a comment", text: $newCommentText, axis: .vertical)
+                    .lineLimit(1...4)
+                Button {
+                    Task { await postComment() }
+                } label: {
+                    if isPostingComment {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                    }
+                }
+                .disabled(isPostingComment || newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            if let commentError {
+                Text(commentError).font(.footnote).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Comments")
+        }
+    }
+
+    @ViewBuilder
+    private func commentRow(_ comment: Comment) -> some View {
+        let author = members.first { $0.id == comment.authorMemberId }
+        HStack(alignment: .top, spacing: 10) {
+            MemberAvatar(name: author?.displayName ?? "Someone", avatarKey: author?.avatarKey, size: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(author?.displayName ?? "Someone").font(.subheadline.weight(.medium))
+                Text(comment.text).font(.subheadline)
+            }
+        }
+        .swipeActions {
+            Button(role: .destructive) { Task { await delete(comment) } } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            Button {
+                reportingComment = (
+                    target: .member(id: comment.authorMemberId),
+                    label: "\(author?.displayName ?? "Someone")'s comment",
+                    note: "Comment: \"\(comment.text)\""
+                )
+            } label: {
+                Label("Report", systemImage: "flag")
+            }
+            .tint(.orange)
+        }
+    }
+
+    private func loadComments() async {
+        isLoadingComments = true
+        defer { isLoadingComments = false }
+        do {
+            comments = try await client.listComments(groupId: groupId, expenseId: expenseId, accessToken: accessToken).comments
+            commentError = nil
+        } catch {
+            commentError = friendlyMessage(for: error)
+        }
+    }
+
+    private func postComment() async {
+        let text = newCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, let currentMemberId else { return }
+        isPostingComment = true
+        commentError = nil
+        defer { isPostingComment = false }
+        do {
+            let response = try await client.addComment(
+                groupId: groupId, expenseId: expenseId,
+                AddCommentRequest(id: UUID().uuidString, authorMemberId: currentMemberId, text: text),
+                accessToken: accessToken
+            )
+            comments.append(response.comment)
+            newCommentText = ""
+        } catch {
+            commentError = friendlyMessage(for: error)
+        }
+    }
+
+    private func delete(_ comment: Comment) async {
+        do {
+            try await client.deleteComment(
+                groupId: groupId, expenseId: expenseId, commentId: comment.id,
+                accessToken: accessToken, deletedBy: currentMemberId
+            )
+            comments.removeAll { $0.id == comment.id }
+        } catch {
+            commentError = friendlyMessage(for: error)
         }
     }
 

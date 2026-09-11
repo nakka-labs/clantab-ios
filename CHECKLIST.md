@@ -464,15 +464,34 @@ writing down, "Non-goals" for the rest.
       Today `BalanceAgingScheduler` only nudges *you* about what you
       owe; add a button that sends a push to the *other* person you're
       owed by. Same notification infra, opposite direction.
-- [ ] **Comments on an expense.** `~20-25k tokens`. New `Comment`
-      model (`id`, `expenseId`, `authorMemberId`, `text`, `createdAt`,
-      soft-delete via `deletedAt`/`deletedBy` — same pattern as
-      `Expense`/`Settlement`), stored under `GroupDO` alongside
-      expenses. Wire types + worker endpoints (add/list/delete). App:
-      a comment thread section on the expense-detail sheet, reuses
-      `MemberAvatar` for authorship. Route comment reporting through
-      the existing `ReportContentView`/block path rather than building
-      a parallel moderation flow.
+- [x] **Comments on an expense.** Done 2026-09-11. **Worker:** new
+      `comments` table (`id`, `expenseId`, `authorMemberId`, `text`,
+      `createdAt`, soft-delete via `deletedAt`/`deletedBy` — same shape
+      as `Expense`/`Settlement`, but **no restore path**, a deletion is
+      permanent). A brand new table needs no CHECK-widening rebuild, so
+      every pre-existing group gets it for free the next time its
+      `GroupDO` boots; `SCHEMA_VERSION` still bumped to **12** for the
+      historical record. Fetched via their own endpoints
+      (`POST`/`GET`/`DELETE .../expenses/:expenseId/comments[/:commentId]`),
+      **never embedded in `GroupStateResponse`** — that response is
+      polled every ~25s, comments aren't (`DESIGN.md` §9's row-read cost
+      model). `addComment` checks the expense exists (`NOT_FOUND`) and
+      the author is a real member (`UNKNOWN_MEMBER`); empty text is
+      already rejected at the parse layer. **Kit:** `Comment` model,
+      `AddCommentRequest`/`Response`, `ListCommentsResponse`,
+      `ClanTabClient.addComment/listComments/deleteComment`. **App:** a
+      "Comments" section in `AddExpenseView` — shown only while editing
+      (a fresh, unsaved expense has nothing to attach a comment to yet),
+      fetched via `.task`, a compose row + per-comment `MemberAvatar`,
+      swipe-to-delete (any member, matching this app's loose trust
+      model — same as expense edit/delete today) and swipe-to-**Report**
+      routed through the existing `ReportContentView`
+      (`target: .member(authorId)`, a new `contextNote` param pre-fills
+      the report's details with the flagged text) — no parallel
+      moderation flow, per the original plan. Tests:
+      `group.test.ts` +4 (incl. the v11→v12 migration walk),
+      `routes.test.ts` +5, `ClanTabClientTests` +3. worker 279 · kit 291
+      · iOS build green.
 - [ ] **Multiple payers on one expense.** `~35-45k tokens`. Replace
       `Expense.payerId: String` with `payers: [ExpensePayment]`
       (`memberId` + `amountMinor`), contributions summing to

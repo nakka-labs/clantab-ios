@@ -14,15 +14,36 @@ struct ReportContentView: View {
     let targetLabel: String
     let client: ClanTabClient
     let accessToken: String?
+    /// Pre-fills the details field with read-only-in-spirit context — e.g.
+    /// the flagged text of a reported comment (`CHECKLIST.md` "Comments on an
+    /// expense") — so the admin sees exactly what was flagged even if the
+    /// reporter adds nothing of their own. Still just a starting value; the
+    /// user can edit or clear it like anything else they typed.
+    var contextNote: String? = nil
     let onSubmitted: () -> Void
     let onCancel: () -> Void
 
     static let reasons = ["Inappropriate name", "Harassment or abuse", "Spam", "Other"]
 
     @State private var reason = ReportContentView.reasons[0]
-    @State private var details = ""
+    @State private var details: String
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+
+    init(
+        groupId: String, target: ReportTarget, targetLabel: String, client: ClanTabClient,
+        accessToken: String?, contextNote: String? = nil, onSubmitted: @escaping () -> Void, onCancel: @escaping () -> Void
+    ) {
+        self.groupId = groupId
+        self.target = target
+        self.targetLabel = targetLabel
+        self.client = client
+        self.accessToken = accessToken
+        self.contextNote = contextNote
+        self.onSubmitted = onSubmitted
+        self.onCancel = onCancel
+        _details = State(initialValue: contextNote ?? "")
+    }
 
     var body: some View {
         NavigationStack {
