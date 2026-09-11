@@ -494,10 +494,33 @@ writing down, "Non-goals" for the rest.
       moved out of `SettleUpView` into a pure `UPIPayLink` (ClanTabKit,
       `Logic/`) shared by both screens; `UPIPayLinkTests` (2). `make
       check` green.
-- [ ] **"Remind" button on an outstanding balance.** `~10-15k tokens`.
-      Today `BalanceAgingScheduler` only nudges *you* about what you
-      owe; add a button that sends a push to the *other* person you're
-      owed by. Same notification infra, opposite direction.
+- [x] **"Remind" button on an outstanding balance.** Done 2026-09-11. The
+      opposite direction of `BalanceAgingScheduler` (only ever nudges
+      *you* about what you owe): a new endpoint
+      `POST /api/groups/:groupId/members/:memberId/remind`
+      (`:memberId` = the debtor; body `{ fromMemberId }`, client-supplied
+      attribution — same trust model as `deletedBy`) recomputes the live
+      pairwise edge from `simplifiedSettlements` itself (never trusts an
+      amount from the client, `AGENTS.md` "Derived Balances"), resolves
+      the debtor's identity via the existing `memberIdentity`, and pushes
+      just that one person via a new narrow `notifyMember` (the
+      single-recipient counterpart to `notifyGroup`'s broadcast) with a
+      new `reminderPayload()` ("Priya sent you a reminder — you owe them
+      ₹500.00"). Best-effort throughout — no edge, an unclaimed target,
+      or no APNs config all just report `{ sent: false }`, never an
+      error; no server-side rate limit for v1, only a client-side
+      per-tap disable. **Kit:** `RemindRequest`/`RemindResponse`,
+      `ClanTabClient.remind`. **App:** a "Remind" button in
+      `MemberProfileView`'s existing "Settle up" section, shown only in
+      the `!iPay` branch (they owe you) — turns into "Reminder sent"
+      once `sent` comes back true, or a one-line error otherwise (e.g.
+      they haven't signed in yet). Tests: `notify.test.ts` +8
+      (`reminderPayload`, `notifyMember`'s config/multi-device/stale-
+      token/no-devices/never-throws cases), `routes.test.ts` +7 (cross-
+      group, no-edge, wrong-direction, unclaimed, claimed-but-APNs-
+      unconfigured, missing field, no token), `ClanTabClientTests` +1.
+      worker 298 · kit 301. **Deployed to production**
+      (version `TBD`) and verified live: TBD.
 - [x] **Comments on an expense.** Done 2026-09-11. **Worker:** new
       `comments` table (`id`, `expenseId`, `authorMemberId`, `text`,
       `createdAt`, soft-delete via `deletedAt`/`deletedBy` — same shape

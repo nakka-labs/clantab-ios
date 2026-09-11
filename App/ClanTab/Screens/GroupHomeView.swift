@@ -205,7 +205,10 @@ struct GroupHomeView: View {
                                 member: member,
                                 balances: viewModel.balances(forMember: member.id),
                                 simplifiedSettlements: state.simplifiedSettlements,
-                                myMemberId: viewModel.myIdentity?.memberId
+                                myMemberId: viewModel.myIdentity?.memberId,
+                                groupId: viewModel.groupId,
+                                client: client,
+                                accessToken: viewModel.accessToken
                             )
                         } label: {
                             MemberBalanceRow(

@@ -135,3 +135,56 @@ export function settlementPayload(opts: {
     data: { groupId: opts.groupId, kind: "settlement" },
   };
 }
+
+/** "Priya sent you a reminder — you owe them ₹500" for the "Remind" button on
+ * an outstanding balance (`CHECKLIST.md`): the opposite direction of
+ * `BalanceAgingScheduler`, which only ever nudges *you* about what you owe. */
+export function reminderPayload(opts: {
+  groupId: string;
+  groupName: string;
+  fromName: string;
+  amountMinor: number;
+  currency: string;
+}): PushPayload {
+  const amount = formatMoney(opts.amountMinor, opts.currency);
+  return {
+    title: opts.groupName,
+    body: `${opts.fromName} sent you a reminder — you owe them ${amount}`,
+    data: { groupId: opts.groupId, kind: "reminder" },
+  };
+}
+
+/** Push exactly one identity's devices — the narrow counterpart to
+ * `notifyGroup`'s broadcast, for a "Remind" push that targets one specific
+ * person rather than every other claimed member. Same best-effort contract
+ * (never throws, forgets dead tokens along the way) but returns whether
+ * anything was actually delivered, since the route's own response reports
+ * that back to the caller (`{ sent: boolean }`) rather than firing-and-forgetting
+ * via `ctx.waitUntil`. */
+export async function notifyMember(
+  env: NotifyEnv,
+  sub: string,
+  payload: PushPayload,
+  opts: { sendPushImpl?: SendPushFn } = {},
+): Promise<boolean> {
+  const config = apnsConfigFromEnv(env);
+  if (config === null) return false;
+  const send = opts.sendPushImpl ?? sendPush;
+
+  try {
+    const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
+    const tokens = await user.deviceTokens();
+    let sent = false;
+    await Promise.all(
+      tokens.map(async (token) => {
+        const outcome = await send(config, token, payload);
+        if (outcome === "unregistered") await user.unregisterDevice(token);
+        else sent = true;
+      }),
+    );
+    return sent;
+  } catch (err) {
+    console.error("notifyMember failed:", err);
+    return false;
+  }
+}

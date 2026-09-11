@@ -450,6 +450,28 @@ public struct TrashResponse: Decodable, Sendable {
     public let settlements: [Settlement]
 }
 
+// MARK: - POST /api/groups/:groupId/members/:memberId/remind
+
+/// "Remind" button on an outstanding balance (`CHECKLIST.md`): nudges the
+/// *other* member (the debtor, named in the URL path) on behalf of
+/// `fromMemberId` — client-supplied attribution, same trust model as
+/// `deletedBy` elsewhere. The server recomputes the owed amount itself
+/// (`AGENTS.md` "Derived Balances") rather than trusting anything from here.
+public struct RemindRequest: Encodable, Sendable {
+    public let fromMemberId: String
+
+    public init(fromMemberId: String) {
+        self.fromMemberId = fromMemberId
+    }
+}
+
+/// Whether a push actually went out — `false` (never an error) if the two
+/// members aren't in this group, the debt has already settled, the target
+/// isn't a claimed/signed-in identity, or APNs isn't configured.
+public struct RemindResponse: Decodable, Sendable {
+    public let sent: Bool
+}
+
 // MARK: - POST /api/groups/:groupId/report
 
 /// A group's name/content in general, or one specific member — Apple

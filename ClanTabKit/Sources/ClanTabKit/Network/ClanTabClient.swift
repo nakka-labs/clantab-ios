@@ -208,6 +208,16 @@ public actor ClanTabClient {
         try await post("api/groups/\(groupId)/report", body: ReportRequest(target: target, reason: reason, details: details), accessToken: accessToken)
     }
 
+    /// "Remind" button on an outstanding balance (`CHECKLIST.md`) — nudges
+    /// `memberId` (the debtor) that they owe `fromMemberId` (the asker, i.e.
+    /// the signed-in user tapping the button). Always succeeds at the HTTP
+    /// level; `RemindResponse.sent` reports whether a push actually went out.
+    public func remind(groupId: String, memberId: String, fromMemberId: String, accessToken: String? = nil) async throws -> RemindResponse {
+        try await post(
+            "api/groups/\(groupId)/members/\(memberId)/remind", body: RemindRequest(fromMemberId: fromMemberId), accessToken: accessToken
+        )
+    }
+
     // MARK: - Accounts (ACCOUNTS_DESIGN.md §5–§7, §11)
 
     /// Exchange an Apple identity token for a session token + the identity's

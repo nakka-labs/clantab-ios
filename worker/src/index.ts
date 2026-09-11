@@ -27,7 +27,7 @@ import {
   r2CredentialsFromEnv,
   receiptKey,
 } from "./lib/media.ts";
-import { newExpensePayload, notifyGroup, settlementPayload } from "./lib/notify.ts";
+import { newExpensePayload, notifyGroup, notifyMember, reminderPayload, settlementPayload } from "./lib/notify.ts";
 import { SessionError, mintSession, verifySession } from "./lib/session.ts";
 import {
   assertPlainObject,
@@ -131,6 +131,7 @@ const ROUTES: Route[] = [
   route("GET", "/api/groups/:groupId/trash", handleTrash),
   route("GET", "/api/groups/:groupId/claimable", handleClaimable),
   route("POST", "/api/groups/:groupId/members/:memberId/claim", handleClaim),
+  route("POST", "/api/groups/:groupId/members/:memberId/remind", handleRemind),
   route("POST", "/api/groups/:groupId/report", handleReport),
   route("POST", "/api/auth/apple", handleAuthApple),
   route("POST", "/api/auth/google", handleAuthGoogle),
@@ -888,6 +889,53 @@ async function handleRestoreSettlement(request: Request, env: Env, params: Param
 async function handleTrash(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
   return json(200, await group.trash());
+}
+
+/** "Remind" button on an outstanding balance (`CHECKLIST.md`): the opposite
+ * direction of `BalanceAgingScheduler`, which only ever nudges *you* about
+ * what you owe — this pushes the *other* member (`:memberId`, the debtor)
+ * on behalf of whoever's asking (`fromMemberId`, client-supplied attribution,
+ * same trust model as `deletedBy`). The owed amount is always recomputed
+ * fresh from `simplifiedSettlements` (`AGENTS.md` "Derived Balances"), never
+ * taken from the client, so a reminder can't be spoofed for more than is
+ * actually owed. Best-effort throughout — a missing edge, an unclaimed
+ * target, or no APNs config all just report `{ sent: false }` rather than
+ * erroring, mirroring `notifyGroup`'s "never throws" contract. No server-side
+ * rate limit for v1 (`CHECKLIST.md` budget note) — only a client-side
+ * cooldown on the button itself guards against spam-tapping. */
+async function handleRemind(request: Request, env: Env, params: Params): Promise<Response> {
+  const groupId = params.groupId ?? "";
+  const targetMemberId = params.memberId ?? "";
+  const group = await requireGroup(request, env, groupId);
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["fromMemberId"]);
+  const fromMemberId = requireString(body, "fromMemberId");
+
+  const state = await group.getState();
+  const fromMember = state.members.find((m) => m.id === fromMemberId);
+  const targetMember = state.members.find((m) => m.id === targetMemberId);
+  if (fromMember === undefined || targetMember === undefined) return json(200, { sent: false });
+
+  // The live edge where the target owes the asker — not the other way
+  // round, and not present at all once they're settled up.
+  const edge = state.simplifiedSettlements.find((s) => s.fromId === targetMemberId && s.toId === fromMemberId);
+  if (edge === undefined) return json(200, { sent: false });
+
+  const { sub } = await group.memberIdentity(targetMemberId);
+  if (sub === null) return json(200, { sent: false }); // unclaimed placeholder: no device to reach
+
+  const sent = await notifyMember(
+    env,
+    sub,
+    reminderPayload({
+      groupId,
+      groupName: state.group.name,
+      fromName: fromMember.displayName,
+      amountMinor: edge.amountMinor,
+      currency: edge.currency,
+    }),
+  );
+  return json(200, { sent });
 }
 
 // --- accounts / auth (ACCOUNTS_DESIGN.md §5–§7, §11) --------------------

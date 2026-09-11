@@ -757,6 +757,110 @@ describe("POST /api/groups/:groupId/settlements", () => {
   });
 });
 
+describe('POST /api/groups/:groupId/members/:memberId/remind (CHECKLIST.md "Remind button")', () => {
+  it("reports sent:false when the two members aren't in this group", async () => {
+    const { groupId, creatorId: a, token } = await makeGroup();
+    const { status, json } = await post(`/api/groups/${groupId}/members/ghost/remind`, { fromMemberId: a }, token);
+    expect(status).toBe(200);
+    expect(json).toEqual({ sent: false });
+  });
+
+  it("reports sent:false when nothing is owed in that direction", async () => {
+    const { groupId, creatorId: a, token } = await makeGroup();
+    const b = await addMember(groupId, "Ben", token);
+    // No expenses at all yet — fully settled, no edge either way.
+    const { status, json } = await post(`/api/groups/${groupId}/members/${b}/remind`, { fromMemberId: a }, token);
+    expect(status).toBe(200);
+    expect(json).toEqual({ sent: false });
+  });
+
+  it("reports sent:false for the wrong direction — the asker owes the target, not vice versa", async () => {
+    const { groupId, creatorId: a, token } = await makeGroup();
+    const b = await addMember(groupId, "Ben", token);
+    await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: b, amountMinor: 1000 }],
+        amountMinor: 1000,
+        description: "Lunch",
+        date: "2026-01-01T12:00:00Z",
+        splitType: "equal",
+        splits: [
+          { memberId: a, amountMinor: 500 },
+          { memberId: b, amountMinor: 500 },
+        ],
+      },
+      token,
+    );
+    // `a` owes `b` here, so `a` reminding `b` (as if `b` owed `a`) finds no edge.
+    const { status, json } = await post(`/api/groups/${groupId}/members/${b}/remind`, { fromMemberId: a }, token);
+    expect(status).toBe(200);
+    expect(json).toEqual({ sent: false });
+  });
+
+  it("reports sent:false when the debtor hasn't claimed a signed-in identity yet", async () => {
+    const { groupId, creatorId: a, token } = await makeGroup();
+    const b = await addMember(groupId, "Ben", token);
+    await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 1000 }],
+        amountMinor: 1000,
+        description: "Lunch",
+        date: "2026-01-01T12:00:00Z",
+        splitType: "equal",
+        splits: [
+          { memberId: a, amountMinor: 500 },
+          { memberId: b, amountMinor: 500 },
+        ],
+      },
+      token,
+    );
+    // `b` owes `a` 500, but `b` is still a placeholder — nobody to push.
+    const { status, json } = await post(`/api/groups/${groupId}/members/${b}/remind`, { fromMemberId: a }, token);
+    expect(status).toBe(200);
+    expect(json).toEqual({ sent: false });
+  });
+
+  it("reports sent:false (APNs unconfigured in tests) once the debtor is claimed, rather than throwing", async () => {
+    const { groupId, creatorId: a, token } = await makeGroup();
+    const b = await addMember(groupId, "Ben", token);
+    await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 1000 }],
+        amountMinor: 1000,
+        description: "Lunch",
+        date: "2026-01-01T12:00:00Z",
+        splitType: "equal",
+        splits: [
+          { memberId: a, amountMinor: 500 },
+          { memberId: b, amountMinor: 500 },
+        ],
+      },
+      token,
+    );
+    await env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId)).claim(b, "apple:ben-remind");
+
+    const { status, json } = await post(`/api/groups/${groupId}/members/${b}/remind`, { fromMemberId: a }, token);
+    expect(status).toBe(200);
+    expect(json).toEqual({ sent: false }); // no APNS_* secrets bound in the test env — see `notify.test.ts` for the sent:true path
+  });
+
+  it("400s when fromMemberId is missing", async () => {
+    const { groupId, token } = await makeGroup();
+    const b = await addMember(groupId, "Ben", token);
+    const { status } = await post(`/api/groups/${groupId}/members/${b}/remind`, {}, token);
+    expect(status).toBe(400);
+  });
+
+  it("403s without the group's access token", async () => {
+    const { groupId, creatorId: a } = await makeGroup();
+    const { status } = await post(`/api/groups/${groupId}/members/${a}/remind`, { fromMemberId: a });
+    expect(status).toBe(403);
+  });
+});
+
 describe("edit / delete", () => {
   let groupId: string;
   let token: string;

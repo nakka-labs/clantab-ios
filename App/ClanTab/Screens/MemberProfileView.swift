@@ -17,6 +17,13 @@ struct MemberProfileView: View {
     /// "Me" in this group, for phrasing the settle-up line. `nil` before the
     /// identity resolves — the settle-up section just hides.
     let myMemberId: String?
+    let groupId: String
+    let client: ClanTabClient
+    let accessToken: String?
+
+    @State private var remindingEdge: SimplifiedSettlement?
+    @State private var remindSent: Set<String> = [] // edge ids that got a confirmed "sent"
+    @State private var remindError: String?
 
     /// The settle-up edges that involve both me and this member.
     private var settleEdges: [SimplifiedSettlement] {
@@ -60,6 +67,9 @@ struct MemberProfileView: View {
                 Section("Settle up") {
                     ForEach(settleEdges, id: \.self) { edge in
                         settleRow(edge)
+                    }
+                    if let remindError {
+                        Text(remindError).foregroundStyle(.red).font(.footnote)
                     }
                 }
             }
@@ -105,7 +115,58 @@ struct MemberProfileView: View {
                 .font(.subheadline)
                 .accessibilityLabel("Open a UPI app to pay \(member.displayName) \(amount)")
             }
+            // Opposite direction of `BalanceAgingScheduler` (`CHECKLIST.md`
+            // "Remind button"): they owe me, so let me nudge them instead of
+            // waiting for the scheduler to nudge me about what I owe.
+            if !iPay {
+                remindButton(edge)
+            }
         }
         .padding(.vertical, 2)
+    }
+
+    private func edgeKey(_ edge: SimplifiedSettlement) -> String {
+        "\(edge.fromId)-\(edge.toId)-\(edge.currency)"
+    }
+
+    @ViewBuilder
+    private func remindButton(_ edge: SimplifiedSettlement) -> some View {
+        let key = edgeKey(edge)
+        if remindSent.contains(key) {
+            Label("Reminder sent", systemImage: "checkmark.circle")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        } else {
+            Button {
+                Task { await sendRemind(edge) }
+            } label: {
+                if remindingEdge == edge {
+                    ProgressView()
+                } else {
+                    Label("Remind", systemImage: "bell")
+                }
+            }
+            .font(.subheadline)
+            .disabled(remindingEdge != nil)
+        }
+    }
+
+    private func sendRemind(_ edge: SimplifiedSettlement) async {
+        guard let myMemberId else { return }
+        remindingEdge = edge
+        remindError = nil
+        defer { remindingEdge = nil }
+        do {
+            let response = try await client.remind(
+                groupId: groupId, memberId: member.id, fromMemberId: myMemberId, accessToken: accessToken
+            )
+            if response.sent {
+                remindSent.insert(edgeKey(edge))
+            } else {
+                remindError = "\(member.displayName) hasn't signed in yet, so there's no device to notify."
+            }
+        } catch {
+            remindError = friendlyMessage(for: error)
+        }
     }
 }

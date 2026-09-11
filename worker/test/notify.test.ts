@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { newExpensePayload, notifyGroup, settlementPayload } from "../src/lib/notify.ts";
+import { newExpensePayload, notifyGroup, notifyMember, reminderPayload, settlementPayload } from "../src/lib/notify.ts";
 import type { ApnsConfig, ApnsOutcome } from "../src/lib/apns.ts";
 
 const apnsEnv = { APNS_KEY_ID: "k", APNS_TEAM_ID: "t", APNS_PRIVATE_KEY: "p", APNS_TOPIC: "com.clantab.app" };
@@ -224,5 +224,78 @@ describe("settlementPayload", () => {
     });
     expect(payload.body).toBe("Priya paid Ben ₹500.00");
     expect(payload.data).toEqual({ groupId: "g1", kind: "settlement" });
+  });
+});
+
+describe("reminderPayload", () => {
+  it("names the asker and formats the amount owed", () => {
+    const payload = reminderPayload({
+      groupId: "g1",
+      groupName: "Flatmates",
+      fromName: "Priya",
+      amountMinor: 50000,
+      currency: "INR",
+    });
+    expect(payload.title).toBe("Flatmates");
+    expect(payload.body).toBe("Priya sent you a reminder — you owe them ₹500.00");
+    expect(payload.data).toEqual({ groupId: "g1", kind: "reminder" });
+  });
+});
+
+describe("notifyMember", () => {
+  it("is a no-op (returns false) when APNs isn't configured", async () => {
+    let called = false;
+    const sendPushImpl = async (): Promise<ApnsOutcome> => {
+      called = true;
+      return "sent";
+    };
+
+    const sent = await notifyMember({ USER_DO: env.USER_DO }, "apple:target", { title: "t", body: "b" }, { sendPushImpl });
+
+    expect(sent).toBe(false);
+    expect(called).toBe(false);
+  });
+
+  it("sends to every device the one target identity has registered", async () => {
+    const user = env.USER_DO.get(env.USER_DO.idFromName("apple:reminded"));
+    await user.registerDevice("tok-phone", "ios");
+    await user.registerDevice("tok-ipad", "ios");
+
+    const sentTokens: string[] = [];
+    const sendPushImpl = async (_c: ApnsConfig, token: string): Promise<ApnsOutcome> => {
+      sentTokens.push(token);
+      return "sent";
+    };
+
+    const sent = await notifyMember({ USER_DO: env.USER_DO, ...apnsEnv }, "apple:reminded", { title: "g", body: "hi" }, { sendPushImpl });
+
+    expect(sent).toBe(true);
+    expect(sentTokens.sort()).toEqual(["tok-ipad", "tok-phone"]);
+  });
+
+  it("returns false and forgets the token when APNs reports it unregistered", async () => {
+    await env.USER_DO.get(env.USER_DO.idFromName("apple:stale-remind")).registerDevice("stale-tok", "ios");
+    const sendPushImpl = async (): Promise<ApnsOutcome> => "unregistered";
+
+    const sent = await notifyMember({ USER_DO: env.USER_DO, ...apnsEnv }, "apple:stale-remind", { title: "g", body: "hi" }, { sendPushImpl });
+
+    expect(sent).toBe(false);
+    const tokens = await env.USER_DO.get(env.USER_DO.idFromName("apple:stale-remind")).deviceTokens();
+    expect(tokens).toEqual([]);
+  });
+
+  it("returns false when the target has no registered devices", async () => {
+    const sent = await notifyMember({ USER_DO: env.USER_DO, ...apnsEnv }, "apple:no-devices", { title: "g", body: "hi" });
+    expect(sent).toBe(false);
+  });
+
+  it("never throws", async () => {
+    const sendPushImpl = async (): Promise<ApnsOutcome> => {
+      throw new Error("boom");
+    };
+    await env.USER_DO.get(env.USER_DO.idFromName("apple:boom")).registerDevice("tok", "ios");
+    await expect(
+      notifyMember({ USER_DO: env.USER_DO, ...apnsEnv }, "apple:boom", { title: "g", body: "hi" }, { sendPushImpl }),
+    ).resolves.toBe(false);
   });
 });

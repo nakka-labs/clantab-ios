@@ -562,6 +562,21 @@ struct ClanTabClientTests {
         #expect(json?["details"] == nil)
     }
 
+    @Test("remind POSTs fromMemberId to the target's remind endpoint and decodes sent")
+    func testRemind() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData(["sent": true]))
+        let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
+            .remind(groupId: "g1", memberId: "m2", fromMemberId: "m1", accessToken: "tok1")
+
+        #expect(response.sent == true)
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "POST")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/members/m2/remind?token=tok1")
+        let body = try #require(await transport.lastRequest?.httpBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        #expect(json?["fromMemberId"] as? String == "m1")
+    }
+
     @Test("a PUT to an unknown expense surfaces .server(NOT_FOUND)")
     func testUpdateExpenseNotFound() async {
         let transport = FakeTransport(
