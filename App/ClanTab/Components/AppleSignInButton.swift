@@ -34,8 +34,7 @@ struct AppleSignInButton: View {
             let authorizationCode = credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
             onCredential(identityToken, credential.user, authorizationCode)
         case .failure(let error):
-            if (error as? ASAuthorizationError)?.code == .canceled { return }
-            onFailure("Sign in didn't complete. Please try again.")
+            if let message = SignInErrorMessage.forApple(error) { onFailure(message) }
         }
     }
 }

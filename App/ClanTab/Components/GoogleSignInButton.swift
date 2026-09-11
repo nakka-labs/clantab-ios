@@ -61,8 +61,7 @@ struct GoogleSignInButton: View {
     private func handle(callbackURL: URL?, error: Error?, codeVerifier: String) {
         if let error {
             activeSession = nil
-            if (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin { return }
-            onFailure("Sign in didn't complete. Please try again.")
+            if let message = SignInErrorMessage.forGoogle(error) { onFailure(message) }
             return
         }
         guard
@@ -81,7 +80,7 @@ struct GoogleSignInButton: View {
                 onCredential(identityToken)
             } catch {
                 activeSession = nil
-                onFailure("Google sign-in couldn't be completed. Please try again.")
+                if let message = SignInErrorMessage.forGoogle(error) { onFailure(message) }
             }
         }
     }
