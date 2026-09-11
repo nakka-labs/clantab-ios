@@ -7,12 +7,19 @@ struct RootView: View {
     let auth: AuthViewModel
     let avatarImageLoader: AvatarImageLoader
     let onboarding: OnboardingStoring
+    let whatsNew: WhatsNewStoring
 
     @State private var route: AppRoute = .start
     @State private var showingSettings = false
     /// The first-run walkthrough (`CHECKLIST.md` "Onboarding walkthrough") —
     /// shown over everything else until it's finished or skipped, once.
     @State private var showOnboarding: Bool
+    /// The "What's New" sheet (`CHECKLIST.md` "'What's New' sheet, versioned")
+    /// — evaluated once in the launch `.task` below (not `init`: it advances
+    /// `whatsNew`'s stored build, a side effect that must run at most once
+    /// per launch, not on every `init` SwiftUI happens to re-run).
+    @State private var showWhatsNew = false
+    @State private var whatsNewReleases: [WhatsNewRelease] = []
     /// Set when the Home Screen "Add Expense" quick action targets a group we
     /// then route into — `GroupHomeView` opens Add Expense for it once.
     @State private var pendingAddExpenseGroupId: String?
@@ -22,13 +29,15 @@ struct RootView: View {
         knownGroups: KnownGroupsStoring,
         auth: AuthViewModel,
         avatarImageLoader: AvatarImageLoader,
-        onboarding: OnboardingStoring
+        onboarding: OnboardingStoring,
+        whatsNew: WhatsNewStoring
     ) {
         self.client = client
         self.knownGroups = knownGroups
         self.auth = auth
         self.avatarImageLoader = avatarImageLoader
         self.onboarding = onboarding
+        self.whatsNew = whatsNew
         _showOnboarding = State(initialValue: Self.shouldPresentOnboarding(onboarding))
     }
 
@@ -37,6 +46,12 @@ struct RootView: View {
     /// tested without standing up the view.
     static func shouldPresentOnboarding(_ store: OnboardingStoring) -> Bool {
         !store.hasCompletedOnboarding()
+    }
+
+    /// `CFBundleVersion`, parsed to an `Int` — `0` if it's somehow missing or
+    /// non-numeric (never crashes the "What's New" check over it).
+    static func currentBuildNumber() -> Int {
+        Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "") ?? 0
     }
 
     /// The route to show on launch given the saved launch-screen preference
@@ -114,6 +129,7 @@ struct RootView: View {
             // sync for missed/denied push"). No-op unless it's actually stale.
             await auth.reconcileGroupBalances(force: false)
             knownGroupsRevision += 1
+            evaluateWhatsNew()
         }
         .onReceive(NotificationCenter.default.publisher(for: .urlOpened)) { notification in
             // Every warm-open link — `clantab://` scheme or tapped Universal
@@ -160,6 +176,34 @@ struct RootView: View {
                 showOnboarding = false
             }
         }
+        .sheet(isPresented: $showWhatsNew, onDismiss: {
+            // Fires on the "Done" button and on a swipe-to-dismiss alike, so
+            // either way this build is recorded seen exactly once.
+            whatsNew.markSeen(build: Self.currentBuildNumber())
+        }) {
+            WhatsNewView(releases: whatsNewReleases) { showWhatsNew = false }
+                .materialSheet()
+        }
+    }
+
+    /// Decides — and, either way, advances `whatsNew`'s stored build — whether
+    /// this launch should show the "What's New" sheet (`CHECKLIST.md`).
+    /// Runs once from the launch `.task`, never `init` (SwiftUI can re-run a
+    /// view's `init` on its own; this method's side effect must not).
+    /// A fresh install / one that predates this feature (`lastSeenBuild ==
+    /// nil`) seeds itself silently instead of dumping the whole history on
+    /// someone who never asked for a changelog.
+    private func evaluateWhatsNew() {
+        let currentBuild = Self.currentBuildNumber()
+        guard let lastSeen = whatsNew.lastSeenBuild() else {
+            whatsNew.markSeen(build: currentBuild)
+            return
+        }
+        guard WhatsNew.shouldShow(lastSeenBuild: lastSeen, currentBuild: currentBuild, hasCompletedOnboarding: onboarding.hasCompletedOnboarding()) else {
+            return
+        }
+        whatsNewReleases = WhatsNew.unseenReleases(sinceBuild: lastSeen)
+        showWhatsNew = true
     }
 
     /// The start screen's "Your Groups" list — signed-in only

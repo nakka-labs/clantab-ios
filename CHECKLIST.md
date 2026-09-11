@@ -642,18 +642,35 @@ writing down, "Non-goals" for the rest.
       surcharge, not an even 50/50), balances match; items+tax+tip not
       summing to the amount `400`s (`SPLIT_MISMATCH`); `taxMinor` on a
       non-itemized expense `400`s (`BAD_REQUEST`).
-- [ ] **"What's New" sheet, versioned.** `~15-20k tokens`. Swap the
-      onboarding store's single sticky bool (`OnboardingStoring`) for a
-      last-seen-build string; on launch, if the current build number is
-      newer than what's stored **and** the user has already finished
-      the first-run walkthrough, show a short sheet listing what
-      shipped since their last open. Not urgent while the app is
-      internal-only (2026-09-10 — no real returning-user base to reach
-      yet), but worth writing now while this round's feature list
-      (friends/tabs, comments, multiple payers, shares split) is fresh
-      — it's the only real mechanism for surfacing a round like this
-      once actual users exist. Content is a static list per release,
-      same shape as this file's own "Done (condensed)" entries.
+- [x] **"What's New" sheet, versioned.** Done 2026-09-11. A new,
+      separate `WhatsNewStoring` (`ClanTabKit/Storage/`, mirrors
+      `OnboardingStoring`'s shape exactly — `UserDefaultsWhatsNewStore`
+      / `InMemoryWhatsNewStore`) tracks the last-seen `CFBundleVersion`
+      as an `Int?` (`nil` distinct from `0` — "never recorded", not
+      "recorded build 0"); kept separate from `OnboardingStoring`'s own
+      one-time "finished the walkthrough" bool rather than folding one
+      into the other, since they're independent signals with different
+      lifetimes. Pure logic in `Logic/WhatsNew.swift`: a hand-edited
+      `WhatsNew.releases: [WhatsNewRelease]` (one entry so far, build 8
+      — this round's headline items in user-facing language, same
+      "condense the technical writeup" shape as this file's own "Done"
+      entries elsewhere); `WhatsNew.shouldShow(lastSeenBuild:
+      currentBuild:hasCompletedOnboarding:)` gates on onboarding being
+      finished (a fresh install gets onboarding, not a changelog for
+      updates it never saw) and at least one release strictly newer
+      than `lastSeenBuild`. **App:** `RootView` evaluates this once
+      from its existing launch `.task` (deliberately not `init`, which
+      SwiftUI can re-run on its own and must never re-trigger a
+      side-effecting "mark seen") — a `nil` `lastSeenBuild` (fresh
+      install, or one that predates this feature) seeds itself silently
+      rather than dumping the whole history on someone who never asked;
+      otherwise a new `WhatsNewView` sheet lists the unseen releases,
+      newest first, and its `onDismiss` (covers both the "Done" button
+      and a swipe-away) advances the stored build. New
+      `RootView.currentBuildNumber()` reads `CFBundleVersion` the same
+      way `SettingsView`'s existing version label already does. Tests:
+      `WhatsNewStoreTests` (4), `WhatsNewTests` (6). worker unaffected ·
+      kit 317. `make check` green (app/kit-only — nothing to deploy).
 - [x] **Empty-state calls-to-action.** Done 2026-09-10. Group Home's
       "No Expenses Yet" and Recurring Reminders' "Nothing on Repeat Yet"
       `ContentUnavailableView`s switched to the closure form with an
