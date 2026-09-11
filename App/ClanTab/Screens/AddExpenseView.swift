@@ -39,6 +39,12 @@ struct AddExpenseView: View {
     /// `exactAmountText`'s shape, just on the credit side of the expense.
     @State private var payerAmountText: [String: String] = [:]
     @State private var currency: String
+    /// The expense's own date (`CHECKLIST.md` UX audit [14]) — defaults to
+    /// "now" at the moment this sheet opens (adding), overridden in `init` to
+    /// the stored date while editing. Duplicating/a recurring reminder both
+    /// leave it at the default, same as their blank amount — "today" is the
+    /// whole point of logging a repeat.
+    @State private var date = Date()
     @State private var splitType: SplitType = .equal
     @State private var includedMemberIds: Set<String>
     /// Filters every member list on this screen at once (`CHECKLIST.md`
@@ -46,6 +52,10 @@ struct AddExpenseView: View {
     /// enough that scanning it is real friction.
     @State private var memberSearchText = ""
     @State private var isPresentingAddMember = false
+    /// Drives `MoreSplitsSheet` (`CHECKLIST.md` UX audit [15]) — the primary
+    /// segmented control only carries Equally/Exact/%; Shares and Items (and
+    /// a way back) live one tap away here.
+    @State private var isPresentingMoreSplits = false
     @State private var exactAmountText: [String: String] = [:]
     @State private var percentText: [String: String] = [:]
     /// Per-member ratio weights for a `.shares` split (`CHECKLIST.md` "Split by
@@ -230,6 +240,7 @@ struct AddExpenseView: View {
         // just an "undo delete" of a fresh copy).
         if editing != nil {
             _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: expense.amountMinor))
+            _date = State(initialValue: expense.date)
         }
         _description = State(initialValue: expense.description)
         // A genuine multi-payer expense (`CHECKLIST.md` "Multiple payers on
@@ -311,6 +322,24 @@ struct AddExpenseView: View {
     /// Append `+` / `-` to the running amount expression, keeping focus so the
     /// next term can be typed. A trailing operator is swapped, not stacked
     /// (`"12 + "` then `-` → `"12 - "`); a blank field is left alone.
+    /// The one place `splitType` actually changes (`CHECKLIST.md` UX audit
+    /// [15]) — called from both the primary segmented control and
+    /// `MoreSplitsSheet`, so the seeding side effects run regardless of
+    /// which one picked Shares/Items.
+    private func selectSplitType(_ newValue: SplitType) {
+        splitType = newValue
+        // Seed the first line item the moment "Items" is picked (unless
+        // editing already filled them), so the section isn't an empty shell.
+        if newValue == .itemized, itemDrafts.isEmpty {
+            itemDrafts = [ItemDraft(participantIds: includedMemberIds.isEmpty ? Set(members.map(\.id)) : includedMemberIds)]
+        }
+        // Seed every member at weight 1 the first time "Shares" is picked,
+        // so an equal split is the starting point.
+        if newValue == .shares, shareText.isEmpty {
+            shareText = Dictionary(uniqueKeysWithValues: members.map { ($0.id, "1") })
+        }
+    }
+
     private func appendOperator(_ op: String) {
         var text = amountText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
@@ -397,29 +426,34 @@ struct AddExpenseView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                DatePicker("Date", selection: $date, displayedComponents: .date)
             }
 
             Section("Split") {
-                Picker("Split type", selection: $splitType) {
-                    Text("Equally").tag(SplitType.equal)
-                    Text("Exact").tag(SplitType.exact)
-                    Text("%").tag(SplitType.percentage)
-                    Text("Shares").tag(SplitType.shares)
-                    Text("Items").tag(SplitType.itemized)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: splitType) { _, newValue in
-                    // Seed the first line item the moment the user picks "Items"
-                    // (unless editing already filled them), so the section isn't
-                    // an empty shell.
-                    if newValue == .itemized, itemDrafts.isEmpty {
-                        itemDrafts = [ItemDraft(participantIds: includedMemberIds.isEmpty ? Set(members.map(\.id)) : includedMemberIds)]
+                // A 5-way segmented control gave every mode equal visual
+                // weight (`CHECKLIST.md` UX audit [15]) — Equally/Exact/%
+                // cover the common case and stay a 1-tap segmented control;
+                // Shares/Items (rarer) move one tap further, behind
+                // `MoreSplitsSheet`.
+                if splitType == .shares || splitType == .itemized {
+                    HStack {
+                        Text("Split type")
+                        Spacer()
+                        Text(splitType.fullLabel).foregroundStyle(.secondary)
                     }
-                    // Seed every member at weight 1 the first time "Shares" is
-                    // picked, so an equal split is the starting point.
-                    if newValue == .shares, shareText.isEmpty {
-                        shareText = Dictionary(uniqueKeysWithValues: members.map { ($0.id, "1") })
+                    Button("Change") { isPresentingMoreSplits = true }
+                } else {
+                    Picker("Split type", selection: Binding(
+                        get: { splitType },
+                        set: { selectSplitType($0) }
+                    )) {
+                        Text("Equally").tag(SplitType.equal)
+                        Text("Exact").tag(SplitType.exact)
+                        Text("%").tag(SplitType.percentage)
                     }
+                    .pickerStyle(.segmented)
+                    Button("More Split Types (Shares, Items)") { isPresentingMoreSplits = true }
+                        .font(.footnote)
                 }
 
                 splitDetail
@@ -487,6 +521,9 @@ struct AddExpenseView: View {
                     onCancel: { self.reportingComment = nil }
                 )
             }
+        }
+        .sheet(isPresented: $isPresentingMoreSplits) {
+            MoreSplitsSheet(current: splitType, onPicked: selectSplitType)
         }
         .sheet(isPresented: $isPresentingAddMember) {
             AddMemberSheet(groupId: groupId, client: client, accessToken: accessToken) { member in
@@ -1219,9 +1256,7 @@ struct AddExpenseView: View {
                 amountMinor: amountMinor,
                 currency: currency,
                 description: description,
-                // Adding stamps "now"; editing keeps the original date (there's
-                // no date field in this form).
-                date: editing?.date ?? Date(),
+                date: date,
                 splitType: splitType,
                 splits: splits,
                 items: items,
