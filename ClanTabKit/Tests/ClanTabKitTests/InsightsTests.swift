@@ -110,4 +110,50 @@ struct InsightsTests {
         #expect(Insights.totalSpend(all, currency: "EUR") == 400)
         #expect(Insights.byMember(all, members: [ana, ben], currency: "EUR").map(\.totalMinor) == [400, 0])
     }
+
+    // MARK: - memberId filtering (CHECKLIST.md "All Insights graphs interactive")
+
+    @Test("totalSpend with memberId sums only that member's split share")
+    func testTotalSpendFilteredByMember() {
+        let expenses = [
+            expense(amount: 1000, splits: [
+                ExpenseSplit(memberId: ana.id, amountMinor: 600),
+                ExpenseSplit(memberId: ben.id, amountMinor: 400),
+            ]),
+            expense(amount: 500, splits: [ExpenseSplit(memberId: ben.id, amountMinor: 500)]),
+        ]
+        #expect(Insights.totalSpend(expenses, currency: "USD", memberId: ana.id) == 600)
+        #expect(Insights.totalSpend(expenses, currency: "USD", memberId: ben.id) == 900)
+        #expect(Insights.totalSpend(expenses, currency: "USD", memberId: cara.id) == 0) // not on either expense
+        #expect(Insights.totalSpend(expenses, currency: "USD") == 1500) // unfiltered, unchanged
+    }
+
+    @Test("byCategory with memberId only counts that member's share, and drops categories they have none of")
+    func testByCategoryFilteredByMember() {
+        let expenses = [
+            expense(amount: 300, category: "Dining", splits: [
+                ExpenseSplit(memberId: ana.id, amountMinor: 200),
+                ExpenseSplit(memberId: ben.id, amountMinor: 100),
+            ]),
+            expense(amount: 700, category: "Travel", splits: [ExpenseSplit(memberId: ben.id, amountMinor: 700)]),
+        ]
+        let anaResult = Insights.byCategory(expenses, currency: "USD", memberId: ana.id)
+        #expect(anaResult.map(\.category.name) == ["Dining"])
+        #expect(anaResult.map(\.totalMinor) == [200])
+
+        let benResult = Insights.byCategory(expenses, currency: "USD", memberId: ben.id)
+        #expect(Set(benResult.map(\.category.name)) == ["Dining", "Travel"])
+    }
+
+    @Test("overTime with memberId buckets only that member's split share")
+    func testOverTimeFilteredByMember() {
+        let expenses = [
+            expense(amount: 1000, date: Date(timeIntervalSince1970: 0), splits: [
+                ExpenseSplit(memberId: ana.id, amountMinor: 700),
+                ExpenseSplit(memberId: ben.id, amountMinor: 300),
+            ]),
+        ]
+        let result = Insights.overTime(expenses, currency: "USD", granularity: .month, calendar: utc, memberId: ana.id)
+        #expect(result.map(\.totalMinor) == [700])
+    }
 }

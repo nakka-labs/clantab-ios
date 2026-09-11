@@ -22,13 +22,33 @@ struct InsightsView: View {
     @State private var scrubbedDate: Date?
     /// Angle scrubbed on the by-member donut, resolved to a slice.
     @State private var scrubbedAngle: Double?
+    /// Angle scrubbed on the by-category pie (`CHECKLIST.md` "Category pie
+    /// chart in Insights"), resolved to a slice.
+    @State private var scrubbedCategoryAngle: Double?
+    /// Tap a member (row or donut slice) to filter every other chart down to
+    /// just their share (`CHECKLIST.md` "All Insights graphs interactive") —
+    /// one shared selection, not per-chart state. `nil` shows the whole group.
+    @State private var selectedMemberId: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var currencies: [String] { Insights.currencies(in: expenses) }
-    private var total: Int64 { Insights.totalSpend(expenses, currency: currency) }
-    private var byCategory: [CategorySpend] { Insights.byCategory(expenses, currency: currency) }
+    private var total: Int64 { Insights.totalSpend(expenses, currency: currency, memberId: selectedMemberId) }
+    /// The whole group's total, regardless of `selectedMemberId` — the
+    /// denominator for the "By member" bars (each member's own share of
+    /// *everyone's* spend), which stays meaningful even while a filter is
+    /// active; unlike `total`, which narrows to match "Total spent"'s label.
+    private var groupTotal: Int64 { Insights.totalSpend(expenses, currency: currency) }
+    private var byCategory: [CategorySpend] { Insights.byCategory(expenses, currency: currency, memberId: selectedMemberId) }
+    /// Always the whole group, regardless of `selectedMemberId` — this is the
+    /// list *doing* the filtering (tap a row to select it), so it can't
+    /// filter itself down to one row.
     private var byMember: [MemberSpend] { Insights.byMember(expenses, members: members, currency: currency) }
-    private var overTime: [SpendBucket] { Insights.overTime(expenses, currency: currency, granularity: granularity) }
+    private var overTime: [SpendBucket] {
+        Insights.overTime(expenses, currency: currency, granularity: granularity, memberId: selectedMemberId)
+    }
+    private var selectedMember: Member? {
+        selectedMemberId.flatMap { id in members.first { $0.id == id } }
+    }
 
     var body: some View {
         Group {
@@ -51,7 +71,16 @@ struct InsightsView: View {
 
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Total spent").font(.subheadline).foregroundStyle(.secondary)
+                            HStack {
+                                Text(selectedMember == nil ? "Total spent" : "\(selectedMember!.displayName)'s spend")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                if selectedMember != nil {
+                                    Spacer()
+                                    Button("Show Everyone") { withAnimation(.easeOut(duration: 0.15)) { selectedMemberId = nil } }
+                                        .font(.caption)
+                                }
+                            }
                             Text(money(total)).font(.display(size: 34, weight: .semibold, relativeTo: .largeTitle))
                         }
                     }
@@ -67,16 +96,20 @@ struct InsightsView: View {
                     }
 
                     Section("By category") {
+                        if byCategory.count > 1 {
+                            categoryPie
+                        }
                         ForEach(byCategory) { entry in
                             breakdownRow(
                                 title: entry.category.name,
                                 icon: entry.category.symbolName,
-                                amountMinor: entry.totalMinor
+                                amountMinor: entry.totalMinor,
+                                of: total
                             )
                         }
                     }
 
-                    Section("By member") {
+                    Section {
                         if spendingMembers.count > 1 {
                             memberDonut
                         }
@@ -85,8 +118,21 @@ struct InsightsView: View {
                                 title: entry.member.displayName,
                                 icon: "person",
                                 amountMinor: entry.totalMinor,
-                                memberName: entry.member.displayName
+                                of: groupTotal,
+                                memberName: entry.member.displayName,
+                                isSelected: selectedMemberId == entry.member.id
                             )
+                            .contentShape(Rectangle())
+                            .onTapGesture { toggleSelection(entry.member.id) }
+                            .listRowBackground(selectedMemberId == entry.member.id ? Color.accentColor.opacity(0.08) : nil)
+                        }
+                    } header: {
+                        Text("By member")
+                    } footer: {
+                        // Only worth explaining once there's more than one row
+                        // to tap — a single-member group has nothing to filter.
+                        if byMember.count > 1 {
+                            Text("Tap a member to filter every chart to just their share.")
                         }
                     }
                 }
@@ -113,11 +159,15 @@ struct InsightsView: View {
         }
         .task(id: currency) {
             guard !currency.isEmpty else { return }
+            // Always the whole group's recap, regardless of a member filter
+            // on-screen (`CHECKLIST.md` "All Insights graphs interactive") —
+            // sharing a recap card mid-filter shouldn't quietly share a
+            // narrower number than "Total spent" normally means.
             shareCard = RecapCard.render(RecapCard(
                 groupName: groupName,
                 groupEmoji: groupEmoji,
                 members: members,
-                content: .recap(totalMinor: total, byMember: byMember, currency: currency)
+                content: .recap(totalMinor: groupTotal, byMember: byMember, currency: currency)
             ))
         }
     }
@@ -262,6 +312,78 @@ struct InsightsView: View {
         )
     }
 
+    /// The slice under the current pie scrub angle.
+    private var scrubbedCategory: CategorySpend? {
+        guard let scrubbedCategoryAngle else { return nil }
+        var cumulative = 0.0
+        for entry in byCategory {
+            cumulative += Double(entry.totalMinor)
+            if scrubbedCategoryAngle <= cumulative { return entry }
+        }
+        return byCategory.last
+    }
+
+    /// Spend-by-category as a pie (`CHECKLIST.md` "Category pie chart in
+    /// Insights") — a full pie, not a donut, so it reads as a different chart
+    /// from "By member" at a glance; each slice in that category's existing
+    /// pastel color and SF Symbol icon (`CategoryPickerView`'s formula, not a
+    /// new palette). The rows below are the legend, so the chart's own is
+    /// hidden. Drag around the pie to isolate a slice, same interaction as the
+    /// member donut (`CHECKLIST.md` "Chart interaction") — a full pie has no
+    /// hollow center for a resting label, so (unlike the donut) the tooltip is
+    /// a floating pill shown only while actively scrubbing.
+    private var categoryPie: some View {
+        Chart(byCategory) { entry in
+            SectorMark(
+                angle: .value("Spent", entry.totalMinor),
+                angularInset: 1.5
+            )
+            .cornerRadius(3)
+            .foregroundStyle(by: .value("Category", entry.category.name))
+            .opacity(scrubbedCategory == nil || scrubbedCategory?.id == entry.id ? 1 : 0.3)
+        }
+        .chartAngleSelection(value: $scrubbedCategoryAngle)
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                if let category = scrubbedCategory, let plotAnchor = proxy.plotFrame {
+                    let plot = geo[plotAnchor]
+                    categoryTooltip(for: category)
+                        .position(x: plot.midX, y: plot.midY)
+                }
+            }
+        }
+        .chartForegroundStyleScale(
+            domain: byCategory.map { $0.category.name },
+            range: byCategory.map { $0.category.pastelColor }
+        )
+        .chartLegend(.hidden)
+        .frame(height: 200)
+        .padding(.vertical, 8)
+        .animation(.easeOut(duration: 0.15), value: scrubbedCategory)
+        .accessibilityLabel("Spending by category")
+        .accessibilityValue(
+            byCategory
+                .map { "\($0.category.name) \(money($0.totalMinor))" }
+                .joined(separator: ", ")
+        )
+    }
+
+    private func categoryTooltip(for category: CategorySpend) -> some View {
+        VStack(spacing: 1) {
+            Label(category.category.name, systemImage: category.category.symbolName)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(money(category.totalMinor))
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .fixedSize()
+    }
+
     private var chartUnit: Calendar.Component {
         switch granularity {
         case .day: return .day
@@ -272,8 +394,15 @@ struct InsightsView: View {
 
     /// A category/member row: icon, name, a proportional bar, and the amount.
     /// Pass `memberName` for a member row — it gets that member's identity
-    /// avatar and tints the bar with their `MemberColor`.
-    private func breakdownRow(title: String, icon: String, amountMinor: Int64, memberName: String? = nil) -> some View {
+    /// avatar and tints the bar with their `MemberColor`. `of` is the bar's
+    /// denominator — the (possibly member-filtered) `total` for a category
+    /// row, always the unfiltered `groupTotal` for a member row (`CHECKLIST.md`
+    /// "All Insights graphs interactive" — the group breakdown that's *doing*
+    /// the filtering can't sensibly be proportioned against its own filter).
+    private func breakdownRow(
+        title: String, icon: String, amountMinor: Int64, of total: Int64,
+        memberName: String? = nil, isSelected: Bool = false
+    ) -> some View {
         let fraction = total > 0 ? Double(amountMinor) / Double(total) : 0
         let tint = memberName.map { MemberColor.color(for: $0) } ?? Color.accentColor
 
@@ -281,7 +410,7 @@ struct InsightsView: View {
             if let memberName {
                 HStack(spacing: 8) {
                     MemberAvatar(name: memberName, size: 22)
-                    Text(title)
+                    Text(title).fontWeight(isSelected ? .semibold : .regular)
                 }
             } else {
                 Label(title, systemImage: icon)
@@ -316,5 +445,13 @@ struct InsightsView: View {
 
     private func money(_ minor: Int64) -> String {
         MoneyFormat.string(minorUnits: minor, currency: currency)
+    }
+
+    /// Tapping the already-selected member clears the filter — a toggle, not
+    /// a one-way drill-down (`CHECKLIST.md` "All Insights graphs interactive").
+    private func toggleSelection(_ memberId: String) {
+        withAnimation(.easeOut(duration: 0.15)) {
+            selectedMemberId = selectedMemberId == memberId ? nil : memberId
+        }
     }
 }

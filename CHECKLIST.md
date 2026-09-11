@@ -404,14 +404,36 @@ writing down, "Non-goals" for the rest.
       the initials threshold dropped `20 → 19` for float headroom, so any
       nonzero balance now shows at least initials. Test:
       `CirclePackTests.testNonZeroFloor`. `make check` green.
-- [ ] **All Insights graphs interactive — tap a member to filter.**
-      `~25-35k tokens`. Selecting a member in any chart filters that
-      chart's data to them; wire one shared selection state across
-      `InsightsView`'s charts rather than per-chart ad hoc state.
-- [ ] **Category pie chart in Insights.** `~15-20k tokens`. New chart
-      type; categories already carry the formula-driven pastel colors
-      (`CategoryPickerView`) and SF Symbol icons — reuse both instead of
-      inventing a new palette.
+- [x] **All Insights graphs interactive — tap a member to filter.** Done
+      2026-09-11. `ClanTabKit.Insights.totalSpend`/`byCategory`/`overTime`
+      all gained an optional `memberId` (default `nil` — every existing
+      caller unaffected) that scopes each expense's contribution down to
+      that member's own split share, the same "what they consumed, not
+      what they paid" rule `byMember` already used. `InsightsView` gained
+      one shared `selectedMemberId` (not per-chart state, per the plan) —
+      tapping a "By member" row toggles it (tap again to clear), which
+      re-filters "Total spent" (relabelled to "Ana's spend" + a "Show
+      Everyone" button), the over-time bars, and the category
+      pie/breakdown all at once. "By member" itself always stays
+      unfiltered (it's the list *doing* the filtering) and its bars are
+      proportioned against a separate always-whole-group `groupTotal`, not
+      the (possibly narrowed) `total` — otherwise another member's bar
+      could read as "over 100%" once a filter shrinks the denominator.
+      The shareable recap card also always uses the unfiltered group
+      total — sharing mid-filter shouldn't quietly share a narrower
+      number. Tests: `InsightsTests` +3 (`totalSpend`/`byCategory`/
+      `overTime` with `memberId`). kit 300 · app build green.
+- [x] **Category pie chart in Insights.** Done 2026-09-11. A genuine
+      pie (no inner radius — reads as a different chart from the
+      "By member" donut at a glance), each slice in that category's
+      existing formula-driven pastel color + SF Symbol icon
+      (`CategoryPickerView`'s `ExpenseCategory.pastelColor`, no new
+      palette). Same drag-to-isolate interaction as the member donut
+      (`CHECKLIST.md` "Chart interaction"); since a full pie has no
+      hollow center for a resting label, the scrub tooltip is a floating
+      material pill shown only while actively dragging, rather than a
+      permanent center label. Automatically respects the member filter
+      above, since `byCategory` already takes `selectedMemberId`.
 - [x] **Split by shares (ratio split).** Done 2026-09-10. 5th `SplitType`
       case, `.shares` — divide by whole-number ratios (A : 4, B : 2 → A
       owes 4/6). **Kit:** `ShareWeight { memberId, weight }`,
