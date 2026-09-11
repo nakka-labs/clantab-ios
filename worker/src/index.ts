@@ -1071,7 +1071,14 @@ async function handleAuthFriends(request: Request, env: Env): Promise<Response> 
   interface FriendAgg {
     displayName: string;
     net: Map<string, number>;
-    groups: { groupId: string; groupName: string; hidden: boolean; myMemberId: string; theirMemberId: string }[];
+    groups: {
+      groupId: string;
+      groupName: string;
+      hidden: boolean;
+      currency: string;
+      myMemberId: string;
+      theirMemberId: string;
+    }[];
   }
   const byPerson = new Map<string, FriendAgg>();
 
@@ -1088,6 +1095,7 @@ async function handleAuthFriends(request: Request, env: Env): Promise<Response> 
         groupId: g.groupId,
         groupName: view.groupName,
         hidden: view.hidden,
+        currency: view.currency,
         myMemberId: g.memberId,
         theirMemberId: peer.memberId,
       });

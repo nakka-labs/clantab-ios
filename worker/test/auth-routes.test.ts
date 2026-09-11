@@ -393,7 +393,7 @@ describe('GET /api/auth/friends, POST /api/auth/friends/tab (CHECKLIST.md "Frien
     expect(bobEntry.net).toEqual([]); // settled
     expect(bobEntry).not.toHaveProperty("sub");
     const grp = (bobEntry.groups as Json[])[0]!;
-    expect(grp).toMatchObject({ groupName: "Goa", hidden: false });
+    expect(grp).toMatchObject({ groupName: "Goa", hidden: false, currency: "INR" });
     expect(grp.myMemberId).toBeTypeOf("string");
     expect(grp.theirMemberId).toBeTypeOf("string");
 

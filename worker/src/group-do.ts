@@ -606,13 +606,14 @@ export class GroupDO extends DurableObject {
   async peerSettlements(
     sub: string,
     myMemberId: string,
-  ): Promise<{ groupName: string; hidden: boolean; peers: PeerView[] } | null> {
+  ): Promise<{ groupName: string; hidden: boolean; currency: string; peers: PeerView[] } | null> {
     const mine = this.sql
       .exec<MemberRow>("SELECT id FROM members WHERE id = ? AND identity_sub = ?", myMemberId, sub)
       .toArray();
     if (mine.length === 0) return null;
 
     const groupName = this.requireMeta(META_KEYS.name);
+    const currency = this.requireMeta(META_KEYS.currency);
     const hidden = this.meta(META_KEYS.hidden) !== null;
     const claimed = this.sql
       .exec<MemberRow>(
@@ -620,7 +621,7 @@ export class GroupDO extends DurableObject {
         myMemberId,
       )
       .toArray();
-    if (claimed.length === 0) return { groupName, hidden, peers: [] };
+    if (claimed.length === 0) return { groupName, hidden, currency, peers: [] };
 
     const balances = computeBalances(this.readMembers(), this.readExpenses(), this.readSettlements());
     const plan = simplify(balances);
@@ -642,7 +643,7 @@ export class GroupDO extends DurableObject {
         })),
     }));
 
-    return { groupName, hidden, peers };
+    return { groupName, hidden, currency, peers };
   }
 
   /**

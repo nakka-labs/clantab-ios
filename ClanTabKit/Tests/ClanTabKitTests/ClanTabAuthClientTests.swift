@@ -157,11 +157,11 @@ struct ClanTabAuthClientTests {
                 "net": [] as [Any],
                 "groups": [
                     [
-                        "groupId": "g1", "groupName": "Goa", "hidden": false,
+                        "groupId": "g1", "groupName": "Goa", "hidden": false, "currency": "INR",
                         "myMemberId": "m1", "theirMemberId": "m2",
                     ],
                     [
-                        "groupId": "tab-xyz", "groupName": "Private tab", "hidden": true,
+                        "groupId": "tab-xyz", "groupName": "Private tab", "hidden": true, "currency": "INR",
                         "myMemberId": "m9", "theirMemberId": "m8",
                     ],
                 ],
@@ -186,7 +186,7 @@ struct ClanTabAuthClientTests {
     func testFriendTabProofFallsBackToSharedGroup() {
         let friend = Friend(
             id: "x", displayName: "Ana", net: [],
-            groups: [FriendGroup(groupId: "g1", groupName: "Goa", hidden: false, myMemberId: "m1", theirMemberId: "m2")]
+            groups: [FriendGroup(groupId: "g1", groupName: "Goa", hidden: false, currency: "INR", myMemberId: "m1", theirMemberId: "m2")]
         )
         #expect(friend.existingTabGroupId == nil)
         #expect(friend.tabProofGroup?.groupId == "g1")

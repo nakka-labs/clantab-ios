@@ -181,15 +181,23 @@ public struct FriendGroup: Codable, Sendable, Equatable, Identifiable {
     public let groupName: String
     /// `true` only for the private 1:1 tab, once it exists.
     public let hidden: Bool
+    /// This group's currency — a brand-new private tab starts here
+    /// (`CHECKLIST.md`: "the currency of the shared group you found them
+    /// through").
+    public let currency: String
     public let myMemberId: String
     public let theirMemberId: String
 
     public var id: String { groupId }
 
-    public init(groupId: String, groupName: String, hidden: Bool, myMemberId: String, theirMemberId: String) {
+    public init(
+        groupId: String, groupName: String, hidden: Bool, currency: String,
+        myMemberId: String, theirMemberId: String
+    ) {
         self.groupId = groupId
         self.groupName = groupName
         self.hidden = hidden
+        self.currency = currency
         self.myMemberId = myMemberId
         self.theirMemberId = theirMemberId
     }
