@@ -20,6 +20,7 @@ struct SettleUpView: View {
 
     @State private var pendingRowId: String?
     @State private var errorMessage: String?
+    @State private var confirmingSettlement: SimplifiedSettlement?
     /// The shareable recap card (`CHECKLIST.md`), rendered off-screen once the
     /// plan is in hand and re-rendered whenever it changes.
     @State private var shareCard: Image?
@@ -92,17 +93,39 @@ struct SettleUpView: View {
                 content: .settleUp(settlements)
             ))
         }
+        .confirmationDialog(
+            "Mark as paid?",
+            isPresented: Binding(get: { confirmingSettlement != nil }, set: { if !$0 { confirmingSettlement = nil } }),
+            presenting: confirmingSettlement,
+            actions: { settlement in
+                Button("Mark as Paid") {
+                    Task { await markPaid(settlement, rowId: rowId(for: settlement)) }
+                }
+                Button("Cancel", role: .cancel) {}
+            },
+            message: { settlement in
+                Text(
+                    "\(name(for: settlement.fromId)) pays \(name(for: settlement.toId)) "
+                        + "\(MoneyFormat.string(minorUnits: settlement.amountMinor, currency: settlement.currency)). "
+                        + "ClanTab just records this as settled — it doesn't move any money."
+                )
+            }
+        )
+    }
+
+    private func rowId(for settlement: SimplifiedSettlement) -> String {
+        "\(settlement.currency):\(settlement.fromId)->\(settlement.toId)"
     }
 
     private var groupName: String { viewModel.state?.group.name ?? "Your group" }
 
     private func settlementRow(_ settlement: SimplifiedSettlement) -> some View {
-        let rowId = "\(settlement.currency):\(settlement.fromId)->\(settlement.toId)"
+        let rowId = rowId(for: settlement)
         let payer = name(for: settlement.fromId)
         let payee = name(for: settlement.toId)
         let amount = MoneyFormat.string(minorUnits: settlement.amountMinor, currency: settlement.currency)
         let markPaidButton = Button {
-            Task { await markPaid(settlement, rowId: rowId) }
+            confirmingSettlement = settlement
         } label: {
             Group {
                 if pendingRowId == rowId {
