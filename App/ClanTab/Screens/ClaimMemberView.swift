@@ -77,7 +77,7 @@ struct ClaimMemberView: View {
         .dismissibleKeyboard()
         .task { await loadMembers() }
         .confirmationDialog(
-            pendingConfirmation.map { "Link \($0.displayName) to your account?" } ?? "",
+            pendingConfirmation.map { "You're \($0.displayName)?" } ?? "",
             isPresented: Binding(
                 get: { pendingConfirmation != nil },
                 set: { if !$0 { pendingConfirmation = nil } }
@@ -85,12 +85,17 @@ struct ClaimMemberView: View {
             titleVisibility: .visible,
             presenting: pendingConfirmation
         ) { member in
-            Button("Link \(member.displayName)") {
+            Button("Yes, I'm \(member.displayName)") {
                 Task { await claim(member) }
             }
             Button("Cancel", role: .cancel) {}
         } message: { member in
-            Text("\(member.displayName)'s expenses and balance become visible on all your devices.")
+            Text(
+                "This links \(member.displayName)'s whole expense history and balance to your "
+                    + "sign-in, visible on every device you sign in on. There's no undo button for "
+                    + "just this — if it's the wrong person, you'd need to delete your account in "
+                    + "Settings and start over."
+            )
         }
     }
 
