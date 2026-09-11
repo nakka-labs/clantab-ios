@@ -1351,6 +1351,335 @@ one-off/casual, large-friend-group):
       rounding-short rows nudged, not dropped). No behaviour changes were
       needed on that pass. kit 190 · app 97.
 
+### UX audit, build 9 — flagged + fixes decided 2026-09-11
+
+Full write-up (severity, screenshots, what's already working) at
+https://claude.ai/code/artifact/e2a61b0e-2b27-4839-9d77-0527cb9206e5 —
+a fresh-install walkthrough (blocked at sign-in, no test account
+available) plus a full read of every `Screens/`/`Components/` file.
+Bracketed numbers match that doc's own numbering (not priority) and its
+severity tag. Every item below now carries a **decided** fix direction —
+owner has greenlit major UX/IA changes, so nothing here is gated on a
+further product call; CLI should implement, not re-litigate. **Standing
+decision, 2026-09-11: DESIGN_BIBLE.md's portfolio-wide consistency rules
+(color formula, spring curve, icon/gradient conventions, etc., adopted
+2026-09-05–09-07 across the app portfolio) do NOT constrain any fix
+below.** ClanTab is optimized on its own merits from here on — deviate
+from Bible rules freely wherever it makes this app better; matching
+sibling apps in the portfolio is no longer a goal for this app.
+
+- [ ] **[6, critical] Group Home toolbar overloaded — fix: replace the
+      single-stack nav with a 4-tab bottom bar.** `~35k tokens` (CLI) —
+      umbrella fix for [6], [7], [8], [9], [12], [30], [32]; implement as
+      one restructuring pass, in this order.
+      1. Add a `TabView` (bottom tab bar) at the app root: Home (groups
+         list/dashboard — today's `StartView`), Friends (merged screen,
+         see [8]), Insights (promoted to top-level — global cross-group
+         view, drills into per-group detail), Settings (today's
+         `SettingsView`). `AppRoute` keeps its push/sheet model for
+         everything below a tab root (group drill-down, Add Expense,
+         Settle Up, Group Settings stay exactly as they navigate today).
+      2. `GroupHomeView.toolbar` drops to two items: Add Expense (`+`,
+         primary) and one "More" overflow menu holding everything else —
+         Group Settings, Share Invite Link/Code/View-only, Export
+         CSV/JSON/PDF, Import CSV, Recently Deleted, Recurring
+         Reminders, Filter — grouped with `Divider()`s into three
+         clusters (Share / Data / Settings). Resolves [7] and [30].
+      3. Drop the app-level Settings gear and "Your Groups" icon from
+         `GroupHomeView`'s toolbar entirely — both are now one tap away
+         via the tab bar, which also removes the two-icons-both-say-
+         settings confusion. Resolves [32].
+      4. Promote "Settle Up" out of the Members/Activity row list onto a
+         persistent CTA button on the balance hero itself, shown only
+         when the signed-in member has a nonzero balance. Insights row
+         disappears from Group Home entirely (it's a tab now). Resolves
+         [12].
+      5. Update `WhatsNewView`, onboarding copy, and any UI/snapshot
+         tests asserting the old toolbar/menu/tab structure.
+      6. Biggest single change in this batch — budget it as a full pass,
+         not an add-on to another item.
+- [ ] **[7, moderate] "Group Options" menu mixes sharing with data
+      admin.** Folded into [6] step 2 — no separate item.
+- [ ] **[8, moderate] Friends and Settle Across Groups are two
+      disconnected screens for the same job.** `~18k tokens` (CLI) —
+      decided: merge into one screen under the new Friends tab from [6].
+      1. Collapse `FriendsView`/`FriendDetailView` and
+         `PeopleView`/`PersonSettleView` into a single Friends tab: a
+         person list (today's Friends list) where tapping a person shows
+         both their per-group breakdown and their aggregate cross-group
+         balance (today's `PersonSettleView` content) on one detail
+         screen.
+      2. Retire the standalone "Settle Across Groups" entry point in
+         `SettingsView` — the capability now lives on every friend's
+         detail screen.
+      3. Once shipped, fix `WhatsNewView`'s build-8 copy to match the
+         real (now-true) one-screen experience. Resolves [34].
+- [ ] **[9, minor] No persistent navigation anchor.** Resolved by [6]'s
+      tab bar — no separate item.
+- [ ] **[1, critical] No way to preview or try the app before signing
+      in.** `~22k tokens` (CLI) — decided: ship a limited pre-auth
+      preview rather than keep the hard sign-in wall.
+      1. `StartView` shows a static sample group card pre-auth ("See how
+         ClanTab works") that opens a read-only `GroupHomeView` variant
+         with realistic example data, clearly labeled as a sample.
+      2. Any write action from the preview (Add Expense, Settle Up,
+         Create/Join Group) triggers the sign-in sheet instead of
+         executing — sign-in becomes required at the point of the first
+         real write, not before anyone can see the app at all.
+      3. Remove the current pre-sign-in wall copy that implies nothing
+         is usable until you sign in.
+- [x] **[2, critical] One error message for every sign-in failure
+      mode.** Done 2026-09-11. New `SignInErrorMessage` (`Components/`,
+      pure — unit-testable without driving the actual auth UI):
+      `forApple`/`forGoogle` both return `nil` on cancel (silent, as
+      before), a dedicated "No Apple ID is signed in on this device…"
+      message for `ASAuthorizationError.unknown` (Apple's own code for
+      "no Apple ID configured" — there isn't a more specific one),
+      "No internet connection…" for anything whose error chain bottoms
+      out at `NSURLErrorDomain` (walks `NSUnderlyingErrorKey` a few
+      levels — Apple's frameworks often wrap a plain `URLError`), and
+      the existing generic fallback otherwise. Wired into all three
+      Google failure paths (session error, missing callback code, the
+      token-exchange `catch`) and Apple's one. Tests:
+      `SignInErrorMessageTests` (9) — cancel-is-silent, the Apple
+      "unknown code" case, a direct `URLError`, and a wrapped one, for
+      both providers. **Not yet verified live** (no Apple ID
+      signed in on the Simulator, offline) — folds into the TestFlight
+      pass; `make check` green (app build + tests).
+- [ ] **[3, moderate] Google sign-in's web-chrome break in tone.**
+      `~10k tokens` (CLI) — decided: keep `ASWebAuthenticationSession`
+      (no SDK, per `AGENTS.md`), but soften the jump instead of
+      accepting it as-is.
+      1. Add a brief in-app transition state ("Continuing to Google…")
+         immediately before presenting the session, so the handoff reads
+         as intentional rather than a break.
+      2. Set `prefersEphemeralWebBrowserSession` deliberately (off, so a
+         returning user's existing Google session speeds the flow up)
+         and confirm the sheet presentation style is as tight as the API
+         allows.
+- [ ] **[4, moderate] Onboarding carousel doesn't preview real UI.**
+      `~12k tokens` (CLI)
+      1. `OnboardingView` — replace the 3 SF Symbol pages with real
+         cropped screenshots of Group Home / Add Expense / Settle Up.
+      2. Verify the images stay legible at the smallest supported
+         device width.
+- [ ] **[5, minor] No "why sign in" line on the welcome screen.**
+      `~3k tokens` (CLI) — one line under `signInSection` in
+      `StartView.swift` ("So your groups sync if you switch phones" —
+      matches `SyncNudgeCard`'s existing copy).
+- [ ] **[10, moderate] Group Home fills in piecemeal as it loads — only
+      the hero gets a placeholder.** `~10k tokens` (CLI)
+      1. `GroupHomeView.body` — Members/Activity sections are simply
+         absent while `viewModel.state == nil`.
+      2. Add redacted placeholder rows (skeleton) for Members + Activity
+         matching the hero's `.redacted(reason: .placeholder)` pattern.
+      3. Verify on a slow/throttled network in the Simulator.
+- [ ] **[11, moderate] Balance-bubble view discoverable only via a
+      one-time coach mark.** `~8k tokens` (CLI) — decided: add a
+      persistent affordance, keep the coach mark too.
+      1. `GroupHomeView`'s hero `TabView` — add a small persistent
+         chevron/arrow hint alongside the existing page dots
+         (`.tabViewStyle(.page(indexDisplayMode: .always))`) so the
+         swipe is discoverable after the one-time `coachMark(id:
+         "groupHome.bubbleSwipe", …)` has already been dismissed.
+- [ ] **[12, minor] "Settle Up" / "Spending Insights" read as data
+      rows, not actions.** Resolved by [6] steps 1 and 4 — no separate
+      item.
+- [ ] **[13, minor] Undo toast has no countdown before it
+      disappears.** `~5k tokens` (CLI) — `GroupHomeView`'s `undoBanner`
+      overlay; add a shrinking-width or dot countdown over the existing
+      5s `Task.sleep`.
+- [x] **[14, critical] Add Expense has no date field at all.** Done
+      2026-09-11. New `@State private var date = Date()` — defaults to
+      "now" at sheet-open (adding), overridden to `expense.date` only
+      when `editing != nil` (duplicating and a recurring-reminder log
+      both keep today's date, same as their already-blank amount — that
+      was the existing `editing?.date ?? Date()` behavior at save time,
+      now just user-adjustable). A plain `DatePicker("Date", …,
+      displayedComponents: .date)` in the "Expense" section, after
+      Category; `save()`'s `AddExpenseRequest(date:)` now sends the
+      state var instead of the old `editing?.date ?? Date()` literal.
+      Checked step 3: the two other `AddExpenseRequest(` call sites
+      (`AddExpenseIntent` — Siri, "now" is correct there; `ImportCSVView`
+      — supplies the parsed file date) are independent paths, already
+      correct, out of scope. Step 4: a non-"now" date already round-trips
+      through `ClanTabClientTests` (`Date(timeIntervalSince1970: 0)`) —
+      the gap was UI-only, so no new wire-level test was needed; the new
+      `_date = State(initialValue: expense.date)` edit-rehydration path
+      is UI state (no `AddExpenseViewTests` file exists for any of this
+      view's `@State`, same as every other field here). **Verified in
+      the Simulator**: Add Expense opens with "Date" defaulted to the
+      current day, tapping it opens the native calendar with today
+      highlighted. `make check` green (app build + tests).
+- [x] **[15, critical] Split-type segmented control gives 5 modes
+      equal weight.** Done 2026-09-11. `splitDetail`'s `switch` is
+      untouched, as planned — only how `splitType` is *chosen* changed.
+      While on Equally/Exact/%, the "Split" section shows the 3-way
+      segmented control plus a "More Split Types (Shares, Items)" row;
+      the moment `splitType` is Shares or Itemized (picked here, or
+      rehydrated editing an existing one) it swaps to a "Split type:
+      Shares · Change" summary row instead — a segmented control with no
+      matching tag for the current value would've shown nothing
+      selected. New `MoreSplitsSheet` (`Components/`) — Shares/Items up
+      top, Equally/Exact/Percentages under "Common" with a checkmark on
+      the current type, so "Change" from a Shares/Items expense isn't a
+      dead end (the checklist's 2-step version left no way back). Every
+      seeding side effect (weight-1 shares, the first blank line item)
+      moved into one `selectSplitType(_:)` called from both the segmented
+      control and the sheet, replacing the old `Picker.onChange`. New
+      `SplitType+Label` extension (`shortLabel`/`fullLabel`/`detail`) —
+      app-side display copy, kept out of the UI-free kit. **Verified in
+      the Simulator** end to end: opened on Equally, picked "More Split
+      Types" → sheet showed Shares/Items + Common with the checkmark on
+      Equally, picked Shares → sheet closed, summary row read "Split
+      type: Shares" with the per-member weight-1 editor seeded below;
+      "Change" reopened the sheet with the checkmark now on Shares;
+      picked Equally → cleanly back to the 3-way segmented control, no
+      dead end. `make check` green (app build + tests).
+- [ ] **[16, moderate] Multi-payer toggle is styled as a footnote.**
+      `~5k tokens` (CLI) — `AddExpenseView`, the "Split the cost between
+      payers" button currently `.font(.footnote)`; give it real button
+      styling (e.g. `.bordered`, `.subheadline`) so it reads as a mode
+      switch, not fine print.
+- [ ] **[17, moderate] Add Expense is the single most overloaded screen
+      in the app.** `~25k tokens` (CLI) — decided: progressive
+      disclosure, not a rewrite.
+      1. Keep always-visible: amount, description, payer, category,
+         split type (now 3-way per [15]).
+      2. Collapse Receipts, Comments, and the inline "add a member"
+         flow behind an expandable "More details" section, closed by
+         default on new-expense entry, open by default when editing an
+         expense that already has any of that content.
+      3. Move the inline `+`/`-` calculator hint per [19] rather than
+         adding new UI for it here.
+- [ ] **[18, minor] Itemized split's per-item participant picker is a
+      hidden Menu, one item at a time.** `~15k tokens` (CLI) —
+      `AddExpenseView.itemizedSplitRows` — replace the `Menu` with an
+      inline expandable checklist (or a small avatar row with
+      tap-to-toggle) so state is visible without opening anything.
+- [ ] **[19, minor] Inline `+`/`-` calculator has no affordance before
+      you focus the field.** `~4k tokens` (CLI) — `AddExpenseView`'s
+      amount `TextField`; add a persistent subtle hint (placeholder text
+      mentioning it, or keep the buttons visible pre-focus).
+- [x] **[20, critical] Group Settings mixes routine and irreversible
+      actions with identical visual weight.** Done 2026-09-11.
+      Name/currency/emoji/cover/default-split/members/UPI/"Report a
+      Problem" stay the normal `Section`s at the top, untouched.
+      Regenerate Link, Archive/Unarchive, and Leave This Group — three
+      separate `Section`s before, each with its own footer — collapsed
+      into one "Danger Zone" `Section` with a red-tinted header; new
+      `dangerZoneRow(icon:title:caption:isLoading:action:)` gives each
+      row a leading red SF Symbol (rotate-arrows / archivebox /
+      leave-icon) plus its title and consequence line stacked
+      underneath, replacing the old per-`Section` footer. Archive stays
+      in the grouping per the decided spec even though it's reversible
+      — the row's own caption still says so. Step 3: `confirmingLeave`/
+      `confirmingRegenerate` fire from the same closures as before,
+      untouched. **Verified in the Simulator**: scrolled to the bottom
+      of Group Settings — red "Danger Zone" header, all three rows with
+      warning icons and their consequence text rendering correctly below
+      the routine sections. `make check` green (app build + tests).
+- [ ] **[21, moderate] Remove Member fails silently after the swipe.**
+      `~10k tokens` (CLI) — decided: both client-side checks and a
+      specific failure message.
+      1. `GroupSettingsView`'s member row `swipeActions` — grey out /
+         omit "Remove" client-side when state already shows the member
+         has expenses/settlements or is the signed-in user's own claim
+         (the rule the section footer text currently only describes).
+      2. For the remaining server-side rejection cases, surface the
+         specific reason inline instead of the generic
+         `friendlyMessage`.
+- [ ] **[22, minor] Destructive settings rows don't look destructive.**
+      Resolved by [20] step 2 — no separate item.
+- [x] **[23, critical] "Mark as Paid" has no confirmation.** Done
+      2026-09-11. `settlementRow`'s button now sets a new
+      `@State confirmingSettlement: SimplifiedSettlement?` instead of
+      calling `markPaid` directly; a `confirmationDialog` (same
+      `presenting:`-driven pattern as `GroupSettingsView`'s Leave/
+      Regenerate) spells out the payer, payee, and amount plus "ClanTab
+      just records this as settled — it doesn't move any money," with
+      "Mark as Paid" / "Cancel" actions. **Verified in the Simulator**
+      end to end against a real seeded balance: tapping "Mark as Paid"
+      showed the dialog with the exact expected copy ("Sam pays Dev
+      ₹500. ClanTab just records this as settled…"); dismissing it
+      without confirming left the settlement un-recorded (the row still
+      read unpaid) — confirms both the copy and that nothing fires until
+      the second tap. `make check` green (app build + tests).
+- [ ] **[24, minor] UPI pay links are invisible until someone finds
+      the field.** `~5k tokens` (CLI) — a one-time nudge (coach mark or
+      a line in `SettleUpView`'s empty/first state) pointing at Group
+      Settings' "My UPI ID" the first time Settle Up renders with no
+      VPA set for the signed-in member.
+- [x] **[25, critical] Claiming a member identity is one confirmation
+      tap, no verification.** Done 2026-09-11. Step 1 turned out to
+      already be true, not a gap: `ClaimMemberView`'s picker only ever
+      renders whatever `GET /api/groups/:id/claimable` returns, and
+      `GroupDO.claimable()` (`worker/src/group-do.ts`) already filters
+      to `identity_sub IS NULL` server-side — an already-claimed member
+      was never offered as an option, on this or any other screen (the
+      audit's own methodology was a code read blocked at sign-in, so it
+      read `ClaimMemberView.swift` alone without the worker route behind
+      it). No code change for step 1. Step 2: reworded the
+      `confirmationDialog` — title "You're \(name)?", body now says
+      plainly what claiming does ("links their whole expense history and
+      balance to your sign-in, visible on every device you sign in on")
+      and is honest about the escape hatch: there's no per-member undo,
+      only "delete your account in Settings and start over" (checked
+      first — there is no unclaim/reclaim path anywhere in the app, so
+      the fix doesn't claim one that doesn't exist). **Not yet verified
+      live** — exercising the actual claim flow needs a second signed-in
+      identity claiming an unclaimed member, the same "needs a real
+      Bearer session" gap already called out for the Friends work above;
+      folds into the TestFlight pass. `make check` green (app build +
+      tests, confirmationDialog code path matches the already-verified
+      pattern in `GroupSettingsView`/`SettleUpView` above).
+- [ ] **[26, moderate] Join code is shown exactly once and never
+      again.** `~10k tokens` (CLI) — decided: persist it.
+      1. `CreateGroupResponse.joinCode` — persist client-side
+         (`KnownGroupsStoring`) at group creation.
+      2. Re-surface it in Group Settings and the Group Options/share
+         menu alongside the invite link/QR, wherever those already
+         live.
+- [ ] **[27, moderate] Insights charts give no cue that they're
+      touchable.** `~8k tokens` (CLI) — `InsightsView`'s
+      `overTimeChart`/`memberDonut`/`categoryPie`; add a one-time coach
+      mark (existing `.coachMark` pattern) on first appearance of
+      Insights with expenses present.
+- [ ] **[28, minor] Member-tap-to-filter instructions sit below the
+      charts they explain.** `~3k tokens` (CLI) — `InsightsView`'s "By
+      member" section footer; move the hint text above the charts, or
+      inline near the first chart instead of trailing the member list.
+- [ ] **[29, critical] CSV import has no duplicate-import guard.**
+      Already tracked — see "De-dupe guard on CSV import" in the
+      Feature backlog section below (`~20k tokens`, found 2026-09-08).
+      No new item; flagging here only because it's the single
+      highest-risk finding in the audit — CLI should prioritize it.
+- [ ] **[30, minor] "Group Options" menu has almost no grouping.**
+      Resolved by [6] step 2 — no separate item.
+- [ ] **[31, moderate] Welcome-back card and the balance header repeat
+      the same totals back to back.** `~6k tokens` (CLI) — decided: one
+      combined component, drop the standalone header when redundant.
+      1. `StartView.body` — `WelcomeBackCard` and `DashboardTotalsHeader`
+         both render off `DashboardTotals.compute(groups)`; hide
+         `DashboardTotalsHeader` whenever `WelcomeBackCard` is showing
+         (it's the returning-user case), keep the header as the sole
+         totals display otherwise.
+- [ ] **[32, minor] Duplicate of [6]** — resolved by [6] step 3, not a
+      separate fix.
+- [ ] **[33, minor] Generic errors give no retry or diagnosis.**
+      `~15k tokens` (CLI) — decided: split offline from server/decoding
+      failures, add retry on the highest-traffic forms.
+      1. `friendlyMessage(for:)` in `ClientErrorMessage.swift` — check
+         for a `URLError` (offline/timeout) before it reaches
+         `ClanTabClientError`'s generic `.invalidResponse`/
+         `.decodingFailed` case, and give offline its own message.
+      2. Add a retry affordance on Add Expense and Settle Up specifically
+         (the two highest-traffic write forms) — not app-wide.
+- [ ] **[34, minor] What's New oversells Friends/1:1 as one feature.**
+      Resolved once [8] ships (fix the copy then, not now — it
+      describes a future state, not a bug to patch today) — no separate
+      item.
+
 ### Feature backlog — absorbed from the competitive scan
 
 Splitwise/Tricount/Settle Up/Splid, primary sources only:
