@@ -281,7 +281,7 @@ public enum CSVImport {
             splits.forEach { names.add($0.memberName) }
             let category = categoryIdx.map { cell(row, $0) } ?? ""
             expenses.append(DraftExpense(
-                date: date, description: description, amountMinor: cost, currency: currency,
+                date: date, description: fallbackDescription(description), amountMinor: cost, currency: currency,
                 payerName: payer.name, splits: splits,
                 category: (category.isEmpty || category.lowercased() == "general") ? nil : category
             ))
@@ -383,7 +383,7 @@ public enum CSVImport {
                 let purpose = purposeIdx.map { cell(row, $0) } ?? ""
                 let category = categoryIdx.map { cell(row, $0) } ?? ""
                 expenses.append(DraftExpense(
-                    date: date, description: purpose, amountMinor: amount, currency: currency,
+                    date: date, description: fallbackDescription(purpose), amountMinor: amount, currency: currency,
                     payerName: payer, splits: splits, category: category.isEmpty ? nil : category
                 ))
             }
@@ -404,6 +404,16 @@ public enum CSVImport {
 
     private static func cell(_ row: [String], _ idx: Int) -> String {
         idx < row.count ? row[idx].trimmingCharacters(in: .whitespaces) : ""
+    }
+
+    /// ClanTab requires a non-empty description (`AddExpenseView.canSubmit`,
+    /// the server's own `requireString` check) — a source app that lets a
+    /// description/purpose go blank (Splitwise, Settle Up) would otherwise
+    /// 400 on every such row with no explanation (found via a real Settle Up
+    /// export, `CHECKLIST.md` "CSV import: identify failed rows"). Substitute
+    /// a generic placeholder rather than skip the row entirely.
+    private static func fallbackDescription(_ text: String) -> String {
+        text.isEmpty ? "Expense" : text
     }
 
     /// RFC 4180 tokenizer — handles quoted fields containing commas, quotes

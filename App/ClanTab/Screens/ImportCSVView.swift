@@ -18,7 +18,16 @@ struct ImportCSVView: View {
         case pickFile
         case review(CSVImport.Result)
         case importing(done: Int, total: Int)
-        case finished(imported: Int, failed: Int, message: String?)
+        case finished(imported: Int, failed: [FailedRow], message: String? = nil)
+    }
+
+    /// One row that parsed fine but the server rejected — surfaced by row and
+    /// reason, not just a bare count (`CHECKLIST.md` "CSV import: identify
+    /// failed rows, not just a count").
+    private struct FailedRow: Identifiable {
+        let id = UUID()
+        let label: String
+        let reason: String
     }
 
     /// How to resolve one name from the CSV.
@@ -134,18 +143,59 @@ struct ImportCSVView: View {
         }
     }
 
-    private func finished(imported: Int, failed: Int, message: String?) -> some View {
-        ContentUnavailableView {
-            Label(
-                failed == 0 ? "Imported \(imported) rows" : "Imported \(imported), \(failed) failed",
-                systemImage: failed == 0 ? "checkmark.circle" : "exclamationmark.triangle"
-            )
-        } description: {
-            if let message { Text(message) }
-        } actions: {
-            Button("Done") { onImported() }
-                .buttonStyle(.borderedProminent)
+    private func finished(imported: Int, failed: [FailedRow], message: String?) -> some View {
+        Group {
+            if failed.isEmpty {
+                ContentUnavailableView {
+                    Label("Imported \(imported) rows", systemImage: "checkmark.circle")
+                } description: {
+                    if let message { Text(message) }
+                } actions: {
+                    Button("Done") { onImported() }
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                // A bare count doesn't say which rows or why (`CHECKLIST.md`
+                // "CSV import: identify failed rows, not just a count") —
+                // list each one so a retry (fix the source file, re-import)
+                // is actually possible.
+                Form {
+                    Section {
+                        Label(
+                            "Imported \(imported), \(failed.count) failed",
+                            systemImage: "exclamationmark.triangle"
+                        )
+                        if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
+                    }
+                    Section("\(failed.count) row\(failed.count == 1 ? "" : "s") couldn't be saved") {
+                        ForEach(failed) { row in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.label).font(.subheadline)
+                                Text(row.reason).font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    Section {
+                        Button("Done") { onImported() }
+                    }
+                }
+            }
         }
+    }
+
+    private static let rowDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private func rowLabel(_ draft: CSVImport.DraftExpense) -> String {
+        "\(Self.rowDateFormatter.string(from: draft.date)) — \(draft.description)"
+    }
+
+    private func rowLabel(_ draft: CSVImport.DraftSettlement) -> String {
+        "\(Self.rowDateFormatter.string(from: draft.date)) — Settlement: \(draft.fromName) → \(draft.toName)"
     }
 
     // MARK: format label
@@ -239,7 +289,7 @@ struct ImportCSVView: View {
                     let joined = try await client.joinGroup(groupId: groupId, JoinGroupRequest(displayName: name), accessToken: accessToken)
                     idByName[name.lowercased()] = joined.member.id
                 } catch {
-                    stage = .finished(imported: 0, failed: 0, message: "Couldn't add member \"\(name)\": \(friendlyMessage(for: error))")
+                    stage = .finished(imported: 0, failed: [], message: "Couldn't add member \"\(name)\": \(friendlyMessage(for: error))")
                     return
                 }
             case .skip:
@@ -255,7 +305,7 @@ struct ImportCSVView: View {
         let total = expenses.count + settlements.count
 
         var done = 0
-        var failed = 0
+        var failed: [FailedRow] = []
         stage = .importing(done: 0, total: total)
 
         for draft in expenses {
@@ -273,7 +323,7 @@ struct ImportCSVView: View {
                     categoryIcon: draft.category == nil ? nil : "tag"
                 ), accessToken: accessToken)
             } catch {
-                failed += 1
+                failed.append(FailedRow(label: rowLabel(draft), reason: friendlyMessage(for: error)))
             }
             done += 1
             stage = .importing(done: done, total: total)
@@ -289,16 +339,12 @@ struct ImportCSVView: View {
                     currency: draft.currency
                 ), accessToken: accessToken)
             } catch {
-                failed += 1
+                failed.append(FailedRow(label: rowLabel(draft), reason: friendlyMessage(for: error)))
             }
             done += 1
             stage = .importing(done: done, total: total)
         }
 
-        stage = .finished(
-            imported: total - failed,
-            failed: failed,
-            message: failed == 0 ? nil : "\(failed) row\(failed == 1 ? "" : "s") couldn't be saved."
-        )
+        stage = .finished(imported: total - failed.count, failed: failed)
     }
 }

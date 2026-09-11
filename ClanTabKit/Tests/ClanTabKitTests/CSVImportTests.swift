@@ -202,6 +202,17 @@ struct CSVImportTests {
         #expect(hotel.splits.reduce(Int64(0)) { $0 + $1.amountMinor } == 12000)
     }
 
+    @Test("a Splitwise row with a blank Description gets a fallback, same as Settle Up's blank Purpose")
+    func testSplitwiseBlankDescriptionFallback() throws {
+        let csv = """
+        Date,Description,Category,Cost,Currency,Ana,Ben
+        2026-07-01,,General,20.00,USD,10.00,-10.00
+        """
+        let r = try CSVImport.parse(csv)
+        #expect(r.expenses.count == 1)
+        #expect(r.expenses[0].description == "Expense")
+    }
+
     @Test("a genuine multi-payer Splitwise row is skipped with a warning")
     func testSplitwiseMultiPayerSkipped() throws {
         // Ana +10, Ben +10, Cal −20: two people are net-positive → a non-payer
@@ -255,6 +266,22 @@ struct CSVImportTests {
         #expect(settlement.fromName == "Ben")
         #expect(settlement.toName == "Ana")
         #expect(settlement.amountMinor == 1000)
+    }
+
+    @Test("a Settle Up row with a blank Purpose gets a fallback description, not a row ClanTab's own required-description rule would 400 on")
+    func testSettleUpBlankPurposeFallback() throws {
+        // Found via a real Settle Up export (`CHECKLIST.md` "CSV import:
+        // identify failed rows"): a blank "Purpose" round-tripped to an empty
+        // `description`, which the server's `requireString` rejects outright
+        // — every such row failed on import with no explanation.
+        let csv = """
+        "Who paid","Amount","Currency","For whom","Split amounts","Purpose","Category","Date & time","Timezone","Exchange rate","Converted amount","Type","Receipt"
+        "Ana","20.00","INR","Ana;Ben","10.00;10.00","","  ","2025-07-26 14:56:07","","","20.00","expense",""
+        """
+        let r = try CSVImport.parse(csv)
+        #expect(r.warnings.isEmpty)
+        #expect(r.expenses.count == 1)
+        #expect(r.expenses[0].description == "Expense")
     }
 
     @Test("a Settle Up row whose split amounts don't add up is skipped with a warning")

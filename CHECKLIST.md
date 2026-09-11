@@ -389,10 +389,30 @@ writing down, "Non-goals" for the rest.
       no one to invite to an already-fully-claimed 2-person group — but
       pointless); a friend's row on `FriendsView` doesn't show an
       at-a-glance "has a private tab" hint before you open it.
-- [ ] **CSV import: identify failed rows, not just a count.** `~10-15k
-      tokens`. Friend imported `Future.csv`; 3 of N rows were skipped
-      with no way to tell which or why. Surface the specific row (line
-      number + field) and reason per skip, not an aggregate count.
+- [x] **CSV import: identify failed rows, not just a count.** Done
+      2026-09-11 — the repro finally landed: ran `Future.csv` (a real
+      Settle Up export, 35 rows) through the actual import flow in the
+      Simulator. Root cause found: 3 rows had a blank "Purpose", which
+      round-tripped to an empty `description` — the server's own
+      `requireString` (and `AddExpenseView.canSubmit`) reject that
+      outright, so those 3 rows 400'd on post with the failure surfaced
+      only as "Imported 32, 3 failed," no row, no reason. Two fixes:
+      **(1) root cause** — `CSVImport.parseSettleUp`/`parseSplitwise`
+      now substitute a generic "Expense" fallback for a blank
+      Purpose/Description (`ClanTab` rows are exempt: its own export
+      can't have written a blank one to begin with) — re-running
+      `Future.csv` now imports all 35/35 cleanly, no failures at all.
+      **(2) the actual ask** — `ImportCSVView.Stage.finished` now
+      carries `[FailedRow]` (a date-stamped label + the server's own
+      error message) instead of a bare `Int`; a genuine failure (a
+      de-dup collision, a dropped connection, anything the parse layer
+      can't see coming) now lists each row and why on the finished
+      screen instead of just a count. Tests: `CSVImportTests` +2
+      (blank-Purpose and blank-Description fallback, one per format).
+      worker unaffected · kit 331. `make check` green — app/kit-only,
+      nothing to deploy. Verified live in the Simulator both ways:
+      before the fix, "Imported 32, 3 failed"; after, "Imported 35
+      rows."
 - [x] **Bubble graph: legibility floor, not just a zero-balance dot.**
       Done 2026-09-10. `CirclePack.layout` gained a `minNonZeroRadius`
       parameter (default `0` = disabled, so existing callers/tests are
