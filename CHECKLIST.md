@@ -495,20 +495,57 @@ writing down, "Non-goals" for the rest.
       and verified live over HTTPS: two comments posted, listed in
       order, one deleted and gone from the list, an unauthenticated
       POST `403`s.
-- [ ] **Multiple payers on one expense.** `~35-45k tokens`. Replace
-      `Expense.payerId: String` with `payers: [ExpensePayment]`
-      (`memberId` + `amountMinor`), contributions summing to
-      `amountMinor` — mirrors how `splits` already works, so the
-      "must sum to the total" validation is a copy of an existing
-      pattern, not new design. Needs a schema migration: old rows keep
-      their single `payerId`, the read path maps it into a one-payer
-      `payers` array — no data rewrite. `Balances.compute` credits each
-      payer their own contribution instead of crediting one payer the
-      full amount. Touches kit model, wire types, worker validation,
-      `AddExpenseView` (payer picker becomes multi-select w/ amount
-      entry — same UI shape as exact/percentage split), CSV
-      import/export, PDF report. Comparable in size to Split by shares;
-      no real reason to leave it out if that one's in.
+- [x] **Multiple payers on one expense.** Done 2026-09-11.
+      `Expense.payerId: String` → `payers: [ExpensePayment]`
+      (`memberId` + `amountMinor`, same shape as `ExpenseSplit`,
+      contributions summing exactly to `amountMinor` — mirrors how
+      `splits` already works). Kept a `payerId:` convenience init/param
+      on both `Expense` and `AddExpenseRequest` for the overwhelmingly
+      common single-payer case (the whole existing kit/app test suite
+      needed no changes beyond a couple of raw-JSON fixtures), plus a
+      computed `Expense.payerId: String?` (`nil` for a genuine
+      multi-payer expense) for callers that only handle one payer.
+      **Worker:** schema **v13** — `expenses.payers` (nullable JSON),
+      plain `ALTER TABLE ADD COLUMN` (no CHECK to widen, no rebuild). A
+      single-payer expense still writes only `payer_id`/`amount_minor`
+      (no redundant blob, matching every existing row exactly); a
+      multi-payer expense stores the array, `payer_id` becoming a
+      harmless first-payer placeholder never read once `payers` is
+      non-null. The read path (`toExpense`) synthesizes `payers` from
+      `payer_id` when the column is `NULL` — **no data rewrite** for
+      pre-existing rows. `assertPayersSum` mirrors `assertSplitsSum`.
+      `removeMember`'s `MEMBER_IN_USE` check now also scans the
+      `payers` JSON blobs — `payer_id` alone only ever names the first
+      payer, so a non-primary payer could otherwise be removed out from
+      under their own expense. `Balances.compute`/`computeBalances`
+      credit each payer their own contribution instead of crediting one
+      payer the full amount. **App:** `AddExpenseView`'s "Paid by"
+      gains a "Split the cost between payers" toggle revealing
+      per-member amount fields (same UI shape as the exact split);
+      an uneven equal/percentage/shares/itemized split's remainder now
+      goes to the largest contributor when multi-payer, not one fixed
+      id. `ActivityRow` reads "Ana & Ben paid for X" / "Ana & 2 others
+      paid for X" for 2 / 3+ payers (the leading avatar still shows the
+      first); push notifications use the same phrasing. **CSV:**
+      export's "From" column uses the Splits column's own
+      `"name:amount; ..."` shorthand for 2+ payers;
+      `CSVImport.parseClanTab` detects that shape on re-import and
+      skips the row with a warning — a multi-payer expense can't
+      round-trip losslessly, same limitation already documented for
+      Splitwise/Settle Up imports. **PDF report:** untouched — it's
+      built entirely from `Balances`/`Insights` output, never reads
+      `payerId` directly, so multi-payer expenses already fold in
+      correctly with no changes needed. Tests: kit +11 (`Balances`,
+      `Validation`, `Export`, `CSVImport`), worker +6 (a
+      `group.test.ts` "multiple payers" block + a `routes.test.ts` HTTP
+      round-trip); golden fixtures updated to the new shape (both
+      languages read the same files). kit 297 · worker 285 · iOS build
+      + `ClanTabTests` green. **Deployed to production** (version
+      `0038bc30`) and verified live over HTTPS: a 2-payer expense
+      round-trips its `payers` array, balances resolve correctly for
+      all three members, removing a *non-primary* payer correctly
+      `409`s `MEMBER_IN_USE`, and a mismatched payer total `400`s
+      `SPLIT_MISMATCH`.
 - [ ] **Tax/tip proportional split on itemized expenses.** `~15-20k
       tokens`. Only worth doing now that itemized survives (the drop
       was reversed) — without it, itemized's most common real
