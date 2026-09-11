@@ -677,7 +677,7 @@ Owner-only TestFlight pass + submit remain.
       one-time "finished the walkthrough" bool rather than folding one
       into the other, since they're independent signals with different
       lifetimes. Pure logic in `Logic/WhatsNew.swift`: a hand-edited
-      `WhatsNew.releases: [WhatsNewRelease]` (one entry so far, build 8
+      `WhatsNew.releases: [WhatsNewRelease]` (one entry so far, build 9
       — this round's headline items in user-facing language, same
       "condense the technical writeup" shape as this file's own "Done"
       entries elsewhere); `WhatsNew.shouldShow(lastSeenBuild:

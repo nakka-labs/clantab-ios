@@ -27,7 +27,7 @@ public enum WhatsNew {
     /// compared), just to whoever's editing this list by hand.
     public static let releases: [WhatsNewRelease] = [
         WhatsNewRelease(
-            build: 8,
+            build: 9,
             headline: "New this update",
             items: [
                 "Friends: see everyone you split with across every group, and settle up 1:1 without a shared group.",
@@ -36,6 +36,7 @@ public enum WhatsNew {
                 "Split by shares (2:1 ratios), not just percentages.",
                 "Tax and tip on an itemized expense now split by what each person ordered.",
                 "Tap a member in Insights to see just their spending; a new pie chart for categories.",
+                "Remind someone who owes you, right from their profile.",
             ]
         ),
     ]
