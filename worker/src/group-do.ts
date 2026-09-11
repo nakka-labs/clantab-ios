@@ -65,6 +65,10 @@ type ExpenseRow = Row<{
    * case, where `payer_id`/`amount_minor` already say who paid the whole
    * amount. */
   payers: string | null;
+  /** Tax / tip on an `itemized` expense (`CHECKLIST.md` "Tax/tip proportional
+   * split on itemized expenses"); `NULL` when absent or not itemized. */
+  tax_minor: number | null;
+  tip_minor: number | null;
 }>;
 type SplitRow = Row<{
   expense_id: string;
@@ -317,6 +321,16 @@ export class GroupDO extends DurableObject {
       this.sql.exec("ALTER TABLE expenses ADD COLUMN payers TEXT");
       this.setMeta(META_KEYS.schemaVersion, "13");
       current = "13";
+    }
+
+    if (current === "13") {
+      // v14: `expenses.tax_minor` + `.tip_minor` (nullable) added —
+      // CHECKLIST.md "Tax/tip proportional split on itemized expenses". No
+      // CHECK involved, so a plain ADD COLUMN.
+      this.sql.exec("ALTER TABLE expenses ADD COLUMN tax_minor INTEGER");
+      this.sql.exec("ALTER TABLE expenses ADD COLUMN tip_minor INTEGER");
+      this.setMeta(META_KEYS.schemaVersion, "14");
+      current = "14";
     }
   }
 
@@ -978,7 +992,7 @@ export class GroupDO extends DurableObject {
       // `parseExpenseBody` guarantees `items` is present iff `splitType` is
       // `"itemized"`.
       if (req.splitType === "itemized") {
-        assertItemsValid(req.amountMinor, req.items ?? [], memberIds);
+        assertItemsValid(req.amountMinor, req.items ?? [], memberIds, req.taxMinor ?? 0, req.tipMinor ?? 0);
       }
       // A `shares` expense carries its ratio weights the same way — well-formed,
       // for real members, positive total. `parseExpenseBody` guarantees `shares`
@@ -1021,8 +1035,13 @@ export class GroupDO extends DurableObject {
     // never read once `payers` is non-null (see `toExpense`).
     const primaryPayerId = req.payers[0]!.memberId;
     const payers = req.payers.length > 1 ? JSON.stringify(req.payers) : null;
+    // Tax/tip (CHECKLIST.md "Tax/tip proportional split on itemized
+    // expenses") only mean anything for an itemized expense — same gate as
+    // `items`/`shares` above.
+    const taxMinor = req.splitType === "itemized" ? req.taxMinor ?? null : null;
+    const tipMinor = req.splitType === "itemized" ? req.tipMinor ?? null : null;
     this.sql.exec(
-      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency, items, attachments, shares, payers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency, items, attachments, shares, payers, tax_minor, tip_minor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       primaryPayerId,
       req.amountMinor,
@@ -1037,6 +1056,8 @@ export class GroupDO extends DurableObject {
       attachments,
       shares,
       payers,
+      taxMinor,
+      tipMinor,
     );
     for (const s of req.splits) {
       this.sql.exec(
@@ -1178,6 +1199,8 @@ export class GroupDO extends DurableObject {
       // dropped by JSON.stringify), matching the `category?` wire shape.
       ...(e.items != null ? { items: JSON.parse(e.items) as LineItem[] } : {}),
       ...(e.shares != null ? { shares: JSON.parse(e.shares) as ShareWeight[] } : {}),
+      ...(e.tax_minor != null ? { taxMinor: e.tax_minor } : {}),
+      ...(e.tip_minor != null ? { tipMinor: e.tip_minor } : {}),
       ...(e.attachments != null ? { attachments: JSON.parse(e.attachments) as string[] } : {}),
       ...(e.category != null ? { category: e.category } : {}),
       ...(e.category_icon != null ? { categoryIcon: e.category_icon } : {}),

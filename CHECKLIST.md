@@ -520,7 +520,9 @@ writing down, "Non-goals" for the rest.
       group, no-edge, wrong-direction, unclaimed, claimed-but-APNs-
       unconfigured, missing field, no token), `ClanTabClientTests` +1.
       worker 298 · kit 301. **Deployed to production**
-      (version `TBD`) and verified live: TBD.
+      (version `ec880666`) and verified live: cross-group/unknown
+      member, wrong-direction, and unclaimed-debtor all correctly
+      `{ sent: false }`; missing `fromMemberId` `400`s; no token `403`s.
 - [x] **Comments on an expense.** Done 2026-09-11. **Worker:** new
       `comments` table (`id`, `expenseId`, `authorMemberId`, `text`,
       `createdAt`, soft-delete via `deletedAt`/`deletedBy` — same shape
@@ -603,14 +605,38 @@ writing down, "Non-goals" for the rest.
       all three members, removing a *non-primary* payer correctly
       `409`s `MEMBER_IN_USE`, and a mismatched payer total `400`s
       `SPLIT_MISMATCH`.
-- [ ] **Tax/tip proportional split on itemized expenses.** `~15-20k
-      tokens`. Only worth doing now that itemized survives (the drop
-      was reversed) — without it, itemized's most common real
-      complaint (tax/tip split evenly instead of by what each person
-      actually ordered) stays unfixed. Add optional tax + tip fields to
-      the itemized flow; distribute both proportionally by each
-      person's item subtotal, resolved at the same point
-      `Validation.itemizedSplit` already turns items into exact shares.
+- [x] **Tax/tip proportional split on itemized expenses.** Done
+      2026-09-11. Itemized's most common real complaint — tax/tip split
+      evenly instead of by what each person actually ordered — fixed at
+      the same point `Validation.itemizedSplit` already turns items
+      into exact shares. **Kit:** `itemizedSplit`/`validateItems` gain
+      optional `taxMinor`/`tipMinor` params (both default `0`, so every
+      existing call site — and every existing itemized expense —
+      resolves identically). The surcharge is divided by each member's
+      own item subtotal — `floor(surcharge * theirSubtotal /
+      itemsGrandTotal)` per member, the whole rounding remainder to
+      `remainderRecipient` — the same shape `percentageSplit`/
+      `sharesSplit` already use for their own remainders, just applied
+      on top of the items pass rather than in place of it.
+      `Expense`/`AddExpenseRequest` gain optional `taxMinor`/`tipMinor`
+      (nil for every non-itemized expense, or an itemized one with
+      neither set). **Worker:** schema **v14** —
+      `expenses.tax_minor`/`.tip_minor` (nullable), plain `ALTER TABLE
+      ADD COLUMN` (no rebuild). `assertItemsValid` now checks items +
+      tax + tip (not items alone) sum to `amountMinor`; the resolved
+      `splits` — already proportional, computed client-side — are still
+      checked separately by the existing `assertSplitsSum`, so the
+      server never needs its own copy of the proportional-distribution
+      math. `taxMinor`/`tipMinor` are rejected outside `splitType:
+      "itemized"`, same gate as `items`/`shares`. **App:**
+      `AddExpenseView`'s itemized flow gained "Tax"/"Tip" amount fields
+      below the line items; the existing "must add up to the amount"
+      check now covers items + tax + tip together, not items alone.
+      Tests: `ValidationTests` +7 (proportional split, zero-tax/tip
+      no-op, remainder-to-recipient, sum-check pass/fail, negative
+      rejected), `group.test.ts` +5 (incl. the v13→v14 migration walk),
+      `routes.test.ts` +1, `ClanTabClientTests` +1. worker 303 · kit
+      308. `make check` green.
 - [ ] **"What's New" sheet, versioned.** `~15-20k tokens`. Swap the
       onboarding store's single sticky bool (`OnboardingStoring`) for a
       last-seen-build string; on launch, if the current build number is

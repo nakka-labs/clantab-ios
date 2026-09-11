@@ -86,6 +86,13 @@ export interface Expense {
    * every other `splitType`. `splits` stays the source of truth for balances —
    * this is the breakdown that produced them, kept for re-edit. */
   shares?: ShareWeight[];
+  /** Tax / tip on an `itemized` expense (`CHECKLIST.md` "Tax/tip proportional
+   * split on itemized expenses"); absent for every other `splitType`, or an
+   * itemized expense with neither set. Distributed proportionally by each
+   * participant's own item subtotal, not evenly — `splits` stays the source
+   * of truth for balances, this is the breakdown that produced them. */
+  taxMinor?: number;
+  tipMinor?: number;
   /** R2 object keys for receipt photos (`CHECKLIST.md` "Photo attachment on an
    * expense"), resolved to URLs via `POST /api/media/presign`. Absent when the
    * expense has none. */

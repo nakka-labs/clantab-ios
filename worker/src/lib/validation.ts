@@ -98,18 +98,30 @@ export function assertMembersExist(referencedIds: readonly string[], groupMember
 /**
  * The line items of an `itemized` expense (`FEATURE_BACKLOG.md` "Itemized
  * expense entry"). At least one item; every item a positive integer amount,
- * shared by at least one real group member; and the item amounts summing to
- * exactly `amountMinor` — there is no separate tax/tip bucket, a shared
- * surcharge is entered as its own line. Mirrors `ClanTabKit.Validation.validateItems`.
- * The resolved `splits` are checked separately by `assertSplitsSum`.
+ * shared by at least one real group member; and the item amounts plus
+ * `taxMinor`/`tipMinor` (`CHECKLIST.md` "Tax/tip proportional split on
+ * itemized expenses" — both `0` by default, the original "no separate
+ * tax/tip bucket, a shared surcharge is entered as its own line" behavior)
+ * summing to exactly `amountMinor`. Mirrors `ClanTabKit.Validation.validateItems`.
+ * The resolved `splits` — which already distribute tax/tip proportionally by
+ * each participant's own item subtotal, not evenly — are checked separately
+ * by `assertSplitsSum`.
  */
 export function assertItemsValid(
   amountMinor: number,
   items: LineItem[],
   groupMemberIds: ReadonlySet<string>,
+  taxMinor = 0,
+  tipMinor = 0,
 ): void {
   if (items.length === 0) {
     throw new ValidationFailure("SPLIT_MISMATCH", "An itemized expense must have at least one line item.");
+  }
+  if (typeof taxMinor !== "number" || !Number.isInteger(taxMinor) || taxMinor < 0) {
+    throw new ValidationFailure("INVALID_AMOUNT", "Tax must be a non-negative integer in minor units.");
+  }
+  if (typeof tipMinor !== "number" || !Number.isInteger(tipMinor) || tipMinor < 0) {
+    throw new ValidationFailure("INVALID_AMOUNT", "Tip must be a non-negative integer in minor units.");
   }
   let total = 0;
   for (const item of items) {
@@ -122,10 +134,11 @@ export function assertItemsValid(
     assertMembersExist(item.participantIds, groupMemberIds);
     total += item.amountMinor;
   }
-  if (total !== amountMinor) {
+  const expectedTotal = total + taxMinor + tipMinor;
+  if (expectedTotal !== amountMinor) {
     throw new ValidationFailure(
       "SPLIT_MISMATCH",
-      `Line items sum to ${total} but the expense amount is ${amountMinor}.`,
+      `Line items sum to ${expectedTotal} but the expense amount is ${amountMinor}.`,
     );
   }
 }

@@ -272,6 +272,84 @@ struct ValidationTests {
         }
     }
 
+    // MARK: - Itemized tax/tip (CHECKLIST.md "Tax/tip proportional split on itemized expenses")
+
+    @Test("Itemized: tax/tip is distributed in proportion to each member's own item subtotal, not evenly")
+    func testItemizedSplitTaxTipProportional() throws {
+        // a ordered 750, b ordered 250 — a 3:1 split of the item subtotal.
+        // 100 tax + tip, split 3:1 → a gets 75, b gets 25.
+        let splits = Validation.itemizedSplit(
+            items: [item("steak", 750, ["a"]), item("salad", 250, ["b"])],
+            remainderRecipient: "a",
+            taxMinor: 60,
+            tipMinor: 40
+        )
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["a"] == 825) // 750 + 75% of 100
+        #expect(byId["b"] == 275) // 250 + 25% of 100
+        try Validation.validateSplitsSum(amountMinor: 1100, splits: splits)
+    }
+
+    @Test("Itemized: zero tax/tip reproduces the old evenly-by-items-only splits exactly")
+    func testItemizedSplitZeroTaxTipUnchanged() {
+        let items = [item("pizza", 900, ["a", "b", "c"]), item("beer", 400, ["a", "b"])]
+        let withDefaults = Validation.itemizedSplit(items: items, remainderRecipient: "a")
+        let withExplicitZeros = Validation.itemizedSplit(items: items, remainderRecipient: "a", taxMinor: 0, tipMinor: 0)
+        #expect(withDefaults == withExplicitZeros)
+    }
+
+    @Test("Itemized: tax/tip rounding remainder lands on the remainder recipient")
+    func testItemizedSplitTaxTipRemainder() throws {
+        // Three equal-item participants (so item subtotals are all 100), tax/tip
+        // of 10 split 3 ways → 3/3/3 with 1 leftover to "b".
+        let splits = Validation.itemizedSplit(
+            items: [item("x", 300, ["a", "b", "c"])],
+            remainderRecipient: "b",
+            taxMinor: 10
+        )
+        let byId = Dictionary(uniqueKeysWithValues: splits.map { ($0.memberId, $0.amountMinor) })
+        #expect(byId["b"] == 104) // 100 + (3 + 1 remainder)
+        #expect(byId["a"] == 103)
+        #expect(byId["c"] == 103)
+        try Validation.validateSplitsSum(amountMinor: 310, splits: splits)
+    }
+
+    @Test("validateItems accepts items + tax + tip summing to the amount")
+    func testValidateItemsWithTaxTipPasses() throws {
+        try Validation.validateItems(
+            amountMinor: 1100,
+            items: [item("x", 750, ["a"]), item("y", 250, ["b"])],
+            validMemberIds: ["a", "b"],
+            taxMinor: 60,
+            tipMinor: 40
+        )
+    }
+
+    @Test("validateItems: items + tax + tip not summing to the amount throws itemSumMismatch")
+    func testValidateItemsWithTaxTipMismatch() {
+        #expect(throws: ValidationError.itemSumMismatch(expected: 1000, actual: 1100)) {
+            try Validation.validateItems(
+                amountMinor: 1000,
+                items: [item("x", 1000, ["a"])],
+                validMemberIds: ["a"],
+                taxMinor: 60,
+                tipMinor: 40
+            )
+        }
+    }
+
+    @Test("validateItems: negative tax throws invalidAmount")
+    func testValidateItemsNegativeTax() {
+        #expect(throws: ValidationError.invalidAmount(-10)) {
+            try Validation.validateItems(
+                amountMinor: 990,
+                items: [item("x", 1000, ["a"])],
+                validMemberIds: ["a"],
+                taxMinor: -10
+            )
+        }
+    }
+
     // MARK: - Shares split
 
     @Test("Shares: 4:2:1:3 divides the amount by the weight total")

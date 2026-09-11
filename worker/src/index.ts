@@ -32,6 +32,7 @@ import { SessionError, mintSession, verifySession } from "./lib/session.ts";
 import {
   assertPlainObject,
   optionalBoolean,
+  optionalInteger,
   optionalString,
   optionalStringOrNull,
   readJsonObject,
@@ -382,6 +383,8 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     "splits",
     "items",
     "shares",
+    "taxMinor",
+    "tipMinor",
     "category",
     "categoryIcon",
     "attachments",
@@ -453,6 +456,16 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
       })
     : undefined;
 
+  // `taxMinor`/`tipMinor` (`CHECKLIST.md` "Tax/tip proportional split on
+  // itemized expenses") only mean anything alongside `items` — optional even
+  // then (an itemized expense needn't have either), rejected on any other
+  // `splitType`, same shape of check as `items`/`shares` above.
+  const taxMinor = optionalInteger(body, "taxMinor");
+  const tipMinor = optionalInteger(body, "tipMinor");
+  if (splitType !== "itemized" && (taxMinor !== undefined || tipMinor !== undefined)) {
+    throw new BadRequestError('Fields "taxMinor"/"tipMinor" are only valid when "splitType" is "itemized".');
+  }
+
   // `attachments` absent → leave the stored receipt list alone; `[]` → clear
   // it; a list → replace it. The route handler checks each key belongs to this
   // expense before it's stored.
@@ -485,6 +498,8 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     splits,
     items,
     shares,
+    taxMinor,
+    tipMinor,
     category: optionalString(body, "category"),
     categoryIcon: optionalString(body, "categoryIcon"),
     attachments,

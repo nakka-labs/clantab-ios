@@ -200,6 +200,97 @@ describe("GroupDO", () => {
     });
   });
 
+  describe('itemized tax/tip (CHECKLIST.md "Tax/tip proportional split on itemized expenses")', () => {
+    it("stores tax/tip alongside the items and balances off the pre-resolved (already-proportional) splits", async () => {
+      const g = group("g-taxtip-ok");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "TXT234");
+      const { member: ben } = await g.addMember("Ben");
+
+      // Ana ordered 750, Ben 250 — a 3:1 item split. 60 tax + 40 tip (100
+      // total), split 3:1 by the client → Ana +75, Ben +25 (`ClanTabKit`'s
+      // `Validation.itemizedSplit` is what actually computes this; the
+      // server only checks the items+tax+tip sum and that `splits` agrees).
+      const r = await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 1100 }],
+        amountMinor: 1100,
+        description: "Dinner",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "itemized",
+        splits: [
+          { memberId: ana.id, amountMinor: 825 },
+          { memberId: ben.id, amountMinor: 275 },
+        ],
+        items: [
+          { id: "li1", name: "Steak", amountMinor: 750, participantIds: [ana.id] },
+          { id: "li2", name: "Salad", amountMinor: 250, participantIds: [ben.id] },
+        ],
+        taxMinor: 60,
+        tipMinor: 40,
+      });
+      expect(r.ok).toBe(true);
+
+      const state = await g.getState();
+      expect(state.expenses[0]).toMatchObject({ splitType: "itemized", taxMinor: 60, tipMinor: 40 });
+      expect(state.balances).toEqual([
+        { memberId: ana.id, currency: "USD", netMinor: 275 }, // paid 1100, own share 825
+        { memberId: ben.id, currency: "USD", netMinor: -275 },
+      ]);
+    });
+
+    it("omits taxMinor/tipMinor entirely when neither was sent", async () => {
+      const g = group("g-taxtip-absent");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "TXT235");
+      await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 500 }],
+        amountMinor: 500,
+        description: "Snacks",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "itemized",
+        splits: [{ memberId: ana.id, amountMinor: 500 }],
+        items: [{ id: "li1", name: "Chips", amountMinor: 500, participantIds: [ana.id] }],
+      });
+      const state = await g.getState();
+      expect(state.expenses[0]!.taxMinor).toBeUndefined();
+      expect(state.expenses[0]!.tipMinor).toBeUndefined();
+    });
+
+    it("rejects items + tax + tip not summing to the amount", async () => {
+      const g = group("g-taxtip-sum");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "TXT236");
+      // Items (900) + tax (60) + tip (40) = 1000, but the expense claims 900.
+      const r = await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 900 }],
+        amountMinor: 900,
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "itemized",
+        splits: [{ memberId: ana.id, amountMinor: 900 }],
+        items: [{ id: "li1", name: "Only", amountMinor: 900, participantIds: [ana.id] }],
+        taxMinor: 60,
+        tipMinor: 40,
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe("SPLIT_MISMATCH");
+    });
+
+    it("rejects a negative tax or tip", async () => {
+      const g = group("g-taxtip-negative");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "TXT237");
+      const r = await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 940 }],
+        amountMinor: 940,
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "itemized",
+        splits: [{ memberId: ana.id, amountMinor: 940 }],
+        items: [{ id: "li1", name: "Only", amountMinor: 1000, participantIds: [ana.id] }],
+        taxMinor: -60,
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe("INVALID_AMOUNT");
+    });
+  });
+
   describe('multiple payers (CHECKLIST.md "Multiple payers on one expense")', () => {
     it("credits each payer their own contribution, not the whole amount", async () => {
       const g = group("g-payers-ok");
@@ -360,13 +451,13 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("13");
+      expect(version).toBe("14");
 
       // The legacy expense survived the v2 + v8 + v11 rebuilds, gained null
       // category columns, had its currency backfilled from the group (USD),
       // gained null deleted_at/deleted_by (v6), a null `items` column (v8), a
-      // null `attachments` column (v10), a null `shares` column (v11), and a
-      // null `payers` column (v13).
+      // null `attachments` column (v10), a null `shares` column (v11), a null
+      // `payers` column (v13), and null `tax_minor`/`tip_minor` columns (v14).
       const legacy = sql
         .exec<{
           category: string | null;
@@ -378,8 +469,10 @@ describe("GroupDO", () => {
           attachments: string | null;
           shares: string | null;
           payers: string | null;
+          tax_minor: number | null;
+          tip_minor: number | null;
         }>(
-          "SELECT category, category_icon, currency, deleted_at, deleted_by, items, attachments, shares, payers FROM expenses WHERE id = 'old-1'",
+          "SELECT category, category_icon, currency, deleted_at, deleted_by, items, attachments, shares, payers, tax_minor, tip_minor FROM expenses WHERE id = 'old-1'",
         )
         .toArray()[0];
       expect(legacy).toEqual({
@@ -392,6 +485,8 @@ describe("GroupDO", () => {
         items: null,
         payers: null,
         shares: null,
+        tax_minor: null,
+        tip_minor: null,
       });
 
       // The legacy member gained a null identity_sub (v5) — i.e. it's a
@@ -486,6 +581,24 @@ describe("GroupDO", () => {
     expect(rp.ok).toBe(true);
     if (rp.ok) {
       expect(rp.value.expense.payers).toEqual([{ memberId: ana.id, amountMinor: 300 }]);
+    }
+
+    // tax/tip (needs the v14 `tax_minor`/`tip_minor` columns) post-migration.
+    const rt = await g.addExpense({
+      payers: [{ memberId: ana.id, amountMinor: 1100 }],
+      amountMinor: 1100,
+      description: "Dinner",
+      date: "2026-01-05T00:00:00Z",
+      splitType: "itemized",
+      splits: [{ memberId: ana.id, amountMinor: 1100 }],
+      items: [{ id: "li3", name: "Curry", amountMinor: 1000, participantIds: [ana.id] }],
+      taxMinor: 60,
+      tipMinor: 40,
+    });
+    expect(rt.ok).toBe(true);
+    if (rt.ok) {
+      expect(rt.value.expense.taxMinor).toBe(60);
+      expect(rt.value.expense.tipMinor).toBe(40);
     }
   });
 

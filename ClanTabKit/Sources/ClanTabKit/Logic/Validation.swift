@@ -161,18 +161,29 @@ public enum Validation {
     /// they're a participant, else the item's first participant — and each
     /// member's shares are then summed across every item.
     ///
-    /// If the items sum to `amountMinor` (which `validateItems` enforces before
-    /// this is relied on), the returned splits sum to `amountMinor` exactly,
-    /// because every item resolves exactly. Members not on any item are omitted
-    /// entirely rather than carried at `0` — they simply aren't part of the
-    /// expense.
+    /// `taxMinor`/`tipMinor` (`CHECKLIST.md` "Tax/tip proportional split on
+    /// itemized expenses") are then divided in proportion to each member's own
+    /// item subtotal — someone who ordered more pays more of the tax/tip too,
+    /// not an equal cut regardless of what they had — using the same
+    /// floor-then-remainder-to-`remainderRecipient` rule as `percentageSplit`.
+    /// Zero (the default) reproduces the old evenly-by-items-only behavior
+    /// exactly.
+    ///
+    /// If the items sum to `amountMinor - taxMinor - tipMinor` (which
+    /// `validateItems` enforces before this is relied on), the returned splits
+    /// sum to `amountMinor` exactly, because every item — and then the
+    /// surcharge — resolves exactly. Members not on any item are omitted
+    /// entirely rather than carried at `0`, and so get no tax/tip share either —
+    /// they simply aren't part of the expense.
     ///
     /// This is the `itemized` counterpart to `equalSplit` / `percentageSplit`:
     /// the UI works in line items, the wire only ever carries resolved
     /// minor-unit splits (`DESIGN.md` §6).
     public static func itemizedSplit(
         items: [LineItem],
-        remainderRecipient: String
+        remainderRecipient: String,
+        taxMinor: Int64 = 0,
+        tipMinor: Int64 = 0
     ) -> [ExpenseSplit] {
         var totals: [String: Int64] = [:]
         var order: [String] = []
@@ -189,20 +200,44 @@ public enum Validation {
             }
         }
 
+        let surcharge = taxMinor + tipMinor
+        let itemsGrandTotal = totals.values.reduce(Int64(0), +)
+        if surcharge > 0, itemsGrandTotal > 0 {
+            var surchargeShares: [String: Int64] = [:]
+            for memberId in order {
+                surchargeShares[memberId] = surcharge * totals[memberId]! / itemsGrandTotal
+            }
+            let allocated = surchargeShares.values.reduce(Int64(0), +)
+            let remainder = surcharge - allocated
+            if remainder != 0 {
+                let recipient = order.contains(remainderRecipient) ? remainderRecipient : order[0]
+                surchargeShares[recipient, default: 0] += remainder
+            }
+            for memberId in order {
+                totals[memberId, default: 0] += surchargeShares[memberId] ?? 0
+            }
+        }
+
         return order.map { ExpenseSplit(memberId: $0, amountMinor: totals[$0] ?? 0) }
     }
 
     /// Checks an itemized expense's line items: at least one item, every item
     /// shared by at least one member, every participant a real group member, and
-    /// the item amounts summing to exactly `amountMinor` (no separate tax/tip
-    /// bucket — a shared surcharge is its own line). Individual item amounts must
-    /// be positive.
+    /// the item amounts plus `taxMinor`/`tipMinor` (`CHECKLIST.md` "Tax/tip
+    /// proportional split on itemized expenses" — both `0` by default, the
+    /// original "no separate tax/tip bucket, a shared surcharge is its own
+    /// line" behavior) summing to exactly `amountMinor`. Individual item
+    /// amounts must be positive; `taxMinor`/`tipMinor` must not be negative.
     public static func validateItems(
         amountMinor: Int64,
         items: [LineItem],
-        validMemberIds: Set<String>
+        validMemberIds: Set<String>,
+        taxMinor: Int64 = 0,
+        tipMinor: Int64 = 0
     ) throws {
         guard !items.isEmpty else { throw ValidationError.emptyItems }
+        guard taxMinor >= 0 else { throw ValidationError.invalidAmount(taxMinor) }
+        guard tipMinor >= 0 else { throw ValidationError.invalidAmount(tipMinor) }
 
         var total: Int64 = 0
         for item in items {
@@ -211,8 +246,9 @@ public enum Validation {
             try validateMembersExist(memberIds: item.participantIds, validMemberIds: validMemberIds)
             total += item.amountMinor
         }
-        guard total == amountMinor else {
-            throw ValidationError.itemSumMismatch(expected: amountMinor, actual: total)
+        let expectedTotal = total + taxMinor + tipMinor
+        guard expectedTotal == amountMinor else {
+            throw ValidationError.itemSumMismatch(expected: amountMinor, actual: expectedTotal)
         }
     }
 }

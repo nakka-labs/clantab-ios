@@ -90,6 +90,15 @@ public struct Expense: Identifiable, Codable, Sendable {
     /// — `nil` for every other `splitType`. Like `items`, the resolved `splits`
     /// stay authoritative for balances; this is kept for display / re-edit.
     public let shares: [ShareWeight]?
+    /// Tax/tip on an `itemized` expense (`CHECKLIST.md` "Tax/tip proportional
+    /// split on itemized expenses") — `nil` for every other `splitType`, or
+    /// an itemized expense with neither set. Distributed proportionally by
+    /// each participant's own item subtotal (`Validation.itemizedSplit`),
+    /// not split evenly; kept here (like `items`/`shares`) so re-opening the
+    /// expense shows the breakdown it was built from — the resolved
+    /// `splits` stay authoritative for balances.
+    public let taxMinor: Int64?
+    public let tipMinor: Int64?
     /// Receipt-photo R2 keys (`CHECKLIST.md` "Photo attachment on an expense") —
     /// `nil` (key absent) when the expense has none. Resolve each to a URL with
     /// `ClanTabClient.presignMediaView`.
@@ -126,6 +135,8 @@ public struct Expense: Identifiable, Codable, Sendable {
         splits: [ExpenseSplit],
         items: [LineItem]? = nil,
         shares: [ShareWeight]? = nil,
+        taxMinor: Int64? = nil,
+        tipMinor: Int64? = nil,
         attachments: [String]? = nil,
         category: String? = nil,
         categoryIcon: String? = nil,
@@ -142,6 +153,8 @@ public struct Expense: Identifiable, Codable, Sendable {
         self.splits = splits
         self.items = items
         self.shares = shares
+        self.taxMinor = taxMinor
+        self.tipMinor = tipMinor
         self.attachments = attachments
         self.category = category
         self.categoryIcon = categoryIcon
@@ -163,6 +176,8 @@ public struct Expense: Identifiable, Codable, Sendable {
         splits: [ExpenseSplit],
         items: [LineItem]? = nil,
         shares: [ShareWeight]? = nil,
+        taxMinor: Int64? = nil,
+        tipMinor: Int64? = nil,
         attachments: [String]? = nil,
         category: String? = nil,
         categoryIcon: String? = nil,
@@ -180,6 +195,8 @@ public struct Expense: Identifiable, Codable, Sendable {
             splits: splits,
             items: items,
             shares: shares,
+            taxMinor: taxMinor,
+            tipMinor: tipMinor,
             attachments: attachments,
             category: category,
             categoryIcon: categoryIcon,

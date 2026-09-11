@@ -56,6 +56,12 @@ struct AddExpenseView: View {
     /// "Itemized expense entry"). Empty until the user picks "Items" for the
     /// first time (or when editing an itemized expense), when it's seeded.
     @State private var itemDrafts: [ItemDraft] = []
+    /// Tax/tip on an itemized expense (`CHECKLIST.md` "Tax/tip proportional
+    /// split on itemized expenses") — as strings, same as every other money
+    /// field on this screen. Blank (the default) means "none", not "zero" —
+    /// `taxMinorValue`/`tipMinorValue` treat both the same.
+    @State private var taxText = ""
+    @State private var tipText = ""
 
     /// One editable line item — the mutable, string-typed counterpart to
     /// `ClanTabKit.LineItem`, resolved to exact splits only on save.
@@ -272,6 +278,8 @@ struct AddExpenseView: View {
                     participantIds: Set(item.participantIds)
                 )
             })
+            _taxText = State(initialValue: expense.taxMinor.map { MoneyFormat.plainString(minorUnits: $0) } ?? "")
+            _tipText = State(initialValue: expense.tipMinor.map { MoneyFormat.plainString(minorUnits: $0) } ?? "")
         }
 
         // A shares expense stores its raw weights — rehydrate them directly
@@ -895,9 +903,17 @@ struct AddExpenseView: View {
 
     // MARK: Itemized split
 
-    private var itemizedTotal: Int64 {
+    private var itemsOnlyTotal: Int64 {
         itemDrafts.reduce(Int64(0)) { $0 + (MoneyFormat.minorUnits(from: $1.amountText) ?? 0) }
     }
+
+    private var taxMinorValue: Int64 { MoneyFormat.minorUnits(from: taxText) ?? 0 }
+    private var tipMinorValue: Int64 { MoneyFormat.minorUnits(from: tipText) ?? 0 }
+
+    /// What the itemization actually adds up to: the items themselves, plus
+    /// tax/tip (`CHECKLIST.md` "Tax/tip proportional split on itemized
+    /// expenses") — this is what must equal `amountMinor`, not the items alone.
+    private var itemizedTotal: Int64 { itemsOnlyTotal + taxMinorValue + tipMinorValue }
 
     /// `true` once the amount is known and the line items don't add up to it.
     private var itemizedMismatch: Bool {
@@ -953,6 +969,27 @@ struct AddExpenseView: View {
             Label("Add Item", systemImage: "plus.circle")
         }
         .font(.footnote)
+
+        // Tax/tip (`CHECKLIST.md` "Tax/tip proportional split on itemized
+        // expenses") — split by each person's own item subtotal at save time
+        // (`Validation.itemizedSplit`), not split evenly like the items above.
+        HStack(spacing: 8) {
+            Text("Tax")
+            TextField("0.00", text: $taxText)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+        }
+        HStack(spacing: 8) {
+            Text("Tip")
+            TextField("0.00", text: $tipText)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+        }
+        if taxMinorValue > 0 || tipMinorValue > 0 {
+            Text("Split by what each person ordered, not evenly.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
 
         if let amountMinor {
             HStack {
@@ -1145,12 +1182,22 @@ struct AddExpenseView: View {
                 items = resolved
                 // Resolve the line items to exact per-member shares — the wire
                 // carries both, and the server checks they agree (DESIGN.md §6).
+                // Tax/tip (`CHECKLIST.md` "Tax/tip proportional split on
+                // itemized expenses") are distributed proportionally by each
+                // participant's own item subtotal, not evenly.
                 try Validation.validateItems(
                     amountMinor: amountMinor,
                     items: resolved,
-                    validMemberIds: Set(members.map(\.id))
+                    validMemberIds: Set(members.map(\.id)),
+                    taxMinor: taxMinorValue,
+                    tipMinor: tipMinorValue
                 )
-                splits = Validation.itemizedSplit(items: resolved, remainderRecipient: remainderRecipient)
+                splits = Validation.itemizedSplit(
+                    items: resolved,
+                    remainderRecipient: remainderRecipient,
+                    taxMinor: taxMinorValue,
+                    tipMinor: tipMinorValue
+                )
             }
 
             // The same rule the server enforces (DESIGN.md §6) - catching a
@@ -1178,6 +1225,8 @@ struct AddExpenseView: View {
                 splits: splits,
                 items: items,
                 shares: shares,
+                taxMinor: (splitType == .itemized && taxMinorValue > 0) ? taxMinorValue : nil,
+                tipMinor: (splitType == .itemized && tipMinorValue > 0) ? tipMinorValue : nil,
                 category: isCategorised ? category.name : nil,
                 categoryIcon: isCategorised ? category.symbolName : nil,
                 attachments: (attachmentKeys.isEmpty && !hadAttachments) ? nil : attachmentKeys

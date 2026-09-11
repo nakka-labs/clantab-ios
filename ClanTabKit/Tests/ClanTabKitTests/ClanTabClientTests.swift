@@ -208,6 +208,47 @@ struct ClanTabClientTests {
         #expect(unset["categoryIcon"] == nil)
     }
 
+    @Test("addExpense encodes taxMinor/tipMinor when set, omits both keys when nil")
+    func testAddExpenseTaxTipEncoding() async throws {
+        let response = jsonData([
+            "expense": [
+                "id": "e1", "payers": [["memberId": "m1", "amountMinor": 1100]], "amountMinor": 1100, "currency": "USD", "description": "Dinner",
+                "date": "2026-01-15T10:00:00Z", "splitType": "itemized",
+                "splits": [["memberId": "m1", "amountMinor": 1100]],
+                "taxMinor": 60, "tipMinor": 40,
+            ],
+        ])
+
+        let withTaxTip = FakeTransport(statusCode: 201, body: response)
+        let decoded = try await ClanTabClient(baseURL: baseURL, transport: withTaxTip).addExpense(
+            groupId: "g1",
+            AddExpenseRequest(
+                payerId: "m1", amountMinor: 1100, currency: "USD", description: "Dinner",
+                date: Date(timeIntervalSince1970: 0), splitType: .itemized,
+                splits: [ExpenseSplit(memberId: "m1", amountMinor: 1100)],
+                taxMinor: 60, tipMinor: 40
+            )
+        )
+        let set = decodeBody(await withTaxTip.lastRequest)
+        #expect(set["taxMinor"] as? Int == 60)
+        #expect(set["tipMinor"] as? Int == 40)
+        #expect(decoded.expense.taxMinor == 60)
+        #expect(decoded.expense.tipMinor == 40)
+
+        let without = FakeTransport(statusCode: 201, body: response)
+        _ = try await ClanTabClient(baseURL: baseURL, transport: without).addExpense(
+            groupId: "g1",
+            AddExpenseRequest(
+                payerId: "m1", amountMinor: 1100, currency: "USD", description: "Dinner",
+                date: Date(timeIntervalSince1970: 0), splitType: .itemized,
+                splits: [ExpenseSplit(memberId: "m1", amountMinor: 1100)]
+            )
+        )
+        let unset = decodeBody(await without.lastRequest)
+        #expect(unset["taxMinor"] == nil)
+        #expect(unset["tipMinor"] == nil)
+    }
+
     @Test("addExpense encodes attachments when set, omits the key when nil; decodes them back")
     func testAddExpenseAttachments() async throws {
         let keys = ["expenses/g1/e1/r1", "expenses/g1/e1/r2"]

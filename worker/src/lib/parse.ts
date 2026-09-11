@@ -78,6 +78,15 @@ export function requireInteger(obj: Obj, key: string): number {
   return v;
 }
 
+export function optionalInteger(obj: Obj, key: string): number | undefined {
+  const v = obj[key];
+  if (v === undefined) return undefined;
+  if (typeof v !== "number" || !Number.isInteger(v)) {
+    throw new BadRequestError(`Field "${key}", if present, must be an integer.`);
+  }
+  return v;
+}
+
 export function requireArray(obj: Obj, key: string): unknown[] {
   const v = obj[key];
   if (!Array.isArray(v)) {

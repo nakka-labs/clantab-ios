@@ -129,6 +129,13 @@ export interface AddExpenseRequest {
    * otherwise. Whole-number ratios the client also resolves into `splits`
    * before dispatch; the server validates both and stores these for re-edit. */
   shares?: ShareWeight[];
+  /** Tax / tip on an `itemized` expense (`CHECKLIST.md` "Tax/tip proportional
+   * split on itemized expenses") — optional even then (an itemized expense
+   * needn't have either), rejected on any other `splitType`. Distributed
+   * proportionally by each participant's own item subtotal, not evenly; the
+   * client resolves that into `splits` before dispatch, same as `items`. */
+  taxMinor?: number;
+  tipMinor?: number;
   category?: string;
   categoryIcon?: string;
   /** R2 object keys for receipt photos (`CHECKLIST.md` "Photo attachment on an

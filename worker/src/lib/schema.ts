@@ -52,7 +52,14 @@ CREATE TABLE IF NOT EXISTS expenses (
   -- (CHECKLIST.md "Multiple payers on one expense"); NULL for the common
   -- single-payer case, where payer_id/amount_minor already say who paid the
   -- whole amount. Written whole with the expense, never queried into.
-  payers        TEXT
+  payers        TEXT,
+  -- Tax / tip on an 'itemized' expense (CHECKLIST.md "Tax/tip proportional
+  -- split on itemized expenses"); NULL when absent or not itemized. Purely
+  -- informational alongside 'items' -- the resolved expense_splits (which
+  -- already distribute these proportionally by each participant's own item
+  -- subtotal, not evenly) stay authoritative for balances.
+  tax_minor     INTEGER,
+  tip_minor     INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS expense_splits (
@@ -284,5 +291,11 @@ export const META_KEYS = {
  *          already say who paid the whole amount, so the read path (`toExpense`)
  *          synthesizes a one-element `payers` array from them when this
  *          column is `NULL` — no data rewrite needed.
+ *  - `14` → `expenses.tax_minor` + `expenses.tip_minor` (nullable) added
+ *          (`CHECKLIST.md` "Tax/tip proportional split on itemized
+ *          expenses"). Plain `ALTER TABLE ... ADD COLUMN` — no rebuild.
+ *          `NULL` for every pre-existing expense (itemized or not); the
+ *          resolved `expense_splits` a pre-existing itemized expense already
+ *          has are unaffected either way.
  */
-export const SCHEMA_VERSION = "13";
+export const SCHEMA_VERSION = "14";

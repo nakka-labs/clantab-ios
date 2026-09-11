@@ -274,6 +274,15 @@ public struct AddExpenseRequest: Sendable {
     /// carries the balance-affecting shares, the server stores these alongside
     /// for re-edit and checks the two agree (`DESIGN.md` §6).
     public let shares: [ShareWeight]?
+    /// Tax/tip on an `itemized` expense (`CHECKLIST.md` "Tax/tip proportional
+    /// split on itemized expenses") — `nil` (key omitted) when absent, same
+    /// contract as `items`/`shares`. Distributed proportionally by each
+    /// participant's own item subtotal (`Validation.itemizedSplit`), not
+    /// split evenly — the resolved `splits` still carry the balance-affecting
+    /// shares; these two ride along only so the server's sum-check and a
+    /// later re-edit both see the same breakdown the amount was built from.
+    public let taxMinor: Int64?
+    public let tipMinor: Int64?
     public let category: String?
     public let categoryIcon: String?
     /// Receipt-photo R2 keys (`CHECKLIST.md` "Photo attachment on an expense") —
@@ -293,6 +302,8 @@ public struct AddExpenseRequest: Sendable {
         splits: [ExpenseSplit],
         items: [LineItem]? = nil,
         shares: [ShareWeight]? = nil,
+        taxMinor: Int64? = nil,
+        tipMinor: Int64? = nil,
         category: String? = nil,
         categoryIcon: String? = nil,
         attachments: [String]? = nil
@@ -307,6 +318,8 @@ public struct AddExpenseRequest: Sendable {
         self.splits = splits
         self.items = items
         self.shares = shares
+        self.taxMinor = taxMinor
+        self.tipMinor = tipMinor
         self.category = category
         self.categoryIcon = categoryIcon
         self.attachments = attachments
@@ -325,6 +338,8 @@ public struct AddExpenseRequest: Sendable {
         splits: [ExpenseSplit],
         items: [LineItem]? = nil,
         shares: [ShareWeight]? = nil,
+        taxMinor: Int64? = nil,
+        tipMinor: Int64? = nil,
         category: String? = nil,
         categoryIcon: String? = nil,
         attachments: [String]? = nil
@@ -340,6 +355,8 @@ public struct AddExpenseRequest: Sendable {
             splits: splits,
             items: items,
             shares: shares,
+            taxMinor: taxMinor,
+            tipMinor: tipMinor,
             category: category,
             categoryIcon: categoryIcon,
             attachments: attachments
@@ -350,7 +367,7 @@ public struct AddExpenseRequest: Sendable {
 extension AddExpenseRequest: Encodable {
     private enum CodingKeys: String, CodingKey {
         case id, payers, amountMinor, currency, description, date, splitType, splits,
-             items, shares, category, categoryIcon, attachments
+             items, shares, taxMinor, tipMinor, category, categoryIcon, attachments
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -367,6 +384,8 @@ extension AddExpenseRequest: Encodable {
         try container.encode(splits, forKey: .splits)
         try container.encodeIfPresent(items, forKey: .items)
         try container.encodeIfPresent(shares, forKey: .shares)
+        try container.encodeIfPresent(taxMinor, forKey: .taxMinor)
+        try container.encodeIfPresent(tipMinor, forKey: .tipMinor)
         try container.encodeIfPresent(category, forKey: .category)
         try container.encodeIfPresent(categoryIcon, forKey: .categoryIcon)
         try container.encodeIfPresent(attachments, forKey: .attachments)

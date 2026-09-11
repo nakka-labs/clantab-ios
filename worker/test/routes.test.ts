@@ -469,6 +469,44 @@ describe("POST /api/groups/:groupId/expenses", () => {
     expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
   });
 
+  it("records itemized tax/tip and 400s when taxMinor/tipMinor are sent on a non-itemized splitType", async () => {
+    const { status, json } = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 1100 }],
+        amountMinor: 1100,
+        description: "Dinner",
+        date: "2026-01-02T09:00:00Z",
+        splitType: "itemized",
+        splits: [
+          { memberId: a, amountMinor: 825 },
+          { memberId: b, amountMinor: 275 },
+        ],
+        items: [
+          { id: "li1", name: "Steak", amountMinor: 750, participantIds: [a] },
+          { id: "li2", name: "Salad", amountMinor: 250, participantIds: [b] },
+        ],
+        taxMinor: 60,
+        tipMinor: 40,
+      },
+      token,
+    );
+    expect(status).toBe(201);
+    expect(json.expense).toMatchObject({ taxMinor: 60, tipMinor: 40 });
+
+    const stray = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        splitType: "equal", splits: [{ memberId: a, amountMinor: 100 }],
+        taxMinor: 10,
+      },
+      token,
+    );
+    expect(stray.status).toBe(400);
+    expect((stray.json.error as Json).code).toBe("BAD_REQUEST");
+  });
+
   it("records a multi-payer expense, round-trips it, and 400s on a bad total", async () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
