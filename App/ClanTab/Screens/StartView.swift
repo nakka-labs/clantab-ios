@@ -25,6 +25,13 @@ struct StartView: View {
     /// Pull-to-refresh on the groups list — the dashboard fallback sync
     /// (`CHECKLIST.md` "Dashboard fallback sync for missed/denied push").
     var onRefresh: () async -> Void = {}
+    /// One-time "Welcome back" balance summary after a gap since the last
+    /// open (`CHECKLIST.md` "Returning-user balance summary") — evaluated
+    /// once per launch by `RootView`; dismissing it (or `WelcomeBackCard`
+    /// rendering nothing because every currency is settled) is `RootView`'s
+    /// cue to stop passing `true` for the rest of this launch.
+    var showWelcomeBack: Bool = false
+    var onDismissWelcomeBack: () -> Void = {}
 
     @State private var sheetError: String?
     @State private var showArchived = false
@@ -57,6 +64,9 @@ struct StartView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.top, 8)
                             } else {
+                                if showWelcomeBack {
+                                    WelcomeBackCard(groups: activeGroups, onDismiss: onDismissWelcomeBack)
+                                }
                                 DashboardTotalsHeader(groups: activeGroups)
                                 GroupsListView(groups: activeGroups, onOpenGroup: onOpenGroup, onRemoveGroup: onRemoveGroup)
                             }

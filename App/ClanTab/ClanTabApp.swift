@@ -8,6 +8,7 @@ struct ClanTabApp: App {
     private let knownGroups: KnownGroupsStoring
     private let onboarding: OnboardingStoring
     private let whatsNew: WhatsNewStoring
+    private let returnGap: ReturnGapStoring
     @State private var auth: AuthViewModel
     @State private var avatarImageLoader: AvatarImageLoader
     @AppStorage("clantab.theme") private var theme = AppTheme.system
@@ -19,6 +20,7 @@ struct ClanTabApp: App {
         self.knownGroups = knownGroups
         self.onboarding = UserDefaultsOnboardingStore()
         self.whatsNew = UserDefaultsWhatsNewStore()
+        self.returnGap = UserDefaultsReturnGapStore()
         let auth = AuthViewModel(
             client: client,
             sessionStore: KeychainSessionStore(),
@@ -35,7 +37,7 @@ struct ClanTabApp: App {
         WindowGroup {
             RootView(
                 client: client, knownGroups: knownGroups, auth: auth, avatarImageLoader: avatarImageLoader,
-                onboarding: onboarding, whatsNew: whatsNew
+                onboarding: onboarding, whatsNew: whatsNew, returnGap: returnGap
             )
                 .preferredColorScheme(theme.colorScheme)
                 .task {

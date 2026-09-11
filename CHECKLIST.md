@@ -681,13 +681,31 @@ writing down, "Non-goals" for the rest.
       remaining zero-states (Insights, Recently Deleted, cross-group
       "All Square", filtered no-match) have no meaningful action from
       that state and keep plain copy. `make check` green.
-- [ ] **Returning-user balance summary.** `~15-20k tokens`. On launch
-      after a gap (reuse the `firstLaunchAt`/nudge-timing pattern
-      already in `AuthViewModel`), show a one-time "Welcome back —
-      here's where things stand" card summarizing net balance across
-      groups. Build it against today's per-group balances first; swap
-      in the aggregated cross-group number once the Friends item above
-      ships rather than waiting on it.
+- [x] **Returning-user balance summary.** Done 2026-09-11. Friends
+      already shipped by the time this came up, so this goes straight
+      to the aggregated cross-group number rather than a per-group
+      placeholder — reusing `DashboardTotals.compute` (already built
+      for the dashboard's always-on header) against `KnownGroup`'s
+      already-synced `myBalances`, no new network call. **Kit:** new
+      `ReturnGapStoring` (`Storage/`, mirrors `SyncNudgeStoring`'s
+      shape) tracks a *rolling* `lastOpenAt`, advanced every launch —
+      unlike `firstLaunchAt`'s one-time stamp, this is what lets a gap
+      be detected each time. Pure `Logic/ReturnGap.shouldShowWelcomeBack`
+      (3-day threshold; `nil` `lastOpenAt` — fresh install or
+      pre-feature — never shows it). **App:** `RootView` evaluates this
+      once from the launch `.task` (same shape as the What's New check
+      just above it) and always records the open afterward, win or
+      lose, so the gap resets the moment the card is shown once — the
+      same "recompute, then advance the clock unconditionally" shape
+      `BackupNudge` already uses for its own recurring timer. New
+      `WelcomeBackCard` (dismissible, `Surface.card` background — unlike
+      the nudge cards on Group Home, `StartView` is a plain `ScrollView`
+      with no `List` row chrome to lean on) sits above the dashboard's
+      existing `DashboardTotalsHeader`, reusing its `line(for:)`
+      formatting so the two numbers are guaranteed to agree; renders
+      nothing once fully settled up. Tests: `ReturnGapTests` (4),
+      `ReturnGapStoreTests` (3). worker unaffected · kit 324. `make
+      check` green (app/kit-only — nothing to deploy).
 - [ ] **One-time contextual coach marks.** `~20-25k tokens`. A small
       reusable "point at this, once" component (a UserDefaults flag per
       tip id, same pattern as `OnboardingStoring`), then wire 3-4

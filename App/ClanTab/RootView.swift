@@ -8,6 +8,7 @@ struct RootView: View {
     let avatarImageLoader: AvatarImageLoader
     let onboarding: OnboardingStoring
     let whatsNew: WhatsNewStoring
+    let returnGap: ReturnGapStoring
 
     @State private var route: AppRoute = .start
     @State private var showingSettings = false
@@ -20,6 +21,10 @@ struct RootView: View {
     /// per launch, not on every `init` SwiftUI happens to re-run).
     @State private var showWhatsNew = false
     @State private var whatsNewReleases: [WhatsNewRelease] = []
+    /// The one-time "Welcome back" balance summary (`CHECKLIST.md`
+    /// "Returning-user balance summary") — same once-per-launch-evaluation
+    /// shape as `showWhatsNew`, decided in the launch `.task`.
+    @State private var showWelcomeBack = false
     /// Set when the Home Screen "Add Expense" quick action targets a group we
     /// then route into — `GroupHomeView` opens Add Expense for it once.
     @State private var pendingAddExpenseGroupId: String?
@@ -30,7 +35,8 @@ struct RootView: View {
         auth: AuthViewModel,
         avatarImageLoader: AvatarImageLoader,
         onboarding: OnboardingStoring,
-        whatsNew: WhatsNewStoring
+        whatsNew: WhatsNewStoring,
+        returnGap: ReturnGapStoring
     ) {
         self.client = client
         self.knownGroups = knownGroups
@@ -38,6 +44,7 @@ struct RootView: View {
         self.avatarImageLoader = avatarImageLoader
         self.onboarding = onboarding
         self.whatsNew = whatsNew
+        self.returnGap = returnGap
         _showOnboarding = State(initialValue: Self.shouldPresentOnboarding(onboarding))
     }
 
@@ -130,6 +137,7 @@ struct RootView: View {
             await auth.reconcileGroupBalances(force: false)
             knownGroupsRevision += 1
             evaluateWhatsNew()
+            evaluateWelcomeBack()
         }
         .onReceive(NotificationCenter.default.publisher(for: .urlOpened)) { notification in
             // Every warm-open link — `clantab://` scheme or tapped Universal
@@ -206,6 +214,16 @@ struct RootView: View {
         showWhatsNew = true
     }
 
+    /// Decides whether this launch shows the "Welcome back" balance summary
+    /// (`CHECKLIST.md` "Returning-user balance summary"), then always records
+    /// this open — whether or not the card ends up shown — so the gap resets
+    /// and the next launch measures from *this* one, same one-time-per-gap
+    /// shape as `BackupNudge`'s own recurring "last shown" clock.
+    private func evaluateWelcomeBack() {
+        showWelcomeBack = auth.isSignedIn && ReturnGap.shouldShowWelcomeBack(lastOpenAt: returnGap.lastOpenAt())
+        returnGap.recordOpen()
+    }
+
     /// The start screen's "Your Groups" list — signed-in only
     /// (`MANDATORY_LOGIN_PLAN.md` Part 3): every group is tied to an identity
     /// now, so browsing a device's cached list while signed out isn't allowed.
@@ -258,7 +276,9 @@ struct RootView: View {
                 onRefresh: {
                     await auth.reconcileGroupBalances(force: true)
                     knownGroupsRevision += 1
-                }
+                },
+                showWelcomeBack: showWelcomeBack,
+                onDismissWelcomeBack: { showWelcomeBack = false }
             )
         case .friends:
             FriendsView(
