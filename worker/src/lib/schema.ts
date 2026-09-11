@@ -190,6 +190,14 @@ export const META_KEYS = {
    * `POST /api/media/presign` first). Absent = no cover. A new key, no
    * `SCHEMA_VERSION` bump (same as `emoji` / `archived_at`). */
   coverKey: "cover_key",
+  /** Present ("1") only on an auto-created private 1:1 tab (`CHECKLIST.md`
+   * "Friends/contacts list... + private 1:1 tabs") — a hidden, two-person
+   * group created lazily between two already-connected identities, never
+   * shown in the groups list / dashboard totals, reached only via the
+   * Friends screen. Absent = a normal, visible group. Set once at creation
+   * (`GroupDO.markHidden`), never toggled after. A new key, no
+   * `SCHEMA_VERSION` bump (same as `emoji` / `archived_at`). */
+  hidden: "hidden",
 } as const;
 
 /**

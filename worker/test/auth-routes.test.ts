@@ -350,6 +350,135 @@ describe("GET /api/auth/people (cross-group settling)", () => {
   });
 });
 
+describe('GET /api/auth/friends, POST /api/auth/friends/tab (CHECKLIST.md "Friends/contacts list... + private 1:1 tabs")', () => {
+  const alice = "000123.friends.alice";
+  const bob = "000123.friends.bob";
+  const cara = "000123.friends.cara";
+  let aliceBearer: string;
+  let bobBearer: string;
+  let caraBearer: string;
+
+  beforeEach(async () => {
+    aliceBearer = await token(alice);
+    bobBearer = await token(bob);
+    caraBearer = await token(cara);
+  });
+
+  /** A group with Alice and Bob both claimed, settled up (no expenses); Cara
+   * stays an unclaimed guest. */
+  async function settledSharedGroup(
+    name = "Trip",
+  ): Promise<{ groupId: string; groupToken: string; aId: string; bId: string; caraId: string }> {
+    const { json } = await call("POST", "/api/groups", {
+      body: { name, currency: "INR", creatorDisplayName: "x" },
+    });
+    const groupId = json.groupId as string;
+    const groupToken = (json.group as Json).accessToken as string;
+    const a = await addMember(groupId, "Alice", groupToken);
+    const b = await addMember(groupId, "Bob", groupToken);
+    const caraId = await addMember(groupId, "Cara", groupToken);
+    await call("POST", `/api/groups/${groupId}/members/${a}/claim`, { bearer: aliceBearer, token: groupToken });
+    await call("POST", `/api/groups/${groupId}/members/${b}/claim`, { bearer: bobBearer, token: groupToken });
+    return { groupId, groupToken, aId: a, bId: b, caraId };
+  }
+
+  it("lists a settled co-member too, unlike /api/auth/people", async () => {
+    await settledSharedGroup("Goa");
+
+    const forAlice = await call("GET", "/api/auth/friends", { bearer: aliceBearer });
+    expect(forAlice.status).toBe(200);
+    expect(forAlice.json.friends).toHaveLength(1);
+    const bobEntry = (forAlice.json.friends as Json[])[0]!;
+    expect(bobEntry.displayName).toBe("Bob");
+    expect(bobEntry.net).toEqual([]); // settled
+    expect(bobEntry).not.toHaveProperty("sub");
+    const grp = (bobEntry.groups as Json[])[0]!;
+    expect(grp).toMatchObject({ groupName: "Goa", hidden: false });
+    expect(grp.myMemberId).toBeTypeOf("string");
+    expect(grp.theirMemberId).toBeTypeOf("string");
+
+    // People (settle-worklist) stays empty — nothing to settle, and Cara (a
+    // guest) never appears on either list.
+    expect((await call("GET", "/api/auth/people", { bearer: aliceBearer })).json.people).toEqual([]);
+  });
+
+  it("401s without a session", async () => {
+    expect((await call("GET", "/api/auth/friends")).status).toBe(401);
+  });
+
+  it("creates the tab on first call, claims both sides with no invite step, and is idempotent", async () => {
+    const { groupId, aId, bId } = await settledSharedGroup("Goa");
+
+    const first = await call("POST", "/api/auth/friends/tab", {
+      bearer: aliceBearer,
+      body: { groupId, theirMemberId: bId, myDisplayName: "Alice", theirDisplayName: "Bob", currency: "INR" },
+    });
+    expect(first.status).toBe(200);
+    const tabGroupId = first.json.groupId as string;
+    const aliceTabToken = first.json.accessToken as string;
+    expect(tabGroupId).toBeTypeOf("string");
+    expect(aliceTabToken).toBeTypeOf("string");
+
+    // Alice can use it immediately with her own token.
+    const state = await call("GET", `/api/groups/${tabGroupId}`, { token: aliceTabToken });
+    expect(state.status).toBe(200);
+    expect((state.json.members as Json[]).map((m) => m.displayName).sort()).toEqual(["Alice", "Bob"]);
+
+    // It shows up in Bob's own friends list as the hidden shared group, with
+    // no action from Bob at all — no invite/join ceremony.
+    const forBob = await call("GET", "/api/auth/friends", { bearer: bobBearer });
+    const aliceEntry = (forBob.json.friends as Json[]).find((p) => p.displayName === "Alice")!;
+    expect((aliceEntry.groups as Json[]).some((g) => g.hidden === true && g.groupId === tabGroupId)).toBe(true);
+
+    // Bob ensures the same tab from his side (via the same original shared
+    // group as proof) — idempotent: same groupId, and he gets his own valid
+    // token without ever having been "invited".
+    const second = await call("POST", "/api/auth/friends/tab", {
+      bearer: bobBearer,
+      body: { groupId, theirMemberId: aId, myDisplayName: "Bob", theirDisplayName: "Alice", currency: "INR" },
+    });
+    expect(second.status).toBe(200);
+    expect(second.json.groupId).toBe(tabGroupId);
+    const bobTabToken = second.json.accessToken as string;
+    expect((await call("GET", `/api/groups/${tabGroupId}`, { token: bobTabToken })).status).toBe(200);
+  });
+
+  it("rejects a groupId the caller doesn't belong to", async () => {
+    const { groupId, bId } = await settledSharedGroup("Goa");
+    const res = await call("POST", "/api/auth/friends/tab", {
+      bearer: caraBearer,
+      body: { groupId, theirMemberId: bId, myDisplayName: "Cara", theirDisplayName: "Bob", currency: "INR" },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects theirMemberId not a claimed member (a guest)", async () => {
+    const { groupId, caraId } = await settledSharedGroup("Goa");
+    const res = await call("POST", "/api/auth/friends/tab", {
+      bearer: aliceBearer,
+      body: { groupId, theirMemberId: caraId, myDisplayName: "Alice", theirDisplayName: "Cara", currency: "INR" },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects starting a tab with yourself", async () => {
+    const { groupId, aId } = await settledSharedGroup("Goa");
+    const res = await call("POST", "/api/auth/friends/tab", {
+      bearer: aliceBearer,
+      body: { groupId, theirMemberId: aId, myDisplayName: "Alice", theirDisplayName: "Alice", currency: "INR" },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("404s an unknown groupId", async () => {
+    const res = await call("POST", "/api/auth/friends/tab", {
+      bearer: aliceBearer,
+      body: { groupId: "does-not-exist", theirMemberId: "x", myDisplayName: "Alice", theirDisplayName: "Bob", currency: "INR" },
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("GET /api/auth/groups/balances (dashboard fallback sync)", () => {
   const alice = "000123.balances.alice";
   const bob = "000123.balances.bob";

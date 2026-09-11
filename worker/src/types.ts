@@ -49,6 +49,11 @@ export interface GroupSummary {
    * Resolve to a URL with `POST /api/media/presign` (`operation: "view"`).
    * Set via `PATCH /api/groups/:groupId` with `{ "coverImage": true | null }`. */
   coverKey: string | null;
+  /** `true` only for an auto-created private 1:1 tab (`CHECKLIST.md`
+   * "Friends/contacts list... + private 1:1 tabs") — the client omits it from
+   * the visible groups list / dashboard totals. `false` for every normal
+   * group, set once at creation, never toggled. */
+  hidden: boolean;
 }
 
 /** Percentage weights per member; positive ints summing to 100. */

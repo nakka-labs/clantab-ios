@@ -1,5 +1,5 @@
 import { GroupDO } from "./group-do.ts";
-import { UserDO } from "./user-do.ts";
+import { UserDO, type Membership } from "./user-do.ts";
 import { ReportsDO } from "./reports-do.ts";
 import { AppleAuthError, verifyAppleIdentityToken } from "./lib/apple-auth.ts";
 import { GoogleAuthError, verifyGoogleIdentityToken } from "./lib/google-auth.ts";
@@ -14,7 +14,7 @@ import {
   RateLimitedError,
   UnauthorizedError,
 } from "./lib/errors.ts";
-import { newGroupId, newRecordId } from "./lib/ids.ts";
+import { newGroupId, newRecordId, oneOnOneGroupId } from "./lib/ids.ts";
 import { reserveJoinCode, resolveJoinCode } from "./lib/join-codes.ts";
 import {
   assertReceiptKeysBelong,
@@ -137,6 +137,8 @@ const ROUTES: Route[] = [
   route("POST", "/api/auth/devices", handleRegisterDevice),
   route("DELETE", "/api/auth/devices/:token", handleUnregisterDevice),
   route("GET", "/api/auth/people", handleAuthPeople),
+  route("GET", "/api/auth/friends", handleAuthFriends),
+  route("POST", "/api/auth/friends/tab", handleEnsureFriendTab),
   route("DELETE", "/api/auth/account", handleAuthDeleteAccount),
   route("GET", "/api/auth/avatar", handleGetAvatar),
   route("PUT", "/api/auth/avatar", handleSetAvatar),
@@ -963,10 +965,27 @@ async function handleUnregisterDevice(request: Request, env: Env, params: Params
   return new Response(null, { status: 204 });
 }
 
+/** Concurrently fetch each shared group's `peerSettlements` view for `sub` —
+ * shared by `handleAuthPeople` and `handleAuthFriends` (`CHECKLIST.md`
+ * "Worker: parallelize the handleAuthPeople fan-out loop"). Independent
+ * `GroupDO` calls, so `Promise.all`; order preserved (`listGroups()` is
+ * newest-first, which the `displayName` "first name wins" rule relies on). */
+function fetchPeerViews(sub: string, groups: Membership[], env: Env) {
+  return Promise.all(
+    groups.map(async (g) => ({
+      g,
+      view: await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).peerSettlements(sub, g.memberId),
+    })),
+  );
+}
+
 /**
  * Cross-group settling (`FEATURE_BACKLOG.md`): for each linked person the caller
  * shares groups with, the net owed per currency and the per-group edges the
  * client settles one by one. A read-side aggregation — no cross-group ledger.
+ * Nonzero balances only — a settled-up person has nothing to settle, so they
+ * don't belong on this worklist (contrast `handleAuthFriends`, a directory of
+ * every linked person regardless of balance).
  */
 async function handleAuthPeople(request: Request, env: Env): Promise<Response> {
   const sub = await requireSession(request, env);
@@ -987,17 +1006,7 @@ async function handleAuthPeople(request: Request, env: Env): Promise<Response> {
   }
   const byPerson = new Map<string, Agg>();
 
-  // Fan the per-group `peerSettlements` reads out concurrently — they're
-  // independent calls to different `GroupDO`s (`CHECKLIST.md` "Worker:
-  // parallelize the handleAuthPeople fan-out loop"). `Promise.all` keeps
-  // array order, so the aggregation pass below still sees groups
-  // newest-first (which the `displayName` "first name wins" rule relies on).
-  const views = await Promise.all(
-    groups.map(async (g) => ({
-      g,
-      view: await env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).peerSettlements(sub, g.memberId),
-    })),
-  );
+  const views = await fetchPeerViews(sub, groups, env);
 
   for (const { g, view } of views) {
     if (view === null) continue;
@@ -1043,6 +1052,133 @@ async function handleAuthPeople(request: Request, env: Env): Promise<Response> {
   people.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
   return json(200, { people });
+}
+
+/**
+ * Friends directory (`CHECKLIST.md` "Friends/contacts list... + private 1:1
+ * tabs"): every OTHER claimed member the caller shares a group with — formal
+ * or a private 1:1 tab — regardless of balance. Unlike `handleAuthPeople` (a
+ * settle-up worklist, nonzero-only), this is a directory: a settled friend
+ * still appears. Each friend carries every shared group, each flagged
+ * `hidden` or not, so the client can pick one — preferring an existing tab —
+ * to prove the relationship when calling `POST /api/auth/friends/tab`.
+ */
+async function handleAuthFriends(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const { groups } = await env.USER_DO.get(env.USER_DO.idFromName(sub)).listGroups();
+  const views = await fetchPeerViews(sub, groups, env);
+
+  interface FriendAgg {
+    displayName: string;
+    net: Map<string, number>;
+    groups: { groupId: string; groupName: string; hidden: boolean; myMemberId: string; theirMemberId: string }[];
+  }
+  const byPerson = new Map<string, FriendAgg>();
+
+  for (const { g, view } of views) {
+    if (view === null) continue;
+    for (const peer of view.peers) {
+      let agg = byPerson.get(peer.sub);
+      if (agg === undefined) {
+        // groups come newest-first, so the first name we see is the most recent.
+        agg = { displayName: peer.displayName, net: new Map(), groups: [] };
+        byPerson.set(peer.sub, agg);
+      }
+      agg.groups.push({
+        groupId: g.groupId,
+        groupName: view.groupName,
+        hidden: view.hidden,
+        myMemberId: g.memberId,
+        theirMemberId: peer.memberId,
+      });
+      for (const edge of peer.edges) {
+        agg.net.set(
+          edge.currency,
+          (agg.net.get(edge.currency) ?? 0) + (edge.youPay ? edge.amountMinor : -edge.amountMinor),
+        );
+      }
+    }
+  }
+
+  const friends = await Promise.all(
+    [...byPerson.entries()].map(async ([peerSub, agg]) => ({
+      id: await opaquePersonId(peerSub),
+      displayName: agg.displayName,
+      net: [...agg.net.entries()]
+        .filter(([, netMinor]) => netMinor !== 0)
+        .map(([currency, netMinor]) => ({ currency, netMinor }))
+        .sort((a, b) => a.currency.localeCompare(b.currency)),
+      groups: agg.groups,
+    })),
+  );
+  friends.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  return json(200, { friends });
+}
+
+/**
+ * Ensure the private 1:1 tab between the caller and a friend exists, and
+ * return it — a hidden two-person group created lazily the first time either
+ * side calls this, idempotent after (`CHECKLIST.md` "Friends/contacts list...
+ * + private 1:1 tabs"). No invite/join ceremony: both members are claimed
+ * directly, server-side.
+ *
+ * `groupId`/`theirMemberId` is any group the caller shares with that friend
+ * (from `GET /api/auth/friends`, which prefers an existing tab if there is
+ * one) — proof the two are actually connected: the caller must have a
+ * claimed member there, and `theirMemberId` must resolve to a *different*
+ * claimed identity. A group proves itself, so passing the tab's own id (once
+ * it exists) works too — no separate lookup needed to just re-open it.
+ */
+async function handleEnsureFriendTab(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["groupId", "theirMemberId", "myDisplayName", "theirDisplayName", "currency"]);
+  const groupId = requireString(body, "groupId");
+  const theirMemberId = requireString(body, "theirMemberId");
+  const myDisplayName = requireString(body, "myDisplayName");
+  const theirDisplayName = requireString(body, "theirDisplayName");
+  const currency = requireString(body, "currency");
+
+  const sharedGroup = env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId));
+  if (!(await sharedGroup.exists())) throw new GroupNotFoundError();
+  if (!(await sharedGroup.hasClaimedMember(sub))) throw new ForbiddenError();
+
+  const { sub: peerSub } = await sharedGroup.memberIdentity(theirMemberId);
+  if (peerSub === null) throw new BadRequestError('"theirMemberId" isn\'t a linked account.');
+  if (peerSub === sub) throw new BadRequestError("You can't start a private tab with yourself.");
+
+  const tabGroupId = await oneOnOneGroupId(sub, peerSub);
+  const tabGroup = env.GROUP_DO.get(env.GROUP_DO.idFromName(tabGroupId));
+
+  if (!(await tabGroup.exists())) {
+    const joinCode = await reserveJoinCode(env.JOIN_CODES, tabGroupId);
+    const me = env.USER_DO.get(env.USER_DO.idFromName(sub));
+    const peer = env.USER_DO.get(env.USER_DO.idFromName(peerSub));
+    // Seed each side's avatar from their identity, same as a normal claim
+    // (`handleClaim`).
+    const myAvatarKey = (await me.hasAvatar()) ? await avatarKey(sub) : null;
+    const peerAvatarKey = (await peer.hasAvatar()) ? await avatarKey(peerSub) : null;
+
+    const { member: mine } = await tabGroup.initGroup("Private tab", currency, myDisplayName, joinCode);
+    await tabGroup.claim(mine.id, sub, myAvatarKey);
+    const { member: theirs } = await tabGroup.addMember(theirDisplayName);
+    await tabGroup.claim(theirs.id, peerSub, peerAvatarKey);
+    await tabGroup.markHidden();
+
+    // `GroupDO` is authoritative; both `UserDO` indexes are self-healing
+    // caches updated after the fact, same as `handleClaim`. This is what
+    // makes the tab reachable from *either* side with no invite step: the
+    // peer's own `GET /api/auth/friends` / `GET /api/auth/groups` now lists
+    // it too.
+    await Promise.all([
+      me.addMembership(tabGroupId, mine.id, myDisplayName),
+      peer.addMembership(tabGroupId, theirs.id, theirDisplayName),
+    ]);
+  }
+
+  const accessToken = await tabGroup.currentAccessToken();
+  return json(200, { groupId: tabGroupId, accessToken });
 }
 
 /** A stable, non-reversible client-facing id for a person — never expose the

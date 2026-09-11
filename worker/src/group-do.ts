@@ -317,13 +317,21 @@ export class GroupDO extends DurableObject {
       member,
       group: {
         name, currency, createdAt, joinCode, accessToken,
-        emoji: null, archivedAt: null, defaultSplit: null, coverKey: null,
+        emoji: null, archivedAt: null, defaultSplit: null, coverKey: null, hidden: false,
       },
     };
   }
 
   async addMember(displayName: string): Promise<{ member: Member }> {
     return { member: this.insertMember(displayName, Date.now()) };
+  }
+
+  /** Mark this group a private 1:1 tab (`CHECKLIST.md` "Friends/contacts
+   * list... + private 1:1 tabs") — hidden from the visible groups list /
+   * dashboard totals, reached only via the Friends screen. Set once, right
+   * after `initGroup`, by `handleEnsureFriendTab`; never toggled after. */
+  async markHidden(): Promise<void> {
+    this.setMeta(META_KEYS.hidden, "1");
   }
 
   /** Rename the group and/or change its default currency for *new* expenses.
@@ -434,6 +442,7 @@ export class GroupDO extends DurableObject {
       archivedAt: this.meta(META_KEYS.archivedAt),
       defaultSplit: this.readDefaultSplit(),
       coverKey: this.meta(META_KEYS.coverKey),
+      hidden: this.meta(META_KEYS.hidden) !== null,
     };
   }
 
@@ -597,20 +606,21 @@ export class GroupDO extends DurableObject {
   async peerSettlements(
     sub: string,
     myMemberId: string,
-  ): Promise<{ groupName: string; peers: PeerView[] } | null> {
+  ): Promise<{ groupName: string; hidden: boolean; peers: PeerView[] } | null> {
     const mine = this.sql
       .exec<MemberRow>("SELECT id FROM members WHERE id = ? AND identity_sub = ?", myMemberId, sub)
       .toArray();
     if (mine.length === 0) return null;
 
     const groupName = this.requireMeta(META_KEYS.name);
+    const hidden = this.meta(META_KEYS.hidden) !== null;
     const claimed = this.sql
       .exec<MemberRow>(
         "SELECT id, display_name, identity_sub FROM members WHERE identity_sub IS NOT NULL AND id != ?",
         myMemberId,
       )
       .toArray();
-    if (claimed.length === 0) return { groupName, peers: [] };
+    if (claimed.length === 0) return { groupName, hidden, peers: [] };
 
     const balances = computeBalances(this.readMembers(), this.readExpenses(), this.readSettlements());
     const plan = simplify(balances);
@@ -632,7 +642,7 @@ export class GroupDO extends DurableObject {
         })),
     }));
 
-    return { groupName, peers };
+    return { groupName, hidden, peers };
   }
 
   /**

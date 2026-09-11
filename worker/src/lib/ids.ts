@@ -45,6 +45,24 @@ export function newMemberId(): string {
 }
 
 /**
+ * The deterministic `groupId` for the private 1:1 tab between two identities
+ * (`CHECKLIST.md` "Friends/contacts list... + private 1:1 tabs") — the same
+ * pair always derives the same id, order-independent, so "does our tab
+ * already exist" is a plain `GroupDO.exists()` check with no separate index to
+ * keep in sync, and either side can derive it independently. Not a secret —
+ * `groupId` never has been (`DESIGN.md` §1); the group's `access_token` is the
+ * actual capability, generated randomly at `initGroup` same as any group.
+ * `tab-` prefixed so it can never collide with a `newGroupId()` output, though
+ * a hash collision is astronomically unlikely regardless.
+ */
+export async function oneOnOneGroupId(subA: string, subB: string): Promise<string> {
+  const [x, y] = [subA, subB].sort();
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${x} ${y}`));
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `tab-${hex.slice(0, 24)}`;
+}
+
+/**
  * Server-assigned id for an expense or settlement when the client didn't supply
  * one. Client-supplied ids (for idempotent retries, `DESIGN.md` §2) are UUIDs.
  */
