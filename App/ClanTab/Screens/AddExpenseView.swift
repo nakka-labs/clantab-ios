@@ -27,6 +27,13 @@ struct AddExpenseView: View {
     @State private var amountText = ""
     @State private var description = ""
     @State private var payerId: String
+    /// Whether "Paid by" is in multi-payer entry mode (`CHECKLIST.md`
+    /// "Multiple payers on one expense") — off by default; `payerId` alone
+    /// covers the overwhelmingly common single-payer case.
+    @State private var isMultiPayer = false
+    /// Per-member contribution amounts while `isMultiPayer` — parallel to
+    /// `exactAmountText`'s shape, just on the credit side of the expense.
+    @State private var payerAmountText: [String: String] = [:]
     @State private var currency: String
     @State private var splitType: SplitType = .equal
     @State private var includedMemberIds: Set<String>
@@ -169,7 +176,18 @@ struct AddExpenseView: View {
             _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: expense.amountMinor))
         }
         _description = State(initialValue: expense.description)
-        _payerId = State(initialValue: expense.payerId)
+        // A genuine multi-payer expense (`CHECKLIST.md` "Multiple payers on
+        // one expense") rehydrates into the multi-payer entry mode directly;
+        // `payerId` (nil for that case) only fills the single-payer Picker.
+        if expense.payers.count > 1 {
+            _isMultiPayer = State(initialValue: true)
+            _payerAmountText = State(initialValue: Dictionary(
+                uniqueKeysWithValues: expense.payers.map { ($0.memberId, MoneyFormat.plainString(minorUnits: $0.amountMinor)) }
+            ))
+            _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
+        } else {
+            _payerId = State(initialValue: expense.payerId ?? currentMemberId ?? members.first?.id ?? "")
+        }
         _currency = State(initialValue: expense.currency)
         _splitType = State(initialValue: expense.splitType)
         _category = State(initialValue: ExpenseCategory.resolve(name: expense.category, symbolName: expense.categoryIcon))
@@ -281,11 +299,27 @@ struct AddExpenseView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 TextField("Description", text: $description)
-                Picker("Paid by", selection: $payerId) {
-                    ForEach(members) { member in
-                        Text(member.displayName).tag(member.id)
+                if isMultiPayer {
+                    payerAmountRows
+                } else {
+                    Picker("Paid by", selection: $payerId) {
+                        ForEach(members) { member in
+                            Text(member.displayName).tag(member.id)
+                        }
                     }
                 }
+                // Multiple payers (`CHECKLIST.md` "Multiple payers on one
+                // expense") is the rare case — a plain toggle keeps the common
+                // single-payer Picker as the default, undisturbed.
+                Button(isMultiPayer ? "Paid by one person" : "Split the cost between payers") {
+                    isMultiPayer.toggle()
+                    if isMultiPayer, payerAmountText.isEmpty {
+                        // Seed with whatever's already entered for the single
+                        // payer, so switching modes doesn't lose the amount.
+                        payerAmountText = [payerId: amountText]
+                    }
+                }
+                .font(.footnote)
                 NavigationLink {
                     CategoryPickerView(selection: $category)
                 } label: {
@@ -648,6 +682,55 @@ struct AddExpenseView: View {
         (MoneyFormat.minorUnits(from: text ?? "") ?? 0) > 0
     }
 
+    // MARK: - Multiple payers (CHECKLIST.md "Multiple payers on one expense")
+
+    private func payerAmountBinding(for memberId: String) -> Binding<String> {
+        Binding(
+            get: { payerAmountText[memberId] ?? "" },
+            set: { payerAmountText[memberId] = $0 }
+        )
+    }
+
+    private var payersTotal: Int64 {
+        members.reduce(Int64(0)) { $0 + (MoneyFormat.minorUnits(from: payerAmountText[$1.id] ?? "") ?? 0) }
+    }
+
+    private var payersMismatch: Bool {
+        guard let amountMinor else { return false }
+        return amountMinor != payersTotal
+    }
+
+    /// The entered payers as resolved `ExpensePayment`s (zero/blank rows
+    /// dropped) — used for both `save()` and the running-total row labels.
+    private var enteredPayers: [ExpensePayment] {
+        members.compactMap { member in
+            guard let value = MoneyFormat.minorUnits(from: payerAmountText[member.id] ?? ""), value > 0 else { return nil }
+            return ExpensePayment(memberId: member.id, amountMinor: value)
+        }
+    }
+
+    @ViewBuilder
+    private var payerAmountRows: some View {
+        ForEach(members) { member in
+            HStack(spacing: 10) {
+                MemberAvatar(member, size: 24)
+                Text(member.displayName)
+                Spacer()
+                TextField("0.00", text: payerAmountBinding(for: member.id))
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 80)
+                    .foregroundStyle(payersMismatch && hasEntry(payerAmountText[member.id]) ? Color.red : Color.primary)
+                    .accessibilityLabel("\(member.displayName)'s contribution")
+            }
+        }
+        if let amountMinor {
+            Text(remainingLabel(amountMinor - payersTotal))
+                .font(.footnote)
+                .foregroundStyle(amountMinor == payersTotal ? Color.secondary : Color.red)
+        }
+    }
+
     @ViewBuilder
     private var percentSplitRows: some View {
         ForEach(members) { member in
@@ -688,7 +771,7 @@ struct AddExpenseView: View {
             .map { (memberId: $0.id, weight: share(for: $0.id)) }
             .filter { $0.weight > 0 }
         guard !weights.isEmpty else { return [] }
-        return Validation.sharesSplit(amountMinor: amountMinor, weights: weights, remainderRecipient: payerId)
+        return Validation.sharesSplit(amountMinor: amountMinor, weights: weights, remainderRecipient: remainderRecipient)
     }
 
     private func shareTextBinding(for memberId: String) -> Binding<String> {
@@ -885,7 +968,11 @@ struct AddExpenseView: View {
     private var canSubmit: Bool {
         guard let amountMinor, amountMinor > 0 else { return false }
         guard !description.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-        guard !payerId.isEmpty else { return false }
+        if isMultiPayer {
+            guard payersTotal == amountMinor, !enteredPayers.isEmpty else { return false }
+        } else {
+            guard !payerId.isEmpty else { return false }
+        }
 
         switch splitType {
         case .equal:
@@ -904,6 +991,16 @@ struct AddExpenseView: View {
         }
     }
 
+    /// Who the remainder of an uneven split lands on — normally "the payer",
+    /// which stops being a single id once multiple payers are entered
+    /// (`CHECKLIST.md` "Multiple payers on one expense"). The largest
+    /// contributor is the closest equivalent; falls back to the first member
+    /// if that's somehow ambiguous (ties broken by member order).
+    private var remainderRecipient: String {
+        guard isMultiPayer else { return payerId }
+        return enteredPayers.max { $0.amountMinor < $1.amountMinor }?.memberId ?? members.first?.id ?? payerId
+    }
+
     private func save() async {
         guard let amountMinor else { return }
         isSubmitting = true
@@ -911,6 +1008,11 @@ struct AddExpenseView: View {
         defer { isSubmitting = false }
 
         do {
+            let payers: [ExpensePayment] = isMultiPayer
+                ? enteredPayers
+                : [ExpensePayment(memberId: payerId, amountMinor: amountMinor)]
+            try Validation.validatePayersSum(amountMinor: amountMinor, payers: payers)
+
             let splits: [ExpenseSplit]
             // Only an itemized expense carries `items`, only a shares expense
             // carries `shares`, on the wire.
@@ -919,7 +1021,7 @@ struct AddExpenseView: View {
             switch splitType {
             case .equal:
                 let memberIds = members.map(\.id).filter { includedMemberIds.contains($0) }
-                splits = Validation.equalSplit(amountMinor: amountMinor, memberIds: memberIds, remainderRecipient: payerId)
+                splits = Validation.equalSplit(amountMinor: amountMinor, memberIds: memberIds, remainderRecipient: remainderRecipient)
             case .exact:
                 splits = members.compactMap { member in
                     guard let value = MoneyFormat.minorUnits(from: exactAmountText[member.id] ?? ""), value > 0 else {
@@ -936,7 +1038,7 @@ struct AddExpenseView: View {
                 splits = Validation.percentageSplit(
                     amountMinor: amountMinor,
                     weights: weights,
-                    remainderRecipient: payerId
+                    remainderRecipient: remainderRecipient
                 )
             case .shares:
                 // Resolve ratios to exact minor units here — same as percentage,
@@ -953,7 +1055,7 @@ struct AddExpenseView: View {
                 splits = Validation.sharesSplit(
                     amountMinor: amountMinor,
                     weights: entered.map { (memberId: $0.member.id, weight: $0.weight) },
-                    remainderRecipient: payerId
+                    remainderRecipient: remainderRecipient
                 )
             case .itemized:
                 // Order each item's participants by the group's member order so
@@ -974,7 +1076,7 @@ struct AddExpenseView: View {
                     items: resolved,
                     validMemberIds: Set(members.map(\.id))
                 )
-                splits = Validation.itemizedSplit(items: resolved, remainderRecipient: payerId)
+                splits = Validation.itemizedSplit(items: resolved, remainderRecipient: remainderRecipient)
             }
 
             // The same rule the server enforces (DESIGN.md §6) - catching a
@@ -991,7 +1093,7 @@ struct AddExpenseView: View {
             let hadAttachments = !(editing?.attachments ?? []).isEmpty
             let request = AddExpenseRequest(
                 id: isEditing ? nil : expenseId,
-                payerId: payerId,
+                payers: payers,
                 amountMinor: amountMinor,
                 currency: currency,
                 description: description,

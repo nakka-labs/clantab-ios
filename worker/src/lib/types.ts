@@ -32,6 +32,17 @@ export interface ExpenseSplit {
   amountMinor: number;
 }
 
+/** One member's contribution toward an expense (`CHECKLIST.md` "Multiple
+ * payers on one expense") — mirrors `ClanTabKit.ExpensePayment`. Every expense
+ * has at least one; all of an expense's `payers` sum exactly to its
+ * `amountMinor`, the same integrity rule `splits` already follows. Same shape
+ * as `ExpenseSplit`, kept a distinct type since a payment credits where a
+ * split debits. */
+export interface ExpensePayment {
+  memberId: string;
+  amountMinor: number;
+}
+
 /** One member's weight in a `shares` split (`CHECKLIST.md` "Split by shares") —
  * mirrors `ClanTabKit.ShareWeight`. Present only on a `shares` expense. A
  * non-negative whole number; the weights are arbitrary ratios (4 : 2 : 1) and
@@ -54,7 +65,11 @@ export interface LineItem {
 
 export interface Expense {
   id: string;
-  payerId: string;
+  /** Who paid, and how much each contributed — always non-empty, summing
+   * exactly to `amountMinor` (`CHECKLIST.md` "Multiple payers on one
+   * expense"). The overwhelmingly common case is one payer for the whole
+   * amount. */
+  payers: ExpensePayment[];
   amountMinor: number;
   /** ISO 4217 code. Ledgers are kept per-currency and never blended (no FX). */
   currency: string;

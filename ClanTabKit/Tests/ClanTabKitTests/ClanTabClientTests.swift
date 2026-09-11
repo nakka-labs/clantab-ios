@@ -108,7 +108,7 @@ struct ClanTabClientTests {
         let transport = FakeTransport(statusCode: 201, body: jsonData([
             "expense": [
                 "id": "server-assigned",
-                "payerId": "m1",
+                "payers": [["memberId": "m1", "amountMinor": 100]],
                 "amountMinor": 100,
                 "currency": "USD",
                 "description": "Snacks",
@@ -141,7 +141,7 @@ struct ClanTabClientTests {
         let transport = FakeTransport(statusCode: 201, body: jsonData([
             "expense": [
                 "id": "client-generated",
-                "payerId": "m1",
+                "payers": [["memberId": "m1", "amountMinor": 100]],
                 "amountMinor": 100,
                 "currency": "USD",
                 "description": "Snacks",
@@ -174,7 +174,7 @@ struct ClanTabClientTests {
     func testAddExpenseCategoryEncoding() async throws {
         let response = jsonData([
             "expense": [
-                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "USD", "description": "Cab",
+                "id": "e1", "payers": [["memberId": "m1", "amountMinor": 100]], "amountMinor": 100, "currency": "USD", "description": "Cab",
                 "date": "2026-01-15T10:00:00Z", "splitType": "equal",
                 "splits": [["memberId": "m1", "amountMinor": 100]],
             ],
@@ -213,7 +213,7 @@ struct ClanTabClientTests {
         let keys = ["expenses/g1/e1/r1", "expenses/g1/e1/r2"]
         let transport = FakeTransport(statusCode: 201, body: jsonData([
             "expense": [
-                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "USD", "description": "Cab",
+                "id": "e1", "payers": [["memberId": "m1", "amountMinor": 100]], "amountMinor": 100, "currency": "USD", "description": "Cab",
                 "date": "2026-01-15T10:00:00Z", "splitType": "equal",
                 "splits": [["memberId": "m1", "amountMinor": 100]],
                 "attachments": keys,
@@ -234,7 +234,7 @@ struct ClanTabClientTests {
         // nil → key omitted
         let without = FakeTransport(statusCode: 201, body: jsonData([
             "expense": [
-                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "USD", "description": "Cab",
+                "id": "e1", "payers": [["memberId": "m1", "amountMinor": 100]], "amountMinor": 100, "currency": "USD", "description": "Cab",
                 "date": "2026-01-15T10:00:00Z", "splitType": "equal",
                 "splits": [["memberId": "m1", "amountMinor": 100]],
             ],
@@ -372,7 +372,7 @@ struct ClanTabClientTests {
     func testUpdateExpense() async throws {
         let transport = FakeTransport(statusCode: 200, body: jsonData([
             "expense": [
-                "id": "e1", "payerId": "m2", "amountMinor": 900, "currency": "INR", "description": "Lunch (fixed)",
+                "id": "e1", "payers": [["memberId": "m2", "amountMinor": 900]], "amountMinor": 900, "currency": "INR", "description": "Lunch (fixed)",
                 "date": "2026-01-02T10:00:00Z", "splitType": "equal",
                 "splits": [["memberId": "m1", "amountMinor": 450], ["memberId": "m2", "amountMinor": 450]],
             ],
@@ -423,7 +423,7 @@ struct ClanTabClientTests {
     func testRestoreExpense() async throws {
         let responseBody = jsonData([
             "expense": [
-                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "INR",
+                "id": "e1", "payers": [["memberId": "m1", "amountMinor": 100]], "amountMinor": 100, "currency": "INR",
                 "description": "x", "date": "2026-01-01T00:00:00Z", "splitType": "equal",
                 "splits": [["memberId": "m1", "amountMinor": 100]],
             ],
@@ -495,7 +495,7 @@ struct ClanTabClientTests {
     func testTrash() async throws {
         let responseBody = jsonData([
             "expenses": [[
-                "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "INR",
+                "id": "e1", "payers": [["memberId": "m1", "amountMinor": 100]], "amountMinor": 100, "currency": "INR",
                 "description": "x", "date": "2026-01-01T00:00:00Z", "splitType": "equal",
                 "splits": [["memberId": "m1", "amountMinor": 100]],
                 "deletedAt": "2026-01-02T00:00:00Z", "deletedBy": "m2",
@@ -611,7 +611,7 @@ struct ClanTabClientTests {
             "expenses": [
                 [
                     "id": "e1",
-                    "payerId": "m1",
+                    "payers": [["memberId": "m1", "amountMinor": 200]],
                     "amountMinor": 200,
                     "currency": "INR",
                     "description": "Dinner",

@@ -9,9 +9,9 @@ public enum Balances {
     /// is not restricted to one currency and the ledgers are never blended (no
     /// FX). Within each currency bucket:
     ///
-    /// - the payer of an expense is credited the full `amountMinor` (they fronted
-    ///   it) and every split member — which may include the payer — is debited
-    ///   their share;
+    /// - each of an expense's `payers` is credited their own contribution (they
+    ///   fronted it — `CHECKLIST.md` "Multiple payers on one expense") and every
+    ///   split member — which may include a payer — is debited their share;
     /// - for a settlement, `fromId` (who paid) is credited and `toId` (who
     ///   received) is debited.
     ///
@@ -37,7 +37,9 @@ public enum Balances {
 
         for expense in expenses {
             bucket(expense.currency)
-            byCurrency[expense.currency]![expense.payerId, default: 0] += expense.amountMinor
+            for payment in expense.payers {
+                byCurrency[expense.currency]![payment.memberId, default: 0] += payment.amountMinor
+            }
             for split in expense.splits {
                 byCurrency[expense.currency]![split.memberId, default: 0] -= split.amountMinor
             }

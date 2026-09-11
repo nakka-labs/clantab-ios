@@ -13,7 +13,12 @@
   "expenses": [
     {
       "id": "e1",
-      "payerId": "a",
+      "payers": [
+        {
+          "memberId": "a",
+          "amountMinor": 1000
+        }
+      ],
       "amountMinor": 1000,
       "description": "Groceries (Ben took more)",
       "date": "2026-04-01T18:00:00Z",

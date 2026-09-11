@@ -17,7 +17,12 @@
   "expenses": [
     {
       "id": "e1",
-      "payerId": "a",
+      "payers": [
+        {
+          "memberId": "a",
+          "amountMinor": 10000
+        }
+      ],
       "amountMinor": 10000,
       "description": "Villa (Ana took the big room)",
       "date": "2026-06-01T15:00:00Z",

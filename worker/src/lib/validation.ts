@@ -1,4 +1,4 @@
-import type { ExpenseSplit, LineItem, ShareWeight } from "./types.ts";
+import type { ExpensePayment, ExpenseSplit, LineItem, ShareWeight } from "./types.ts";
 
 // Money is integer minor units. JavaScript `number` is exact for integers up to
 // 2^53; a group's running totals stay many orders of magnitude below that, so
@@ -58,6 +58,30 @@ export function assertSplitsSum(amountMinor: number, splits: ExpenseSplit[]): vo
     throw new ValidationFailure(
       "SPLIT_MISMATCH",
       `Splits sum to ${total} but the expense amount is ${amountMinor}.`,
+    );
+  }
+}
+
+/**
+ * Payers must sum to exactly `amountMinor` — the same integrity rule
+ * `assertSplitsSum` already enforces, mirrored for the credit side of an
+ * expense (`CHECKLIST.md` "Multiple payers on one expense"). Matches
+ * `ClanTabKit`'s `Validation.validatePayersSum`.
+ */
+export function assertPayersSum(amountMinor: number, payers: ExpensePayment[]): void {
+  if (payers.length === 0) {
+    throw new ValidationFailure("SPLIT_MISMATCH", "An expense must have at least one payer.");
+  }
+  for (const p of payers) {
+    if (typeof p.amountMinor !== "number" || !Number.isInteger(p.amountMinor) || p.amountMinor <= 0) {
+      throw new ValidationFailure("INVALID_AMOUNT", "Each payer's contribution must be a positive integer.");
+    }
+  }
+  const total = payers.reduce((acc, p) => acc + p.amountMinor, 0);
+  if (total !== amountMinor) {
+    throw new ValidationFailure(
+      "SPLIT_MISMATCH",
+      `Payers sum to ${total} but the expense amount is ${amountMinor}.`,
     );
   }
 }

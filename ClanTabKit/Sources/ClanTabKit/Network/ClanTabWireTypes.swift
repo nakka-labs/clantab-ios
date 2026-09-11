@@ -253,7 +253,10 @@ public struct AddExpenseRequest: Sendable {
     /// Optional client-generated id (`DESIGN.md` §2): a retried POST with the same
     /// id is treated as an idempotent no-op replay rather than a duplicate.
     public let id: String?
-    public let payerId: String
+    /// Who paid, and how much each contributed — always non-empty, summing
+    /// exactly to `amountMinor` (`CHECKLIST.md` "Multiple payers on one
+    /// expense"). Use `init(payerId:...)` for the common single-payer case.
+    public let payers: [ExpensePayment]
     public let amountMinor: Int64
     /// ISO 4217 code the expense (and every split) is in.
     public let currency: String
@@ -281,7 +284,7 @@ public struct AddExpenseRequest: Sendable {
 
     public init(
         id: String? = nil,
-        payerId: String,
+        payers: [ExpensePayment],
         amountMinor: Int64,
         currency: String,
         description: String,
@@ -295,7 +298,7 @@ public struct AddExpenseRequest: Sendable {
         attachments: [String]? = nil
     ) {
         self.id = id
-        self.payerId = payerId
+        self.payers = payers
         self.amountMinor = amountMinor
         self.currency = currency
         self.description = description
@@ -308,11 +311,45 @@ public struct AddExpenseRequest: Sendable {
         self.categoryIcon = categoryIcon
         self.attachments = attachments
     }
+
+    /// Convenience for the single-payer case, which is most of them — `payer`
+    /// paid the whole `amountMinor`.
+    public init(
+        id: String? = nil,
+        payerId: String,
+        amountMinor: Int64,
+        currency: String,
+        description: String,
+        date: Date,
+        splitType: SplitType,
+        splits: [ExpenseSplit],
+        items: [LineItem]? = nil,
+        shares: [ShareWeight]? = nil,
+        category: String? = nil,
+        categoryIcon: String? = nil,
+        attachments: [String]? = nil
+    ) {
+        self.init(
+            id: id,
+            payers: [ExpensePayment(memberId: payerId, amountMinor: amountMinor)],
+            amountMinor: amountMinor,
+            currency: currency,
+            description: description,
+            date: date,
+            splitType: splitType,
+            splits: splits,
+            items: items,
+            shares: shares,
+            category: category,
+            categoryIcon: categoryIcon,
+            attachments: attachments
+        )
+    }
 }
 
 extension AddExpenseRequest: Encodable {
     private enum CodingKeys: String, CodingKey {
-        case id, payerId, amountMinor, currency, description, date, splitType, splits,
+        case id, payers, amountMinor, currency, description, date, splitType, splits,
              items, shares, category, categoryIcon, attachments
     }
 
@@ -321,7 +358,7 @@ extension AddExpenseRequest: Encodable {
         // Optional fields are genuinely optional on the wire (DESIGN.md §2) — omit
         // the key entirely rather than encoding an explicit `null`.
         try container.encodeIfPresent(id, forKey: .id)
-        try container.encode(payerId, forKey: .payerId)
+        try container.encode(payers, forKey: .payers)
         try container.encode(amountMinor, forKey: .amountMinor)
         try container.encode(currency, forKey: .currency)
         try container.encode(description, forKey: .description)

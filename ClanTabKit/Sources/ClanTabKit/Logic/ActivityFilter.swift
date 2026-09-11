@@ -60,7 +60,7 @@ public enum ActivityFiltering {
         }
 
         let filteredExpenses = expenses.filter { expense in
-            let involved = [expense.payerId] + expense.splits.map(\.memberId)
+            let involved = expense.payers.map(\.memberId) + expense.splits.map(\.memberId)
 
             if let memberId = filter.memberId, !involved.contains(memberId) { return false }
 

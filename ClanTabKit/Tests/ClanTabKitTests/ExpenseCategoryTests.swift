@@ -33,7 +33,7 @@ struct ExpenseCategoryTests {
     @Test("an expense with no category decodes with nil fields")
     func testExpenseDecodesWithoutCategory() throws {
         let json = """
-        { "id": "e1", "payerId": "m1", "amountMinor": 100, "currency": "USD", "description": "x",
+        { "id": "e1", "payers": [{ "memberId": "m1", "amountMinor": 100 }], "amountMinor": 100, "currency": "USD", "description": "x",
           "date": "2026-01-01T00:00:00Z", "splitType": "equal",
           "splits": [{ "memberId": "m1", "amountMinor": 100 }] }
         """.data(using: .utf8)!

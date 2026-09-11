@@ -6,7 +6,8 @@ import type { Balance, Expense, Member, Settlement } from "./types.ts";
  * byte-identical by the shared golden fixtures in `test-fixtures/balances/` (run
  * by both this suite and `ClanTabKitTests`).
  *
- * Within each currency bucket: the payer is credited the full `amountMinor` and
+ * Within each currency bucket: each of an expense's `payers` is credited their
+ * own contribution (`CHECKLIST.md` "Multiple payers on one expense") and
  * every split member is debited their share; for a settlement `fromId` is
  * credited and `toId` debited. Returns one `Balance` per (member, currency) that
  * nets to a nonzero amount, ordered by currency (first-appearance order across
@@ -35,7 +36,7 @@ export function computeBalances(
 
   for (const e of expenses) {
     const nets = bucket(e.currency);
-    add(nets, e.payerId, e.amountMinor);
+    for (const p of e.payers) add(nets, p.memberId, p.amountMinor);
     for (const s of e.splits) add(nets, s.memberId, -s.amountMinor);
   }
 

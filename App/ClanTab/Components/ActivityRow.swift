@@ -32,7 +32,7 @@ struct ActivityItem: Identifiable {
     var title: String {
         switch kind {
         case .expense(let expense):
-            return "\(name(for: expense.payerId)) paid for \(expense.description)"
+            return "\(payerSummary(expense.payers)) paid for \(expense.description)"
         case .settlement(let settlement):
             return "\(name(for: settlement.fromId)) paid \(name(for: settlement.toId))"
         }
@@ -78,8 +78,22 @@ struct ActivityItem: Identifiable {
     /// have an actor); `"Someone"` if the member is no longer in the group.
     var actorName: String {
         switch kind {
-        case .expense(let expense): return name(for: expense.payerId)
+        // The first payer stands in for the avatar on a multi-payer expense
+        // (`CHECKLIST.md` "Multiple payers on one expense") — the full
+        // "Ana & Ben" phrasing lives in `title`, not the identity glyph.
+        case .expense(let expense): return name(for: expense.payers.first?.memberId ?? "")
         case .settlement(let settlement): return name(for: settlement.fromId)
+        }
+    }
+
+    /// "Ana" (one payer), "Ana & Ben" (two), "Ana & 2 others" (three or more)
+    /// (`CHECKLIST.md` "Multiple payers on one expense").
+    private func payerSummary(_ payers: [ExpensePayment]) -> String {
+        let names = payers.map { name(for: $0.memberId) }
+        switch names.count {
+        case 0: return "Someone" // shouldn't happen — every expense has ≥1 payer
+        case 1, 2: return names.joined(separator: " & ")
+        default: return "\(names[0]) & \(names.count - 1) others"
         }
     }
 

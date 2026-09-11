@@ -17,7 +17,12 @@
   "expenses": [
     {
       "id": "e1",
-      "payerId": "a",
+      "payers": [
+        {
+          "memberId": "a",
+          "amountMinor": 300
+        }
+      ],
       "amountMinor": 300,
       "description": "Coffee round",
       "date": "2026-02-01T10:00:00Z",

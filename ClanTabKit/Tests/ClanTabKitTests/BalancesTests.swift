@@ -47,6 +47,27 @@ struct BalancesTests {
         #expect(balances.reduce(0) { $0 + $1.netMinor } == 0)
     }
 
+    @Test("Multiple payers are each credited their own contribution, not the whole amount")
+    func testMultiplePayersCreditedSeparately() {
+        // Alice and Bob split a 300 bill 200/100, evenly among all three.
+        let e = Expense(
+            id: "e1",
+            payers: [ExpensePayment(memberId: alice.id, amountMinor: 200), ExpensePayment(memberId: bob.id, amountMinor: 100)],
+            amountMinor: 300, currency: "USD", description: "x", date: Date(), splitType: .exact,
+            splits: [
+                ExpenseSplit(memberId: alice.id, amountMinor: 100),
+                ExpenseSplit(memberId: bob.id, amountMinor: 100),
+                ExpenseSplit(memberId: carol.id, amountMinor: 100),
+            ]
+        )
+        let balances = Balances.compute(members: [alice, bob, carol], expenses: [e], settlements: [])
+
+        #expect(byId(balances)["alice"] == 100) // paid 200, owes 100
+        #expect(byId(balances)["bob"] == nil) // paid 100, owes 100 — nets to zero, drops out
+        #expect(byId(balances)["carol"] == -100)
+        #expect(balances.reduce(0) { $0 + $1.netMinor } == 0)
+    }
+
     @Test("A settlement moves balance from the payer toward the recipient")
     func testSettlementMovesBalance() {
         let balances = Balances.compute(

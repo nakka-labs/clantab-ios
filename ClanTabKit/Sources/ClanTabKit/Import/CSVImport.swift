@@ -164,6 +164,15 @@ public enum CSVImport {
             switch type {
             case "expense":
                 let payer = row[4].trimmingCharacters(in: .whitespaces)
+                // A multi-payer expense (`CHECKLIST.md` "Multiple payers on one
+                // expense") exports its "From" field as the same "name:amount; …"
+                // shorthand the Splits column uses — this app can't reconstruct
+                // one losslessly on re-import, same limitation as a multi-payer
+                // row from another app's export (see `parseSplitwise`).
+                guard !payer.contains(";") else {
+                    warnings.append("Row \(i + 2): a multi-payer expense can't be re-imported — skipped.")
+                    continue
+                }
                 let splits = parseClanTabSplits(row[8])
                 guard !payer.isEmpty, !splits.isEmpty,
                       splits.reduce(Int64(0), { $0 + $1.amountMinor }) == amount else {

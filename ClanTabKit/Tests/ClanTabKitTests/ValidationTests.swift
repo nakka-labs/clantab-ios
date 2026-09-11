@@ -359,4 +359,31 @@ struct ValidationTests {
             try Validation.validateSplitsSum(amountMinor: amount, splits: splits)
         }
     }
+
+    // MARK: - Payers (CHECKLIST.md "Multiple payers on one expense")
+
+    @Test("validatePayersSum accepts payers summing exactly to the amount")
+    func testValidatePayersSumOK() throws {
+        try Validation.validatePayersSum(
+            amountMinor: 1_000,
+            payers: [ExpensePayment(memberId: "a", amountMinor: 700), ExpensePayment(memberId: "b", amountMinor: 300)]
+        )
+    }
+
+    @Test("validatePayersSum: no payers throws emptyPayers")
+    func testValidatePayersSumEmpty() {
+        #expect(throws: ValidationError.emptyPayers) {
+            try Validation.validatePayersSum(amountMinor: 100, payers: [])
+        }
+    }
+
+    @Test("validatePayersSum: a mismatched total throws payerSumMismatch")
+    func testValidatePayersSumMismatch() {
+        #expect(throws: ValidationError.payerSumMismatch(expected: 1_000, actual: 900)) {
+            try Validation.validatePayersSum(
+                amountMinor: 1_000,
+                payers: [ExpensePayment(memberId: "a", amountMinor: 900)]
+            )
+        }
+    }
 }

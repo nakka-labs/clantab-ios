@@ -31,12 +31,22 @@ public enum Export {
             let splits = expense.splits
                 .map { "\(name(for: $0.memberId)):\(decimalString($0.amountMinor))" }
                 .joined(separator: "; ")
+            // A single payer (the common case) is just their name, matching every
+            // export before multi-payer existed. Two or more (`CHECKLIST.md`
+            // "Multiple payers on one expense") use the same "name:amount"
+            // shorthand as the Splits column — informative, but this app's own
+            // re-import (`CSVImport.parseClanTab`) can't reconstruct a multi-payer
+            // row losslessly and skips it with a warning, same as it already does
+            // for a multi-payer row from another app's export.
+            let payer = expense.payers.count == 1
+                ? name(for: expense.payers[0].memberId)
+                : expense.payers.map { "\(name(for: $0.memberId)):\(decimalString($0.amountMinor))" }.joined(separator: "; ")
             let fields = [
                 "Expense",
                 iso8601(expense.date),
                 csvField(expense.description),
                 csvField(expense.category ?? ""),
-                csvField(name(for: expense.payerId)),
+                csvField(payer),
                 csvField(""),
                 decimalString(expense.amountMinor),
                 expense.currency,

@@ -261,7 +261,7 @@ describe("GET /api/auth/people (cross-group settling)", () => {
     await call("POST", `/api/groups/${groupId}/expenses`, {
       token: groupToken,
       body: {
-        payerId: a, amountMinor: debt * 2, description: "e", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: debt * 2 }], amountMinor: debt * 2, description: "e", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: debt }, { memberId: b, amountMinor: debt }],
       },
     });
@@ -306,7 +306,7 @@ describe("GET /api/auth/people (cross-group settling)", () => {
     await call("POST", `/api/groups/${g2}/expenses`, {
       token: g2Token,
       body: {
-        payerId: b2, amountMinor: 400, description: "e", date: "2026-01-02T12:00:00Z",
+        payers: [{ memberId: b2, amountMinor: 400 }], amountMinor: 400, description: "e", date: "2026-01-02T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a2, amountMinor: 200 }, { memberId: b2, amountMinor: 200 }],
       },
     });
@@ -330,7 +330,7 @@ describe("GET /api/auth/people (cross-group settling)", () => {
     await call("POST", `/api/groups/${groupId}/expenses`, {
       token: groupToken,
       body: {
-        payerId: a, amountMinor: 200, description: "e", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 200 }], amountMinor: 200, description: "e", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: 100 }, { memberId: cara, amountMinor: 100 }],
       },
     });
@@ -502,7 +502,7 @@ describe("GET /api/auth/groups/balances (dashboard fallback sync)", () => {
     await call("POST", `/api/groups/${g1Id}/expenses`, {
       token: g1Token,
       body: {
-        payerId: a1, amountMinor: 1000, description: "e", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a1, amountMinor: 1000 }], amountMinor: 1000, description: "e", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a1, amountMinor: 500 }, { memberId: b1, amountMinor: 500 }],
       },
     });

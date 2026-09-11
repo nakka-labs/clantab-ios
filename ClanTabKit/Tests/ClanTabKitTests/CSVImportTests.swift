@@ -125,6 +125,19 @@ struct CSVImportTests {
         #expect(r.warnings.count == 1)
     }
 
+    @Test("a multi-payer expense's From field can't be reconstructed and is skipped with a warning")
+    func testClanTabMultiPayerSkipped() throws {
+        let csv = """
+        Type,Date,Description,Category,From,To,Amount,Currency,Splits
+        Expense,2026-07-01T12:00:00Z,Groceries,,Ana:7.00; Ben:3.00,,10.00,USD,Ana:5.00; Ben:5.00
+        Expense,2026-07-02T12:00:00Z,Coffee,,Ana,,5.00,USD,Ana:5.00
+        """
+        let r = try CSVImport.parse(csv)
+        #expect(r.expenses.map(\.description) == ["Coffee"]) // only the single-payer row survives
+        #expect(r.warnings.count == 1)
+        #expect(r.warnings[0].contains("multi-payer"))
+    }
+
     @Test("Export.csv round-trips through CSVImport.parse")
     func testRoundTrip() throws {
         let ana = Member(id: "a", displayName: "Ana")

@@ -8,6 +8,7 @@ import {
   ValidationFailure,
   assertItemsValid,
   assertMembersExist,
+  assertPayersSum,
   assertPositiveAmount,
   assertSharesValid,
   assertSplitsSum,
@@ -19,6 +20,7 @@ import type {
   Comment,
   DefaultSplit,
   Expense,
+  ExpensePayment,
   GroupStateResponse,
   GroupSummary,
   LineItem,
@@ -58,6 +60,11 @@ type ExpenseRow = Row<{
   items: string | null;
   shares: string | null;
   attachments: string | null;
+  /** JSON array of `ExpensePayment` for a multi-payer expense (`CHECKLIST.md`
+   * "Multiple payers on one expense"); `NULL` for the common single-payer
+   * case, where `payer_id`/`amount_minor` already say who paid the whole
+   * amount. */
+  payers: string | null;
 }>;
 type SplitRow = Row<{
   expense_id: string;
@@ -303,6 +310,14 @@ export class GroupDO extends DurableObject {
       this.setMeta(META_KEYS.schemaVersion, "12");
       current = "12";
     }
+
+    if (current === "12") {
+      // v13: `expenses.payers` (nullable JSON) added — CHECKLIST.md "Multiple
+      // payers on one expense". No CHECK involved, so a plain ADD COLUMN.
+      this.sql.exec("ALTER TABLE expenses ADD COLUMN payers TEXT");
+      this.setMeta(META_KEYS.schemaVersion, "13");
+      current = "13";
+    }
   }
 
   /** Has this group been created (vs. just addressed)? Drives `GROUP_NOT_FOUND`. */
@@ -439,6 +454,19 @@ export class GroupDO extends DurableObject {
       )
       .toArray()[0]!.n;
     if (referenced > 0) {
+      return fail("MEMBER_IN_USE", "This member is on expenses or settlements. Remove or reassign those first.");
+    }
+    // A member might be a *non-primary* payer on a multi-payer expense —
+    // payer_id above only ever names the first (`CHECKLIST.md` "Multiple
+    // payers on one expense"). Rare, and these blobs are small, so it's
+    // simplest to check in JS rather than add a SQL JSON query just for this.
+    const multiPayerRows = this.sql
+      .exec<{ payers: string }>("SELECT payers FROM expenses WHERE payers IS NOT NULL AND deleted_at IS NULL")
+      .toArray();
+    const stillReferenced = multiPayerRows.some((r) =>
+      (JSON.parse(r.payers) as ExpensePayment[]).some((p) => p.memberId === id)
+    );
+    if (stillReferenced) {
       return fail("MEMBER_IN_USE", "This member is on expenses or settlements. Remove or reassign those first.");
     }
 
@@ -941,7 +969,8 @@ export class GroupDO extends DurableObject {
     try {
       assertPositiveAmount(req.amountMinor);
       const memberIds = new Set(this.readMembers().map((m) => m.id));
-      assertMembersExist([req.payerId, ...req.splits.map((s) => s.memberId)], memberIds);
+      assertMembersExist([...req.payers.map((p) => p.memberId), ...req.splits.map((s) => s.memberId)], memberIds);
+      assertPayersSum(req.amountMinor, req.payers);
       assertSplitsSum(req.amountMinor, req.splits);
       // An itemized expense carries its line items too — they must be
       // well-formed and sum to the amount. The resolved `splits` are still the
@@ -984,10 +1013,18 @@ export class GroupDO extends DurableObject {
     const items = req.splitType === "itemized" && req.items ? JSON.stringify(req.items) : null;
     const shares = req.splitType === "shares" && req.shares ? JSON.stringify(req.shares) : null;
     const attachments = req.attachments && req.attachments.length > 0 ? JSON.stringify(req.attachments) : null;
+    // The common case (one payer) is stored the same way it always has been —
+    // payer_id/amount_minor — so a single-payer expense never carries a
+    // redundant payers blob. A genuine multi-payer expense (CHECKLIST.md
+    // "Multiple payers on one expense") still needs *some* payer_id (NOT NULL,
+    // no CHECK to relax for it) — the first payer is a harmless placeholder,
+    // never read once `payers` is non-null (see `toExpense`).
+    const primaryPayerId = req.payers[0]!.memberId;
+    const payers = req.payers.length > 1 ? JSON.stringify(req.payers) : null;
     this.sql.exec(
-      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency, items, attachments, shares) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO expenses (id, payer_id, amount_minor, description, expense_date, split_type, created_at, category, category_icon, currency, items, attachments, shares, payers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
-      req.payerId,
+      primaryPayerId,
       req.amountMinor,
       req.description,
       req.date,
@@ -999,6 +1036,7 @@ export class GroupDO extends DurableObject {
       items,
       attachments,
       shares,
+      payers,
     );
     for (const s of req.splits) {
       this.sql.exec(
@@ -1120,7 +1158,14 @@ export class GroupDO extends DurableObject {
   private toExpense(e: ExpenseRow, allSplits: SplitRow[]): Expense {
     return {
       id: e.id,
-      payerId: e.payer_id,
+      // `payers` is NULL for the common single-payer case (CHECKLIST.md
+      // "Multiple payers on one expense") — synthesize the one-element array
+      // from payer_id/amount_minor rather than rewriting every pre-existing
+      // row. A genuine multi-payer expense has it stored directly; payer_id
+      // there is just a placeholder (see `writeExpense`), never read.
+      payers: e.payers != null
+        ? (JSON.parse(e.payers) as ExpensePayment[])
+        : [{ memberId: e.payer_id, amountMinor: e.amount_minor }],
       amountMinor: e.amount_minor,
       currency: e.currency,
       description: e.description,

@@ -5,6 +5,7 @@ import type {
   Balance,
   Comment,
   Expense,
+  ExpensePayment,
   LineItem,
   Member,
   Settlement,
@@ -13,7 +14,9 @@ import type {
   SplitType,
 } from "./lib/types.ts";
 
-export type { Balance, Comment, Expense, LineItem, Member, Settlement, ShareWeight, SimplifiedSettlement, SplitType };
+export type {
+  Balance, Comment, Expense, ExpensePayment, LineItem, Member, Settlement, ShareWeight, SimplifiedSettlement, SplitType,
+};
 
 /**
  * The subset of a group returned alongside its state. `joinCode` is included per
@@ -107,7 +110,10 @@ export interface GroupStateResponse {
 export interface AddExpenseRequest {
   /** Optional client-generated UUID; a retry with the same id is a no-op replay. */
   id?: string;
-  payerId: string;
+  /** Who paid, and how much each contributed — always non-empty, summing
+   * exactly to `amountMinor` (`CHECKLIST.md` "Multiple payers on one
+   * expense"). */
+  payers: ExpensePayment[];
   amountMinor: number;
   /** ISO 4217 code. Optional — defaults to the group's currency server-side. */
   currency?: string;

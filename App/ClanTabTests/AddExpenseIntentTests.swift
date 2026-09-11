@@ -22,7 +22,7 @@ final class AddExpenseIntentLogicTests: XCTestCase {
         )
 
         XCTAssertEqual(request.id, "fixed-id")
-        XCTAssertEqual(request.payerId, "m1")
+        XCTAssertEqual(request.payers, [ExpensePayment(memberId: "m1", amountMinor: 100)])
         XCTAssertEqual(request.amountMinor, 100)
         XCTAssertEqual(request.currency, "INR")
         XCTAssertEqual(request.description, "Dinner")

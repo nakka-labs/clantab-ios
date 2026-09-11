@@ -17,7 +17,12 @@
   "expenses": [
     {
       "id": "e1",
-      "payerId": "p",
+      "payers": [
+        {
+          "memberId": "p",
+          "amountMinor": 3000
+        }
+      ],
       "amountMinor": 3000,
       "description": "Dinner",
       "date": "2026-01-01T19:00:00Z",

@@ -47,7 +47,12 @@ CREATE TABLE IF NOT EXISTS expenses (
   attachments   TEXT,
   -- JSON array of { memberId, weight } for a 'shares' expense (CHECKLIST.md
   -- "Split by shares"); NULL otherwise. Written whole with the expense.
-  shares        TEXT
+  shares        TEXT,
+  -- JSON array of { memberId, amountMinor } for a *multi*-payer expense
+  -- (CHECKLIST.md "Multiple payers on one expense"); NULL for the common
+  -- single-payer case, where payer_id/amount_minor already say who paid the
+  -- whole amount. Written whole with the expense, never queried into.
+  payers        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expense_splits (
@@ -272,5 +277,12 @@ export const META_KEYS = {
  *          `CREATE TABLE IF NOT EXISTS` already gives every pre-existing
  *          group one the moment its `GroupDO` next boots — `migrate()`'s v12
  *          step only advances the recorded version, no DDL of its own.
+ *  - `13` → `expenses.payers` (nullable JSON) added (`CHECKLIST.md` "Multiple
+ *          payers on one expense") — plain `ALTER TABLE ... ADD COLUMN`, no
+ *          rebuild (`payer_id`'s CHECK-free, so no constraint to widen).
+ *          `NULL` for every pre-existing expense: `payer_id`/`amount_minor`
+ *          already say who paid the whole amount, so the read path (`toExpense`)
+ *          synthesizes a one-element `payers` array from them when this
+ *          column is `NULL` — no data rewrite needed.
  */
-export const SCHEMA_VERSION = "12";
+export const SCHEMA_VERSION = "13";

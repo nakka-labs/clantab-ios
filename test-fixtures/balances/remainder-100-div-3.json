@@ -17,7 +17,12 @@
   "expenses": [
     {
       "id": "e1",
-      "payerId": "p",
+      "payers": [
+        {
+          "memberId": "p",
+          "amountMinor": 100
+        }
+      ],
       "amountMinor": 100,
       "description": "Vending machine",
       "date": "2026-03-01T12:00:00Z",

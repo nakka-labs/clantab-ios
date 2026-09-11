@@ -229,7 +229,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "Lunch",
         date: "2026-01-01T12:00:00Z",
@@ -255,7 +255,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
   it("treats a repeated client id as an idempotent replay", async () => {
     const payload = {
       id: "11111111-1111-1111-1111-111111111111",
-      payerId: a,
+      payers: [{ memberId: a, amountMinor: 200 }],
       amountMinor: 200,
       description: "Coffee",
       date: "2026-01-01T09:00:00Z",
@@ -279,7 +279,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "x",
         date: "2026-01-01T12:00:00Z",
@@ -299,7 +299,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 100 }],
         amountMinor: 100,
         description: "x",
         date: "2026-01-01T12:00:00Z",
@@ -319,7 +319,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 0 }],
         amountMinor: 0,
         description: "x",
         date: "2026-01-01T12:00:00Z",
@@ -336,7 +336,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 100 }],
         amountMinor: 100,
         description: "x",
         date: "2026-01-01T12:00:00Z",
@@ -353,7 +353,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "Dinner (70/30)",
         date: "2026-01-01T20:00:00Z",
@@ -379,7 +379,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "x",
         date: "2026-01-01T12:00:00Z",
@@ -399,7 +399,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "Groceries",
         date: "2026-01-02T09:00:00Z",
@@ -433,7 +433,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const noItems = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "itemized", splits: [{ memberId: a, amountMinor: 100 }],
       },
       token,
@@ -444,7 +444,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const strayItems = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: 100 }],
         items: [{ id: "i", name: "n", amountMinor: 100, participantIds: [a] }],
       },
@@ -458,7 +458,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 1000 }], amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "itemized",
         splits: [{ memberId: a, amountMinor: 1000 }],
         items: [{ id: "i", name: "Only", amountMinor: 900, participantIds: [a] }],
@@ -469,11 +469,52 @@ describe("POST /api/groups/:groupId/expenses", () => {
     expect((json.error as Json).code).toBe("SPLIT_MISMATCH");
   });
 
+  it("records a multi-payer expense, round-trips it, and 400s on a bad total", async () => {
+    const { status, json } = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 700 }, { memberId: b, amountMinor: 300 }],
+        amountMinor: 1000,
+        description: "Groceries",
+        date: "2026-01-02T09:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
+      },
+      token,
+    );
+    expect(status).toBe(201);
+    expect((json.expense as Json).payers).toEqual([
+      { memberId: a, amountMinor: 700 },
+      { memberId: b, amountMinor: 300 },
+    ]);
+
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    expect(state.json.balances).toEqual([
+      { memberId: a, currency: "INR", netMinor: 200 }, // paid 700, owes 500
+      { memberId: b, currency: "INR", netMinor: -200 }, // paid 300, owes 500
+    ]);
+
+    const badTotal = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 700 }, { memberId: b, amountMinor: 200 }],
+        amountMinor: 1000,
+        description: "x",
+        date: "2026-01-02T09:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
+      },
+      token,
+    );
+    expect(badTotal.status).toBe(400);
+    expect((badTotal.json.error as Json).code).toBe("SPLIT_MISMATCH");
+  });
+
   it("records a shares expense and round-trips its weights", async () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "Rent",
         date: "2026-01-02T09:00:00Z",
@@ -507,7 +548,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const noShares = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "shares", splits: [{ memberId: a, amountMinor: 100 }],
       },
       token,
@@ -518,7 +559,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const strayShares = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: 100 }],
         shares: [{ memberId: a, weight: 1 }],
       },
@@ -532,7 +573,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "shares",
         splits: [{ memberId: a, amountMinor: 100 }],
         shares: [{ memberId: a, weight: 0 }, { memberId: b, weight: 0 }],
@@ -547,7 +588,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 500 }],
         amountMinor: 500,
         description: "Taxi",
         date: "2026-01-02T09:00:00Z",
@@ -573,7 +614,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const { json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 200 }],
         amountMinor: 200,
         description: "Uncategorised",
         date: "2026-01-02T10:00:00Z",
@@ -595,7 +636,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     const inr = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        ...base, payerId: a, amountMinor: 1000, description: "INR lunch",
+        ...base, payers: [{ memberId: a, amountMinor: 1000 }], amountMinor: 1000, description: "INR lunch",
         splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
       },
       token,
@@ -605,7 +646,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     await post(
       `/api/groups/${groupId}/expenses`,
       {
-        ...base, payerId: b, amountMinor: 800, currency: "USD", description: "USD dinner",
+        ...base, payers: [{ memberId: b, amountMinor: 800 }], amountMinor: 800, currency: "USD", description: "USD dinner",
         splits: [{ memberId: a, amountMinor: 400 }, { memberId: b, amountMinor: 400 }],
       },
       token,
@@ -634,7 +675,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
     await env.MEDIA.put(k2, new Uint8Array([2]));
 
     const base = {
-      id: eid, payerId: a, amountMinor: 1000, description: "Dinner", date: "2026-02-01T20:00:00Z",
+      id: eid, payers: [{ memberId: a, amountMinor: 1000 }], amountMinor: 1000, description: "Dinner", date: "2026-02-01T20:00:00Z",
       splitType: "equal", splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
     };
 
@@ -656,7 +697,7 @@ describe("POST /api/groups/:groupId/expenses", () => {
 
   it("rejects an attachment key that isn't this expense's, and attachments with no id", async () => {
     const base = {
-      payerId: a, amountMinor: 100, description: "x", date: "2026-02-01T20:00:00Z",
+      payers: [{ memberId: a, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-02-01T20:00:00Z",
       splitType: "equal", splits: [{ memberId: a, amountMinor: 50 }, { memberId: b, amountMinor: 50 }],
     };
     // attachments but no client id
@@ -679,7 +720,7 @@ describe("POST /api/groups/:groupId/settlements", () => {
     await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a,
+        payers: [{ memberId: a, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "Lunch",
         date: "2026-01-01T12:00:00Z",
@@ -739,7 +780,7 @@ describe("edit / delete", () => {
     const { json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: amount, description, date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: amount }], amountMinor: amount, description, date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: equalSplit(amount),
       },
       token,
@@ -755,7 +796,7 @@ describe("edit / delete", () => {
     const { status, json } = await put(
       `/api/groups/${groupId}/expenses/${first}`,
       {
-        payerId: b, amountMinor: 2000, description: "Lunch (fixed)", date: "2026-01-02T12:00:00Z",
+        payers: [{ memberId: b, amountMinor: 2000 }], amountMinor: 2000, description: "Lunch (fixed)", date: "2026-01-02T12:00:00Z",
         splitType: "equal", splits: [
           { memberId: a, amountMinor: 1000 },
           { memberId: b, amountMinor: 1000 },
@@ -764,7 +805,7 @@ describe("edit / delete", () => {
       token,
     );
     expect(status).toBe(200);
-    expect(json.expense).toMatchObject({ id: first, payerId: b, amountMinor: 2000, description: "Lunch (fixed)" });
+    expect(json.expense).toMatchObject({ id: first, payers: [{ memberId: b, amountMinor: 2000 }], amountMinor: 2000, description: "Lunch (fixed)" });
 
     const state = await get(`/api/groups/${groupId}`, undefined, token);
     // b paid 2000 (own share 1000) → +1000; plus the unchanged 400 Coffee (a paid, -200 to b)
@@ -782,7 +823,7 @@ describe("edit / delete", () => {
     const { status, json } = await put(
       `/api/groups/${groupId}/expenses/ghost`,
       {
-        payerId: a, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: equalSplit(100),
       },
       token,
@@ -796,7 +837,7 @@ describe("edit / delete", () => {
     const { status, json } = await put(
       `/api/groups/${groupId}/expenses/${id}`,
       {
-        payerId: a, amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 1000 }], amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "exact", splits: [
           { memberId: a, amountMinor: 400 },
           { memberId: b, amountMinor: 400 },
@@ -813,7 +854,7 @@ describe("edit / delete", () => {
     const { status } = await put(
       `/api/groups/${groupId}/expenses/${id}`,
       {
-        id: "spoof", payerId: a, amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
+        id: "spoof", payers: [{ memberId: a, amountMinor: 1000 }], amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: equalSplit(1000),
       },
       token,
@@ -917,7 +958,7 @@ describe("edit / delete", () => {
 
   it("404s edit / delete on an unknown group", async () => {
     expect((await put("/api/groups/nope123/expenses/x", {
-      payerId: "a", amountMinor: 1, description: "x", date: "2026-01-01T12:00:00Z", splitType: "equal", splits: [],
+      payers: [{ memberId: "a", amountMinor: 1 }], amountMinor: 1, description: "x", date: "2026-01-01T12:00:00Z", splitType: "equal", splits: [],
     })).status).toBe(404);
     expect((await del("/api/groups/nope123/expenses/x")).status).toBe(404);
   });
@@ -939,7 +980,7 @@ describe('comments (CHECKLIST.md "Comments on an expense")', () => {
     const { json } = await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 500, description: "Taxi", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 500 }], amountMinor: 500, description: "Taxi", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: 250 }, { memberId: b, amountMinor: 250 }],
       },
       token,
@@ -1049,7 +1090,7 @@ describe("group + member settings", () => {
     await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 1000, description: "INR lunch", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 1000 }], amountMinor: 1000, description: "INR lunch", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
       },
       token,
@@ -1230,7 +1271,7 @@ describe("group + member settings", () => {
     await post(
       `/api/groups/${groupId}/expenses`,
       {
-        payerId: a, amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
+        payers: [{ memberId: a, amountMinor: 1000 }], amountMinor: 1000, description: "x", date: "2026-01-01T12:00:00Z",
         splitType: "equal", splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
       },
       token,
@@ -1350,7 +1391,7 @@ describe("routing", () => {
     const { groupId, creatorId, token } = await makeGroup();
     const ben = await addMember(groupId, "Ben <script>", token);
     await post(`/api/groups/${groupId}/expenses`, {
-      payerId: creatorId, amountMinor: 1000, description: "Dinner", date: "2026-01-01T12:00:00Z",
+      payers: [{ memberId: creatorId, amountMinor: 1000 }], amountMinor: 1000, description: "Dinner", date: "2026-01-01T12:00:00Z",
       splitType: "equal", splits: [{ memberId: creatorId, amountMinor: 500 }, { memberId: ben, amountMinor: 500 }],
     }, token);
 
@@ -1394,7 +1435,7 @@ describe("routing", () => {
     expect((await SELF.fetch(`${BASE}/g/${groupId}/balances?token=${viewToken}`)).status).toBe(200);
     // …but not a write route.
     const write = await post(`/api/groups/${groupId}/expenses`, {
-      payerId: creatorId, amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
+      payers: [{ memberId: creatorId, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T12:00:00Z",
       splitType: "equal", splits: [{ memberId: creatorId, amountMinor: 100 }],
     }, viewToken);
     expect(write.status).toBe(403);

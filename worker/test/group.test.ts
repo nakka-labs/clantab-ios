@@ -31,7 +31,7 @@ describe("GroupDO", () => {
 
     for (const desc of ["first", "second", "third"]) {
       const r = await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 200 }],
         amountMinor: 200,
         description: desc,
         date: "2026-01-01T00:00:00Z",
@@ -55,7 +55,7 @@ describe("GroupDO", () => {
 
     const req = {
       id: "fixed-id-1",
-      payerId: ana.id,
+      payers: [{ memberId: ana.id, amountMinor: 200 }],
       amountMinor: 200,
       description: "Lunch",
       date: "2026-01-01T00:00:00Z",
@@ -77,7 +77,7 @@ describe("GroupDO", () => {
     const { member: ben } = await g.addMember("Ben");
 
     const r = await g.addExpense({
-      payerId: ana.id,
+      payers: [{ memberId: ana.id, amountMinor: 1000 }],
       amountMinor: 1000,
       description: "Dinner (60/40)",
       date: "2026-01-01T00:00:00Z",
@@ -103,7 +103,7 @@ describe("GroupDO", () => {
       const { member: ben } = await g.addMember("Ben");
 
       const r = await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "Groceries",
         date: "2026-01-01T00:00:00Z",
@@ -135,7 +135,7 @@ describe("GroupDO", () => {
       const g = group("g-items-sum");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ITM235");
       const r = await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 1000 }],
         amountMinor: 1000,
         description: "x",
         date: "2026-01-01T00:00:00Z",
@@ -151,7 +151,7 @@ describe("GroupDO", () => {
       const g = group("g-items-ghost");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ITM236");
       const r = await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 500 }],
         amountMinor: 500,
         description: "x",
         date: "2026-01-01T00:00:00Z",
@@ -168,7 +168,7 @@ describe("GroupDO", () => {
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ITM237");
       const { member: ben } = await g.addMember("Ben");
       const added = await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 600 }],
         amountMinor: 600,
         description: "Lunch",
         date: "2026-01-01T00:00:00Z",
@@ -183,7 +183,7 @@ describe("GroupDO", () => {
       const id = added.ok ? added.value.expense.id : "";
 
       const edited = await g.updateExpense(id, {
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 600 }],
         amountMinor: 600,
         description: "Lunch",
         date: "2026-01-01T00:00:00Z",
@@ -197,6 +197,122 @@ describe("GroupDO", () => {
       const state = await g.getState();
       expect(state.expenses[0]).toMatchObject({ splitType: "exact" });
       expect(state.expenses[0]!.items).toBeUndefined();
+    });
+  });
+
+  describe('multiple payers (CHECKLIST.md "Multiple payers on one expense")', () => {
+    it("credits each payer their own contribution, not the whole amount", async () => {
+      const g = group("g-payers-ok");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "PAY234");
+      const { member: ben } = await g.addMember("Ben");
+      const { member: cara } = await g.addMember("Cara");
+
+      const r = await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 700 }, { memberId: ben.id, amountMinor: 300 }],
+        amountMinor: 1000,
+        description: "Groceries",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [
+          { memberId: ana.id, amountMinor: 334 },
+          { memberId: ben.id, amountMinor: 333 },
+          { memberId: cara.id, amountMinor: 333 },
+        ],
+      });
+      expect(r.ok).toBe(true);
+
+      const state = await g.getState();
+      expect(state.expenses[0]!.payers).toEqual([
+        { memberId: ana.id, amountMinor: 700 },
+        { memberId: ben.id, amountMinor: 300 },
+      ]);
+      expect(state.balances).toEqual([
+        { memberId: ana.id, currency: "USD", netMinor: 366 }, // paid 700, owes 334
+        { memberId: ben.id, currency: "USD", netMinor: -33 }, // paid 300, owes 333
+        { memberId: cara.id, currency: "USD", netMinor: -333 },
+      ]);
+    });
+
+    it("rejects payers that don't sum to the amount", async () => {
+      const g = group("g-payers-sum");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "PAY235");
+      const { member: ben } = await g.addMember("Ben");
+      const r = await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 600 }, { memberId: ben.id, amountMinor: 300 }],
+        amountMinor: 1000,
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ana.id, amountMinor: 500 }, { memberId: ben.id, amountMinor: 500 }],
+      });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe("SPLIT_MISMATCH");
+    });
+
+    it("rejects a payer who isn't in the group, and an empty payers array", async () => {
+      const g = group("g-payers-ghost");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "PAY236");
+      const ghost = await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 500 }, { memberId: "ghost", amountMinor: 500 }],
+        amountMinor: 1000,
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ana.id, amountMinor: 1000 }],
+      });
+      expect(ghost.ok).toBe(false);
+      if (!ghost.ok) expect(ghost.error.code).toBe("UNKNOWN_MEMBER");
+
+      const empty = await g.addExpense({
+        payers: [],
+        amountMinor: 100,
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ana.id, amountMinor: 100 }],
+      });
+      expect(empty.ok).toBe(false);
+      if (!empty.ok) expect(empty.error.code).toBe("SPLIT_MISMATCH");
+    });
+
+    it("removeMember blocks removing a non-primary payer, not just the first one", async () => {
+      const g = group("g-payers-remove");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "PAY237");
+      const { member: ben } = await g.addMember("Ben");
+      await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 700 }, { memberId: ben.id, amountMinor: 300 }],
+        amountMinor: 1000,
+        description: "Groceries",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ana.id, amountMinor: 500 }, { memberId: ben.id, amountMinor: 500 }],
+      });
+
+      // Ben is only the *second* payer (payer_id on the row is Ana's, the
+      // primary/placeholder) — the plain payer_id check alone would miss him.
+      const removed = await g.removeMember(ben.id);
+      expect(removed.ok).toBe(false);
+      if (!removed.ok) expect(removed.error.code).toBe("MEMBER_IN_USE");
+    });
+
+    it("a single payer never gets a redundant payers JSON blob", async () => {
+      const g = group("g-payers-single-storage");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "PAY238");
+      await g.addExpense({
+        payers: [{ memberId: ana.id, amountMinor: 100 }],
+        amountMinor: 100,
+        description: "x",
+        date: "2026-01-01T00:00:00Z",
+        splitType: "equal",
+        splits: [{ memberId: ana.id, amountMinor: 100 }],
+      });
+      await runInDurableObject(g, (_instance, state) => {
+        const row = state.storage.sql
+          .exec<{ payers: string | null; payer_id: string }>("SELECT payers, payer_id FROM expenses")
+          .toArray()[0]!;
+        expect(row.payers).toBeNull();
+        expect(row.payer_id).toBe(ana.id);
+      });
     });
   });
 
@@ -244,12 +360,13 @@ describe("GroupDO", () => {
       const version = sql
         .exec<{ value: string }>("SELECT value FROM group_meta WHERE key = 'schema_version'")
         .toArray()[0]?.value;
-      expect(version).toBe("12");
+      expect(version).toBe("13");
 
       // The legacy expense survived the v2 + v8 + v11 rebuilds, gained null
       // category columns, had its currency backfilled from the group (USD),
       // gained null deleted_at/deleted_by (v6), a null `items` column (v8), a
-      // null `attachments` column (v10), and a null `shares` column (v11).
+      // null `attachments` column (v10), a null `shares` column (v11), and a
+      // null `payers` column (v13).
       const legacy = sql
         .exec<{
           category: string | null;
@@ -260,8 +377,9 @@ describe("GroupDO", () => {
           items: string | null;
           attachments: string | null;
           shares: string | null;
+          payers: string | null;
         }>(
-          "SELECT category, category_icon, currency, deleted_at, deleted_by, items, attachments, shares FROM expenses WHERE id = 'old-1'",
+          "SELECT category, category_icon, currency, deleted_at, deleted_by, items, attachments, shares, payers FROM expenses WHERE id = 'old-1'",
         )
         .toArray()[0];
       expect(legacy).toEqual({
@@ -272,6 +390,7 @@ describe("GroupDO", () => {
         deleted_at: null,
         deleted_by: null,
         items: null,
+        payers: null,
         shares: null,
       });
 
@@ -288,7 +407,7 @@ describe("GroupDO", () => {
 
     // percentage (needs v2), category (needs v3), currency (needs v4) post-migration.
     const r = await g.addExpense({
-      payerId: ana.id,
+      payers: [{ memberId: ana.id, amountMinor: 500 }],
       amountMinor: 500,
       currency: "EUR",
       description: "Post-migration",
@@ -306,7 +425,7 @@ describe("GroupDO", () => {
     // itemized (needs the v8 CHECK widen + items column) post-migration. Only
     // Ana survived the rewind above, so a single-participant itemization.
     const ri = await g.addExpense({
-      payerId: ana.id,
+      payers: [{ memberId: ana.id, amountMinor: 1000 }],
       amountMinor: 1000,
       description: "Groceries",
       date: "2026-01-02T00:00:00Z",
@@ -328,7 +447,7 @@ describe("GroupDO", () => {
 
     // shares (needs the v11 CHECK widen + shares column) post-migration.
     const rs = await g.addExpense({
-      payerId: ana.id,
+      payers: [{ memberId: ana.id, amountMinor: 900 }],
       amountMinor: 900,
       description: "Utilities",
       date: "2026-01-03T00:00:00Z",
@@ -353,6 +472,21 @@ describe("GroupDO", () => {
         expect((await g.listComments(r.value.expense.id)).comments).toEqual([rc.value.comment]);
       }
     }
+
+    // payers (needs the v13 `payers` column) post-migration — only Ana
+    // survived the rewind above, so a single-payer write/read round-trip.
+    const rp = await g.addExpense({
+      payers: [{ memberId: ana.id, amountMinor: 300 }],
+      amountMinor: 300,
+      description: "Snacks",
+      date: "2026-01-04T00:00:00Z",
+      splitType: "equal",
+      splits: [{ memberId: ana.id, amountMinor: 300 }],
+    });
+    expect(rp.ok).toBe(true);
+    if (rp.ok) {
+      expect(rp.value.expense.payers).toEqual([{ memberId: ana.id, amountMinor: 300 }]);
+    }
   });
 
   describe("comments (CHECKLIST.md — Comments on an expense)", () => {
@@ -361,7 +495,7 @@ describe("GroupDO", () => {
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CMT234");
       const { member: ben } = await g.addMember("Ben");
       const r = await g.addExpense({
-        payerId: ana.id, amountMinor: 500, description: "Taxi", date: "2026-01-01T00:00:00Z",
+        payers: [{ memberId: ana.id, amountMinor: 500 }], amountMinor: 500, description: "Taxi", date: "2026-01-01T00:00:00Z",
         splitType: "equal", splits: [{ memberId: ana.id, amountMinor: 250 }, { memberId: ben.id, amountMinor: 250 }],
       });
       if (!r.ok) throw new Error("setup failed");
@@ -394,7 +528,7 @@ describe("GroupDO", () => {
       const g = group("g-comments-ghost-author");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CMT236");
       const r = await g.addExpense({
-        payerId: ana.id, amountMinor: 100, description: "x", date: "2026-01-01T00:00:00Z",
+        payers: [{ memberId: ana.id, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T00:00:00Z",
         splitType: "equal", splits: [{ memberId: ana.id, amountMinor: 100 }],
       });
       if (!r.ok) throw new Error("setup failed");
@@ -407,7 +541,7 @@ describe("GroupDO", () => {
       const g = group("g-comments-delete");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CMT237");
       const r = await g.addExpense({
-        payerId: ana.id, amountMinor: 100, description: "x", date: "2026-01-01T00:00:00Z",
+        payers: [{ memberId: ana.id, amountMinor: 100 }], amountMinor: 100, description: "x", date: "2026-01-01T00:00:00Z",
         splitType: "equal", splits: [{ memberId: ana.id, amountMinor: 100 }],
       });
       if (!r.ok) throw new Error("setup failed");
@@ -530,7 +664,7 @@ describe("GroupDO", () => {
     const g = group("g-bad");
     const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "BAD234");
     const result = await g.addExpense({
-      payerId: ana.id,
+      payers: [{ memberId: ana.id, amountMinor: 100 }],
       amountMinor: 100,
       description: "x",
       date: "2026-01-01T00:00:00Z",
@@ -598,7 +732,7 @@ describe("GroupDO", () => {
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "TR1234");
       const { member: ben } = await g.addMember("Ben");
       const { value } = (await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 200 }],
         amountMinor: 200,
         currency: "USD",
         description: "Lunch",
@@ -629,7 +763,7 @@ describe("GroupDO", () => {
       const g = group("g-restore-expense");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "RS1234");
       const { value } = (await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 100 }],
         amountMinor: 100,
         currency: "USD",
         description: "Coffee",
@@ -657,7 +791,7 @@ describe("GroupDO", () => {
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ID1234");
       const { member: ben } = await g.addMember("Ben");
       const { value } = (await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 100 }],
         amountMinor: 100,
         currency: "USD",
         description: "x",
@@ -678,7 +812,7 @@ describe("GroupDO", () => {
       const g = group("g-restore-404");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "R41234");
       const { value } = (await g.addExpense({
-        payerId: ana.id,
+        payers: [{ memberId: ana.id, amountMinor: 100 }],
         amountMinor: 100,
         currency: "USD",
         description: "x",
@@ -722,7 +856,7 @@ describe("GroupDO", () => {
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "RM1234");
       const { member: ben } = await g.addMember("Ben");
       const { value } = (await g.addExpense({
-        payerId: ben.id,
+        payers: [{ memberId: ben.id, amountMinor: 100 }],
         amountMinor: 100,
         currency: "USD",
         description: "x",

@@ -72,6 +72,22 @@ struct ExportTests {
         #expect(csv.contains("bob:")) // bob's split still appears, keyed by id
     }
 
+    @Test("CSV: a single payer is just their name; multiple payers use the splits column's name:amount shorthand")
+    func testMultiplePayersField() {
+        let single = makeExpense()
+        let singleCsv = Export.csv(members: [alice, bob], expenses: [single], settlements: [])
+        let singleRow = singleCsv.split(separator: "\n")[1]
+        #expect(singleRow.contains(",Alice,")) // From column is just the name
+
+        let multi = Expense(
+            id: "e2", payers: [ExpensePayment(memberId: alice.id, amountMinor: 700), ExpensePayment(memberId: bob.id, amountMinor: 300)],
+            amountMinor: 1000, currency: "USD", description: "Groceries", date: Date(timeIntervalSince1970: 1_700_000_100),
+            splitType: .equal, splits: [ExpenseSplit(memberId: alice.id, amountMinor: 500), ExpenseSplit(memberId: bob.id, amountMinor: 500)]
+        )
+        let multiCsv = Export.csv(members: [alice, bob], expenses: [multi], settlements: [])
+        #expect(multiCsv.contains("Alice:7.00; Bob:3.00"))
+    }
+
     @Test("Money renders as a plain decimal string via integer math", arguments: [
         (Int64(1250), "12.50"),
         (Int64(100), "1.00"),

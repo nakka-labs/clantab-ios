@@ -17,6 +17,10 @@ public enum ValidationError: Error, Equatable, Sendable {
     case emptyShares
     /// A share weight is negative, or every weight is `0` (nothing to divide by).
     case invalidShareWeight
+    /// An expense with no payers — every expense needs at least one.
+    case emptyPayers
+    /// The payers' contributions don't sum to the expense amount.
+    case payerSumMismatch(expected: Int64, actual: Int64)
 }
 
 /// Split-sum validation and deterministic remainder distribution.
@@ -31,6 +35,20 @@ public enum Validation {
         let total = splits.reduce(Int64(0)) { $0 + $1.amountMinor }
         guard total == amountMinor else {
             throw ValidationError.splitMismatch(expected: amountMinor, actual: total)
+        }
+    }
+
+    /// Verifies that `payers` sum exactly to `amountMinor` (`CHECKLIST.md`
+    /// "Multiple payers on one expense") — the same integrity rule
+    /// `validateSplitsSum` already enforces, mirrored for the credit side of
+    /// an expense rather than the debit side.
+    public static func validatePayersSum(amountMinor: Int64, payers: [ExpensePayment]) throws {
+        guard !payers.isEmpty else {
+            throw ValidationError.emptyPayers
+        }
+        let total = payers.reduce(Int64(0)) { $0 + $1.amountMinor }
+        guard total == amountMinor else {
+            throw ValidationError.payerSumMismatch(expected: amountMinor, actual: total)
         }
     }
 

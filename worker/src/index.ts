@@ -41,7 +41,7 @@ import {
   requireString,
 } from "./lib/parse.ts";
 import { ValidationFailure } from "./lib/validation.ts";
-import type { AddExpenseRequest, AddSettlementRequest } from "./types.ts";
+import type { AddExpenseRequest, AddSettlementRequest, ExpensePayment, Member } from "./types.ts";
 
 export { GroupDO, UserDO, ReportsDO };
 
@@ -372,7 +372,7 @@ async function handleRemoveMember(request: Request, env: Env, params: Params): P
 function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddExpenseRequest {
   rejectUnknownKeys(body, [
     ...(allowId ? ["id"] : []),
-    "payerId",
+    "payers",
     "amountMinor",
     "currency",
     "description",
@@ -465,9 +465,17 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
           return a;
         });
 
+  // Who paid, and how much each contributed (`CHECKLIST.md` "Multiple payers
+  // on one expense") — always required, same non-empty-array shape as `splits`.
+  const payers = requireArray(body, "payers").map((raw, i) => {
+    assertPlainObject(raw, `payers[${i}]`);
+    rejectUnknownKeys(raw, ["memberId", "amountMinor"]);
+    return { memberId: requireString(raw, "memberId"), amountMinor: requireInteger(raw, "amountMinor") };
+  });
+
   return {
     id: allowId ? optionalString(body, "id") : undefined,
-    payerId: requireString(body, "payerId"),
+    payers,
     amountMinor: requireInteger(body, "amountMinor"),
     currency: optionalString(body, "currency"),
     description: requireString(body, "description"),
@@ -500,6 +508,15 @@ function domainErrorResponse(error: { code: string; message: string }): Response
   return json(status, { error });
 }
 
+/** "Ana" (one payer), "Ana & Ben" (two), "Ana & 2 others" (three or more) —
+ * the push-notification phrasing for who paid (`CHECKLIST.md` "Multiple
+ * payers on one expense"). Mirrors the app's own `ActivityRow.payerSummary`. */
+function payerSummary(payers: ExpensePayment[], members: Member[]): string {
+  const names = payers.map((p) => members.find((m) => m.id === p.memberId)?.displayName ?? "Someone");
+  if (names.length <= 2) return names.join(" & ");
+  return `${names[0]} & ${names.length - 1} others`;
+}
+
 async function handleAddExpense(request: Request, env: Env, params: Params, ctx: ExecutionContext): Promise<Response> {
   const groupId = params.groupId ?? "";
   const group = await requireGroup(request, env, groupId);
@@ -524,7 +541,7 @@ async function handleAddExpense(request: Request, env: Env, params: Params, ctx:
     ctx.waitUntil(
       (async () => {
         const state = await group.getState();
-        const payerName = state.members.find((m) => m.id === expense.payerId)?.displayName ?? "Someone";
+        const payerName = payerSummary(expense.payers, state.members);
         await notifyGroup(
           env,
           group,

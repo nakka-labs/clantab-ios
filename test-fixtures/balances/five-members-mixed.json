@@ -25,7 +25,12 @@
   "expenses": [
     {
       "id": "e1",
-      "payerId": "a",
+      "payers": [
+        {
+          "memberId": "a",
+          "amountMinor": 5000
+        }
+      ],
       "amountMinor": 5000,
       "description": "Cabin (everyone)",
       "date": "2026-05-01T15:00:00Z",
@@ -56,7 +61,12 @@
     },
     {
       "id": "e2",
-      "payerId": "b",
+      "payers": [
+        {
+          "memberId": "b",
+          "amountMinor": 2000
+        }
+      ],
       "amountMinor": 2000,
       "description": "Groceries (not Ana)",
       "date": "2026-05-01T17:00:00Z",
