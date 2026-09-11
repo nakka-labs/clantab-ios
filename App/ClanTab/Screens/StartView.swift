@@ -19,6 +19,9 @@ struct StartView: View {
     var onSignIn: (_ identityToken: String, _ userID: String, _ authorizationCode: String?) -> Void = { _, _, _ in }
     var onSignInWithGoogle: (_ identityToken: String) -> Void = { _ in }
     var onOpenSettings: () -> Void = {}
+    /// The friends directory (`CHECKLIST.md` "Friends/contacts list...
+    /// + private 1:1 tabs") — a toolbar button next to Settings.
+    var onOpenFriends: () -> Void = {}
     /// Pull-to-refresh on the groups list — the dashboard fallback sync
     /// (`CHECKLIST.md` "Dashboard fallback sync for missed/denied push").
     var onRefresh: () async -> Void = {}
@@ -110,6 +113,11 @@ struct StartView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: onOpenSettings) {
                         Label("Settings", systemImage: "gearshape")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onOpenFriends) {
+                        Label("Friends", systemImage: "person.2")
                     }
                 }
             }

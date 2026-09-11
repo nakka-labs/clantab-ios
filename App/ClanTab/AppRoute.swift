@@ -6,6 +6,9 @@ import Foundation
 /// (`MANDATORY_LOGIN_PLAN.md` Part 3) — there's no guest tier anymore.
 enum AppRoute: Hashable {
     case start
+    /// The friends directory (`CHECKLIST.md` "Friends/contacts list...
+    /// + private 1:1 tabs") — reached from a toolbar button on `.start`.
+    case friends
     case createGroup
     /// "Join with a Code": type a 6-character code, resolved to a `groupId`,
     /// then hands off to `.claimMember`.

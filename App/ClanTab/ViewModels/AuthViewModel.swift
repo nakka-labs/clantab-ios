@@ -282,6 +282,48 @@ final class AuthViewModel {
         }
     }
 
+    /// Ensure the private 1:1 tab with `friend` exists, and return its
+    /// `groupId` — safe to call any number of times, from either side
+    /// (`CHECKLIST.md` "Friends/contacts list... + private 1:1 tabs").
+    /// Stores the returned access token exactly like joining any other group,
+    /// so the caller can route straight into `GroupHomeView(groupId:)`.
+    /// `nil` on any failure (signed out, or `friend.groups` is somehow empty).
+    func ensureFriendTab(_ friend: Friend) async -> String? {
+        guard let token = session?.token, let proof = friend.tabProofGroup else { return nil }
+        // My own display name as this friend already knows it — denormalised
+        // onto every membership, so the proof group's is exactly right.
+        let myDisplayName = groups.first { $0.groupId == proof.groupId }?.displayName ?? "Me"
+        do {
+            let response = try await client.ensureFriendTab(
+                token: token,
+                EnsureFriendTabRequest(
+                    groupId: proof.groupId,
+                    theirMemberId: proof.theirMemberId,
+                    myDisplayName: myDisplayName,
+                    theirDisplayName: friend.displayName,
+                    currency: proof.currency
+                )
+            )
+            knownGroups.remember(groupId: response.groupId, accessToken: response.accessToken, hidden: true)
+            return response.groupId
+        } catch {
+            return nil
+        }
+    }
+
+    /// Every other claimed person the caller shares a group with, regardless
+    /// of balance (`CHECKLIST.md` "Friends/contacts list... + private 1:1
+    /// tabs") — the Friends screen's data source. `nil` on failure; the view
+    /// keeps whatever it last showed.
+    func friends() async -> [Friend]? {
+        guard let token = session?.token else { return nil }
+        do {
+            return try await client.friends(token: token).friends
+        } catch {
+            return nil
+        }
+    }
+
     /// Link a placeholder member in `groupId` to the signed-in identity
     /// (`ACCOUNTS_DESIGN.md` §6). On success `groups` is updated locally right
     /// away (so Group Home greets them immediately, even if the follow-up
@@ -310,7 +352,12 @@ final class AuthViewModel {
     private func applyGroups(_ summaries: [GroupMembershipSummary]) {
         groups = summaries
         for summary in summaries {
-            knownGroups.remember(groupId: summary.groupId)
+            // `hidden` only takes effect the first time this device learns
+            // about the group — see `KnownGroupsStoring.remember`. This is
+            // what keeps a private 1:1 tab (`CHECKLIST.md`) out of the
+            // visible groups list the moment either side's device syncs,
+            // with no separate "ensure" call needed just to see it.
+            knownGroups.remember(groupId: summary.groupId, hidden: summary.hidden)
         }
     }
 

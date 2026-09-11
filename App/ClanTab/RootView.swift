@@ -165,11 +165,15 @@ struct RootView: View {
     /// The start screen's "Your Groups" list — signed-in only
     /// (`MANDATORY_LOGIN_PLAN.md` Part 3): every group is tied to an identity
     /// now, so browsing a device's cached list while signed out isn't allowed.
+    /// A private 1:1 tab (`CHECKLIST.md` "Friends/contacts list... + private
+    /// 1:1 tabs") is filtered out here — the one place both the groups list
+    /// and the dashboard totals draw from — reachable only via the Friends
+    /// screen, never this list.
     private var yourGroups: [KnownGroup] {
         guard auth.isSignedIn else { return [] }
         _ = auth.groups
         _ = knownGroupsRevision
-        return knownGroups.all()
+        return knownGroups.all().filter { !$0.isHidden }
     }
 
     private func isMember(_ groupId: String) -> Bool {
@@ -206,10 +210,17 @@ struct RootView: View {
                     Task { await auth.signInWithGoogle(identityToken: identityToken) }
                 },
                 onOpenSettings: { showingSettings = true },
+                onOpenFriends: { route = .friends },
                 onRefresh: {
                     await auth.reconcileGroupBalances(force: true)
                     knownGroupsRevision += 1
                 }
+            )
+        case .friends:
+            FriendsView(
+                auth: auth,
+                onOpenGroup: { enterGroup($0) },
+                onDone: { route = .start }
             )
         case .createGroup:
             CreateGroupView(

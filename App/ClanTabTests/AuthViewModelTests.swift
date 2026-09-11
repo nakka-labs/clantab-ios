@@ -574,6 +574,88 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertNil(sync.lastReconcileAt())
     }
 
+    // MARK: - ensureFriendTab / friends (CHECKLIST.md "Friends/contacts list... + private 1:1 tabs")
+
+    @MainActor
+    func testEnsureFriendTabStoresTheTokenAsHiddenAndReturnsTheGroupId() async {
+        let knownGroups = InMemoryKnownGroupsStore()
+        let vm = makeVM(
+            store: InMemorySessionStore(),
+            transport: RoutingTransport(responses: [
+                "/api/auth/apple": (200, """
+                    {"sessionToken":"sess.tok","expiresAt":"2026-12-01T00:00:00Z",
+                     "groups":[{"groupId":"g1","memberId":"m1","displayName":"Ana"}]}
+                    """),
+                "/api/auth/friends/tab": (200, #"{"groupId":"tab-xyz","accessToken":"tabtok"}"#),
+            ]),
+            knownGroups: knownGroups
+        )
+        await vm.signIn(identityToken: "apple.jwt", userID: "u")
+
+        let friend = Friend(
+            id: "opaque", displayName: "Bob", net: [],
+            groups: [FriendGroup(
+                groupId: "g1", groupName: "Goa", hidden: false, currency: "INR",
+                myMemberId: "m1", theirMemberId: "m2"
+            )]
+        )
+
+        let groupId = await vm.ensureFriendTab(friend)
+
+        XCTAssertEqual(groupId, "tab-xyz")
+        let known = knownGroups.all().first { $0.groupId == "tab-xyz" }
+        XCTAssertEqual(known?.accessToken, "tabtok")
+        XCTAssertEqual(known?.isHidden, true)
+    }
+
+    @MainActor
+    func testEnsureFriendTabReturnsNilOnFailure() async {
+        let vm = makeVM(store: InMemorySessionStore(session(expiresIn: 20 * day)), transport: FailingTransport())
+        let friend = Friend(id: "x", displayName: "Bob", net: [], groups: [
+            FriendGroup(groupId: "g1", groupName: "Goa", hidden: false, currency: "INR", myMemberId: "m1", theirMemberId: "m2"),
+        ])
+
+        let groupId = await vm.ensureFriendTab(friend)
+
+        XCTAssertNil(groupId)
+    }
+
+    @MainActor
+    func testEnsureFriendTabReturnsNilWhenSignedOut() async {
+        let vm = makeVM(store: InMemorySessionStore(), transport: FailingTransport())
+        let friend = Friend(id: "x", displayName: "Bob", net: [], groups: [])
+
+        let groupId = await vm.ensureFriendTab(friend)
+
+        XCTAssertNil(groupId)
+    }
+
+    @MainActor
+    func testFriendsDecodesTheDirectory() async {
+        let vm = makeVM(
+            store: InMemorySessionStore(session(expiresIn: 20 * day)),
+            transport: StubTransport(statusCode: 200, json: #"""
+            {"friends":[{"id":"abc","displayName":"Bob","net":[],"groups":[
+              {"groupId":"g1","groupName":"Goa","hidden":false,"currency":"INR","myMemberId":"m1","theirMemberId":"m2"}
+            ]}]}
+            """#)
+        )
+
+        let friends = await vm.friends()
+
+        XCTAssertEqual(friends?.count, 1)
+        XCTAssertEqual(friends?.first?.displayName, "Bob")
+    }
+
+    @MainActor
+    func testFriendsReturnsNilWhenSignedOut() async {
+        let vm = makeVM(store: InMemorySessionStore(), transport: FailingTransport())
+
+        let friends = await vm.friends()
+
+        XCTAssertNil(friends)
+    }
+
     // MARK: - helpers
 
     private let day: TimeInterval = 24 * 60 * 60
