@@ -491,7 +491,10 @@ writing down, "Non-goals" for the rest.
       moderation flow, per the original plan. Tests:
       `group.test.ts` +4 (incl. the v11→v12 migration walk),
       `routes.test.ts` +5, `ClanTabClientTests` +3. worker 279 · kit 291
-      · iOS build green.
+      · iOS build green. **Deployed to production** (version `769bd072`)
+      and verified live over HTTPS: two comments posted, listed in
+      order, one deleted and gone from the list, an unauthenticated
+      POST `403`s.
 - [ ] **Multiple payers on one expense.** `~35-45k tokens`. Replace
       `Expense.payerId: String` with `payers: [ExpensePayment]`
       (`memberId` + `amountMinor`), contributions summing to
