@@ -6,6 +6,9 @@ import Foundation
 public protocol OnboardingStoring: Sendable {
     func hasCompletedOnboarding() -> Bool
     func markOnboardingComplete()
+    /// Clears the flag so the walkthrough shows again on next launch —
+    /// Settings "Show tips again" (`CHECKLIST.md`).
+    func reset()
 }
 
 /// `UserDefaults`-backed onboarding flag.
@@ -27,6 +30,11 @@ public final class UserDefaultsOnboardingStore: OnboardingStoring, @unchecked Se
         lock.lock(); defer { lock.unlock() }
         defaults.set(true, forKey: Self.key)
     }
+
+    public func reset() {
+        lock.lock(); defer { lock.unlock() }
+        defaults.removeObject(forKey: Self.key)
+    }
 }
 
 /// In-memory onboarding flag for tests and previews.
@@ -46,5 +54,10 @@ public final class InMemoryOnboardingStore: OnboardingStoring, @unchecked Sendab
     public func markOnboardingComplete() {
         lock.lock(); defer { lock.unlock() }
         completed = true
+    }
+
+    public func reset() {
+        lock.lock(); defer { lock.unlock() }
+        completed = false
     }
 }

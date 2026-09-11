@@ -129,6 +129,7 @@ struct StartView: View {
                     Button(action: onOpenFriends) {
                         Label("Friends", systemImage: "person.2")
                     }
+                    .coachMark(id: "start.friendsTab", text: "See everyone you split with, across every group.", edge: .bottom)
                 }
             }
         }

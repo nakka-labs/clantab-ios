@@ -25,6 +25,11 @@ struct RootView: View {
     /// "Returning-user balance summary") — same once-per-launch-evaluation
     /// shape as `showWhatsNew`, decided in the launch `.task`.
     @State private var showWelcomeBack = false
+    /// Set once by `ClanTabApp` via `.environment(\.coachMarks, ...)` on this
+    /// view — read back here just to pass on to `SettingsView`'s "Show tips
+    /// again" (`CHECKLIST.md`); every other coach-mark call site reads the
+    /// environment directly, no threading needed.
+    @Environment(\.coachMarks) private var coachMarks
     /// Set when the Home Screen "Add Expense" quick action targets a group we
     /// then route into — `GroupHomeView` opens Add Expense for it once.
     @State private var pendingAddExpenseGroupId: String?
@@ -173,7 +178,10 @@ struct RootView: View {
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
-                SettingsView(auth: auth, client: client, knownGroups: knownGroups, onDone: { showingSettings = false })
+                SettingsView(
+                    auth: auth, client: client, knownGroups: knownGroups, onboarding: onboarding, coachMarks: coachMarks,
+                    onDone: { showingSettings = false }
+                )
             }
             .environment(\.avatarImageLoader, avatarImageLoader)
             .materialSheet()

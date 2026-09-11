@@ -165,6 +165,7 @@ struct GroupHomeView: View {
                     }
                     .frame(height: 250)
                     .tabViewStyle(.page(indexDisplayMode: .always))
+                    .coachMark(id: "groupHome.bubbleSwipe", text: "Swipe for a bubble view of who owes what.", edge: .bottom)
                 } else {
                     hero
                 }

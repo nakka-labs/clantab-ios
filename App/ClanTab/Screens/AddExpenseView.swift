@@ -147,6 +147,7 @@ struct AddExpenseView: View {
         } label: {
             Label("Add Someone", systemImage: "person.badge.plus")
         }
+        .coachMark(id: "addExpense.addMember", text: "Add someone new without leaving this screen.")
     }
 
     init(

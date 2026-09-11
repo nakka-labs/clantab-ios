@@ -19,6 +19,13 @@ struct OnboardingStoreTests {
         #expect(InMemoryOnboardingStore(completed: true).hasCompletedOnboarding())
     }
 
+    @Test("in-memory: reset clears a completed flag — Settings 'Show tips again'")
+    func testInMemoryReset() {
+        let store = InMemoryOnboardingStore(completed: true)
+        store.reset()
+        #expect(!store.hasCompletedOnboarding())
+    }
+
     @Test("UserDefaults-backed: defaults false, persists true across instances")
     func testUserDefaultsRoundTrip() throws {
         let suiteName = "com.clantab.tests.\(UUID().uuidString)"
@@ -30,5 +37,8 @@ struct OnboardingStoreTests {
         UserDefaultsOnboardingStore(defaults: defaults).markOnboardingComplete()
 
         #expect(UserDefaultsOnboardingStore(defaults: defaults).hasCompletedOnboarding())
+
+        UserDefaultsOnboardingStore(defaults: defaults).reset()
+        #expect(!UserDefaultsOnboardingStore(defaults: defaults).hasCompletedOnboarding())
     }
 }

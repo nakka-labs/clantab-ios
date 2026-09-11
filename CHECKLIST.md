@@ -706,18 +706,30 @@ writing down, "Non-goals" for the rest.
       nothing once fully settled up. Tests: `ReturnGapTests` (4),
       `ReturnGapStoreTests` (3). worker unaffected · kit 324. `make
       check` green (app/kit-only — nothing to deploy).
-- [ ] **One-time contextual coach marks.** `~20-25k tokens`. A small
-      reusable "point at this, once" component (a UserDefaults flag per
-      tip id, same pattern as `OnboardingStoring`), then wire 3-4
-      initial tips: the bubble-view swipe on Group Home, the inline
-      add-member button on Add Expense, and — once it ships — the new
-      Friends tab. Bigger upfront cost than the rest of this batch; the
-      payoff is every future feature gets a free hook to explain
-      itself.
-- [ ] **Settings → "Show tips again."** `~5k tokens`. Resets the
-      onboarding-walkthrough and coach-mark flags. Trivial — bundle
-      with whichever of the above ships, so none of this becomes
-      permanently naggy.
+- [x] **One-time contextual coach marks.** Done 2026-09-11. **Kit:**
+      new `CoachMarkStoring` (`Storage/`, same UserDefaults-flag idea as
+      `OnboardingStoring`, keyed by tip id instead of singular — every
+      seen id in one array under one key, so `resetAll()` needs no
+      fixed id list to enumerate). **App:** a reusable
+      `.coachMark(id:text:edge:)` view modifier (`Components/CoachMark.swift`)
+      — a small dismissible callout bubble, shown once per id, ~0.5s
+      after the attached view first appears. The store rides in via a
+      new `\.coachMarks` environment key (mirrors `\.avatarImageLoader`)
+      set once at `ClanTabApp`'s top level, rather than threaded through
+      every intermediate view's `init` — a tip can live arbitrarily deep
+      in the tree it's meant to explain. Wired to 3 tips (Friends
+      already shipped by the time this came up, so all three from the
+      original plan apply now): the bubble-view swipe on Group Home, the
+      inline add-member button on Add Expense, and the Friends toolbar
+      button on `StartView`.
+- [x] **Settings → "Show tips again."** Done 2026-09-11, bundled with
+      the above. `OnboardingStoring` gained a `reset()` method (only two
+      conformers, safe to extend); a new "Show Tips Again" row in
+      Settings' "App" section calls `onboarding.reset()` +
+      `coachMarks?.resetAll()` together, with a confirmation alert.
+      Tests: `CoachMarkStoreTests` (4), `OnboardingStoreTests` +2 (the
+      new `reset()`). worker unaffected · kit 329. `make check` green
+      (app/kit-only — nothing to deploy).
 - [ ] **Name-wise filter accuracy — blocked, need repro.** No CLI budget
       yet. Friend said "not accurate" with no specifics. Get an exact
       case (which name, which group, expected vs. actual result) before

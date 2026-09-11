@@ -11,10 +11,14 @@ struct SettingsView: View {
     let auth: AuthViewModel
     let client: ClanTabClient
     let knownGroups: KnownGroupsStoring
+    /// "Show tips again" (`CHECKLIST.md`) resets both of these.
+    let onboarding: OnboardingStoring
+    let coachMarks: CoachMarkStoring?
     let onDone: () -> Void
 
     @Environment(\.avatarImageLoader) private var avatarLoader
     @State private var confirmingDelete = false
+    @State private var tipsResetConfirmation = false
     @State private var sheetError: String?
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var photoError: String?
@@ -102,7 +106,18 @@ struct SettingsView: View {
                     }
                 }
                 LabeledContent("Version", value: Self.appVersion)
+
+                Button("Show Tips Again") {
+                    onboarding.reset()
+                    coachMarks?.resetAll()
+                    tipsResetConfirmation = true
+                }
             }
+        }
+        .alert("Tips Reset", isPresented: $tipsResetConfirmation) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The walkthrough and every one-time tip will show again.")
         }
         .materialSheetContent()
         .navigationTitle("Settings")
