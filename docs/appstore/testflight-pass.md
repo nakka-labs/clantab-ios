@@ -1,21 +1,33 @@
-# TestFlight on-device end-to-end pass — ClanTab 1.0 (7)
+# TestFlight on-device end-to-end pass — ClanTab 1.0 (9)
 
 The pre-submission device pass (`CHECKLIST.md` "TestFlight on-device end-to-end
-pass"). Build 7 is the first build that post-dates **real push delivery**,
+pass"). Build 7 was the first to post-date **real push delivery**,
 **Universal Links**, the **Production CloudKit schema**, and the **strengthened
-Guideline 1.2 moderation copy** — so it's the first that can exercise the whole
-thing.
+Guideline 1.2 moderation copy**. Build 9 adds the whole "Friend playtest +
+competitive gap-fill, round 2" batch on top — Friends/cross-group/1:1 tabs,
+comments, multiple payers, shares split, itemized tax/tip, interactive
+Insights, inline add-member, the Remind push, What's New, returning-user
+summary, and coach marks. Everything in Part 1 already passed on build 7 and
+just needs a quick re-check that it's still true; **Part 2 is new and hasn't
+been touched on a real device or with two real accounts at all** — round-2's
+Friends/cross-group work was only smoke-tested unauthenticated via curl
+during CLI development (`production_priority.md`), so it's the higher-value
+half of this pass.
 
-- **Build:** `1.0 (7)`, uploaded 2026-09-09, `processingState: VALID`,
-  `usesNonExemptEncryption: false` (export compliance auto-answered).
-- **Distribution:** internal group **"test-team"** (`id0399@gmail.com`), builds
-  3–7 assigned. Install from the **TestFlight** app on the device.
-- **Device prerequisites:** a real iPhone (Universal Links + push don't work in
-  the Simulator), signed into **iCloud** (for the CloudKit backup check) and
-  able to do **Sign in with Apple**. A second account (or the CLI) to trigger a
-  push.
+- **Build:** `1.0 (9)`, uploaded 2026-09-11. (A stray build 8 exists in App
+  Store Connect from outside this batch's history — ignore it, it predates
+  round-2 and isn't assigned to the test group.)
+- **Distribution:** internal group **"test-team"** (`id0399@gmail.com`).
+  Install from the **TestFlight** app on the device — it should offer 9 as
+  an update once Apple finishes processing.
+- **Device prerequisites:** a real iPhone (Universal Links + push don't work
+  in the Simulator), signed into **iCloud**, able to do **Sign in with
+  Apple**. For Part 2 you need **a second identity** — a second Apple/Google
+  account (or a second device/tester) to actually be a "friend": creating a
+  friend relationship, a 1:1 tab, and receiving a Remind push all require
+  two real, distinct signed-in people, not just two members in one group.
 
-## The pass
+## Part 1 — the build-7 pass, unchanged
 
 | # | Check | How | Pass = |
 |---|---|---|---|
@@ -27,10 +39,31 @@ thing.
 | 6 | **Recurring reminder** | Group Settings → Recurring Reminders → new, ~1–2 min out; background the app | Local notification fires at the scheduled time |
 | 7 | **Settle up** | Settle Up → Mark as Paid on a suggested payment | Chime + success haptic; balance goes to settled |
 | 8 | **Report a Problem** | A member row → Report a Problem, or Group Settings → Report a Problem | Submits; `GET /api/admin/reports` (bearer `ADMIN_TOKEN`) shows the row |
-| 9 | **Delete Account** (do last) | Settings → Delete Account → confirm | Signed out; signing back in is a fresh account, no groups |
+| 9 | **Delete Account** (do last, both accounts) | Settings → Delete Account → confirm | Signed out; signing back in is a fresh account, no groups |
 | 10 | **CloudKit backup** | After opening a claimed group, check CloudKit Dashboard → `iCloud.com.clantab.app` → **Production** → Records | A `GroupBackup` record (`recordName` `group-<id>`), `payload` asset decodes to the ledger |
 
-## Triggering the push (#5) from the CLI
+## Part 2 — round-2, needs a real second identity
+
+Sign in as yourself on your phone; sign in as a second identity on a second
+device (or ask someone to install TestFlight and join). You need to end up
+sharing at least one real group so each of you is a claimed member the other
+can see in Friends.
+
+| # | Check | How | Pass = |
+|---|---|---|---|
+| 11 | **Friends tab populates** | StartView toolbar → Friends (person icon) | Lists the second identity, with a live net balance pulled from your shared group |
+| 12 | **Start a private 1:1 tab** | Friends → tap the second identity → start a tab (no shared group needed) | A new hidden group appears for both of you; doesn't show up in either "Your Groups" list |
+| 13 | **Comment on an expense** | Open an expense → Comments → post one; have the other identity reply | Both comments show, oldest first, each with the right avatar |
+| 14 | **Multiple payers** | Add Expense → "Split the cost between payers" → two payers | Splits/balances credit each payer their own share, not one person the whole amount |
+| 15 | **Split by shares** | Add Expense → Shares tab → uneven ratios (e.g. 2:1) | Resolves to the right proportion, not equal |
+| 16 | **Itemized tax/tip** | Add Expense → Items → a couple of line items with different people → add Tax/Tip | The split favors whoever's items cost more, not an even cut |
+| 17 | **Insights interactive** | Group → Spending Insights → tap a member row, then the category pie | Charts filter to that member; pie shows a scrub tooltip; "Show Everyone" clears it |
+| 18 | **Add member inline** | Add Expense → "Add Someone" (or search a member list of 8+) | New person is added and usable in the current split without leaving the sheet |
+| 19 | **Remind push** | Member profile of someone who owes you → Remind (background their app first) | Their phone gets a push naming the amount; tapping it opens the group |
+| 20 | **What's New sheet** | On the *second* identity's device, if it was already signed in on an older build before updating to 9 | Sheet appears once on next launch, listing this round's items; never shows again after dismissing |
+| 21 | **Coach marks + reset** | Fresh-ish account: Group Home's balance carousel, Add Expense's "Add Someone", the Friends toolbar button | A small dismissible tip appears once each, then never again — then Settings → "Show Tips Again" brings them all back |
+
+## Triggering a push from the CLI (checks 5, 19)
 
 Once you're signed in on-device and in a group, share its **join code** or
 groupId+token, then a second "member" adds an expense over the API and the
@@ -50,12 +83,14 @@ curl -sS -X POST "https://clantab.nakka-labs.workers.dev/api/groups/<GID>/expens
 ```
 
 (The API rejects the default `Python-urllib` / bare curl UA at the Cloudflare
-edge — send a browser-ish `User-Agent`.)
+edge — send a browser-ish `User-Agent`.) Check 19 (Remind) can't be triggered
+this way — it needs a real second claimed identity, since the push targets a
+specific member's linked account, not just anyone in the group.
 
 ## After it passes
 
-Tag the release (`git tag v1.0-7` or similar). Monetization is decided
-(free, no IAP — `CHECKLIST.md` "Decide the monetization stance") and the
-price is already set to Free across all territories via the ASC API
-(2026-09-10). The only thing left between here and submission is the
-submit decision itself (`CHECKLIST.md` "Submit for App Store review").
+Tag the release (`git tag v1.0-9`). Monetization is decided (free, no IAP —
+`CHECKLIST.md` "Decide the monetization stance") and the price is already
+set to Free across all territories via the ASC API (2026-09-10). The only
+thing left between here and submission is the submit decision itself
+(`CHECKLIST.md` "Submit for App Store review").
