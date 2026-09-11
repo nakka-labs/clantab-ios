@@ -203,42 +203,38 @@ struct GroupSettingsView: View {
                 Text("Report this group's name or content — Apple requires this for apps with shared user-generated content.")
             }
 
+            // Regenerate/Archive/Leave used to be three plain Sections, the
+            // same visual weight as "Add Someone" above — a routine rename
+            // and an irreversible link rotation read identically
+            // (`CHECKLIST.md` UX audit [20]). One red-tinted "Danger Zone"
+            // groups them instead, each row carrying its own warning icon
+            // and consequence line.
             Section {
-                Button {
-                    confirmingRegenerate = true
-                } label: {
-                    if isRegenerating {
-                        ProgressView()
-                    } else {
-                        Text("Regenerate Link")
-                    }
-                }
-                .disabled(isRegenerating)
-            } footer: {
-                Text("Makes a fresh invite link and code; the old ones stop working immediately, for anyone still holding them. Not undoable.")
-            }
-
-            Section {
-                Button {
-                    Task { await setArchived(state.group.archivedAt == nil) }
-                } label: {
-                    if isArchiving {
-                        ProgressView()
-                    } else {
-                        Text(state.group.archivedAt == nil ? "Archive Group" : "Unarchive Group")
-                    }
-                }
-                .disabled(isArchiving)
-            } footer: {
-                Text(state.group.archivedAt == nil
-                     ? "Hides the group from everyone's list once the trip's over. Nothing is deleted, and any member can bring it back."
-                     : "This group is archived. Unarchive it to move it back into everyone's list.")
-            }
-
-            Section {
-                Button("Leave This Group", role: .destructive) { confirmingLeave = true }
-            } footer: {
-                Text("Removes this group from this device. Your expenses stay for everyone else.")
+                dangerZoneRow(
+                    icon: "arrow.triangle.2.circlepath",
+                    title: "Regenerate Link",
+                    caption: "Makes a fresh invite link and code; the old ones stop working immediately, for anyone still holding them. Not undoable.",
+                    isLoading: isRegenerating,
+                    action: { confirmingRegenerate = true }
+                )
+                dangerZoneRow(
+                    icon: "archivebox",
+                    title: state.group.archivedAt == nil ? "Archive Group" : "Unarchive Group",
+                    caption: state.group.archivedAt == nil
+                        ? "Hides the group from everyone's list once the trip's over. Nothing is deleted, and any member can bring it back."
+                        : "This group is archived. Unarchive it to move it back into everyone's list.",
+                    isLoading: isArchiving,
+                    action: { Task { await setArchived(state.group.archivedAt == nil) } }
+                )
+                dangerZoneRow(
+                    icon: "rectangle.portrait.and.arrow.right",
+                    title: "Leave This Group",
+                    caption: "Removes this group from this device. Your expenses stay for everyone else.",
+                    isLoading: false,
+                    action: { confirmingLeave = true }
+                )
+            } header: {
+                Text("Danger Zone").foregroundStyle(.red)
             }
         }
         .materialSheetContent()
@@ -445,6 +441,28 @@ struct GroupSettingsView: View {
         } footer: {
             Text("New expenses open with this split. You can still change it on any expense.")
         }
+    }
+
+    /// One row of the "Danger Zone" section (`CHECKLIST.md` UX audit [20]) —
+    /// a leading warning icon plus a title/consequence pair, replacing what
+    /// used to be three separate `Section`s each with their own footer.
+    private func dangerZoneRow(icon: String, title: String, caption: String, isLoading: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: icon)
+                    .foregroundStyle(.red)
+                    .frame(width: 20)
+                VStack(alignment: .leading, spacing: 2) {
+                    if isLoading {
+                        ProgressView()
+                    } else {
+                        Text(title).foregroundStyle(.red)
+                    }
+                    Text(caption).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .disabled(isLoading)
     }
 
     private var currentDefaultSplitLabel: String {
