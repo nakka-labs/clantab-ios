@@ -308,6 +308,12 @@ Everything that came up in that scan and is NOT listed here was
 deliberately cut, not missed — see "Parked" below for the ones worth
 writing down, "Non-goals" for the rest.
 
+**Batch closed 2026-09-11** — every item below shipped. The name-wise
+filter accuracy item (the friend's "not accurate" report) was manually
+re-verified by the owner and works correctly; dropped rather than kept
+as a checklist line with nothing left to do. Round-2 is done; only the
+Owner-only TestFlight pass + submit remain.
+
 - [x] **Friends/contacts list with live cross-group balances + private
       1:1 tabs.** Done 2026-09-11. The reason for the round-2 delay.
       1. [x] **Spike done 2026-09-10 — no new identity plumbing needed.**
@@ -750,11 +756,6 @@ writing down, "Non-goals" for the rest.
       Tests: `CoachMarkStoreTests` (4), `OnboardingStoreTests` +2 (the
       new `reset()`). worker unaffected · kit 329. `make check` green
       (app/kit-only — nothing to deploy).
-- [ ] **Name-wise filter accuracy — blocked, need repro.** No CLI budget
-      yet. Friend said "not accurate" with no specifics. Get an exact
-      case (which name, which group, expected vs. actual result) before
-      this gets an estimate or a fix.
-
 ### Group dashboard, switching fix & backend read efficiency — locked 2026-09-09
 
 > Scope locked 2026-09-09 after a brainstorm (group-switching bug report
