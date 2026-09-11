@@ -276,6 +276,15 @@
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
          the app, Report a Problem, Delete Account, and a `GroupBackup`
          record in the CloudKit Dashboard's *Production* environment.
+         **Added 2026-09-11, once a build carrying the round-2 batch
+         ships:** the Friends screen with **two real signed-in
+         accounts** that share a group — confirm a friend who's settled
+         up still lists, "Start a Private Tab" from one side then
+         "Open" (not "Start") the same tab from the other with no
+         invite step, an expense added in it, and that it never appears
+         in either account's main groups list / dashboard totals. This
+         is the one class of check the CLI's live-smoke-test couldn't
+         cover (every new route needs a real Bearer session).
       5. Owner: tag the version once it passes.
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above, every item under
@@ -299,9 +308,8 @@ Everything that came up in that scan and is NOT listed here was
 deliberately cut, not missed — see "Parked" below for the ones worth
 writing down, "Non-goals" for the rest.
 
-- [ ] **Friends/contacts list with live cross-group balances + private
-      1:1 tabs.** `~60-100k tokens` (CLI — largest item in this batch,
-      real architecture, not a screen). The reason for the delay.
+- [x] **Friends/contacts list with live cross-group balances + private
+      1:1 tabs.** Done 2026-09-11. The reason for the round-2 delay.
       1. [x] **Spike done 2026-09-10 — no new identity plumbing needed.**
          The "claim a placeholder member" mechanism already links a group
          `Member` to an authenticated account: `members.identity_sub`
@@ -318,20 +326,69 @@ writing down, "Non-goals" for the rest.
          drill-in), **hidden 2-person groups** for 1:1 tabs (auto-created,
          `UISceneDelegate`-hidden, reuse every existing piece), and the
          **member profile screen** (shared with item 8 below). Not started.
-      2. Private 1:1 tabs (two people, no formal group): implement as
-         an auto-created, UI-hidden 2-person group the moment two
-         registered accounts start a tab — no invite/join ceremony,
-         reuses every already-tested piece (splits, settle-up, CSV
-         export, balances). Do not build a second, separate ledger
-         type for this.
-      3. Friends list screen: for the signed-in account, aggregate
-         balances across every group (formal + hidden 1:1) shared with
-         each claimed member. This directly reverses the "no second
-         cross-group ledger" non-goal below — see that section for the
-         note on why.
-      4. Tapping a member anywhere (not just this list) opens their
-         profile — build the profile item below once, use it from both
-         places.
+      2. [x] **Private 1:1 tabs — done.** A hidden, auto-created 2-person
+         `GroupDO`, keyed by a **deterministic groupId**:
+         `oneOnOneGroupId(subA, subB)` (SHA-256 of the sorted identity
+         pair, `tab-`-prefixed) — not a secret (`groupId` never has
+         been); the group's own randomly-generated `access_token`
+         (`initGroup`, unchanged) is the real capability. `group_meta.hidden`
+         (new key, no schema bump) marks it; `GroupSummary.hidden` /
+         `peerSettlements` surface it. New `POST /api/auth/friends/tab`:
+         ensure-and-return the tab between the caller and a friend,
+         proof-of-relationship being any `(groupId, theirMemberId)` pair
+         from `GET /api/auth/friends` (caller has a claimed member
+         there, `theirMemberId` resolves to a *different* claimed
+         identity — a group proves itself, so the tab's own id works
+         too once it exists). First call creates the group and claims
+         **both** sides directly server-side via the existing
+         `initGroup`/`addMember`/`claim`/`addMembership` primitives —
+         no join code redeemed, no invite link — and registers the
+         membership in *both* identities' `UserDO` indexes, which is
+         what makes the tab reachable from either side afterward with
+         zero invite step. Idempotent after: same groupId, always a
+         valid token. `UserDO` gained its own `USER_SCHEMA_VERSION` 2
+         (`memberships.hidden`, mirrors the group's own flag so
+         `GET /api/auth/groups` can tell a tab apart from a normal group
+         with no extra `GroupDO` round-trip) — its first-ever migration,
+         same `migrate()` pattern as `GroupDO`.
+      3. [x] **Friends list screen — done.** `GET /api/auth/friends`:
+         every OTHER claimed co-member across every shared group (formal
+         + hidden tab), regardless of balance — a directory, unlike
+         `/api/auth/people`'s nonzero-only settle worklist (which stays
+         unchanged; the concurrent `peerSettlements` fan-out was
+         extracted into a shared `fetchPeerViews` helper). Reverses the
+         "no second cross-group ledger" non-goal below, exactly as
+         planned: one read-side aggregation over every shared ledger,
+         no new write-side ledger. App: `FriendsView` (toolbar button on
+         `StartView`, next to Settings — a new `AppRoute.friends` case,
+         no tab bar added) lists every friend with
+         `PeopleView.summary`'s existing "You owe / owes you / Settled
+         up" line; tapping one pushes `FriendDetailView` (aggregate
+         balance, the shared *formal* groups for context, and a
+         "Start/Open a Private Tab" button — idempotent either way —
+         that routes straight into the ordinary `GroupHomeView` via the
+         existing `enterGroup` path once the tab's ensured).
+      4. [x] **Member tap → profile — done**, via the "Member profile
+         screen" item below (`MemberProfileView`), already shipped
+         2026-09-10 ahead of this item; reused as-is, no changes needed.
+      **Verification:** kit 288 · worker 270 · iOS build + `ClanTabTests`
+      green (`AuthViewModelTests` +5, `ClanTabAuthClientTests` +3,
+      `KnownGroupsStoreTests` +2, worker `auth-routes.test.ts` +7,
+      `user.test.ts` +2 incl. a v1→v2 migration walk). Deployed to
+      production (version `6493ae8f`); live-smoke-tested unauthenticated
+      (`/api/auth/friends` / `/api/auth/friends/tab` → `401`, a plain
+      group create still `201`s). **Not yet verifiable from the CLI:**
+      every new route requires a real signed-in Bearer session (Apple/
+      Google identity), which can't be minted outside the app — full
+      end-to-end confirmation (two real accounts, a shared group, a
+      private tab created and reopened from both sides) is folded into
+      the "TestFlight on-device end-to-end pass" below, alongside the
+      other identity-gated checks already waiting there.
+      **Follow-ups, not blocking:** `GroupSettingsView` still shows
+      invite-link/join-code UI inside a private tab (harmless — there's
+      no one to invite to an already-fully-claimed 2-person group — but
+      pointless); a friend's row on `FriendsView` doesn't show an
+      at-a-glance "has a private tab" hint before you open it.
 - [ ] **CSV import: identify failed rows, not just a count.** `~10-15k
       tokens`. Friend imported `Future.csv`; 3 of N rows were skipped
       with no way to tell which or why. Surface the specific row (line
