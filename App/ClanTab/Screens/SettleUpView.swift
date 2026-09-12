@@ -20,6 +20,10 @@ struct SettleUpView: View {
 
     @State private var pendingRowId: String?
     @State private var errorMessage: String?
+    /// The settlement `errorMessage` belongs to, so "Retry" can resubmit the
+    /// exact same `markPaid` call rather than needing the user to find the
+    /// row and tap "Mark as Paid" again (`CHECKLIST.md` UX audit [33]).
+    @State private var failedSettlement: SimplifiedSettlement?
     @State private var confirmingSettlement: SimplifiedSettlement?
     /// The shareable recap card (`CHECKLIST.md`), rendered off-screen once the
     /// plan is in hand and re-rendered whenever it changes.
@@ -85,6 +89,16 @@ struct SettleUpView: View {
             if let errorMessage {
                 Section {
                     Text(errorMessage).foregroundStyle(.red)
+                    // Resubmits the exact settlement that failed
+                    // (`CHECKLIST.md` UX audit [33]) — most useful for the
+                    // offline case, where nothing else changed and trying
+                    // again is the entire fix.
+                    if let failedSettlement {
+                        Button("Retry") {
+                            Task { await markPaid(failedSettlement, rowId: rowId(for: failedSettlement)) }
+                        }
+                        .disabled(pendingRowId != nil)
+                    }
                 }
             }
         }
@@ -250,6 +264,7 @@ struct SettleUpView: View {
     private func markPaid(_ settlement: SimplifiedSettlement, rowId: String) async {
         pendingRowId = rowId
         errorMessage = nil
+        failedSettlement = nil
         defer { pendingRowId = nil }
 
         do {
@@ -268,6 +283,7 @@ struct SettleUpView: View {
             await viewModel.refetch()
         } catch {
             errorMessage = friendlyMessage(for: error)
+            failedSettlement = settlement
         }
     }
 }

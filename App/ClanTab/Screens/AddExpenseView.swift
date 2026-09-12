@@ -491,6 +491,13 @@ struct AddExpenseView: View {
             if let errorMessage {
                 Section {
                     Text(errorMessage).foregroundStyle(.red)
+                    // A retry affordance right where the error is, not just
+                    // the (identical) primary button below (`CHECKLIST.md`
+                    // UX audit [33]) — most useful for the offline case,
+                    // where nothing else on screen changed and trying again
+                    // is the entire fix.
+                    Button("Retry") { Task { await save() } }
+                        .disabled(isSubmitting)
                 }
             }
 
