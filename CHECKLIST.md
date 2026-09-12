@@ -1653,11 +1653,17 @@ sibling apps in the portfolio is no longer a goal for this app.
       "Change" reopened the sheet with the checkmark now on Shares;
       picked Equally → cleanly back to the 3-way segmented control, no
       dead end. `make check` green (app build + tests).
-- [ ] **[16, moderate] Multi-payer toggle is styled as a footnote.**
-      `~5k tokens` (CLI) — `AddExpenseView`, the "Split the cost between
-      payers" button currently `.font(.footnote)`; give it real button
-      styling (e.g. `.bordered`, `.subheadline`) so it reads as a mode
-      switch, not fine print.
+- [x] **[16, moderate] Multi-payer toggle is styled as a footnote.**
+      Done 2026-09-12. `AddExpenseView`'s "Split the cost between payers"
+      button switched from `.font(.footnote)` to `.buttonStyle(.bordered)`
+      + `.controlSize(.small)` — reads as a real mode switch now. Also
+      applied to "More Split Types (Shares, Items)" (`CHECKLIST.md` UX
+      audit [15], shipped 2026-09-11) — it used the identical `.footnote`
+      styling and would have read as the same fine print the moment this
+      item flagged the pattern; leaving one fixed and the other not would
+      have been a visible inconsistency introduced in the same batch.
+      **Verified in the Simulator**: both buttons render as clear bordered
+      pills in the Expense/Split sections. `make check` green.
 - [ ] **[17, moderate] Add Expense is the single most overloaded screen
       in the app.** `~25k tokens` (CLI) — decided: progressive
       disclosure, not a rewrite.
