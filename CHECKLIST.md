@@ -1862,11 +1862,28 @@ sibling apps in the portfolio is no longer a goal for this app.
       without confirming left the settlement un-recorded (the row still
       read unpaid) — confirms both the copy and that nothing fires until
       the second tap. `make check` green (app build + tests).
-- [ ] **[24, minor] UPI pay links are invisible until someone finds
-      the field.** `~5k tokens` (CLI) — a one-time nudge (coach mark or
-      a line in `SettleUpView`'s empty/first state) pointing at Group
-      Settings' "My UPI ID" the first time Settle Up renders with no
-      VPA set for the signed-in member.
+- [x] **[24, minor] UPI pay links are invisible until someone finds
+      the field.** Done 2026-09-12 — a one-time dismissible row in
+      `SettleUpView`, right below the settlement list: "Get paid via
+      UPI — Add your UPI ID under Group Settings → My UPI ID, so
+      whoever pays you here gets a one-tap link." Shown only when the
+      signed-in member is owed money in this plan (`toId` on some
+      settlement), in INR specifically (UPI's only currency), and
+      hasn't set their own `upiVpa` — the exact case where the existing
+      "Pay via UPI" link (`upiPayURL(for:)`) never has anything to show
+      them, so they'd otherwise never learn the field exists. Reuses
+      `\.coachMarks` (`hasSeen`/`markSeen`) for the one-time-per-device
+      bookkeeping, same store the floating coach-mark bubbles use, but
+      rendered as a plain dismissible `Section` row instead of an
+      anchored overlay — Group Settings is a different screen, so
+      there's nothing on *this* screen to visually point at. Extracted
+      into its own `upiNudgeSection` computed property — folding the
+      `Section` straight into `body`'s `List` hit the type-checker
+      complexity limit, a recurring pattern in this codebase (see
+      `GroupSettingsView`'s `joinCodeSection`). Verified live: seeded a
+      real INR group where the signed-in member is owed money with no
+      UPI ID set, saw the nudge, dismissed it, reopened Settle Up and
+      confirmed it stayed dismissed. `make check` green.
 - [x] **[25, critical] Claiming a member identity is one confirmation
       tap, no verification.** Done 2026-09-11. Step 1 turned out to
       already be true, not a gap: `ClaimMemberView`'s picker only ever
