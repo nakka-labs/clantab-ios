@@ -31,6 +31,9 @@ struct StartView: View {
 
     @State private var sheetError: String?
     @State private var showArchived = false
+    /// The pre-auth "See how ClanTab works" preview (`CHECKLIST.md` UX audit
+    /// [1]) — a static sample group, read-only.
+    @State private var isPresentingPreview = false
 
     private var activeGroups: [KnownGroup] { groups.filter { !$0.isArchived } }
     private var archivedGroups: [KnownGroup] { groups.filter { $0.isArchived } }
@@ -158,8 +161,30 @@ struct StartView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+            // The pre-auth preview (`CHECKLIST.md` UX audit [1]) — the app
+            // used to be a hard wall until sign-in; this lets anyone see a
+            // real, populated group before committing to anything.
+            Button {
+                isPresentingPreview = true
+            } label: {
+                Label("See how ClanTab works", systemImage: "eye")
+                    .font(.subheadline.weight(.medium))
+            }
+            .buttonStyle(.bordered)
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
+        .sheet(isPresented: $isPresentingPreview) {
+            NavigationStack {
+                PreviewGroupHomeView(
+                    // A write action inside the preview dismisses straight
+                    // back to this screen's own sign-in buttons — no separate
+                    // sign-in sheet to hand off to; they're already right here.
+                    onRequiresSignIn: { isPresentingPreview = false },
+                    onDone: { isPresentingPreview = false }
+                )
+            }
+        }
     }
 
     /// Signed in, but no groups on this device yet — say what the two buttons
