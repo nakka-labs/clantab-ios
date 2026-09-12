@@ -1649,10 +1649,21 @@ sibling apps in the portfolio is no longer a goal for this app.
 - [x] **[12, minor] "Settle Up" / "Spending Insights" read as data
       rows, not actions.** Resolved by [6] steps 1 and 4 (done
       2026-09-12, above) — no separate item.
-- [ ] **[13, minor] Undo toast has no countdown before it
-      disappears.** `~5k tokens` (CLI) — `GroupHomeView`'s `undoBanner`
-      overlay; add a shrinking-width or dot countdown over the existing
-      5s `Task.sleep`.
+- [x] **[13, minor] Undo toast has no countdown before it
+      disappears.** Done 2026-09-12 — `GroupHomeView`'s `undoBanner`
+      overlay now shows a linear countdown bar under the "Deleted
+      "X"… Undo" row: `UndoBanner` gained `createdAt`/`expiresAt`, and
+      the bar is a `ProgressView(timerInterval: createdAt...expiresAt,
+      countsDown: true)` (`.progressViewStyle(.linear)`, empty labels).
+      Ties the visual to wall-clock time rather than a manually-animated
+      width, so it can't drift out of sync with a backgrounded/stalled
+      view. The toast's own auto-dismiss (`showUndo`'s `Task.sleep`) and
+      the bar's `expiresAt` both read a single new `undoDuration`
+      constant (`nonisolated`, so the non-actor-isolated `UndoBanner`
+      struct can read it) — one 5s value, not two. Verified live:
+      swiped-to-delete an expense, watched the bar shrink continuously,
+      and the toast auto-dismissed exactly when it hit zero. `make
+      check` green.
 - [x] **[14, critical] Add Expense has no date field at all.** Done
       2026-09-11. New `@State private var date = Date()` — defaults to
       "now" at sheet-open (adding), overridden to `expense.date` only
