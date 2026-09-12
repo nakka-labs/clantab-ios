@@ -2095,7 +2095,15 @@ screens *render correctly* at the sizes people actually use them at.
       limitation rather than something a real finger or VoiceOver hits.
       Confirm on a real device before deciding whether any row needs to
       move (e.g. into Group Settings, which already holds equivalent
-      settings-shaped actions).
+      settings-shaped actions). Deeper-pass update 2026-09-12: reproduced
+      twice more, on two different rows ("Recently Deleted",
+      "Recurring Reminders"), each time at freshly re-queried,
+      confirmed-correct accessibility-tree coordinates — while other
+      rows in the same menu ("Filter Activity") activated fine at their
+      own coordinates. That pattern (works near the top, fails further
+      down the same menu) looks less like a one-off automation fluke and
+      more like something worth an actual finger test before relying on
+      simulator results alone either way.
 - [ ] **[6, minor] Full-width, left-aligned capsule buttons read as
       list rows wearing a button's clothes.** `~4k tokens` (CLI) —
       decided: "Split the cost between payers" and "More Split Types
@@ -2119,6 +2127,28 @@ screens *render correctly* at the sizes people actually use them at.
       already composes them into one sentence ("Vikram owes ₹1,270, and
       is owed $22.50") — the cost of genuinely supporting multi-currency
       groups, not something to fix.
+
+**Deeper pass, 2026-09-12** — extended the above after fixing [1] and
+[2], covering what the first pass skipped: dark mode (Home, Add
+Expense, Settle Up, both Insights charts — all clean, good contrast,
+no issues); extra-small Dynamic Type (Insights list, Insights detail,
+Add Expense — all render tightly with no wasted space or truncation,
+as expected for a design already built to survive the much harder
+accessibility-XXXL end); accessibility-tree traversal order on Add
+Expense and Group Home (both read top-to-bottom in visual order — no
+element ordering surprises, though this checks tree order, not a full
+VoiceOver swipe-gesture pass); and previously-unvisited screens
+(CreateGroupView, FriendDetailView, MemberProfileView for both self and
+another member, Filter Activity, Group Settings' Members section — no
+new issues, though MemberProfileView-for-self is sparse enough it may
+be worth a future look for anything worth surfacing there). The one
+substantive result was strengthening [5] above with a second and third
+reproduction. No new bugs found; nothing here changed any code beyond
+[1] and [2], already recorded above. Screens still not exercised by
+automation: RecentlyDeletedView/RecurringRemindersView content (blocked
+by [5]'s own menu-reachability issue), ReportContentView, the category
+picker, multi-payer entry, the CSV import screen itself, and the
+emoji/cover-image pickers.
 
 ### Feature backlog — absorbed from the competitive scan
 
