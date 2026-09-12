@@ -1584,13 +1584,25 @@ sibling apps in the portfolio is no longer a goal for this app.
       `~3k tokens` (CLI) — one line under `signInSection` in
       `StartView.swift` ("So your groups sync if you switch phones" —
       matches `SyncNudgeCard`'s existing copy).
-- [ ] **[10, moderate] Group Home fills in piecemeal as it loads — only
-      the hero gets a placeholder.** `~10k tokens` (CLI)
-      1. `GroupHomeView.body` — Members/Activity sections are simply
-         absent while `viewModel.state == nil`.
-      2. Add redacted placeholder rows (skeleton) for Members + Activity
-         matching the hero's `.redacted(reason: .placeholder)` pattern.
-      3. Verify on a slow/throttled network in the Simulator.
+- [x] **[10, moderate] Group Home fills in piecemeal as it loads — only
+      the hero gets a placeholder.** Done 2026-09-12. New
+      `GroupHomeSkeleton` enum (`Components/`) — `memberRows()` reuses the
+      real `MemberBalanceRow` over three placeholder members (cheaper and
+      more future-proof than a parallel row shape; the row doesn't care
+      whether its data is real), `activityRows()` is a small generic row
+      matching `ActivityRow`'s layout (not the real component — that one
+      needs an actual `Expense`/`Settlement` to build an `ActivityItem`
+      from, not worth constructing for a placeholder). Both
+      `.redacted(reason: .placeholder)`, same modifier the hero already
+      used. `GroupHomeView.body`'s `else` branch (state still `nil`) now
+      renders "Members"/"Activity" sections full of these instead of
+      being simply absent.
+      **Verified in the Simulator** — temporarily added a 4s artificial
+      delay to `GroupViewModel.refetch()` (reverted after) to actually
+      catch the loading frame: the whole screen now shows a coherent
+      skeleton (hero + 3 member rows + 3 activity rows, all redacted)
+      instead of the hero card floating alone over blank space. `make
+      check` green.
 - [ ] **[11, moderate] Balance-bubble view discoverable only via a
       one-time coach mark.** `~8k tokens` (CLI) — decided: add a
       persistent affordance, keep the coach mark too.
