@@ -230,11 +230,14 @@ struct StartView: View {
 
     private var signInSection: some View {
         VStack(spacing: 12) {
-            Text("Sign in to create or join a group.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 2)
+            VStack(spacing: 2) {
+                Text("Sign in to create or join a group.")
+                Text("So you don't lose your groups if you switch phones.")
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.bottom, 2)
 
             AppleSignInButton(
                 onCredential: { token, userID, authCode in
