@@ -1822,14 +1822,27 @@ sibling apps in the portfolio is no longer a goal for this app.
       highest-risk finding in the audit — CLI should prioritize it.
 - [x] **[30, minor] "Group Options" menu has almost no grouping.**
       Resolved by [6] step 2 (done 2026-09-12, above) — no separate item.
-- [ ] **[31, moderate] Welcome-back card and the balance header repeat
-      the same totals back to back.** `~6k tokens` (CLI) — decided: one
-      combined component, drop the standalone header when redundant.
-      1. `StartView.body` — `WelcomeBackCard` and `DashboardTotalsHeader`
-         both render off `DashboardTotals.compute(groups)`; hide
-         `DashboardTotalsHeader` whenever `WelcomeBackCard` is showing
-         (it's the returning-user case), keep the header as the sole
-         totals display otherwise.
+- [x] **[31, moderate] Welcome-back card and the balance header repeat
+      the same totals back to back.** Done 2026-09-12. New
+      `StartView.isShowingWelcomeBackTotals(showWelcomeBack:groups:)`
+      (`static`, testable without standing up the view, same pattern as
+      `GroupSettingsView.isRemovable`) — true only when the welcome-back
+      card is actually about to render a number, not just whenever it's
+      the "eligible" launch. That distinction matters: both
+      `WelcomeBackCard` and `DashboardTotalsHeader` already render
+      nothing at all once every currency is settled (`totals.isEmpty`),
+      so naively hiding the header whenever `showWelcomeBack` is true
+      would leave a fully-settled returning user with *no* totals
+      display at all, not just a de-duplicated one.
+      `DashboardTotalsHeader` is now wrapped in
+      `if !isShowingWelcomeBackTotals`. Tests: `StartViewTests` (3) — the
+      real-duplicate case, `showWelcomeBack` false, and the settled-but-
+      eligible case that must *not* hide the header. `make check` green.
+      Not separately verified live in the Simulator — reproducing the
+      real 3-day-gap trigger condition wasn't worth forcing; the
+      predicate is a pure, fully-tested boolean over already-verified
+      components (`WelcomeBackCard`/`DashboardTotalsHeader` both shipped
+      2026-09-11 with their own Simulator passes).
 - [x] **[32, minor] Duplicate of [6]** — resolved by [6] step 3 (done
       2026-09-12, above), not a separate fix.
 - [ ] **[33, minor] Generic errors give no retry or diagnosis.**
