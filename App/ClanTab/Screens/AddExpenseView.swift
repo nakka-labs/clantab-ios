@@ -98,6 +98,12 @@ struct AddExpenseView: View {
     @State private var attachmentKeys: [String]
     @State private var pickedReceipts: [PhotosPickerItem] = []
     @State private var isUploadingReceipt = false
+    /// Receipts + Comments, tucked behind one disclosure (`CHECKLIST.md` UX
+    /// audit [17]) — closed by default on a fresh expense (nothing to show
+    /// yet), open by default while editing (comments' own existence isn't
+    /// knowable synchronously before their `.task` fetch resolves, so
+    /// "editing at all" is the simplification, not "has content").
+    @State private var isShowingMoreDetails = false
     @Environment(\.avatarImageLoader) private var avatarLoader
 
     // MARK: Comments (CHECKLIST.md "Comments on an expense")
@@ -206,6 +212,7 @@ struct AddExpenseView: View {
         // add sends it as the idempotency id (`CHECKLIST.md`).
         _expenseId = State(initialValue: editing?.id ?? UUID().uuidString)
         _attachmentKeys = State(initialValue: editing?.attachments ?? [])
+        _isShowingMoreDetails = State(initialValue: editing != nil)
 
         if let template = recurringTemplate {
             _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: template.amountMinor))
@@ -466,9 +473,17 @@ struct AddExpenseView: View {
                 splitDetail
             }
 
-            receiptsSection
-
-            if isEditing { commentsSection }
+            // Receipts + Comments used to be two always-visible Sections —
+            // the single most overloaded screen in the app got more
+            // crowded with every feature this file has picked up
+            // (`CHECKLIST.md` UX audit [17]). One disclosure now, closed
+            // by default on a fresh expense.
+            Section {
+                DisclosureGroup("More Details", isExpanded: $isShowingMoreDetails) {
+                    receiptsRows
+                    if isEditing { commentsRows }
+                }
+            }
 
             if let errorMessage {
                 Section {
@@ -546,9 +561,13 @@ struct AddExpenseView: View {
 
     // MARK: - Receipts (CHECKLIST.md "Photo attachment on an expense")
 
+    /// Plain rows, not a `Section` — this lives inside `isShowingMoreDetails`'s
+    /// `DisclosureGroup` now (`CHECKLIST.md` UX audit [17]), so a real inline
+    /// caption stands in for the `Section` header that used to label it.
     @ViewBuilder
-    private var receiptsSection: some View {
-        Section {
+    private var receiptsRows: some View {
+        Group {
+            Text("Receipts").font(.caption).foregroundStyle(.secondary)
             if !attachmentKeys.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -580,16 +599,16 @@ struct AddExpenseView: View {
                 }
             }
             .disabled(isUploadingReceipt)
-        } header: {
-            Text("Receipts")
         }
     }
 
     // MARK: - Comments (CHECKLIST.md "Comments on an expense")
 
+    /// Plain rows, not a `Section` — see `receiptsRows`'s doc comment.
     @ViewBuilder
-    private var commentsSection: some View {
-        Section {
+    private var commentsRows: some View {
+        Group {
+            Text("Comments").font(.caption).foregroundStyle(.secondary)
             if isLoadingComments, comments.isEmpty {
                 HStack { ProgressView(); Text("Loading…").foregroundStyle(.secondary) }
             } else {
@@ -617,8 +636,6 @@ struct AddExpenseView: View {
             if let commentError {
                 Text(commentError).font(.footnote).foregroundStyle(.red)
             }
-        } header: {
-            Text("Comments")
         }
     }
 
