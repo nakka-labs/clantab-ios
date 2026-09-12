@@ -1843,11 +1843,19 @@ sibling apps in the portfolio is no longer a goal for this app.
       seeded group — "Join Code" shows the correct live code
       (`QSQN3M`), matching what `CreateGroupResponse` returned at
       creation. `make check` green (kit + worker + iOS build/tests).
-- [ ] **[27, moderate] Insights charts give no cue that they're
-      touchable.** `~8k tokens` (CLI) — `InsightsView`'s
-      `overTimeChart`/`memberDonut`/`categoryPie`; add a one-time coach
-      mark (existing `.coachMark` pattern) on first appearance of
-      Insights with expenses present.
+- [x] **[27, moderate] Insights charts give no cue that they're
+      touchable.** Done 2026-09-12. One `.coachMark(id:
+      "insights.chartsAreInteractive", text: "Tap or drag a chart to see
+      exact values.")` attached to `overTimeChart` — the first chart on
+      screen, so whichever one someone reaches first already explains
+      the shared scrub gesture; not one per chart (`memberDonut`/
+      `categoryPie` weren't touched, matching "a one-time coach mark,"
+      singular, in the decided fix). Only reachable inside
+      `InsightsView`'s non-empty branch, so it's automatically gated on
+      "with expenses present" for free. **Verified in the Simulator**
+      against a real group with expenses: the bubble appears over the
+      Over Time chart on first visit with the exact expected text.
+      `make check` green.
 - [ ] **[28, minor] Member-tap-to-filter instructions sit below the
       charts they explain.** `~3k tokens` (CLI) — `InsightsView`'s "By
       member" section footer; move the hint text above the charts, or
