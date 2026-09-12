@@ -47,7 +47,17 @@ struct GroupHomeView: View {
         let kind: Kind
         let itemId: String
         let label: String
+        /// When this toast will auto-dismiss — drives the countdown bar
+        /// (`CHECKLIST.md` UX audit [13]) and `showUndo`'s `Task.sleep`, so
+        /// the two can never drift apart.
+        let createdAt = Date()
+        var expiresAt: Date { createdAt.addingTimeInterval(GroupHomeView.undoDuration) }
     }
+
+    /// How long the undo toast stays up before it auto-dismisses. Plain
+    /// `Double`, so `nonisolated` is safe — lets `UndoBanner.expiresAt`
+    /// (not itself actor-isolated) read it without hopping to the main actor.
+    private nonisolated static let undoDuration: TimeInterval = 5
 
     init(
         groupId: String,
@@ -535,12 +545,25 @@ struct GroupHomeView: View {
         }
         .overlay(alignment: .bottom) {
             if let undoBanner {
-                HStack {
-                    Text("Deleted \"\(undoBanner.label)\"")
-                        .lineLimit(1)
-                    Spacer()
-                    Button("Undo") { Task { await undo() } }
-                        .fontWeight(.semibold)
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Deleted \"\(undoBanner.label)\"")
+                            .lineLimit(1)
+                        Spacer()
+                        Button("Undo") { Task { await undo() } }
+                            .fontWeight(.semibold)
+                    }
+                    // The countdown itself — a linear bar tied to wall-clock
+                    // time via `timerInterval`, so it stays accurate even if
+                    // this view stops updating for a moment (unlike a
+                    // manually-animated width) and always agrees with
+                    // `showUndo`'s `Task.sleep` since both read `expiresAt`.
+                    ProgressView(
+                        timerInterval: undoBanner.createdAt...undoBanner.expiresAt,
+                        countsDown: true
+                    ) { EmptyView() } currentValueLabel: { EmptyView() }
+                        .progressViewStyle(.linear)
+                        .tint(.secondary)
                 }
                 .padding()
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
@@ -601,12 +624,13 @@ struct GroupHomeView: View {
         }
     }
 
-    /// Shows the "Undo" toast for ~5s, then dismisses it — unless a newer
-    /// delete has already replaced it (compares by `id`, not just nil-ness).
+    /// Shows the "Undo" toast for `undoDuration`, then dismisses it — unless
+    /// a newer delete has already replaced it (compares by `id`, not just
+    /// nil-ness).
     private func showUndo(_ banner: UndoBanner) {
         undoBanner = banner
         Task {
-            try? await Task.sleep(for: .seconds(5))
+            try? await Task.sleep(for: .seconds(Self.undoDuration))
             if undoBanner?.id == banner.id { undoBanner = nil }
         }
     }
