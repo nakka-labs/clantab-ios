@@ -1585,12 +1585,30 @@ sibling apps in the portfolio is no longer a goal for this app.
       show the button's ProgressView + "Continuing to Google…" label
       on screen, then ~1s later the system's "'ClanTab' Wants to Use
       'accounts.google.com' to Sign In" sheet. `make check` green.
-- [ ] **[4, moderate] Onboarding carousel doesn't preview real UI.**
-      `~12k tokens` (CLI)
-      1. `OnboardingView` — replace the 3 SF Symbol pages with real
-         cropped screenshots of Group Home / Add Expense / Settle Up.
-      2. Verify the images stay legible at the smallest supported
-         device width.
+- [x] **[4, moderate] Onboarding carousel doesn't preview real UI.** Done
+      2026-09-12. `OnboardingView`'s 3 SF Symbol pages replaced with real
+      cropped screenshots, added as `OnboardingGroupHome` /
+      `OnboardingAddExpense` / `OnboardingSettleUp` image sets
+      (`Assets.xcassets`). Captured from the actual running app in the
+      Simulator (dev-scaffolding recipe): a real "Goa Trip" group seeded
+      through the worker with the same sample members/expenses as
+      `PreviewGroupHomeView`'s pre-auth preview (Alex/Priya/Rohan, 3
+      expenses), so the two static "here's the app" moments — this
+      carousel and item [1]'s preview — tell a consistent story. Each
+      screenshot cropped to just the illustrative content (no status bar
+      or tab bar) and displayed via `Image(_:).resizable().scaledToFit()`
+      in a rounded, bordered, drop-shadowed frame in place of the old SF
+      Symbol circle. Page copy unchanged — each still matches its screen
+      (Group Home → "A group for every split", Add Expense (filled in
+      with a sample "Scuba diving trip" row) → "Add expenses as they
+      happen", Settle Up → "Settle up, sorted"). Verified live at both
+      the standard Simulator size and on an iPhone SE (3rd generation) —
+      375pt wide, the narrowest currently-supported device (iOS 17
+      deployment target) — all three pages stay fully legible. `make
+      check` green; dev scaffolding (local worker, `AppConfig.apiBaseURL`,
+      ATS entry, `#if DEBUG` session block, `NoOpGroupBackup`/in-memory
+      token store swaps) fully reverted — `git status` shows only the
+      `OnboardingView.swift` change and the three new image sets.
 - [ ] **[5, minor] No "why sign in" line on the welcome screen.**
       `~3k tokens` (CLI) — one line under `signInSection` in
       `StartView.swift` ("So your groups sync if you switch phones" —
