@@ -1480,18 +1480,40 @@ sibling apps in the portfolio is no longer a goal for this app.
          real (now-true) one-screen experience. Resolves [34].
 - [x] **[9, minor] No persistent navigation anchor.** Resolved by [6]'s
       tab bar (done 2026-09-12, above) — no separate item.
-- [ ] **[1, critical] No way to preview or try the app before signing
-      in.** `~22k tokens` (CLI) — decided: ship a limited pre-auth
-      preview rather than keep the hard sign-in wall.
-      1. `StartView` shows a static sample group card pre-auth ("See how
-         ClanTab works") that opens a read-only `GroupHomeView` variant
-         with realistic example data, clearly labeled as a sample.
-      2. Any write action from the preview (Add Expense, Settle Up,
-         Create/Join Group) triggers the sign-in sheet instead of
-         executing — sign-in becomes required at the point of the first
-         real write, not before anyone can see the app at all.
-      3. Remove the current pre-sign-in wall copy that implies nothing
-         is usable until you sign in.
+- [x] **[1, critical] No way to preview or try the app before signing
+      in.** Done 2026-09-12. New `PreviewGroupHomeView` (`Screens/`) —
+      not `GroupHomeView` itself fed fake data (`ClanTabClient` is a
+      concrete `actor` and `GroupViewModel` always hits the network in
+      `load()`; making that fakeable would mean threading test-only
+      seams through production networking for one pre-auth screen), but
+      the same row components (`BalanceHeroView`, `MemberBalanceRow`,
+      `ActivityRow`) over static sample data instead — visually
+      identical, no network. Sample data is internally consistent, not
+      just plausible-looking: 3 members and 3 expenses run through the
+      real, pure `Balances.compute` so every balance shown actually
+      derives from the sample ledger. `StartView`'s welcome hero gained
+      a "See how ClanTab works" button opening it as a sheet.
+      1. Done — the button + sheet described above.
+      2. Every interactive element in the preview (Add Expense, the
+         Settle Up CTA, member rows, activity rows) calls one shared
+         `prompt()` → an alert ("Sign In to Continue" / "This sample
+         group is read-only. Sign in to create or join a real one.")
+         with "Sign In" (dismisses the preview, landing back on
+         `StartView`'s own sign-in buttons — no separate sign-in sheet
+         to hand off to, they're already right there) and "Keep Looking
+         Around" (dismisses just the alert).
+      3. No literal "nothing is usable until you sign in" copy existed
+         to remove — the existing "Sign in to create or join a group."
+         line was already accurate and stays; the "wall" was structural
+         (no preview affordance existed at all), fixed by adding one.
+      **Verified end to end in the Simulator**: the button renders on
+      the welcome screen; tapping it opens "🏖️ Goa Trip" with the
+      sample banner, a real "You are owed ₹2,100" hero (Alex/Priya/Rohan
+      balances matching the sample ledger exactly), 3 members, and a
+      dated activity feed; tapping "Settle Up" shows the sign-in alert
+      with the exact expected copy; tapping "Sign In" dismisses cleanly
+      back to the welcome screen's sign-in buttons. `make check` green
+      (kit + worker + iOS build/tests).
 - [x] **[2, critical] One error message for every sign-in failure
       mode.** Done 2026-09-11. New `SignInErrorMessage` (`Components/`,
       pure — unit-testable without driving the actual auth UI):
