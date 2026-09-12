@@ -1563,17 +1563,28 @@ sibling apps in the portfolio is no longer a goal for this app.
       both providers. **Not yet verified live** (no Apple ID
       signed in on the Simulator, offline) — folds into the TestFlight
       pass; `make check` green (app build + tests).
-- [ ] **[3, moderate] Google sign-in's web-chrome break in tone.**
-      `~10k tokens` (CLI) — decided: keep `ASWebAuthenticationSession`
-      (no SDK, per `AGENTS.md`), but soften the jump instead of
-      accepting it as-is.
-      1. Add a brief in-app transition state ("Continuing to Google…")
-         immediately before presenting the session, so the handoff reads
-         as intentional rather than a break.
-      2. Set `prefersEphemeralWebBrowserSession` deliberately (off, so a
-         returning user's existing Google session speeds the flow up)
-         and confirm the sheet presentation style is as tight as the API
-         allows.
+- [x] **[3, moderate] Google sign-in's web-chrome break in tone.** Done
+      2026-09-12 — kept `ASWebAuthenticationSession` (no SDK, per
+      `AGENTS.md`) and softened the jump instead of accepting it as-is.
+      `GoogleSignInButton` now has an `isPresenting` state, set the
+      instant the button is tapped: the button's own content swaps to a
+      spinner + "Continuing to Google…" for 350ms (`Task.sleep`) before
+      `presentSession()` builds the PKCE URL and calls `session.start()`,
+      so the system sheet's arrival reads as the next step in something
+      the app already started, not an unannounced context switch.
+      `isPresenting` clears on every terminal path (success, failure,
+      cancel, missing-callback). Also set
+      `session.prefersEphemeralWebBrowserSession = false` explicitly
+      (was implicitly `false` already, but undocumented) — a returning
+      user with an existing Google web session skips the credential
+      prompt, which is the fast path the audit asked for; there's no
+      separate "sheet presentation style" knob `ASWebAuthenticationSession`
+      exposes beyond that. Verified live in the Simulator (signed-out
+      `StartView`, real network to `accounts.google.com`, cancelled
+      before completing so no dev identity was created): screenshots
+      show the button's ProgressView + "Continuing to Google…" label
+      on screen, then ~1s later the system's "'ClanTab' Wants to Use
+      'accounts.google.com' to Sign In" sheet. `make check` green.
 - [ ] **[4, moderate] Onboarding carousel doesn't preview real UI.**
       `~12k tokens` (CLI)
       1. `OnboardingView` — replace the 3 SF Symbol pages with real
