@@ -1603,14 +1603,15 @@ sibling apps in the portfolio is no longer a goal for this app.
       skeleton (hero + 3 member rows + 3 activity rows, all redacted)
       instead of the hero card floating alone over blank space. `make
       check` green.
-- [ ] **[11, moderate] Balance-bubble view discoverable only via a
-      one-time coach mark.** `~8k tokens` (CLI) — decided: add a
-      persistent affordance, keep the coach mark too.
-      1. `GroupHomeView`'s hero `TabView` — add a small persistent
-         chevron/arrow hint alongside the existing page dots
-         (`.tabViewStyle(.page(indexDisplayMode: .always))`) so the
-         swipe is discoverable after the one-time `coachMark(id:
-         "groupHome.bubbleSwipe", …)` has already been dismissed.
+- [x] **[11, moderate] Balance-bubble view discoverable only via a
+      one-time coach mark.** Done 2026-09-12. A small `chevron.right`
+      overlaid at `.bottomTrailing` on the hero `TabView`, next to the
+      page dots — `.tertiary` foreground so it reads as a hint, not a
+      button (it isn't tappable, just an affordance). Coach mark kept
+      as-is alongside it, unchanged. **Verified in the Simulator** on a
+      group with the bubble page active: the chevron sits to the right
+      of the page dots, persisting regardless of whether the one-time
+      coach mark has already fired. `make check` green.
 - [x] **[12, minor] "Settle Up" / "Spending Insights" read as data
       rows, not actions.** Resolved by [6] steps 1 and 4 (done
       2026-09-12, above) — no separate item.
