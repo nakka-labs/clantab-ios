@@ -473,17 +473,28 @@ struct AddExpenseView: View {
                 // expense") is the rare case — a plain toggle keeps the common
                 // single-payer Picker as the default, undisturbed. Real
                 // button styling, not `.footnote` (`CHECKLIST.md` UX audit
-                // [16]) — this switches modes, it isn't fine print.
-                Button(isMultiPayer ? "Paid by one person" : "Split the cost between payers") {
-                    isMultiPayer.toggle()
-                    if isMultiPayer, payerAmountText.isEmpty {
-                        // Seed with whatever's already entered for the single
-                        // payer, so switching modes doesn't lose the amount.
-                        payerAmountText = [payerId: amountText]
+                // [16]) — this switches modes, it isn't fine print. A List
+                // row stretches the capsule to the full row width, which
+                // reads naturally hugging short, centered content and less so
+                // stretched edge-to-edge with left-aligned text — it looked
+                // like a list row wearing a button's clothes (`CHECKLIST.md`
+                // UI audit fresh-eyes-pass [6]). Centered `Spacer()`s keep the
+                // capsule sized to its own text instead.
+                HStack {
+                    Spacer()
+                    Button(isMultiPayer ? "Paid by one person" : "Split the cost between payers") {
+                        isMultiPayer.toggle()
+                        if isMultiPayer, payerAmountText.isEmpty {
+                            // Seed with whatever's already entered for the
+                            // single payer, so switching modes doesn't lose
+                            // the amount.
+                            payerAmountText = [payerId: amountText]
+                        }
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    Spacer()
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
                 NavigationLink {
                     CategoryPickerView(selection: $category)
                 } label: {
@@ -522,10 +533,16 @@ struct AddExpenseView: View {
                     .pickerStyle(.segmented)
                     // Same "not fine print" treatment as the multi-payer
                     // toggle above (`CHECKLIST.md` UX audit [16]) — this
-                    // opens a real mode switch, not a footnote.
-                    Button("More Split Types (Shares, Items)") { isPresentingMoreSplits = true }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                    // opens a real mode switch, not a footnote. Same
+                    // hug-and-center fix as that toggle too (`CHECKLIST.md`
+                    // UI audit fresh-eyes-pass [6]).
+                    HStack {
+                        Spacer()
+                        Button("More Split Types (Shares, Items)") { isPresentingMoreSplits = true }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Spacer()
+                    }
                 }
 
                 splitDetail

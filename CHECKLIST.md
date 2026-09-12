@@ -2123,15 +2123,22 @@ screens *render correctly* at the sizes people actually use them at.
       down the same menu) looks less like a one-off automation fluke and
       more like something worth an actual finger test before relying on
       simulator results alone either way.
-- [ ] **[6, minor] Full-width, left-aligned capsule buttons read as
-      list rows wearing a button's clothes.** `~4k tokens` (CLI) —
-      decided: "Split the cost between payers" and "More Split Types
-      (Shares, Items)" on Add Expense are `Capsule()`-shaped but sized
-      to the full row width with left-aligned text — a shape that reads
-      naturally hugging short, centered content, less so stretched
-      edge-to-edge (and visibly over-rounded once 2-line text forces a
-      taller capsule at large text sizes). Either hug-and-center the
-      capsule, or drop the capsule fill for a plain list row.
+- [x] **[6, minor] Full-width, left-aligned capsule buttons read as
+      list rows wearing a button's clothes.** Done 2026-09-12 —
+      "Split the cost between payers" and "More Split Types (Shares,
+      Items)" on Add Expense are `.buttonStyle(.bordered)`, which a List
+      row stretches to the full row width with left-aligned text — a
+      shape that reads naturally hugging short, centered content, less
+      so stretched edge-to-edge (and visibly over-rounded once 2-line
+      text forced a taller capsule at large text sizes). Kept the real
+      button styling (`CHECKLIST.md` UX audit [16] deliberately made
+      these look like buttons, not fine print) and fixed the shape
+      instead of dropping it: wrapped each in `HStack { Spacer(); ...;
+      Spacer() }` so the capsule hugs its own text and centers in the
+      row rather than stretching to fill it. Verified live at both
+      default and accessibility-XXXL text sizes: both capsules now hug
+      their text and center, including the 4-line-wrapped case that used
+      to look most stretched. `make check` green.
 - [ ] **[7, minor] "Report a Problem"'s subtitle explains itself from
       the developer's side.** `~1k tokens` (CLI) — decided: "Apple
       requires this for apps with shared user-generated content" is a
