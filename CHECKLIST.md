@@ -1943,10 +1943,17 @@ sibling apps in the portfolio is no longer a goal for this app.
       against a real group with expenses: the bubble appears over the
       Over Time chart on first visit with the exact expected text.
       `make check` green.
-- [ ] **[28, minor] Member-tap-to-filter instructions sit below the
-      charts they explain.** `~3k tokens` (CLI) — `InsightsView`'s "By
-      member" section footer; move the hint text above the charts, or
-      inline near the first chart instead of trailing the member list.
+- [x] **[28, minor] Member-tap-to-filter instructions sit below the
+      charts they explain.** Done 2026-09-12 — `InsightsView`'s "By
+      member" `Section` moved "Tap a member to filter every chart to
+      just their share." out of the section `footer:` (which trailed
+      the donut and every member row) into the first line of the
+      section's own content, right under the "By member" header and
+      above the donut. Same `byMember.count > 1` gate as before — no
+      point explaining a filter a single-member group can't use.
+      Verified live: opened Insights on a real seeded group, scrolled
+      to "By member", saw the hint immediately under the header, above
+      the donut and rows. `make check` green.
 - [ ] **[29, critical] CSV import has no duplicate-import guard.**
       Already tracked — see "De-dupe guard on CSV import" in the
       Feature backlog section below (`~20k tokens`, found 2026-09-08).
