@@ -127,6 +127,8 @@ struct GroupSettingsView: View {
                 Text("The default currency for new expenses. Existing expenses keep the currency they were entered in.")
             }
 
+            joinCodeSection
+
             coverImageSection
 
             defaultSplitSection
@@ -295,6 +297,36 @@ struct GroupSettingsView: View {
                     onCancel: { self.reportingTarget = nil }
                 )
             }
+        }
+    }
+
+    /// The join code used to be shown only once, at creation
+    /// (`CHECKLIST.md` UX audit [26]) — re-surfaced here, alongside the
+    /// existing "Share Join Code" entry in Group Home's "More" menu, both
+    /// reading it live off `state` rather than a one-time value stashed at
+    /// creation. A whole `Section` extracted on its own, like every other
+    /// one in this file below the first — `body` itself is already at the
+    /// type checker's complexity ceiling ("unable to type-check this
+    /// expression in reasonable time") without one more inline `Section`.
+    private var joinCodeSection: some View {
+        Section {
+            HStack {
+                Text(state.group.joinCode)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = state.group.joinCode
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Copy Join Code")
+            }
+        } header: {
+            Text("Join Code")
+        } footer: {
+            Text("Anyone with this code can join the group from \"Join with a Code.\"")
         }
     }
 
