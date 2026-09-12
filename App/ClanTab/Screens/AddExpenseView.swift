@@ -995,33 +995,55 @@ struct AddExpenseView: View {
                         .frame(width: 80)
                         .foregroundStyle(itemizedMismatch && (MoneyFormat.minorUnits(from: item.amountText) ?? 0) > 0 ? Color.red : Color.primary)
                 }
-                HStack {
-                    Menu {
+                // An inline avatar row, not a `Menu` (`CHECKLIST.md` UX audit
+                // [18]) — who's sharing this item is visible at a glance, and
+                // toggling one doesn't require opening anything.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
                         ForEach(members) { member in
+                            let isIncluded = item.participantIds.contains(member.id)
                             Button {
-                                if item.participantIds.contains(member.id) {
+                                if isIncluded {
                                     item.participantIds.remove(member.id)
                                 } else {
                                     item.participantIds.insert(member.id)
                                 }
                             } label: {
-                                if item.participantIds.contains(member.id) {
-                                    Label(member.displayName, systemImage: "checkmark")
-                                } else {
-                                    Text(member.displayName)
-                                }
+                                MemberAvatar(member, size: 30)
+                                    .saturation(isIncluded ? 1 : 0)
+                                    .opacity(isIncluded ? 1 : 0.35)
+                                    .overlay(alignment: .bottomTrailing) {
+                                        if isIncluded {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 13))
+                                                .symbolRenderingMode(.palette)
+                                                .foregroundStyle(.white, .green)
+                                                .background(Circle().fill(.white).padding(1.5))
+                                                .offset(x: 2, y: 2)
+                                        }
+                                    }
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(member.displayName)
+                            .accessibilityAddTraits(isIncluded ? [.isSelected] : [])
+                            .accessibilityHint("Double tap to \(isIncluded ? "remove" : "add")")
                         }
-                    } label: {
-                        Text(participantSummary(item.participantIds))
-                            .font(.footnote)
-                            .foregroundStyle(item.participantIds.isEmpty ? Color.red : Color.accentColor)
                     }
-                    Spacer()
+                    .padding(.vertical, 2)
+                }
+                if item.participantIds.isEmpty {
+                    Text("No one — tap someone above to add them")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
                 }
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Line item \(item.name.isEmpty ? "unnamed" : item.name)")
+            // No longer `.accessibilityElement(children: .combine)` — that
+            // collapsed the name/amount fields and every avatar toggle into
+            // one opaque VoiceOver stop, which would have made the new
+            // per-member buttons (added for [18] above) unreachable. Each
+            // field and avatar is its own stop now, which is also more
+            // useful: a VoiceOver user can act on one member at a time
+            // instead of getting a single "Line item X" blob.
         }
         .onDelete { itemDrafts.remove(atOffsets: $0) }
 
@@ -1075,14 +1097,6 @@ struct AddExpenseView: View {
         }
     }
 
-    /// "Everyone" / "Ana, Ben" / "No one" — the menu label for a line item's
-    /// participant set.
-    private func participantSummary(_ ids: Set<String>) -> String {
-        guard !ids.isEmpty else { return "No one — tap to add" }
-        if ids.count == members.count { return "Shared by everyone" }
-        let names = members.filter { ids.contains($0.id) }.map(\.displayName)
-        return "Shared by \(names.joined(separator: ", "))"
-    }
 
     private func includedBinding(for memberId: String) -> Binding<Bool> {
         Binding(
