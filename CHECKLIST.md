@@ -1609,10 +1609,15 @@ sibling apps in the portfolio is no longer a goal for this app.
       ATS entry, `#if DEBUG` session block, `NoOpGroupBackup`/in-memory
       token store swaps) fully reverted — `git status` shows only the
       `OnboardingView.swift` change and the three new image sets.
-- [ ] **[5, minor] No "why sign in" line on the welcome screen.**
-      `~3k tokens` (CLI) — one line under `signInSection` in
-      `StartView.swift` ("So your groups sync if you switch phones" —
-      matches `SyncNudgeCard`'s existing copy).
+- [x] **[5, minor] No "why sign in" line on the welcome screen.** Done
+      2026-09-12 — added "So you don't lose your groups if you switch
+      phones." as a second line under `signInSection`'s existing "Sign
+      in to create or join a group." in `StartView.swift`, echoing
+      `SyncNudgeCard`'s copy ("Sign in with Apple so you don't lose your
+      groups if you switch phones.") rather than repeating it verbatim,
+      since this screen is provider-neutral (both Apple and Google
+      buttons sit below it). Verified live in the Simulator. `make
+      check` green.
 - [x] **[10, moderate] Group Home fills in piecemeal as it loads — only
       the hero gets a placeholder.** Done 2026-09-12. New
       `GroupHomeSkeleton` enum (`Components/`) — `memberRows()` reuses the
