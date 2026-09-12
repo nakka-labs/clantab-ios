@@ -293,10 +293,9 @@
          small, bounded launch delay — see that section for why), **and**
          every item under "UX audit, build 9" below (added here
          2026-09-12 — that section didn't exist when this gate was first
-         written; all 8 of its critical-severity findings shipped
-         2026-09-11/12, but its moderate/minor items, e.g. [8] merging
-         Friends and Settle Across Groups, are still open as of this
-         writing).
+         written). **All 34 of its findings are now done as of
+         2026-09-12**, including [29]'s pointer to "De-dupe guard on CSV
+         import" in the Feature backlog, which is also done.
       Pricing is done: Price = Free across all 175 territories, set via
       the ASC API 2026-09-10 (`POST /v1/appPriceSchedules`, base
       territory USA at the free price point); 0 IAP products / 0
@@ -1954,11 +1953,9 @@ sibling apps in the portfolio is no longer a goal for this app.
       Verified live: opened Insights on a real seeded group, scrolled
       to "By member", saw the hint immediately under the header, above
       the donut and rows. `make check` green.
-- [ ] **[29, critical] CSV import has no duplicate-import guard.**
-      Already tracked — see "De-dupe guard on CSV import" in the
-      Feature backlog section below (`~20k tokens`, found 2026-09-08).
-      No new item; flagging here only because it's the single
-      highest-risk finding in the audit — CLI should prioritize it.
+- [x] **[29, critical] CSV import has no duplicate-import guard.** Done
+      2026-09-12 — see "De-dupe guard on CSV import" in the Feature
+      backlog section below for the real fix (`CSVDuplicateCheck`).
 - [x] **[30, minor] "Group Options" menu has almost no grouping.**
       Resolved by [6] step 2 (done 2026-09-12, above) — no separate item.
 - [x] **[31, moderate] Welcome-back card and the balance header repeat
@@ -2031,21 +2028,60 @@ sibling apps in the portfolio is no longer a goal for this app.
 
 Splitwise/Tricount/Settle Up/Splid, primary sources only:
 
-- [~] **De-dupe guard on CSV import.** `~20k tokens` (CLI) — found
-      2026-09-08 while fixing Settle Up import (`docs/csv-import-formats.md`).
-      Every imported row gets a fresh client-generated id, by design, so a
+- [x] **De-dupe guard on CSV import.** Done 2026-09-12 — found 2026-09-08
+      while fixing Settle Up import (`docs/csv-import-formats.md`). Every
+      imported row gets a fresh client-generated id, by design, so a
       partial import is safe to retry — but that also means importing the
       *same* file twice (or the same trip exported from two apps by two
-      group members) silently posts every row again. No detection at all
-      today.
-      **Interim done 2026-09-09:** `ImportCSVView`'s review screen shows an
-      amber caution above the Import button ("ClanTab won't skip expenses
-      it already has…") — a re-import is no longer silent, though it's not
-      blocked. `make check` green.
-      **Still open — the real fix:** a definition of "same expense" across
-      apps (date+amount+payer+description, allowing for each app's own
-      rounding) and a check against the group's existing ledger before
-      posting.
+      group members) silently posted every row again.
+      **Interim done 2026-09-09:** `ImportCSVView`'s review screen showed
+      an amber caution above the Import button — a re-import was no longer
+      silent, though it wasn't blocked.
+      **The real fix, done now:** new `CSVDuplicateCheck` (`ClanTabKit`,
+      pure) implements the "same expense" definition this item always
+      wanted — same currency, amount within a small tolerance (another
+      app's own remainder-distribution can land a paisa/cent off what
+      ClanTab would compute, same rounding slack `CSVImport.parseSettleUp`
+      already allows), the same resolved payer, a matching description
+      (case/whitespace-insensitive), and within 36h of the same moment
+      (wide enough to absorb a source app's own timezone-naive export
+      landing on the "wrong" side of midnight UTC) — checked against the
+      group's active (non-trashed) ledger. Same shape for a settlement,
+      minus the description signal. 14 new swift-testing cases covering
+      every branch (exact match, each field's mismatch, both tolerance
+      boundaries, soft-deleted rows excluded, both `DraftExpense`/
+      `DraftSettlement` convenience wrappers).
+      `ImportCSVView` now takes the group's `existingExpenses`/
+      `existingSettlements` (from `GroupHomeView`'s already-loaded
+      `viewModel.state`) and flags every likely-duplicate row on the
+      review screen — a new "N rows already in this group" section
+      listing them, with a "Skip likely duplicates" toggle (on by
+      default, the safer default for a guard whose whole point is
+      stopping an accidental double-post) that actually excludes them
+      from what gets posted, not just from what's shown. A row whose
+      payer is being created fresh can never be flagged — that member
+      doesn't exist in the ledger yet to match against. The finished
+      screen now notes how many were skipped. The amber caution stays,
+      reworded to describe what the check catches and its real limit
+      (a differently-worded description from the source app can still
+      slip through) rather than claiming there's no guard at all.
+      Extracted the new review-screen `Section`s into their own computed
+      functions (`duplicatesSection`/`stillOnlyBestEffortSection`) —
+      folding them straight into `review`'s `Form` hit the same
+      type-checker complexity ceiling this codebase keeps running into
+      (see `GroupSettingsView.joinCodeSection`, `SettleUpView.upiNudgeSection`).
+      **Verification**: the detection logic itself is exhaustively covered
+      by the 14 kit tests above and the whole thing builds/type-checks
+      cleanly end to end (`make check` green: kit + worker + iOS build/
+      tests). The review screen's live behavior (opening a real duplicate
+      file twice and watching the flagged section/toggle) wasn't
+      independently re-verified in the Simulator this session — reaching
+      "Import CSV" requires scrolling a native `Menu` popover to an
+      off-screen item, the same idb limitation already documented for
+      item [21]'s swipe-to-remove verification (a synthetic tap at the
+      item's reported coordinates dismissed the menu instead of
+      activating it, confirmed by checking the worker's request log
+      showed nothing fired).
 - [x] **Balance bubble/circle-pack view.** Done 2026-09-09. `CirclePack`
       in the kit (`Logic/CirclePack.swift`) — pure, view-free: `(id, weight)`
       pairs → `[PackedCircle]` (centre + radius) laid out by an Archimedean
