@@ -1696,16 +1696,43 @@ sibling apps in the portfolio is no longer a goal for this app.
       of Group Settings — red "Danger Zone" header, all three rows with
       warning icons and their consequence text rendering correctly below
       the routine sections. `make check` green (app build + tests).
-- [ ] **[21, moderate] Remove Member fails silently after the swipe.**
-      `~10k tokens` (CLI) — decided: both client-side checks and a
-      specific failure message.
-      1. `GroupSettingsView`'s member row `swipeActions` — grey out /
-         omit "Remove" client-side when state already shows the member
-         has expenses/settlements or is the signed-in user's own claim
-         (the rule the section footer text currently only describes).
-      2. For the remaining server-side rejection cases, surface the
-         specific reason inline instead of the generic
-         `friendlyMessage`.
+- [x] **[21, moderate] Remove Member fails silently after the swipe.**
+      Done 2026-09-12.
+      1. New `GroupSettingsView.isRemovable(_:myMemberId:expenses:settlements:)`
+         (`static`, free of `self` — testable without standing up the
+         view) mirrors the server's own `removeMember` rule exactly: not
+         the signed-in member's own claim, not a payer or split
+         participant on any expense (including a non-primary multi-payer
+         slot), not a party to any settlement. The "Remove" swipe action
+         is omitted (not shown disabled — SwiftUI has no good "disabled
+         swipe action" affordance) when it's already known to fail.
+         Tests: `GroupSettingsViewTests` (7 cases) — self-claim, payer,
+         split participant, non-primary payer, settlement party, and a
+         sanity check that only *other* members' activity doesn't
+         false-positive.
+      2. Turned out to already be true on inspection: `remove(_:)`'s
+         `catch { errorMessage = friendlyMessage(for: error) }` already
+         surfaces the server's own specific message verbatim
+         (`ClanTabClientError.server(_, message)` → that exact string) —
+         not a generic fallback. The one case client-side checks *can't*
+         cover — a member claimed by a *different* identity, since
+         `Member` deliberately never exposes that (`DESIGN.md` §8) —
+         already gets its specific reason ("This member is linked to an
+         account...") this way.
+      **Also found and fixed while testing this, not part of the
+      original scope but directly in its way:** reaching "Group
+      Settings" at all now took a scroll to the bottom of the "More"
+      menu's ~11 rows (Filter, 3× Share, 6× Data, then finally
+      Settings) — the same "the thing you need is buried" complaint [6]
+      was meant to fix, one level down. Reordered so "Settings" leads
+      the menu instead of trailing it.
+      `make check` green (kit + worker + iOS build/tests). **Not fully
+      verified live**: confirmed the Members section and the reordered
+      menu render correctly in the Simulator, but idb couldn't trigger
+      the actual swipe-to-reveal gesture on a member row (same class of
+      limitation as its trouble with the iOS 26 `.searchable` bar and
+      native `Menu` popovers noted elsewhere) — the omission logic
+      itself is covered by the 7 unit tests instead.
 - [x] **[22, minor] Destructive settings rows don't look destructive.**
       Resolved by [20] step 2 (done 2026-09-11, above) — no separate item.
 - [x] **[23, critical] "Mark as Paid" has no confirmation.** Done
