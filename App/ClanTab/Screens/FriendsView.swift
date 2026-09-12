@@ -3,13 +3,12 @@ import ClanTabKit
 
 /// The friends directory (`CHECKLIST.md` "Friends/contacts list... + private
 /// 1:1 tabs") — every other claimed person the caller shares a group with,
-/// regardless of balance. Reached from a toolbar button on `StartView`, next
-/// to Settings. Tapping a friend opens `FriendDetailView`, which is also
-/// where a private 1:1 tab is started or reopened.
+/// regardless of balance. A top-level tab (`CHECKLIST.md` UX audit [6]).
+/// Tapping a friend opens `FriendDetailView`, which is also where a private
+/// 1:1 tab is started or reopened.
 struct FriendsView: View {
     let auth: AuthViewModel
     let onOpenGroup: (String) -> Void
-    let onDone: () -> Void
 
     @State private var friends: [Friend]?
     @State private var loadError: String?
@@ -39,10 +38,6 @@ struct FriendsView: View {
             }
         }
         .navigationTitle("Friends")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("Done", action: onDone) }
-        }
         .task { if friends == nil { await reload() } }
         .refreshable { await reload() }
     }

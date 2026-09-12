@@ -10,8 +10,14 @@ struct RootView: View {
     let whatsNew: WhatsNewStoring
     let returnGap: ReturnGapStoring
 
-    @State private var route: AppRoute = .start
-    @State private var showingSettings = false
+    /// The persistent 4-tab shell (`CHECKLIST.md` UX audit [6]) — which tab is
+    /// selected, independent of what's pushed below it.
+    @State private var selectedTab: MainTab = .home
+    /// The Home tab's own push stack — group drill-down, Add/Join a group,
+    /// and the claim-member screen all live here now (`AppRoute`'s doc
+    /// comment). Opening a group from *any* tab switches to Home and pushes
+    /// here, so there's only ever one place a group screen can be.
+    @State private var homeStack: [AppRoute] = []
     /// The first-run walkthrough (`CHECKLIST.md` "Onboarding walkthrough") —
     /// shown over everything else until it's finished or skipped, once.
     @State private var showOnboarding: Bool
@@ -66,11 +72,12 @@ struct RootView: View {
         Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "") ?? 0
     }
 
-    /// The route to show on launch given the saved launch-screen preference
-    /// (`CHECKLIST.md` "Settings: launch-screen preference"). `nil` means "stay
-    /// on the dashboard" — either that's the preference (`""`), or the pinned
-    /// group is gone / the user is signed out, in which case the caller also
-    /// clears the stale preference. Pure, so it's testable without a host view.
+    /// The Home-tab destination to push on launch given the saved
+    /// launch-screen preference (`CHECKLIST.md` "Settings: launch-screen
+    /// preference"). `nil` means "stay on the dashboard" — either that's the
+    /// preference (`""`), or the pinned group is gone / the user is signed
+    /// out, in which case the caller also clears the stale preference. Pure,
+    /// so it's testable without a host view.
     static func launchRoute(
         preferredGroupId: String,
         isSignedIn: Bool,
@@ -91,19 +98,65 @@ struct RootView: View {
     @AppStorage("clantab.launchGroupId") private var launchGroupId = ""
 
     var body: some View {
-        NavigationStack {
-            // Key the whole route subtree on `route`. SwiftUI otherwise treats
-            // two hits of the same `switch` case as one view identity — so a
-            // `.group("A")` → `.group("B")` switch, or a `.claimMember` screen
-            // re-targeted by a second deep link, never re-runs the child's
-            // `init` and its `@State` (`GroupHomeView.viewModel`,
-            // `ClaimMemberView.members`, …) stays pinned to the first value.
-            // `.id(route)` forces a teardown/rebuild whenever the associated
-            // values change (`CHECKLIST.md` "Fix: group switching…" + the
-            // same-view-identity audit).
-            content
-                .id(route)
-                .transition(Self.routeTransition)
+        TabView(selection: $selectedTab) {
+            NavigationStack(path: $homeStack) {
+                StartView(
+                    onCreate: { homeStack.append(.createGroup) },
+                    onJoinWithCode: { homeStack.append(.joinGroup) },
+                    groups: yourGroups,
+                    onOpenGroup: { enterGroup($0) },
+                    onRemoveGroup: { groupId in
+                        knownGroups.forget(groupId: groupId)
+                        knownGroupsRevision += 1
+                    },
+                    isSignedIn: auth.isSignedIn,
+                    isSigningIn: auth.isBusy,
+                    authError: auth.errorMessage,
+                    onSignIn: { identityToken, userID, authCode in
+                        Task { await auth.signIn(identityToken: identityToken, userID: userID, authorizationCode: authCode) }
+                    },
+                    onSignInWithGoogle: { identityToken in
+                        Task { await auth.signInWithGoogle(identityToken: identityToken) }
+                    },
+                    onRefresh: {
+                        await auth.reconcileGroupBalances(force: true)
+                        knownGroupsRevision += 1
+                    },
+                    showWelcomeBack: showWelcomeBack,
+                    onDismissWelcomeBack: { showWelcomeBack = false }
+                )
+                .navigationDestination(for: AppRoute.self) { route in homeDestination(route) }
+            }
+            .tabItem { Label("Home", systemImage: "house") }
+            .tag(MainTab.home)
+
+            // Friends/Insights need a signed-in identity to mean anything
+            // (`AGENTS.md` "Mandatory identity") — hidden rather than shown
+            // empty pre-auth, same call as the old hard sign-in wall on
+            // `StartView` itself.
+            if auth.isSignedIn {
+                NavigationStack {
+                    FriendsView(auth: auth, onOpenGroup: { enterGroup($0) })
+                }
+                .tabItem { Label("Friends", systemImage: "person.2") }
+                .tag(MainTab.friends)
+
+                NavigationStack {
+                    InsightsHubView(client: client, knownGroups: knownGroups)
+                }
+                .tabItem { Label("Insights", systemImage: "chart.bar") }
+                .tag(MainTab.insights)
+            }
+
+            NavigationStack {
+                SettingsView(
+                    auth: auth, client: client, knownGroups: knownGroups,
+                    onboarding: onboarding, coachMarks: coachMarks,
+                    onDone: { selectedTab = .home }
+                )
+            }
+            .tabItem { Label("Settings", systemImage: "gearshape") }
+            .tag(MainTab.settings)
         }
         .environment(\.avatarImageLoader, avatarImageLoader)
         .task {
@@ -119,7 +172,7 @@ struct RootView: View {
                 isSignedIn: auth.isSignedIn,
                 isKnownGroup: { id in knownGroups.all().contains { $0.groupId == id } }
             ) {
-                route = launch
+                homeStack = [launch]
             } else if !launchGroupId.isEmpty, auth.isSignedIn,
                       !knownGroups.all().contains(where: { $0.groupId == launchGroupId }) {
                 launchGroupId = ""
@@ -162,8 +215,15 @@ struct RootView: View {
         }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             refreshQuickAction()
-            // A new identity must never see the previous one's cached photos.
-            if !signedIn { avatarImageLoader.clearAll() }
+            if !signedIn {
+                // A new identity must never see the previous one's cached
+                // photos, and there's no guest tier to fall back to viewing
+                // (`AGENTS.md`) — drop back to the Home tab's root and clear
+                // whatever was pushed under it.
+                avatarImageLoader.clearAll()
+                selectedTab = .home
+                homeStack = []
+            }
         }
         .onChange(of: auth.groups) { _, _ in refreshQuickAction() }
         .onChange(of: knownGroupsRevision) { _, _ in refreshQuickAction() }
@@ -173,18 +233,9 @@ struct RootView: View {
             if isMember(pending.groupId) {
                 enterGroup(pending.groupId, accessToken: pending.accessToken)
             } else {
-                route = .claimMember(groupId: pending.groupId, accessToken: pending.accessToken)
+                selectedTab = .home
+                homeStack = [.claimMember(groupId: pending.groupId, accessToken: pending.accessToken)]
             }
-        }
-        .sheet(isPresented: $showingSettings) {
-            NavigationStack {
-                SettingsView(
-                    auth: auth, client: client, knownGroups: knownGroups, onboarding: onboarding, coachMarks: coachMarks,
-                    onDone: { showingSettings = false }
-                )
-            }
-            .environment(\.avatarImageLoader, avatarImageLoader)
-            .materialSheet()
         }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView {
@@ -257,57 +308,28 @@ struct RootView: View {
         knownGroups.all().first { $0.groupId == groupId }?.accessToken
     }
 
+    /// Everything pushed under the Home tab (`AppRoute`'s doc comment) —
+    /// `NavigationStack`'s own value-based push identity means two different
+    /// `.group(groupId:)` values are naturally distinct destinations with
+    /// fresh `@State`, so the old `.id(route)` same-case-identity workaround
+    /// (`CHECKLIST.md` "Fix: group switching…") isn't needed here anymore.
     @ViewBuilder
-    private var content: some View {
+    private func homeDestination(_ route: AppRoute) -> some View {
         switch route {
-        case .start:
-            StartView(
-                onCreate: { route = .createGroup },
-                onJoinWithCode: { route = .joinGroup },
-                groups: yourGroups,
-                onOpenGroup: { enterGroup($0) },
-                onRemoveGroup: { groupId in
-                    knownGroups.forget(groupId: groupId)
-                    knownGroupsRevision += 1
-                },
-                isSignedIn: auth.isSignedIn,
-                isSigningIn: auth.isBusy,
-                authError: auth.errorMessage,
-                onSignIn: { identityToken, userID, authCode in
-                    Task { await auth.signIn(identityToken: identityToken, userID: userID, authorizationCode: authCode) }
-                },
-                onSignInWithGoogle: { identityToken in
-                    Task { await auth.signInWithGoogle(identityToken: identityToken) }
-                },
-                onOpenSettings: { showingSettings = true },
-                onOpenFriends: { route = .friends },
-                onRefresh: {
-                    await auth.reconcileGroupBalances(force: true)
-                    knownGroupsRevision += 1
-                },
-                showWelcomeBack: showWelcomeBack,
-                onDismissWelcomeBack: { showWelcomeBack = false }
-            )
-        case .friends:
-            FriendsView(
-                auth: auth,
-                onOpenGroup: { enterGroup($0) },
-                onDone: { route = .start }
-            )
         case .createGroup:
             CreateGroupView(
                 client: client,
                 auth: auth,
                 onCreated: { enterGroup($0, accessToken: $1) },
-                onCancel: { route = .start }
+                onCancel: { if !homeStack.isEmpty { homeStack.removeLast() } }
             )
         case .joinGroup:
             JoinGroupView(
                 client: client,
                 onResolved: { groupId, accessToken in
-                    route = .claimMember(groupId: groupId, accessToken: accessToken)
+                    homeStack.append(.claimMember(groupId: groupId, accessToken: accessToken))
                 },
-                onCancel: { route = .start }
+                onCancel: { if !homeStack.isEmpty { homeStack.removeLast() } }
             )
         case .claimMember(let groupId, let accessToken):
             ClaimMemberView(
@@ -316,7 +338,7 @@ struct RootView: View {
                 accessToken: accessToken,
                 auth: auth,
                 onClaimed: { enterGroup($0, accessToken: accessToken) },
-                onCancel: { route = .start }
+                onCancel: { homeStack = [] }
             )
         case .group(let groupId):
             GroupHomeView(
@@ -327,8 +349,6 @@ struct RootView: View {
                 accessToken: knownAccessToken(for: groupId),
                 initialAction: pendingAddExpenseGroupId == groupId ? .addExpense : nil,
                 onInitialActionConsumed: { pendingAddExpenseGroupId = nil },
-                onOpenSettings: { showingSettings = true },
-                onOpenGroupsHub: { withAnimation(.claimSettle) { route = .start } },
                 onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
@@ -338,41 +358,41 @@ struct RootView: View {
     private func handleDeepLink(_ url: URL) {
         switch Self.resolveDeepLink(url, isMember: isMember, isSignedIn: auth.isSignedIn) {
         case .openGroup(let groupId, let accessToken): enterGroup(groupId, accessToken: accessToken)
-        case .claimMember(let groupId, let accessToken): route = .claimMember(groupId: groupId, accessToken: accessToken)
+        case .claimMember(let groupId, let accessToken):
+            selectedTab = .home
+            homeStack = [.claimMember(groupId: groupId, accessToken: accessToken)]
         case .needsSignIn(let groupId, let accessToken):
             pendingDeepLink = (groupId, accessToken)
-            route = .start
+            selectedTab = .home
+            homeStack = []
         case nil: break
         }
     }
 
-    /// The spring hero for opening / leaving a group (`CHECKLIST.md`
-    /// "Spring/matched-geometry transition"). A literal cross-screen
-    /// `matchedGeometryEffect` isn't possible here — `.id(route)` tears the
-    /// old screen down before the new one exists, so source and target are
-    /// never co-present — so this is the achievable version: the incoming
-    /// screen springs up from 95% with a cross-fade on `Animation.claimSettle`
-    /// (that curve's own doc names this exact use). Group open/close only;
-    /// the form routes (`.createGroup` etc.) stay instant.
-    static let routeTransition: AnyTransition = .asymmetric(
-        insertion: .scale(scale: 0.95).combined(with: .opacity),
-        removal: .opacity
-    )
-
     private func enterGroup(_ groupId: String, accessToken: String? = nil) {
         knownGroups.remember(groupId: groupId, name: nil, accessToken: accessToken, at: Date())
-        withAnimation(.claimSettle) { route = .group(groupId: groupId) }
+        selectedTab = .home
+        // A flat reset, not an append — reached from a group row (stack
+        // already empty), the create/join chain (drops those forms from the
+        // back-stack, matching the old full-route-swap behavior), or another
+        // tab entirely (Friends). Either way landing straight on the group is
+        // the right outcome, and NavigationStack animates the transition on
+        // its own now that this is a genuine push, not a content swap.
+        homeStack = [.group(groupId: groupId)]
         refreshQuickAction()
     }
 
     /// The Home Screen "Add Expense" quick action (`CHECKLIST.md`) fired for
     /// `groupId`: open it, and flag it so `GroupHomeView` presents Add Expense
-    /// once. Falls back to the start screen if the group isn't ours (a stale
-    /// shortcut after leaving it).
+    /// once. Falls back to the Home tab's root if the group isn't ours (a
+    /// stale shortcut after leaving it).
     private func handleQuickActionAddExpense(groupId: String) {
         showOnboarding = false
-        showingSettings = false
-        guard auth.isSignedIn, isMember(groupId) else { route = .start; return }
+        guard auth.isSignedIn, isMember(groupId) else {
+            selectedTab = .home
+            homeStack = []
+            return
+        }
         pendingAddExpenseGroupId = groupId
         enterGroup(groupId, accessToken: knownAccessToken(for: groupId))
     }
@@ -390,7 +410,7 @@ struct RootView: View {
     /// (pre-existing behavior, unchanged by `MANDATORY_LOGIN_PLAN.md` Part 3).
     private func leaveGroup(_ groupId: String) {
         knownGroups.forget(groupId: groupId)
-        withAnimation(.claimSettle) { route = .start }
+        homeStack = []
     }
 
     /// Where a `/g/:groupId` link should land. Pure so it can be tested without a

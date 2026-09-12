@@ -14,12 +14,6 @@ struct GroupHomeView: View {
     private let auth: AuthViewModel
     private let initialAction: GroupHomeAction?
     private let onInitialActionConsumed: () -> Void
-    private let onOpenSettings: () -> Void
-    /// Leave this group for the dashboard (`StartView`) — the groups list and
-    /// the create/join actions all live there now, so Group Home no longer
-    /// carries its own switcher sheet (`CHECKLIST.md` "Repoint Group Home's
-    /// 'Your Groups' button; delete the dead switcher sheet").
-    private let onOpenGroupsHub: () -> Void
     private let onLeaveGroup: () -> Void
     private let onGroupUnavailable: () -> Void
     private let recurringTemplatesStore: RecurringTemplatesStoring = UserDefaultsRecurringTemplatesStore()
@@ -63,8 +57,6 @@ struct GroupHomeView: View {
         accessToken: String? = nil,
         initialAction: GroupHomeAction? = nil,
         onInitialActionConsumed: @escaping () -> Void = {},
-        onOpenSettings: @escaping () -> Void = {},
-        onOpenGroupsHub: @escaping () -> Void = {},
         onLeaveGroup: @escaping () -> Void = {},
         onGroupUnavailable: @escaping () -> Void = {}
     ) {
@@ -74,8 +66,6 @@ struct GroupHomeView: View {
         self.initialAction = initialAction
         self.onInitialActionConsumed = onInitialActionConsumed
         _pendingInitialAction = State(initialValue: initialAction)
-        self.onOpenSettings = onOpenSettings
-        self.onOpenGroupsHub = onOpenGroupsHub
         self.onLeaveGroup = onLeaveGroup
         self.onGroupUnavailable = onGroupUnavailable
         _viewModel = State(initialValue: GroupViewModel(
@@ -153,7 +143,12 @@ struct GroupHomeView: View {
                     balances: viewModel.myBalances,
                     accent: GroupColor.color(forId: viewModel.groupId),
                     wash: GroupColor.wash(forId: viewModel.groupId),
-                    isLoading: viewModel.state == nil
+                    isLoading: viewModel.state == nil,
+                    // Promoted onto the card itself, replacing the separate
+                    // "Settle Up" row below (`CHECKLIST.md` UX audit [6] step
+                    // 4) — shown only when the signed-in member actually has
+                    // something to settle, same gate the row used to have.
+                    onSettleUp: viewModel.myBalances.isEmpty ? nil : { isPresentingSettleUp = true }
                 )
                 if let state = viewModel.state, showsBubblePage(state) {
                     // A second, swipeable page — the balance-bubble view
@@ -172,31 +167,6 @@ struct GroupHomeView: View {
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
-
-            if let settlements = viewModel.state?.simplifiedSettlements, !settlements.isEmpty {
-                Section {
-                    Button {
-                        isPresentingSettleUp = true
-                    } label: {
-                        Label("Settle Up", systemImage: "checkmark.circle")
-                    }
-                }
-            }
-
-            if let state = viewModel.state, !state.expenses.isEmpty {
-                Section {
-                    NavigationLink {
-                        InsightsView(
-                            expenses: state.expenses,
-                            members: state.members,
-                            groupName: state.group.name,
-                            groupEmoji: state.group.emoji
-                        )
-                    } label: {
-                        Label("Spending Insights", systemImage: "chart.bar")
-                    }
-                }
-            }
 
             if let state = viewModel.state {
                 Section("Members") {
@@ -367,24 +337,14 @@ struct GroupHomeView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: onOpenSettings) {
-                    Label("Settings", systemImage: "gearshape")
-                }
-            }
-            ToolbarItem(placement: .topBarLeading) {
-                // Back to the dashboard — the groups list, cross-group totals
-                // and the create/join actions all live there.
-                Button(action: onOpenGroupsHub) {
-                    Label("Your Groups", systemImage: "square.on.square")
-                }
-            }
+            // Down to two items (`CHECKLIST.md` UX audit [6] step 2/3): Add
+            // Expense, primary, and one "More" menu holding everything else.
+            // The Settings gear and "Your Groups" icon that used to live here
+            // are gone — both are a tap away on the tab bar now, and a plain
+            // NavigationStack back-swipe replaces "Your Groups" for popping
+            // out of the group itself.
             ToolbarItemGroup(placement: .primaryAction) {
-                if let state = viewModel.state, !state.expenses.isEmpty || !state.settlements.isEmpty {
-                    activityFilterMenu(state: state)
-                }
-                groupSettingsButton
-                shareMenu
+                moreMenu
                 Button {
                     isPresentingAddExpense = true
                 } label: {
@@ -653,63 +613,69 @@ struct GroupHomeView: View {
         return ExportFile.write(csv, filename: "\(filenameBase)-export.csv")
     }
 
-    /// Group Settings gets its own toolbar entry (found 2026-09-09: it was
-    /// buried as the last of 7 items inside `shareMenu`, a menu labeled and
-    /// iconed as "share" — the wrong home for rename/currency/leave-group).
-    /// `slider.horizontal.3` matches the icon `GroupSettingsView` already
-    /// used for its own row there, so nothing about the destination changes,
-    /// only how it's reached.
-    private var groupSettingsButton: some View {
-        Button {
-            isPresentingGroupSettings = true
-        } label: {
-            Label("Group Settings", systemImage: "slider.horizontal.3")
-        }
-        .disabled(viewModel.state == nil)
-    }
-
+    /// Everything that isn't Add Expense, in one overflow menu
+    /// (`CHECKLIST.md` UX audit [6] step 2) — Group Settings, sharing,
+    /// export/import, and the activity filter, each `Section` reading as
+    /// its own cluster (Filter / Share / Data / Settings) with a divider
+    /// between them. Used to be two separate toolbar items (`shareMenu`
+    /// oddly holding Group Settings too, plus a standalone filter icon).
     @ViewBuilder
-    private var shareMenu: some View {
+    private var moreMenu: some View {
         if let state = viewModel.state {
             Menu {
-                ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: viewModel.groupId, accessToken: viewModel.accessToken))
-                ShareLink("Share Join Code (\(state.group.joinCode))", item: state.group.joinCode)
-                if let viewLinkURL = viewModel.viewLinkURL {
-                    ShareLink("Share View-only Balances", item: viewLinkURL)
+                if !state.expenses.isEmpty || !state.settlements.isEmpty {
+                    Section("Filter") {
+                        activityFilterMenu(state: state)
+                    }
                 }
 
-                let filenameBase = ExportFile.sanitizedFilename(state.group.name)
-                let csv = Export.csv(members: state.members, expenses: state.expenses, settlements: state.settlements)
-                if let csvURL = ExportFile.write(csv, filename: "\(filenameBase)-export.csv") {
-                    ShareLink("Export CSV", item: csvURL)
+                Section("Share") {
+                    ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: viewModel.groupId, accessToken: viewModel.accessToken))
+                    ShareLink("Share Join Code (\(state.group.joinCode))", item: state.group.joinCode)
+                    if let viewLinkURL = viewModel.viewLinkURL {
+                        ShareLink("Share View-only Balances", item: viewLinkURL)
+                    }
                 }
 
-                if let jsonData = try? Export.json(
-                    groupName: state.group.name,
-                    currency: state.group.currency,
-                    members: state.members,
-                    expenses: state.expenses,
-                    settlements: state.settlements
-                ), let jsonURL = ExportFile.write(jsonData, filename: "\(filenameBase)-export.json") {
-                    ShareLink("Export JSON", item: jsonURL)
+                Section("Data") {
+                    let filenameBase = ExportFile.sanitizedFilename(state.group.name)
+                    let csv = Export.csv(members: state.members, expenses: state.expenses, settlements: state.settlements)
+                    if let csvURL = ExportFile.write(csv, filename: "\(filenameBase)-export.csv") {
+                        ShareLink("Export CSV", item: csvURL)
+                    }
+
+                    if let jsonData = try? Export.json(
+                        groupName: state.group.name,
+                        currency: state.group.currency,
+                        members: state.members,
+                        expenses: state.expenses,
+                        settlements: state.settlements
+                    ), let jsonURL = ExportFile.write(jsonData, filename: "\(filenameBase)-export.json") {
+                        ShareLink("Export JSON", item: jsonURL)
+                    }
+
+                    if let pdfURL = GroupReportPDF.write(from: state) {
+                        ShareLink("Export PDF Report", item: pdfURL)
+                    }
+
+                    Button("Import from CSV", systemImage: "square.and.arrow.down") {
+                        isPresentingImport = true
+                    }
+                    Button("Recently Deleted", systemImage: "trash") {
+                        isPresentingRecentlyDeleted = true
+                    }
+                    Button("Recurring Reminders", systemImage: "repeat") {
+                        isPresentingRecurringReminders = true
+                    }
                 }
 
-                if let pdfURL = GroupReportPDF.write(from: state) {
-                    ShareLink("Export PDF Report", item: pdfURL)
-                }
-
-                Divider()
-                Button("Import from CSV", systemImage: "square.and.arrow.down") {
-                    isPresentingImport = true
-                }
-                Button("Recently Deleted", systemImage: "trash") {
-                    isPresentingRecentlyDeleted = true
-                }
-                Button("Recurring Reminders", systemImage: "repeat") {
-                    isPresentingRecurringReminders = true
+                Section("Settings") {
+                    Button("Group Settings", systemImage: "slider.horizontal.3") {
+                        isPresentingGroupSettings = true
+                    }
                 }
             } label: {
-                Label("Group Options", systemImage: "square.and.arrow.up")
+                Label("More", systemImage: "ellipsis.circle")
             }
         }
     }

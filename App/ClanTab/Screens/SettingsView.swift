@@ -2,11 +2,12 @@ import SwiftUI
 import PhotosUI
 import ClanTabKit
 
-/// Account settings, reachable from the start screen and Group Home. Sign in
-/// is mandatory (`MANDATORY_LOGIN_PLAN.md` Part 3) — this screen still shows a
-/// sign-in prompt for the brief window between "signed out" and "signed back
-/// in," plus — Apple Guideline 5.1.1(v) — "Delete Account" once signed in.
-/// `ACCOUNTS_DESIGN.md` §10/§11.
+/// Account settings — a top-level tab (`CHECKLIST.md` UX audit [6]; used to be
+/// a sheet reached from the start screen and Group Home's toolbar gear).
+/// Sign in is mandatory (`MANDATORY_LOGIN_PLAN.md` Part 3) — this screen
+/// still shows a sign-in prompt for the brief window between "signed out"
+/// and "signed back in," plus — Apple Guideline 5.1.1(v) — "Delete Account"
+/// once signed in. `ACCOUNTS_DESIGN.md` §10/§11.
 struct SettingsView: View {
     let auth: AuthViewModel
     let client: ClanTabClient
@@ -14,6 +15,10 @@ struct SettingsView: View {
     /// "Show tips again" (`CHECKLIST.md`) resets both of these.
     let onboarding: OnboardingStoring
     let coachMarks: CoachMarkStoring?
+    /// Fires once, right after "Delete Account" actually succeeds — there's
+    /// no sheet to dismiss anymore now that this is a tab, so `RootView`
+    /// just uses it to switch back to the Home tab (which reacts to
+    /// `auth.isSignedIn` on its own).
     let onDone: () -> Void
 
     @Environment(\.avatarImageLoader) private var avatarLoader
@@ -119,19 +124,7 @@ struct SettingsView: View {
         } message: {
             Text("The walkthrough and every one-time tip will show again.")
         }
-        .materialSheetContent()
         .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.inline)
-        // Pin the bar's background from the first frame — without this the
-        // nav bar briefly flashes the tint colour as the sheet slides up
-        // (a SwiftUI NavigationStack-in-.sheet artifact; the status bar
-        // itself is fine — confirmed 2026-09-07).
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done", action: onDone)
-            }
-        }
         .onChange(of: pickedPhoto) { _, item in
             guard let item else { return }
             Task { await handlePickedPhoto(item) }

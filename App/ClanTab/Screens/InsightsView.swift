@@ -4,8 +4,11 @@ import ClanTabKit
 
 /// Spending visualisations for a group — total, over time, by category, and by
 /// member. All computation is `ClanTabKit.Insights` (pure); this view only lays
-/// the results out. Reached from `GroupHomeView`; shows nothing but an empty
-/// state until the group has at least one expense.
+/// the results out. Reached by drilling into a group from the top-level
+/// Insights tab (`InsightsHubView`, `CHECKLIST.md` UX audit [6]) — its own
+/// nav title carries the group's name since nothing else on screen does
+/// anymore. Shows nothing but an empty state until the group has at least
+/// one expense.
 struct InsightsView: View {
     let expenses: [Expense]
     let members: [Member]
@@ -48,6 +51,15 @@ struct InsightsView: View {
     }
     private var selectedMember: Member? {
         selectedMemberId.flatMap { id in members.first { $0.id == id } }
+    }
+
+    /// The group's emoji + name when there's a real one to show, "Insights"
+    /// otherwise (`groupName`'s own default, `"Your group"`, would read oddly
+    /// as a title).
+    private var navigationTitleText: String {
+        guard groupName != "Your group" else { return "Insights" }
+        guard let groupEmoji, !groupEmoji.isEmpty else { return groupName }
+        return "\(groupEmoji) \(groupName)"
     }
 
     var body: some View {
@@ -140,7 +152,7 @@ struct InsightsView: View {
             }
         }
         .background(Surface.canvas)
-        .navigationTitle("Insights")
+        .navigationTitle(navigationTitleText)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let shareCard, !expenses.isEmpty {

@@ -1,14 +1,11 @@
 import Foundation
 
-/// Root navigation state. There's no tab bar or deep hierarchy in v1 — the app
-/// is either showing the start chooser, one of the two onboarding forms, or the
-/// single active group. Every route past `.start` requires a signed-in session
-/// (`MANDATORY_LOGIN_PLAN.md` Part 3) — there's no guest tier anymore.
+/// A destination pushed onto the Home tab's `NavigationStack`
+/// (`RootView.homeStack`, `CHECKLIST.md` UX audit [6]). The app root is a
+/// persistent 4-tab bar (`MainTabView`) — Home/Friends/Insights/Settings —
+/// not a single-stack switch anymore; these are only the things that still
+/// push/pop below the Home tab's root (`StartView`).
 enum AppRoute: Hashable {
-    case start
-    /// The friends directory (`CHECKLIST.md` "Friends/contacts list...
-    /// + private 1:1 tabs") — reached from a toolbar button on `.start`.
-    case friends
     case createGroup
     /// "Join with a Code": type a 6-character code, resolved to a `groupId`,
     /// then hands off to `.claimMember`.

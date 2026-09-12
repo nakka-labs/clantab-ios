@@ -18,6 +18,11 @@ struct BalanceHeroView: View {
     /// the accent colour rather than a real balance (`CHECKLIST.md`
     /// "Spring/matched-geometry transition").
     var isLoading = false
+    /// A persistent "Settle Up" CTA on the card itself (`CHECKLIST.md` UX
+    /// audit [6] step 4) — used to be a separate row in Group Home's
+    /// Members/Activity list; `nil` (the default) hides it, e.g. while
+    /// `balances` is empty (nothing to settle for the signed-in member).
+    var onSettleUp: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 8) {
@@ -44,6 +49,15 @@ struct BalanceHeroView: View {
                             .minimumScaleFactor(0.6)
                             .lineLimit(1)
                     }
+                }
+                if let onSettleUp {
+                    Button(action: onSettleUp) {
+                        Label("Settle Up", systemImage: "checkmark.circle")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(accent ?? .accentColor)
+                    .controlSize(.small)
+                    .padding(.top, 6)
                 }
             }
         }

@@ -18,10 +18,6 @@ struct StartView: View {
     var authError: String? = nil
     var onSignIn: (_ identityToken: String, _ userID: String, _ authorizationCode: String?) -> Void = { _, _, _ in }
     var onSignInWithGoogle: (_ identityToken: String) -> Void = { _ in }
-    var onOpenSettings: () -> Void = {}
-    /// The friends directory (`CHECKLIST.md` "Friends/contacts list...
-    /// + private 1:1 tabs") — a toolbar button next to Settings.
-    var onOpenFriends: () -> Void = {}
     /// Pull-to-refresh on the groups list — the dashboard fallback sync
     /// (`CHECKLIST.md` "Dashboard fallback sync for missed/denied push").
     var onRefresh: () async -> Void = {}
@@ -118,21 +114,13 @@ struct StartView: View {
                     .padding(.bottom, 20)
             }
         }
-        .toolbar {
-            if isSignedIn {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onOpenSettings) {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onOpenFriends) {
-                        Label("Friends", systemImage: "person.2")
-                    }
-                    .coachMark(id: "start.friendsTab", text: "See everyone you split with, across every group.", edge: .bottom)
-                }
-            }
-        }
+        // Settings and Friends used to be icon-only toolbar buttons here
+        // (`CHECKLIST.md` UX audit [6]) — both are now persistent, labeled
+        // tab-bar items one tap away, so there's nothing left for this
+        // screen's own toolbar to carry. No coach mark needed either: a
+        // tab bar item is always visible with its own label, unlike the
+        // icon-only button it replaced.
+        //
         // Before sign-in there's no title or toolbar — drop the empty nav bar
         // so the welcome hero centres against the full screen.
         .toolbar(isSignedIn ? .automatic : .hidden, for: .navigationBar)
