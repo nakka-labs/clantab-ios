@@ -1779,10 +1779,18 @@ sibling apps in the portfolio is no longer a goal for this app.
       helper. Verified live: added an itemized expense, toggled a member
       off and back on, watched the avatar dim/highlight and the
       checkmark badge appear/disappear each time. `make check` green.
-- [ ] **[19, minor] Inline `+`/`-` calculator has no affordance before
-      you focus the field.** `~4k tokens` (CLI) — `AddExpenseView`'s
-      amount `TextField`; add a persistent subtle hint (placeholder text
-      mentioning it, or keep the buttons visible pre-focus).
+- [x] **[19, minor] Inline `+`/`-` calculator has no affordance before
+      you focus the field.** Done 2026-09-12 — went with "keep the
+      buttons visible pre-focus": the `+`/`−` buttons next to the amount
+      `TextField` no longer live behind `if amountFocused`, so they're
+      there from the moment the sheet opens, hinting the field takes an
+      expression before anyone's tapped in. Tapping either one now also
+      sets `amountFocused = true`, so they're a valid way to *start* an
+      expression, not just continue one already being typed — pressing
+      "+" on a fresh empty field focuses it and is a no-op otherwise
+      (same guard `appendOperator` already had). Verified live: opened
+      Add Expense, saw both buttons before touching the field, tapped
+      "+" cold and typed "12 + 8" straight through. `make check` green.
 - [x] **[20, critical] Group Settings mixes routine and irreversible
       actions with identical visual weight.** Done 2026-09-11.
       Name/currency/emoji/cover/default-split/members/UPI/"Report a
