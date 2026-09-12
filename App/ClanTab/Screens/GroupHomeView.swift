@@ -160,6 +160,19 @@ struct GroupHomeView: View {
                     }
                     .frame(height: 250)
                     .tabViewStyle(.page(indexDisplayMode: .always))
+                    // The coach mark alone only ever fires once
+                    // (`CHECKLIST.md` UX audit [11]) — this small chevron
+                    // next to the page dots stays up for good, so the
+                    // swipe is still discoverable long after that one-time
+                    // bubble's been dismissed.
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .padding(.trailing, 12)
+                            .padding(.bottom, 6)
+                            .accessibilityHidden(true)
+                    }
                     .coachMark(id: "groupHome.bubbleSwipe", text: "Swipe for a bubble view of who owes what.", edge: .bottom)
                 } else {
                     hero
