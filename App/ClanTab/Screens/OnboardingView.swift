@@ -11,24 +11,31 @@ struct OnboardingView: View {
 
     private struct Page: Identifiable {
         let id = UUID()
-        let symbol: String
+        /// An `Assets.xcassets` image name — a real cropped screenshot of the
+        /// screen being described, not an SF Symbol standing in for it
+        /// (`CHECKLIST.md` UX audit [4]). Each is a genuine "Goa Trip" sample
+        /// group run through the actual app (same sample data as
+        /// `PreviewGroupHomeView`'s pre-auth preview), captured in the
+        /// Simulator and cropped to just the illustrative content — no
+        /// status bar or tab bar.
+        let imageName: String
         let title: String
         let body: String
     }
 
     private let pages: [Page] = [
         Page(
-            symbol: "person.3.fill",
+            imageName: "OnboardingGroupHome",
             title: "A group for every split",
             body: "Start one for a trip, a shared house, or a night out, then add the people splitting the costs. They don't need an account."
         ),
         Page(
-            symbol: "list.bullet.rectangle.fill",
+            imageName: "OnboardingAddExpense",
             title: "Add expenses as they happen",
             body: "Log who paid and how to split it — equally, exact amounts, or percentages. ClanTab keeps the running tally."
         ),
         Page(
-            symbol: "checkmark.seal.fill",
+            imageName: "OnboardingSettleUp",
             title: "Settle up, sorted",
             body: "One tap shows exactly who owes whom, simplified to the fewest payments. Mark them paid and you're square."
         ),
@@ -84,12 +91,18 @@ struct OnboardingView: View {
     }
 
     private func pageView(_ item: Page) -> some View {
-        VStack(spacing: 28) {
-            Image(systemName: item.symbol)
-                .font(.system(size: 68, weight: .medium))
-                .foregroundStyle(.tint)
-                .frame(width: 148, height: 148)
-                .background(Color.accentColor.opacity(0.12), in: Circle())
+        VStack(spacing: 20) {
+            Image(item.imageName)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08))
+                }
+                .shadow(color: .black.opacity(0.12), radius: 16, y: 8)
+                .padding(.horizontal, 40)
+                .frame(maxHeight: 340)
                 .accessibilityHidden(true)
 
             VStack(spacing: 12) {
