@@ -1783,13 +1783,29 @@ sibling apps in the portfolio is no longer a goal for this app.
       folds into the TestFlight pass. `make check` green (app build +
       tests, confirmationDialog code path matches the already-verified
       pattern in `GroupSettingsView`/`SettleUpView` above).
-- [ ] **[26, moderate] Join code is shown exactly once and never
-      again.** `~10k tokens` (CLI) — decided: persist it.
-      1. `CreateGroupResponse.joinCode` — persist client-side
-         (`KnownGroupsStoring`) at group creation.
-      2. Re-surface it in Group Settings and the Group Options/share
-         menu alongside the invite link/QR, wherever those already
-         live.
+- [x] **[26, moderate] Join code is shown exactly once and never
+      again.** Done 2026-09-12. Step 1 turned out unnecessary on
+      inspection: `GroupSummary.joinCode` is a required field on every
+      `GroupStateResponse`, not just `CreateGroupResponse` — the server
+      already returns the live code on every fetch, and `GroupHomeView`'s
+      "More" menu already had a `ShareLink("Share Join Code (...)")`
+      reading it live (`Group Home dashboard`/`state.group.joinCode`).
+      Nothing to persist client-side that the server doesn't already
+      hand back for free. Step 2's actual gap: `GroupSettingsView` itself
+      never showed it. New "Join Code" section (monospaced, selectable,
+      with a copy button — same shape as `MemberProfileView`'s UPI ID
+      row) added there, reading `state.group.joinCode` live like the
+      Share menu already does.
+      **Compiler note**: the extracted section had to become a whole
+      `joinCodeSection` computed var, not just its inner row — adding it
+      inline pushed `GroupSettingsView.body` (already a large `Form`)
+      over the type checker's complexity ceiling ("unable to type-check
+      this expression in reasonable time"), the same reason this file
+      already extracts `coverImageSection`/`defaultSplitSection`/etc.
+      **Verified in the Simulator**: opened Group Settings on a real
+      seeded group — "Join Code" shows the correct live code
+      (`QSQN3M`), matching what `CreateGroupResponse` returned at
+      creation. `make check` green (kit + worker + iOS build/tests).
 - [ ] **[27, moderate] Insights charts give no cue that they're
       touchable.** `~8k tokens` (CLI) — `InsightsView`'s
       `overTimeChart`/`memberDonut`/`categoryPie`; add a one-time coach
