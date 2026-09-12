@@ -1984,15 +1984,41 @@ sibling apps in the portfolio is no longer a goal for this app.
       2026-09-11 with their own Simulator passes).
 - [x] **[32, minor] Duplicate of [6]** — resolved by [6] step 3 (done
       2026-09-12, above), not a separate fix.
-- [ ] **[33, minor] Generic errors give no retry or diagnosis.**
-      `~15k tokens` (CLI) — decided: split offline from server/decoding
-      failures, add retry on the highest-traffic forms.
-      1. `friendlyMessage(for:)` in `ClientErrorMessage.swift` — check
-         for a `URLError` (offline/timeout) before it reaches
+- [x] **[33, minor] Generic errors give no retry or diagnosis.** Done
+      2026-09-12.
+      1. `friendlyMessage(for:)` (`ClientErrorMessage.swift`) now checks
+         for a transport-level `URLError` first — walking
+         `NSUnderlyingErrorKey` a few levels down, the same technique
+         `SignInErrorMessage.isOffline` already used for the sign-in
+         buttons (kept as an independent copy — different callers,
+         different test files) — before it ever reaches
          `ClanTabClientError`'s generic `.invalidResponse`/
-         `.decodingFailed` case, and give offline its own message.
-      2. Add a retry affordance on Add Expense and Settle Up specifically
-         (the two highest-traffic write forms) — not app-wide.
+         `.decodingFailed` case. A `URLError` never actually reaches
+         `ClanTabClient` at all (it's thrown straight out of
+         `URLSession` by `transport.send`, uncaught), so it used to fall
+         all the way to `error.localizedDescription` — inconsistent
+         tone, and indistinguishable from a real server/decoding
+         failure. Now: "No internet connection. Check your connection
+         and try again." specifically. 6 new unit tests
+         (`ClientErrorMessageTests`) — direct offline, timeout, wrapped
+         offline, and confirming `ClanTabClientError`/`ValidationError`
+         cases are unaffected.
+      2. Retry affordance on `AddExpenseView` and `SettleUpView`
+         specifically (not app-wide, per the decided scope) — a "Retry"
+         `Button` right in the error `Section`, next to the message.
+         `AddExpenseView`'s just re-runs `save()`, since the whole form
+         is still right there. `SettleUpView`'s needed a new
+         `failedSettlement` state (set alongside `errorMessage` in
+         `markPaid`'s `catch`, cleared at the start of the next attempt)
+         so "Retry" resubmits the *same* settlement without the user
+         having to scroll back and find its row again.
+      Verified live end-to-end: filled out Add Expense, killed the local
+      worker to force a real transport failure, submitted — got "No
+      internet connection…" with "Retry" right there; restarted the
+      worker, tapped "Retry", the same request went through
+      (`POST .../expenses 201 Created` in the worker log) and the sheet
+      dismissed normally. `make check` green (kit + worker + iOS
+      build/tests, new tests included).
 - [x] **[34, minor] What's New oversells Friends/1:1 as one feature.**
       Done 2026-09-12, alongside [8] above. The build-9 release's Friends
       bullet reworded from "see everyone you split with across every
