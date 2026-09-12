@@ -23,12 +23,24 @@ struct FriendsView: View {
                         description: Text("Share a group with someone and they'll show up here — settled up or not.")
                     )
                 } else {
-                    ForEach(friends) { friend in
-                        NavigationLink {
-                            FriendDetailView(friend: friend, auth: auth, onOpenGroup: onOpenGroup)
-                        } label: {
-                            row(friend)
+                    // A lone row (or a short list of them) otherwise leaves the
+                    // rest of the screen blank with nothing explaining what
+                    // "Friends" even means here — unlike every other
+                    // lightly-populated screen in the app ("No Expenses Yet,"
+                    // the CSV import picker), which pairs empty space with a
+                    // sentence of context (`CHECKLIST.md` UX audit fresh-eyes-
+                    // pass [4]). A footer works for any list length, not just
+                    // a short one, so it's shown regardless of count.
+                    Section {
+                        ForEach(friends) { friend in
+                            NavigationLink {
+                                FriendDetailView(friend: friend, auth: auth, onOpenGroup: onOpenGroup)
+                            } label: {
+                                row(friend)
+                            }
                         }
+                    } footer: {
+                        Text("Anyone you share a group with, settled up or not. Tap someone for your shared history across groups, or to start a private 1:1 tab.")
                     }
                 }
             } else if let loadError {

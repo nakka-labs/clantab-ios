@@ -2091,12 +2091,20 @@ screens *render correctly* at the sizes people actually use them at.
       icon+title+caption row shape as Group Settings' Regenerate/Archive/
       Leave trio, and that trio itself is pixel-identical post-refactor.
       `make check` green.
-- [ ] **[4, moderate] The Friends tab has no explanation of what it's
-      for.** `~3k tokens` (CLI) — decided: with 0-1 entries the screen
-      is a single row (or nothing) followed by a full screen of blank
-      space, unlike every other lightly-populated screen in the app
-      ("No Expenses Yet," the CSV import picker), which pairs the empty
-      space with a sentence of context. Add one.
+- [x] **[4, moderate] The Friends tab has no explanation of what it's
+      for.** Done 2026-09-12 — with 0-1 entries the screen used to be a
+      single row (or nothing) followed by a full screen of blank space,
+      unlike every other lightly-populated screen in the app ("No
+      Expenses Yet," the CSV import picker), which pairs empty space
+      with a sentence of context. The zero-friends case already had one
+      (`ContentUnavailableView`'s description) — the gap was everything
+      above zero. Wrapped the populated list in a `Section` with a
+      footer explaining what counts as a friend and what tapping one
+      does; a footer works the same whether there's 1 row or 20, so it's
+      shown regardless of count rather than only while sparse. Verified
+      live with exactly one claimed friend: the row is followed by the
+      new footer, then genuine blank space that now reads as "that's
+      everything," not as an unfinished screen. `make check` green.
 - [ ] **[5, moderate, unconfirmed] The group's "…" menu runs to 11 rows
       across 4 sections — confirm every row is reachable on a real
       device.** `~2k tokens` (CLI, investigation) — decided: simulator
