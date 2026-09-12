@@ -53,8 +53,15 @@ public actor ClanTabClient {
         try await post("api/groups/\(groupId)/expenses", body: request, accessToken: accessToken)
     }
 
-    public func addSettlement(groupId: String, _ request: AddSettlementRequest, accessToken: String? = nil) async throws -> AddSettlementResponse {
-        try await post("api/groups/\(groupId)/settlements", body: request, accessToken: accessToken)
+    /// `bearer` is the escape hatch for a caller that doesn't have this
+    /// group's access token cached locally but does have a claimed session
+    /// for it — the cross-group "Settle All" action (`CHECKLIST.md` UX audit
+    /// [8]) is the one caller that needs it; every group-scoped screen that
+    /// already holds the token keeps passing just `accessToken`.
+    public func addSettlement(
+        groupId: String, _ request: AddSettlementRequest, accessToken: String? = nil, bearer: String? = nil
+    ) async throws -> AddSettlementResponse {
+        try await post("api/groups/\(groupId)/settlements", body: request, bearer: bearer, accessToken: accessToken)
     }
 
     /// Post a comment on an expense (`CHECKLIST.md` "Comments on an expense").

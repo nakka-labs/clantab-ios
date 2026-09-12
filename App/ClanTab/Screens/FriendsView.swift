@@ -57,7 +57,7 @@ struct FriendsView: View {
             MemberAvatar(name: friend.displayName, size: 36)
             VStack(alignment: .leading, spacing: 3) {
                 Text(friend.displayName).font(.headline)
-                Text(PeopleView.summary(friend.net, name: friend.displayName))
+                Text(CrossGroupSummary.line(friend.net, name: friend.displayName))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

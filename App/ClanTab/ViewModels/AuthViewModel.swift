@@ -324,6 +324,52 @@ final class AuthViewModel {
         }
     }
 
+    /// Every person the caller owes/is owed anything with, across every
+    /// group, nonzero-only but with the per-group breakdown `friends()`
+    /// doesn't carry — `FriendDetailView`'s "By group" section
+    /// (`CHECKLIST.md` UX audit [8], folding the old standalone "Settle
+    /// Across Groups" screen's data source in here). `nil` on failure.
+    func peopleAcrossGroups() async -> [CrossGroupPerson]? {
+        guard let token = session?.token else { return nil }
+        do {
+            return try await client.peopleAcrossGroups(token: token).people
+        } catch {
+            return nil
+        }
+    }
+
+    /// Settle every one of `edges` with an ordinary `addSettlement` — the
+    /// bulk "Settle All" action, moved here from the old standalone "Settle
+    /// Across Groups" screen (`CHECKLIST.md` UX audit [8]) so
+    /// `FriendDetailView` can call it too. Returns how many failed (`0` =
+    /// every one succeeded). Passes the session as `bearer` — a cross-group
+    /// edge's `groupId` almost never has a locally-cached access token (it
+    /// came from `/api/auth/people`, not from opening the group), so this
+    /// leans on the claimed-session half of the server's dual-auth
+    /// (`requireGroup`, `DESIGN.md` §1/§8) instead. Found live: the original
+    /// `PersonSettleView.settleAll()` this replaces called `addSettlement`
+    /// with neither a token nor a bearer and 403'd — never actually
+    /// exercised end to end against a group the access token wasn't
+    /// already cached for.
+    func settleAll(_ edges: [CrossGroupEdge]) async -> Int {
+        let token = session?.token
+        var failed = 0
+        for edge in edges {
+            let from = edge.youPay ? edge.myMemberId : edge.theirMemberId
+            let to = edge.youPay ? edge.theirMemberId : edge.myMemberId
+            do {
+                _ = try await client.addSettlement(
+                    groupId: edge.groupId,
+                    AddSettlementRequest(id: UUID().uuidString, fromId: from, toId: to, amountMinor: edge.amountMinor, currency: edge.currency),
+                    bearer: token
+                )
+            } catch {
+                failed += 1
+            }
+        }
+        return failed
+    }
+
     /// Link a placeholder member in `groupId` to the signed-in identity
     /// (`ACCOUNTS_DESIGN.md` §6). On success `groups` is updated locally right
     /// away (so Group Home greets them immediately, even if the follow-up

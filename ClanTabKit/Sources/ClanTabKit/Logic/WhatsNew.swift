@@ -30,7 +30,7 @@ public enum WhatsNew {
             build: 9,
             headline: "New this update",
             items: [
-                "Friends: see everyone you split with across every group, and settle up 1:1 without a shared group.",
+                "Friends: one screen for everyone you split with — see the full breakdown, settle up, and start a 1:1 tab with no shared group needed.",
                 "Comment on any expense.",
                 "Split one expense across multiple payers.",
                 "Split by shares (2:1 ratios), not just percentages.",

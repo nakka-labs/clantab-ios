@@ -10,7 +10,6 @@ import ClanTabKit
 /// once signed in. `ACCOUNTS_DESIGN.md` §10/§11.
 struct SettingsView: View {
     let auth: AuthViewModel
-    let client: ClanTabClient
     let knownGroups: KnownGroupsStoring
     /// "Show tips again" (`CHECKLIST.md`) resets both of these.
     let onboarding: OnboardingStoring
@@ -81,10 +80,11 @@ struct SettingsView: View {
                 }
 
                 if auth.isSignedIn {
-                    NavigationLink("Settle Across Groups") {
-                        PeopleView(auth: auth, client: client)
-                    }
-
+                    // "Settle Across Groups" used to live here as its own
+                    // screen (`PeopleView`) — retired (`CHECKLIST.md` UX
+                    // audit [8]): the same capability now lives on every
+                    // friend's own detail screen, reached from the Friends
+                    // tab, so there's no separate entry point to keep.
                     Button("Delete Account", role: .destructive) {
                         confirmingDelete = true
                     }

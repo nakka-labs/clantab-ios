@@ -150,7 +150,7 @@ struct RootView: View {
 
             NavigationStack {
                 SettingsView(
-                    auth: auth, client: client, knownGroups: knownGroups,
+                    auth: auth, knownGroups: knownGroups,
                     onboarding: onboarding, coachMarks: coachMarks,
                     onDone: { selectedTab = .home }
                 )
