@@ -219,14 +219,14 @@ struct GroupSettingsView: View {
             // groups them instead, each row carrying its own warning icon
             // and consequence line.
             Section {
-                dangerZoneRow(
+                DangerZoneRow(
                     icon: "arrow.triangle.2.circlepath",
                     title: "Regenerate Link",
                     caption: "Makes a fresh invite link and code; the old ones stop working immediately, for anyone still holding them. Not undoable.",
                     isLoading: isRegenerating,
                     action: { confirmingRegenerate = true }
                 )
-                dangerZoneRow(
+                DangerZoneRow(
                     icon: "archivebox",
                     title: state.group.archivedAt == nil ? "Archive Group" : "Unarchive Group",
                     caption: state.group.archivedAt == nil
@@ -235,7 +235,7 @@ struct GroupSettingsView: View {
                     isLoading: isArchiving,
                     action: { Task { await setArchived(state.group.archivedAt == nil) } }
                 )
-                dangerZoneRow(
+                DangerZoneRow(
                     icon: "rectangle.portrait.and.arrow.right",
                     title: "Leave This Group",
                     caption: "Removes this group from this device. Your expenses stay for everyone else.",
@@ -485,25 +485,6 @@ struct GroupSettingsView: View {
     /// One row of the "Danger Zone" section (`CHECKLIST.md` UX audit [20]) —
     /// a leading warning icon plus a title/consequence pair, replacing what
     /// used to be three separate `Section`s each with their own footer.
-    private func dangerZoneRow(icon: String, title: String, caption: String, isLoading: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: icon)
-                    .foregroundStyle(.red)
-                    .frame(width: 20)
-                VStack(alignment: .leading, spacing: 2) {
-                    if isLoading {
-                        ProgressView()
-                    } else {
-                        Text(title).foregroundStyle(.red)
-                    }
-                    Text(caption).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
-        .disabled(isLoading)
-    }
-
     private var currentDefaultSplitLabel: String {
         guard let split = state.group.defaultSplit else { return "Split equally" }
         let name: (String) -> String = { id in

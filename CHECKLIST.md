@@ -2073,13 +2073,24 @@ screens *render correctly* at the sizes people actually use them at.
       for a bubble view…" tip no longer covers the balance amount or
       Settle Up button — it sits below the (now correctly-sized) card,
       same as at any other text size. `make check` green.
-- [ ] **[3, moderate] Two different treatments for the same class of
-      destructive action.** `~5k tokens` (CLI) — decided: Group
-      Settings' "Danger Zone" (red section header, icon per row, a line
-      of consequence under each) is the pattern that works; give
-      `SettingsView`'s "Delete Account" — arguably the single most
-      irreversible action in the app — the same treatment instead of
-      red text one row below "Sign Out" with no separating header.
+- [x] **[3, moderate] Two different treatments for the same class of
+      destructive action.** Done 2026-09-12 — Group Settings' "Danger
+      Zone" (red section header, icon per row, a line of consequence
+      under each) was the pattern that worked; `SettingsView`'s "Delete
+      Account" used to be red text one row below "Sign Out" with no
+      separating header — the least emphasis of any destructive action
+      in the app, despite being the most irreversible one. The row
+      itself (icon, red title, consequence line) was duplicated
+      per-screen code in `GroupSettingsView`; extracted into a shared
+      `DangerZoneRow` component so both screens draw from one
+      definition, and gave `SettingsView` a second, `DangerZoneRow`-only
+      "Danger Zone" section (`person.crop.circle.badge.xmark`) below its
+      neutral "Account" section, moving the consequence text off the
+      section footer and onto the row itself to match. Verified live:
+      Settings now shows a red "Danger Zone" header with the same
+      icon+title+caption row shape as Group Settings' Regenerate/Archive/
+      Leave trio, and that trio itself is pixel-identical post-refactor.
+      `make check` green.
 - [ ] **[4, moderate] The Friends tab has no explanation of what it's
       for.** `~3k tokens` (CLI) — decided: with 0-1 entries the screen
       is a single row (or nothing) followed by a full screen of blank

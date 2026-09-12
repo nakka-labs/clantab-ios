@@ -78,23 +78,31 @@ struct SettingsView: View {
                 if let message = auth.errorMessage ?? sheetError ?? photoError {
                     Text(message).font(.caption).foregroundStyle(.red)
                 }
-
-                if auth.isSignedIn {
-                    // "Settle Across Groups" used to live here as its own
-                    // screen (`PeopleView`) — retired (`CHECKLIST.md` UX
-                    // audit [8]): the same capability now lives on every
-                    // friend's own detail screen, reached from the Friends
-                    // tab, so there's no separate entry point to keep.
-                    Button("Delete Account", role: .destructive) {
-                        confirmingDelete = true
-                    }
-                    .disabled(auth.isBusy)
-                }
             } header: {
                 Text("Account")
-            } footer: {
-                if auth.isSignedIn {
-                    Text(deletionCaveat)
+            }
+
+            // "Settle Across Groups" used to live here as its own screen
+            // (`PeopleView`) — retired (`CHECKLIST.md` UX audit [8]): the
+            // same capability now lives on every friend's own detail screen,
+            // reached from the Friends tab, so there's no separate entry
+            // point to keep. Delete Account used to be red text one row
+            // below Sign Out, with no separating header — the least emphasis
+            // of any destructive action in the app, despite being the most
+            // irreversible one. Now it gets the same "Danger Zone" treatment
+            // as Group Settings' Regenerate/Archive/Leave trio (`CHECKLIST.md`
+            // UX audit fresh-eyes-pass [3]).
+            if auth.isSignedIn {
+                Section {
+                    DangerZoneRow(
+                        icon: "person.crop.circle.badge.xmark",
+                        title: "Delete Account",
+                        caption: deletionCaveat,
+                        isLoading: auth.isBusy,
+                        action: { confirmingDelete = true }
+                    )
+                } header: {
+                    Text("Danger Zone").foregroundStyle(.red)
                 }
             }
 
