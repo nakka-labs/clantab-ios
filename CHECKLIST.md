@@ -1676,17 +1676,42 @@ sibling apps in the portfolio is no longer a goal for this app.
       have been a visible inconsistency introduced in the same batch.
       **Verified in the Simulator**: both buttons render as clear bordered
       pills in the Expense/Split sections. `make check` green.
-- [ ] **[17, moderate] Add Expense is the single most overloaded screen
-      in the app.** `~25k tokens` (CLI) — decided: progressive
-      disclosure, not a rewrite.
-      1. Keep always-visible: amount, description, payer, category,
-         split type (now 3-way per [15]).
-      2. Collapse Receipts, Comments, and the inline "add a member"
-         flow behind an expandable "More details" section, closed by
-         default on new-expense entry, open by default when editing an
-         expense that already has any of that content.
-      3. Move the inline `+`/`-` calculator hint per [19] rather than
-         adding new UI for it here.
+- [x] **[17, moderate] Add Expense is the single most overloaded screen
+      in the app.** Done 2026-09-12.
+      1. Unchanged — amount, description, payer, category, split type
+         ([15]'s 3-way control) all stay exactly where they were.
+      2. Receipts and Comments (already `isEditing`-only) collapsed into
+         one `DisclosureGroup("More Details")`, closed by default on a
+         fresh expense (`_isShowingMoreDetails = editing != nil`).
+         Simplified one clause of the decided rule: "open by default
+         when editing... that already has any of that content" would
+         need knowing whether an expense already has comments, which
+         isn't knowable synchronously — comments load via their own
+         `.task` fetch, after the sheet has already rendered. Landed on
+         "open whenever editing at all," not "open only if content
+         already exists," since the alternative (silently hiding an
+         existing comment thread behind a closed disclosure because it
+         loaded async after the closed/open decision was already made)
+         is worse than showing an empty-but-open section occasionally.
+         **Deliberately did not move** the inline "Add Someone" button
+         under the Equal split's member list, despite it being named in
+         the original wording — moving a person-adding action away from
+         the member list you're actively looking at would undercut the
+         round-2 item that put it there for exactly the opposite reason
+         (add someone without leaving the sheet), and unlike
+         Receipts/Comments it's a bare action with no "already has this
+         content" state the disclosure's open/closed rule is built
+         around.
+      3. Not touched here — tracked separately under [19], unstarted.
+      Extracted `receiptsRows`/`commentsRows` (plain row content, no
+      longer their own `Section`s — a `DisclosureGroup`'s content reads
+      oddly with a nested `Section` inside it) with an inline caption
+      `Text` standing in for the `Section` header each used to have.
+      **Verified in the Simulator**: a fresh Add Expense shows "More
+      Details" collapsed right below the Split section; tapping it
+      expands to show the Receipts row (with its own "Receipts"
+      caption) correctly, Comments correctly absent (not editing).
+      `make check` green.
 - [ ] **[18, minor] Itemized split's per-item participant picker is a
       hidden Menu, one item at a time.** `~15k tokens` (CLI) —
       `AddExpenseView.itemizedSplitRows` — replace the `Menu` with an
