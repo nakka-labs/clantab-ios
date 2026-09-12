@@ -1469,21 +1469,46 @@ sibling apps in the portfolio is no longer a goal for this app.
 - [x] **[7, moderate] "Group Options" menu mixes sharing with data
       admin.** Resolved by [6] step 2 (done 2026-09-12, above) — no
       separate item.
-- [ ] **[8, moderate] Friends and Settle Across Groups are two
-      disconnected screens for the same job.** `~18k tokens` (CLI) —
-      decided: merge into one screen under the new Friends tab from [6]
-      (shipped 2026-09-12, above).
-      1. Collapse `FriendsView`/`FriendDetailView` and
-         `PeopleView`/`PersonSettleView` into a single Friends tab: a
-         person list (today's Friends list) where tapping a person shows
-         both their per-group breakdown and their aggregate cross-group
-         balance (today's `PersonSettleView` content) on one detail
-         screen.
-      2. Retire the standalone "Settle Across Groups" entry point in
-         `SettingsView` — the capability now lives on every friend's
-         detail screen.
-      3. Once shipped, fix `WhatsNewView`'s build-8 copy to match the
-         real (now-true) one-screen experience. Resolves [34].
+- [x] **[8, moderate] Friends and Settle Across Groups are two
+      disconnected screens for the same job.** Done 2026-09-12.
+      `PeopleView`/`PersonSettleView` deleted outright — `FriendDetailView`
+      now carries everything they did: a "By Group" section (per-group
+      amount + direction, fetched via a new `AuthViewModel.peopleAcrossGroups()`
+      and matched to this friend by id — `Friend.groups` itself only carries
+      group identity, not amounts) and a "Settle All" button
+      (`AuthViewModel.settleAll(_:)`, the same bulk-`addSettlement` loop
+      `PersonSettleView` used to run). `CrossGroupSummary` (`Components/`)
+      extracted from the deleted `PeopleView.summary` static func — the
+      one piece of it still needed, now shared by `FriendsView`'s row and
+      `FriendDetailView`'s balance line.
+      1. Done — see above. `FriendDetailView`'s "Balance" line reads a new
+         `currentNet` computed from the freshly-loaded `edges` once
+         they're in, not the stale `friend.net` passed in from the list —
+         caught live in the Simulator: without this, settling left
+         "Balance" saying "Sam owes you ₹300" directly above a "By Group"
+         row that had already flipped to "Settled up."
+      2. Done — the `NavigationLink("Settle Across Groups")` row removed
+         from `SettingsView`'s Account section.
+      3. Done — see [34] below.
+      **Found and fixed live, not hypothetically:** the original
+      `PersonSettleView.settleAll()` this replaces called `addSettlement`
+      with neither an access token nor a bearer token and always 403'd —
+      apparently never exercised end to end against a group whose token
+      wasn't already locally cached, which is exactly the common case for
+      a cross-group settle (the edge comes from `/api/auth/people`, not
+      from having opened the group). Fixed at the root: `ClanTabClient
+      .addSettlement` gained a `bearer` parameter (the `post` helper
+      already supported one; the public wrapper just never exposed it),
+      and `AuthViewModel.settleAll` passes the session token through it —
+      leaning on the server's existing claimed-session dual-auth
+      (`requireGroup`, `DESIGN.md` §1/§8) instead of requiring a token
+      that was never going to be there. Verified with two real claimed
+      identities sharing a group: "Settle All" 403'd before the fix,
+      succeeded after, and both "Balance" and "By Group" updated in
+      place with no need to leave and reopen the screen.
+      **Verified end to end in the Simulator.** `make check` green (kit +
+      worker + iOS build/tests, incl. `CrossGroupSummaryTests` — renamed
+      from `PeopleViewTests`, same coverage).
 - [x] **[9, minor] No persistent navigation anchor.** Resolved by [6]'s
       tab bar (done 2026-09-12, above) — no separate item.
 - [x] **[1, critical] No way to preview or try the app before signing
@@ -1767,10 +1792,13 @@ sibling apps in the portfolio is no longer a goal for this app.
          `.decodingFailed` case, and give offline its own message.
       2. Add a retry affordance on Add Expense and Settle Up specifically
          (the two highest-traffic write forms) — not app-wide.
-- [ ] **[34, minor] What's New oversells Friends/1:1 as one feature.**
-      Resolved once [8] ships (fix the copy then, not now — it
-      describes a future state, not a bug to patch today) — no separate
-      item.
+- [x] **[34, minor] What's New oversells Friends/1:1 as one feature.**
+      Done 2026-09-12, alongside [8] above. The build-9 release's Friends
+      bullet reworded from "see everyone you split with across every
+      group, and settle up 1:1 without a shared group" to "one screen for
+      everyone you split with — see the full breakdown, settle up, and
+      start a 1:1 tab with no shared group needed," matching the now-true
+      one-screen experience [8] shipped.
 
 ### Feature backlog — absorbed from the competitive scan
 
