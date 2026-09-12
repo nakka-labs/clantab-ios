@@ -376,13 +376,16 @@ struct AddExpenseView: View {
                                   let resolved = MoneyFormat.evaluate(amountText) else { return }
                             amountText = MoneyFormat.plainString(minorUnits: resolved)
                         }
-                    // `.decimalPad` has no operator keys — surface + / − while
-                    // the field is being edited so a running total can be typed
-                    // in place (`CHECKLIST.md` "Inline calculator").
-                    if amountFocused {
-                        Button { appendOperator("+") } label: { Image(systemName: "plus") }
-                        Button { appendOperator("-") } label: { Image(systemName: "minus") }
-                    }
+                    // `.decimalPad` has no operator keys — surface + / − so a
+                    // running total can be typed in place (`CHECKLIST.md`
+                    // "Inline calculator"). Shown even before the field is
+                    // focused (`CHECKLIST.md` UX audit [19]) — otherwise
+                    // there's no hint the feature exists until you've already
+                    // tapped in; tapping one now focuses the field too, so
+                    // it's a valid way to *start* an expression, not just
+                    // continue one.
+                    Button { amountFocused = true; appendOperator("+") } label: { Image(systemName: "plus") }
+                    Button { amountFocused = true; appendOperator("-") } label: { Image(systemName: "minus") }
                     if currencyChoices.count > 1 {
                         Picker("Currency", selection: $currency) {
                             ForEach(currencyChoices, id: \.self) { code in Text(code).tag(code) }
