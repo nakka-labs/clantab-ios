@@ -2024,6 +2024,102 @@ sibling apps in the portfolio is no longer a goal for this app.
       start a 1:1 tab with no shared group needed," matching the now-true
       one-screen experience [8] shipped.
 
+### UI audit, fresh eyes pass — flagged + 2 critical fixed 2026-09-12
+
+Full write-up (severity, screenshots, what's already working) at
+https://claude.ai/code/artifact/830354ef-bdf4-4998-8c25-fe3436df765a —
+a live walkthrough of Home, Add Expense, Settle Up, Group Settings,
+Insights, Friends, and Settings against a real seeded 5-member,
+two-currency group, at both the default text size and the largest
+accessibility text size iOS offers. Unlike the "UX audit, build 9"
+section above (structure/flow/IA), this pass is about whether the
+screens *render correctly* at the sizes people actually use them at.
+
+- [x] **[1, critical] Compound labels truncate instead of wrapping at
+      accessibility text sizes.** Done 2026-09-12. One root cause behind
+      five separate symptoms: `BalanceHeroView`'s "You are owed" label
+      clipped to "You are o…", `ActivityRow`'s "category · date" line
+      truncated both halves ("Shop…", "11 Sep…"), the amount `TextField`
+      on Edit Expense rendered its own value as a bare "…", the currency
+      `Picker` lost its label entirely (just a chevron, no code), and
+      "Paid by" wrapped a name mid-letter ("Meer" / "a") for lack of
+      column width. Fixes: `GroupHomeView`'s hero/bubble `TabView` height
+      was a bare `250` regardless of content — now `@ScaledMetric
+      (relativeTo: .body)`, so it grows with text size instead of
+      clipping the hero's own labels. `BalanceHeroView`'s three status
+      labels get `.fixedSize(horizontal: false, vertical: true)`.
+      `ActivityRow.metadataLine` and `AddExpenseView`'s amount row /
+      "Paid by" row all gained the same `dynamicTypeSize.isAccessibilitySize`
+      branch already used elsewhere in the codebase (`SettleUpView.
+      settlementRow`) — stack vertically instead of competing for one
+      row's width. Verified live at Accessibility XXXL against a real
+      seeded expense: "You are owed" and "Lodging" / "8 September 2026"
+      both wrap in full, the currency picker shows "INR"/"USD" clearly,
+      and an edited expense's amount reads "5000.00" in full, not "…".
+      `make check` green.
+- [x] **[2, critical] Coach-mark bubbles have no size ceiling — one
+      measured 563pt tall and fully covered the balance card.** Done
+      2026-09-12. `CoachMarkBubble` now caps its own text scaling at
+      `.dynamicTypeSize(...DynamicTypeSize.accessibility1)` — a
+      supplementary one-time hint doesn't need to track the full
+      accessibility range the way primary content must. Separately,
+      `CoachMarkModifier` swapped its fixed `-44`/`+44` pixel offset for
+      an `alignmentGuide` that measures the bubble's own height each
+      time (`d[.bottom] + gap` / `d[.top] - gap`) — the old fixed offset
+      only cleared the anchor for whatever height it was tuned against,
+      so even a 2-3 line bubble at the *default* text size spilled down
+      over the "Add Someone" button on Add Expense and the row above it.
+      Verified live at Accessibility XXXL: the Home hero card's "Swipe
+      for a bubble view…" tip no longer covers the balance amount or
+      Settle Up button — it sits below the (now correctly-sized) card,
+      same as at any other text size. `make check` green.
+- [ ] **[3, moderate] Two different treatments for the same class of
+      destructive action.** `~5k tokens` (CLI) — decided: Group
+      Settings' "Danger Zone" (red section header, icon per row, a line
+      of consequence under each) is the pattern that works; give
+      `SettingsView`'s "Delete Account" — arguably the single most
+      irreversible action in the app — the same treatment instead of
+      red text one row below "Sign Out" with no separating header.
+- [ ] **[4, moderate] The Friends tab has no explanation of what it's
+      for.** `~3k tokens` (CLI) — decided: with 0-1 entries the screen
+      is a single row (or nothing) followed by a full screen of blank
+      space, unlike every other lightly-populated screen in the app
+      ("No Expenses Yet," the CSV import picker), which pairs the empty
+      space with a sentence of context. Add one.
+- [ ] **[5, moderate, unconfirmed] The group's "…" menu runs to 11 rows
+      across 4 sections — confirm every row is reachable on a real
+      device.** `~2k tokens` (CLI, investigation) — decided: simulator
+      automation couldn't reliably activate a row it had to scroll a
+      native `Menu` to reach (a tap at the row's own coordinates
+      dismissed the menu instead), which may be purely an automation
+      limitation rather than something a real finger or VoiceOver hits.
+      Confirm on a real device before deciding whether any row needs to
+      move (e.g. into Group Settings, which already holds equivalent
+      settings-shaped actions).
+- [ ] **[6, minor] Full-width, left-aligned capsule buttons read as
+      list rows wearing a button's clothes.** `~4k tokens` (CLI) —
+      decided: "Split the cost between payers" and "More Split Types
+      (Shares, Items)" on Add Expense are `Capsule()`-shaped but sized
+      to the full row width with left-aligned text — a shape that reads
+      naturally hugging short, centered content, less so stretched
+      edge-to-edge (and visibly over-rounded once 2-line text forces a
+      taller capsule at large text sizes). Either hug-and-center the
+      capsule, or drop the capsule fill for a plain list row.
+- [ ] **[7, minor] "Report a Problem"'s subtitle explains itself from
+      the developer's side.** `~1k tokens` (CLI) — decided: "Apple
+      requires this for apps with shared user-generated content" is a
+      compliance rationale, not a reason a person would tap the row —
+      every other row in that section says what happens, not why the
+      row exists. Reword to something like "Report this group if its
+      name or content is inappropriate."
+- [x] **[8, minor] A member owing in one currency and owed in another
+      loses the at-a-glance color read.** Investigated 2026-09-12 — not
+      a bug, an accepted trade-off. Vikram's row showing both a red
+      `₹1,270` and a green `$22.50` is correct, and the VoiceOver label
+      already composes them into one sentence ("Vikram owes ₹1,270, and
+      is owed $22.50") — the cost of genuinely supporting multi-currency
+      groups, not something to fix.
+
 ### Feature backlog — absorbed from the competitive scan
 
 Splitwise/Tricount/Settle Up/Splid, primary sources only:
