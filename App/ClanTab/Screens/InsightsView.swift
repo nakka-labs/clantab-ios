@@ -105,6 +105,12 @@ struct InsightsView: View {
                         }
                         .pickerStyle(.segmented)
                         overTimeChart
+                            // One-time hint that the charts respond to touch
+                            // at all (`CHECKLIST.md` UX audit [27]) — the
+                            // first chart on screen, so whichever chart
+                            // someone reaches first already explains the
+                            // rest by the same gesture.
+                            .coachMark(id: "insights.chartsAreInteractive", text: "Tap or drag a chart to see exact values.")
                     }
 
                     Section("By category") {
