@@ -254,6 +254,16 @@ struct GroupHomeView: View {
                         }
                     }
                 }
+            } else {
+                // Was simply absent while loading (`CHECKLIST.md` UX audit
+                // [10]) — only the hero above got a placeholder, so a slow
+                // connection showed it floating over blank space.
+                Section("Members") {
+                    GroupHomeSkeleton.memberRows()
+                }
+                Section("Activity") {
+                    GroupHomeSkeleton.activityRows()
+                }
             }
 
             if let errorMessage = viewModel.errorMessage {
