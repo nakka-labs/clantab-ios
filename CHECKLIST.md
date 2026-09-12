@@ -1758,11 +1758,27 @@ sibling apps in the portfolio is no longer a goal for this app.
       expands to show the Receipts row (with its own "Receipts"
       caption) correctly, Comments correctly absent (not editing).
       `make check` green.
-- [ ] **[18, minor] Itemized split's per-item participant picker is a
-      hidden Menu, one item at a time.** `~15k tokens` (CLI) —
-      `AddExpenseView.itemizedSplitRows` — replace the `Menu` with an
-      inline expandable checklist (or a small avatar row with
-      tap-to-toggle) so state is visible without opening anything.
+- [x] **[18, minor] Itemized split's per-item participant picker is a
+      hidden Menu, one item at a time.** Done 2026-09-12 —
+      `AddExpenseView.itemizedSplitRows` replaced the `Menu` with an
+      inline horizontally-scrolling row of `MemberAvatar`s per line item:
+      full color + a green checkmark badge when included, desaturated +
+      dimmed when not, tap to toggle. Who's sharing an item is visible at
+      a glance across every row without opening anything, and toggling
+      someone is a single tap instead of Menu → scroll → tap → dismiss.
+      A red "No one — tap someone above to add them" line still appears
+      when a row's participant set is empty, same warning the old Menu
+      label used to carry. Also **fixed a latent accessibility bug**
+      surfaced while wiring this up: the row's
+      `.accessibilityElement(children: .combine)` (present before this
+      change) collapsed the whole item — name field, amount field, and
+      now three-plus avatar buttons — into one opaque "Line item X"
+      VoiceOver stop with no way to reach or activate any child
+      individually. Removed it; each field and avatar is its own
+      reachable stop now. Removed the now-unused `participantSummary`
+      helper. Verified live: added an itemized expense, toggled a member
+      off and back on, watched the avatar dim/highlight and the
+      checkmark badge appear/disappear each time. `make check` green.
 - [ ] **[19, minor] Inline `+`/`-` calculator has no affordance before
       you focus the field.** `~4k tokens` (CLI) — `AddExpenseView`'s
       amount `TextField`; add a persistent subtle hint (placeholder text
