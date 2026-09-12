@@ -288,15 +288,21 @@
       5. Owner: tag the version once it passes.
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above, every item under
-         "Design & UX polish" below, **and** every item under "Friend
-         playtest + competitive gap-fill, round 2" below (accepted
-         2026-09-10 as a small, bounded launch delay — see that section
-         for why).
+         "Design & UX polish" below, every item under "Friend playtest +
+         competitive gap-fill, round 2" below (accepted 2026-09-10 as a
+         small, bounded launch delay — see that section for why), **and**
+         every item under "UX audit, build 9" below (added here
+         2026-09-12 — that section didn't exist when this gate was first
+         written; all 8 of its critical-severity findings shipped
+         2026-09-11/12, but its moderate/minor items, e.g. [8] merging
+         Friends and Settle Across Groups, are still open as of this
+         writing).
       Pricing is done: Price = Free across all 175 territories, set via
       the ASC API 2026-09-10 (`POST /v1/appPriceSchedules`, base
       territory USA at the free price point); 0 IAP products / 0
-      subscription groups. So the only gates left are the real-device
-      TestFlight pass (step 4 above) + tagging + this submit decision.
+      subscription groups. So the remaining gates are the real-device
+      TestFlight pass (step 4 above), the rest of the UX audit batch,
+      tagging, and this submit decision.
 
 ### Friend playtest + competitive gap-fill, round 2 — accepted 2026-09-10
 
