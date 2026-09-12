@@ -16,6 +16,12 @@ struct GoogleSignInButton: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var activeSession: ASWebAuthenticationSession?
+    /// Set the instant the button is tapped, cleared once the session's
+    /// callback fires (success, failure, or cancel) — drives the brief
+    /// "Continuing to Google…" transition state (`CHECKLIST.md` UX audit
+    /// [3]) so the jump to Google's web chrome reads as an intentional step
+    /// rather than an abrupt context switch.
+    @State private var isPresenting = false
     private let presentationCoordinator = PresentationContextCoordinator()
 
     private static let authorizationEndpoint = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -30,20 +36,41 @@ struct GoogleSignInButton: View {
     var body: some View {
         Button(action: startSignIn) {
             HStack(spacing: 8) {
-                Image(systemName: "globe")
-                Text("Sign in with Google")
-                    .fontWeight(.medium)
+                if isPresenting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(colorScheme == .dark ? .white : .black)
+                    Text("Continuing to Google…")
+                        .fontWeight(.medium)
+                } else {
+                    Image(systemName: "globe")
+                    Text("Sign in with Google")
+                        .fontWeight(.medium)
+                }
             }
             .frame(maxWidth: .infinity)
             .frame(height: 30)
         }
         .buttonStyle(.bordered)
         .tint(colorScheme == .dark ? .white : .black)
+        .disabled(isPresenting)
     }
 
     private func startSignIn() {
+        isPresenting = true
+        Task {
+            // Hold the "Continuing to Google…" state on screen for a beat
+            // before the system sheet slides up, so the handoff reads as a
+            // deliberate step rather than a break in the app's own tone.
+            try? await Task.sleep(for: .milliseconds(350))
+            presentSession()
+        }
+    }
+
+    private func presentSession() {
         let verifier = Self.randomCodeVerifier()
         guard let url = Self.authorizationURL(codeChallenge: Self.codeChallenge(for: verifier)) else {
+            isPresenting = false
             onFailure("Couldn't start Google sign-in.")
             return
         }
@@ -54,6 +81,12 @@ struct GoogleSignInButton: View {
             handle(callbackURL: callbackURL, error: error, codeVerifier: verifier)
         }
         session.presentationContextProvider = presentationCoordinator
+        // Deliberately not ephemeral: a returning user who's already signed
+        // into Google in Safari/Chrome skips the credential prompt entirely,
+        // which is the fast path we want (`CHECKLIST.md` UX audit [3]). The
+        // capability-link model doesn't depend on this session being
+        // isolated, so there's no privacy trade-off in leaving it off.
+        session.prefersEphemeralWebBrowserSession = false
         activeSession = session
         session.start()
     }
@@ -61,6 +94,7 @@ struct GoogleSignInButton: View {
     private func handle(callbackURL: URL?, error: Error?, codeVerifier: String) {
         if let error {
             activeSession = nil
+            isPresenting = false
             if let message = SignInErrorMessage.forGoogle(error) { onFailure(message) }
             return
         }
@@ -70,6 +104,7 @@ struct GoogleSignInButton: View {
                 .queryItems?.first(where: { $0.name == "code" })?.value
         else {
             activeSession = nil
+            isPresenting = false
             onFailure("Google didn't return a usable sign-in. Please try again.")
             return
         }
@@ -77,9 +112,11 @@ struct GoogleSignInButton: View {
             do {
                 let identityToken = try await Self.exchangeCode(code, codeVerifier: codeVerifier)
                 activeSession = nil
+                isPresenting = false
                 onCredential(identityToken)
             } catch {
                 activeSession = nil
+                isPresenting = false
                 if let message = SignInErrorMessage.forGoogle(error) { onFailure(message) }
             }
         }
