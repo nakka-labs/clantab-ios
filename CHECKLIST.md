@@ -2024,7 +2024,7 @@ sibling apps in the portfolio is no longer a goal for this app.
       start a 1:1 tab with no shared group needed," matching the now-true
       one-screen experience [8] shipped.
 
-### UI audit, fresh eyes pass — flagged + 2 critical fixed 2026-09-12
+### UI audit, fresh eyes pass — all fixable items done 2026-09-12
 
 Full write-up (severity, screenshots, what's already working) at
 https://claude.ai/code/artifact/830354ef-bdf4-4998-8c25-fe3436df765a —
@@ -2139,13 +2139,14 @@ screens *render correctly* at the sizes people actually use them at.
       default and accessibility-XXXL text sizes: both capsules now hug
       their text and center, including the 4-line-wrapped case that used
       to look most stretched. `make check` green.
-- [ ] **[7, minor] "Report a Problem"'s subtitle explains itself from
-      the developer's side.** `~1k tokens` (CLI) — decided: "Apple
-      requires this for apps with shared user-generated content" is a
-      compliance rationale, not a reason a person would tap the row —
-      every other row in that section says what happens, not why the
-      row exists. Reword to something like "Report this group if its
-      name or content is inappropriate."
+- [x] **[7, minor] "Report a Problem"'s subtitle explains itself from
+      the developer's side.** Done 2026-09-12 — "Apple requires this for
+      apps with shared user-generated content" was a compliance
+      rationale, not a reason a person would tap the row, unlike every
+      other row in that section, which says what happens, not why the
+      row exists. Reworded to "Report this group if its name or content
+      is inappropriate." Verified live in Group Settings. `make check`
+      green.
 - [x] **[8, minor] A member owing in one currency and owed in another
       loses the at-a-glance color read.** Investigated 2026-09-12 — not
       a bug, an accepted trade-off. Vikram's row showing both a red

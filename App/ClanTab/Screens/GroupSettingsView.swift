@@ -209,7 +209,12 @@ struct GroupSettingsView: View {
             Section {
                 Button("Report a Problem") { reportingTarget = (.group, state.group.name) }
             } footer: {
-                Text("Report this group's name or content — Apple requires this for apps with shared user-generated content.")
+                // Used to read "Apple requires this for apps with shared
+                // user-generated content" — a compliance rationale, not a
+                // reason a person would tap the row. Every other row in this
+                // screen says what happens, not why it exists
+                // (`CHECKLIST.md` UI audit fresh-eyes-pass [7]).
+                Text("Report this group if its name or content is inappropriate.")
             }
 
             // Regenerate/Archive/Leave used to be three plain Sections, the
