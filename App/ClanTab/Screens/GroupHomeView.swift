@@ -430,6 +430,8 @@ struct GroupHomeView: View {
                 ImportCSVView(
                     groupId: viewModel.groupId,
                     existingMembers: viewModel.state?.members ?? [],
+                    existingExpenses: viewModel.state?.expenses ?? [],
+                    existingSettlements: viewModel.state?.settlements ?? [],
                     client: client,
                     accessToken: viewModel.accessToken,
                     onImported: {

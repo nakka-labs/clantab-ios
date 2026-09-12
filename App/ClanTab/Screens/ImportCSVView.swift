@@ -9,6 +9,12 @@ import ClanTabKit
 struct ImportCSVView: View {
     let groupId: String
     let existingMembers: [Member]
+    /// The group's current ledger — checked against every parsed row so an
+    /// already-imported file (or the same trip exported from two apps by two
+    /// members) can be flagged before posting, not just warned about in the
+    /// abstract (`CHECKLIST.md` "De-dupe guard on CSV import").
+    let existingExpenses: [Expense]
+    let existingSettlements: [Settlement]
     let client: ClanTabClient
     let accessToken: String?
     let onImported: () -> Void
@@ -41,6 +47,11 @@ struct ImportCSVView: View {
     @State private var isPickingFile = false
     @State private var choices: [String: NameChoice] = [:]
     @State private var parseError: String?
+    /// Whether a row that looks like it's already in the ledger is left out
+    /// of the import. Defaults on — the safer default for a guard whose
+    /// whole point is to stop an accidental double-post; a user who really
+    /// does want a flagged row re-added can still turn this off.
+    @State private var skipLikelyDuplicates = true
 
     var body: some View {
         Group {
@@ -117,20 +128,17 @@ struct ImportCSVView: View {
                 }
             }
 
-            Section {
-                // No de-dup guard yet (`docs/csv-import-formats.md`, `CHECKLIST.md`
-                // "De-dupe guard on CSV import") — ClanTab can't tell an imported
-                // row from one it already has, so importing the same file twice,
-                // or the same trip exported from two apps by two members, silently
-                // doubles the ledger. Flag it here until real detection lands.
-                Label {
-                    Text("ClanTab won't skip expenses it already has. If this file was imported before — or another member imported the same trip — every row is added again.")
-                        .font(.footnote)
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                }
-                .foregroundStyle(.orange)
+            // `CHECKLIST.md` "De-dupe guard on CSV import" — every row that
+            // looks like it's already in the group's ledger (`CSVDuplicateCheck`:
+            // same date, amount, payer, and description, allowing for another
+            // app's own rounding) gets flagged and excluded by default, so
+            // re-importing the same file — or the same trip exported from two
+            // apps by two different members — no longer silently doubles
+            // everything.
+            if duplicateCount(result) > 0 {
+                duplicatesSection(result)
             }
+            stillOnlyBestEffortSection(result)
 
             Section {
                 Button("Import") {
@@ -228,14 +236,105 @@ struct ImportCSVView: View {
         choices[name] ?? defaultChoice(for: name)
     }
 
-    /// Rows where every referenced name resolves to a member (not `.skip`).
+    /// Rows where every referenced name resolves to a member (not `.skip`),
+    /// and — while `skipLikelyDuplicates` is on — that don't look like
+    /// they're already in the group's ledger.
     private func importableCount(_ result: CSVImport.Result) -> Int {
         let usable: (Set<String>) -> Bool = { names in
             names.allSatisfy { resolvedChoice(for: $0) != .skip }
         }
-        let expenses = result.expenses.filter { usable(Set([$0.payerName] + $0.splits.map(\.memberName))) }
-        let settlements = result.settlements.filter { usable(Set([$0.fromName, $0.toName])) }
+        let expenses = result.expenses.filter {
+            usable(Set([$0.payerName] + $0.splits.map(\.memberName))) && !isExcludedAsDuplicate($0)
+        }
+        let settlements = result.settlements.filter {
+            usable(Set([$0.fromName, $0.toName])) && !isExcludedAsDuplicate($0)
+        }
         return expenses.count + settlements.count
+    }
+
+    // MARK: duplicate detection (`CHECKLIST.md` "De-dupe guard on CSV import")
+
+    /// `true` once the referenced name(s) resolve to real (already-existing)
+    /// members and the row matches something already in the group's ledger
+    /// by date, amount, payer, and description (`CSVDuplicateCheck`). A row
+    /// whose payer is being created fresh (`.create`) can never match — the
+    /// member doesn't exist in the ledger yet.
+    private func isLikelyDuplicate(_ draft: CSVImport.DraftExpense) -> Bool {
+        guard case .match(let payerId) = resolvedChoice(for: draft.payerName) else { return false }
+        return CSVDuplicateCheck.isLikelyDuplicate(draft, payerId: payerId, against: existingExpenses)
+    }
+
+    private func isLikelyDuplicate(_ draft: CSVImport.DraftSettlement) -> Bool {
+        guard case .match(let fromId) = resolvedChoice(for: draft.fromName),
+              case .match(let toId) = resolvedChoice(for: draft.toName)
+        else { return false }
+        return CSVDuplicateCheck.isLikelyDuplicate(draft, fromId: fromId, toId: toId, against: existingSettlements)
+    }
+
+    /// Whether `skipLikelyDuplicates` actually excludes this specific row —
+    /// i.e. the toggle is on *and* the row is flagged. Split out from
+    /// `isLikelyDuplicate` so the toggle only ever changes what's imported,
+    /// never what's *shown* as flagged.
+    private func isExcludedAsDuplicate(_ draft: CSVImport.DraftExpense) -> Bool {
+        skipLikelyDuplicates && isLikelyDuplicate(draft)
+    }
+
+    private func isExcludedAsDuplicate(_ draft: CSVImport.DraftSettlement) -> Bool {
+        skipLikelyDuplicates && isLikelyDuplicate(draft)
+    }
+
+    private func likelyDuplicateExpenses(_ result: CSVImport.Result) -> [CSVImport.DraftExpense] {
+        result.expenses.filter(isLikelyDuplicate)
+    }
+
+    private func likelyDuplicateSettlements(_ result: CSVImport.Result) -> [CSVImport.DraftSettlement] {
+        result.settlements.filter(isLikelyDuplicate)
+    }
+
+    private func duplicateCount(_ result: CSVImport.Result) -> Int {
+        likelyDuplicateExpenses(result).count + likelyDuplicateSettlements(result).count
+    }
+
+    /// Extracted into its own computed property/function rather than folded
+    /// straight into `review`'s `Form` — the type-checker complexity this
+    /// codebase keeps hitting when several conditionals and `ForEach`s stack
+    /// up in one `body` (see `GroupSettingsView.joinCodeSection`,
+    /// `SettleUpView.upiNudgeSection`).
+    private func duplicatesSection(_ result: CSVImport.Result) -> some View {
+        let count = duplicateCount(result)
+        return Section {
+            Toggle("Skip likely duplicates", isOn: $skipLikelyDuplicates)
+            ForEach(Array(likelyDuplicateExpenses(result).enumerated()), id: \.offset) { _, draft in
+                Text(rowLabel(draft)).font(.footnote).foregroundStyle(.secondary)
+            }
+            ForEach(Array(likelyDuplicateSettlements(result).enumerated()), id: \.offset) { _, draft in
+                Text(rowLabel(draft)).font(.footnote).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("\(count) row\(count == 1 ? "" : "s") already in this group")
+        } footer: {
+            Text("Same date, amount, payer, and description as something already here — probably a re-import. Turn the toggle off to bring them back in.")
+        }
+    }
+
+    /// The heuristic's own limits, worth stating regardless of whether
+    /// anything was actually flagged this time — it can only compare against
+    /// names already resolved to real members, and a source app that
+    /// describes the same expense differently won't match by description.
+    private func stillOnlyBestEffortSection(_ result: CSVImport.Result) -> some View {
+        Section {
+            Label {
+                Text(
+                    duplicateCount(result) > 0
+                        ? "This is a best-effort check — a row worded differently by the source app can still slip through as a new one."
+                        : "ClanTab flags rows that match something already here by date, amount, payer, and description — but a differently-worded export can still slip through."
+                )
+                .font(.footnote)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+            }
+            .foregroundStyle(.orange)
+        }
     }
 
     // MARK: file + import
@@ -300,8 +399,12 @@ struct ImportCSVView: View {
         func id(_ name: String) -> String? { idByName[name.lowercased()] }
         func resolvable(_ names: [String]) -> Bool { names.allSatisfy { resolvedChoice(for: $0) != .skip && id($0) != nil } }
 
-        let expenses = result.expenses.filter { resolvable([$0.payerName] + $0.splits.map(\.memberName)) }
-        let settlements = result.settlements.filter { resolvable([$0.fromName, $0.toName]) }
+        let expenses = result.expenses.filter {
+            resolvable([$0.payerName] + $0.splits.map(\.memberName)) && !isExcludedAsDuplicate($0)
+        }
+        let settlements = result.settlements.filter {
+            resolvable([$0.fromName, $0.toName]) && !isExcludedAsDuplicate($0)
+        }
         let total = expenses.count + settlements.count
 
         var done = 0
@@ -345,6 +448,12 @@ struct ImportCSVView: View {
             stage = .importing(done: done, total: total)
         }
 
-        stage = .finished(imported: total - failed.count, failed: failed)
+        let skippedDuplicates = skipLikelyDuplicates ? duplicateCount(result) : 0
+        stage = .finished(
+            imported: total - failed.count, failed: failed,
+            message: skippedDuplicates > 0
+                ? "Skipped \(skippedDuplicates) row\(skippedDuplicates == 1 ? "" : "s") that looked already imported."
+                : nil
+        )
     }
 }
