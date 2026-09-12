@@ -128,6 +128,17 @@ struct InsightsView: View {
                     }
 
                     Section {
+                        // Above the donut/rows it explains, not trailing them
+                        // (`CHECKLIST.md` UX audit [28]) — a footer here sat
+                        // below charts someone had usually already stopped
+                        // reading past. Only worth explaining once there's
+                        // more than one row to tap — a single-member group
+                        // has nothing to filter.
+                        if byMember.count > 1 {
+                            Text("Tap a member to filter every chart to just their share.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                         if spendingMembers.count > 1 {
                             memberDonut
                         }
@@ -146,12 +157,6 @@ struct InsightsView: View {
                         }
                     } header: {
                         Text("By member")
-                    } footer: {
-                        // Only worth explaining once there's more than one row
-                        // to tap — a single-member group has nothing to filter.
-                        if byMember.count > 1 {
-                            Text("Tap a member to filter every chart to just their share.")
-                        }
                     }
                 }
                 .scrollContentBackground(.hidden)
