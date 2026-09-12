@@ -146,7 +146,14 @@ struct GroupSettingsView: View {
                         .contentShape(Rectangle())
                     }
                     .swipeActions {
-                        Button("Remove", role: .destructive) { Task { await remove(member) } }
+                        // Omitted rather than shown disabled when we already
+                        // know it'll be rejected (`CHECKLIST.md` UX audit
+                        // [21]) — the section footer below states the rule,
+                        // this is just not offering the one swipe action
+                        // that would silently fail against it.
+                        if isRemovable(member) {
+                            Button("Remove", role: .destructive) { Task { await remove(member) } }
+                        }
                         Button("Report") { reportingTarget = (.member(id: member.id), member.displayName) }
                             .tint(.orange)
                     }
@@ -597,6 +604,28 @@ struct GroupSettingsView: View {
         } catch {
             errorMessage = friendlyMessage(for: error)
         }
+    }
+
+    private func isRemovable(_ member: Member) -> Bool {
+        Self.isRemovable(member, myMemberId: myMemberId, expenses: state.expenses, settlements: state.settlements)
+    }
+
+    /// Whether the section footer's rule ("no expenses or settlements,
+    /// isn't signed in") is already known to be violated, checked against
+    /// state already in hand rather than waiting for the server to say so
+    /// (`CHECKLIST.md` UX audit [21]). `static` + free of `self` so it's
+    /// testable without standing up the view. A member claimed by a
+    /// *different* identity can't be detected this way — `Member` never
+    /// exposes that, deliberately (`DESIGN.md` §8) — so that residual case
+    /// still gets rejected server-side; `remove(_:)` already surfaces its
+    /// specific reason via `friendlyMessage`, not a generic fallback.
+    static func isRemovable(_ member: Member, myMemberId: String?, expenses: [Expense], settlements: [Settlement]) -> Bool {
+        guard member.id != myMemberId else { return false }
+        let onAnExpense = expenses.contains { expense in
+            expense.payers.contains { $0.memberId == member.id } || expense.splits.contains { $0.memberId == member.id }
+        }
+        let onASettlement = settlements.contains { $0.fromId == member.id || $0.toId == member.id }
+        return !onAnExpense && !onASettlement
     }
 
     private func remove(_ member: Member) async {

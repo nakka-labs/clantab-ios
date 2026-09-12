@@ -616,13 +616,23 @@ struct GroupHomeView: View {
     /// Everything that isn't Add Expense, in one overflow menu
     /// (`CHECKLIST.md` UX audit [6] step 2) — Group Settings, sharing,
     /// export/import, and the activity filter, each `Section` reading as
-    /// its own cluster (Filter / Share / Data / Settings) with a divider
+    /// its own cluster (Settings / Filter / Share / Data) with a divider
     /// between them. Used to be two separate toolbar items (`shareMenu`
     /// oddly holding Group Settings too, plus a standalone filter icon).
+    /// Settings leads, not trails — found live while testing [21] (below):
+    /// with Data's 6 rows ahead of it, "Group Settings" sat far enough down
+    /// this menu to need a scroll on a real device, the same "the one thing
+    /// you actually need is buried" complaint the whole 4-tab restructuring
+    /// was meant to fix, just moved one level down.
     @ViewBuilder
     private var moreMenu: some View {
         if let state = viewModel.state {
             Menu {
+                Section("Settings") {
+                    Button("Group Settings", systemImage: "slider.horizontal.3") {
+                        isPresentingGroupSettings = true
+                    }
+                }
                 if !state.expenses.isEmpty || !state.settlements.isEmpty {
                     Section("Filter") {
                         activityFilterMenu(state: state)
@@ -669,11 +679,6 @@ struct GroupHomeView: View {
                     }
                 }
 
-                Section("Settings") {
-                    Button("Group Settings", systemImage: "slider.horizontal.3") {
-                        isPresentingGroupSettings = true
-                    }
-                }
             } label: {
                 Label("More", systemImage: "ellipsis.circle")
             }
