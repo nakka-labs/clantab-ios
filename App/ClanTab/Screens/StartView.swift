@@ -38,6 +38,23 @@ struct StartView: View {
     private var activeGroups: [KnownGroup] { groups.filter { !$0.isArchived } }
     private var archivedGroups: [KnownGroup] { groups.filter { $0.isArchived } }
 
+    /// Whether `WelcomeBackCard` is actually about to render visible content
+    /// — both it and `DashboardTotalsHeader` read the same
+    /// `DashboardTotals.compute`, so this is the exact condition under which
+    /// they'd otherwise say the same thing back to back (`CHECKLIST.md` UX
+    /// audit [31]). Settled up (`totals.isEmpty`) already makes both cards
+    /// render nothing on their own — this only needs to hide the header for
+    /// the case where the welcome-back card is genuinely showing a number.
+    /// `static` + free of `self`, like `GroupSettingsView.isRemovable`, so
+    /// it's testable without standing up the view.
+    static func isShowingWelcomeBackTotals(showWelcomeBack: Bool, groups: [KnownGroup]) -> Bool {
+        showWelcomeBack && !DashboardTotals.compute(groups).isEmpty
+    }
+
+    private var isShowingWelcomeBackTotals: Bool {
+        Self.isShowingWelcomeBackTotals(showWelcomeBack: showWelcomeBack, groups: activeGroups)
+    }
+
     var body: some View {
         // Content flows from the top and scrolls only if it actually
         // overflows (a long groups list, or large Dynamic Type) — no more
@@ -66,7 +83,9 @@ struct StartView: View {
                                 if showWelcomeBack {
                                     WelcomeBackCard(groups: activeGroups, onDismiss: onDismissWelcomeBack)
                                 }
-                                DashboardTotalsHeader(groups: activeGroups)
+                                if !isShowingWelcomeBackTotals {
+                                    DashboardTotalsHeader(groups: activeGroups)
+                                }
                                 GroupsListView(groups: activeGroups, onOpenGroup: onOpenGroup, onRemoveGroup: onRemoveGroup)
                             }
                             if !archivedGroups.isEmpty { archivedSection }
