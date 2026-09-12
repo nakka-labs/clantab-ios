@@ -163,20 +163,43 @@ struct ActivityRow: View {
         .accessibilityValue(item.date.formatted(date: .abbreviated, time: .omitted))
     }
 
+    /// At accessibility text sizes, "category · date" no longer fits one
+    /// line — the old `.lineLimit(1)` on the whole row truncated *each*
+    /// piece independently ("Shop…", "11 Sep…"), leaving neither readable
+    /// (`CHECKLIST.md` "UI audit, fresh eyes pass"). Same fix as the
+    /// amount above: drop the separator and stack instead of truncating.
+    @ViewBuilder
     private var metadataLine: some View {
-        HStack(spacing: 4) {
-            if let categoryName = item.categoryName {
-                Text(categoryName)
-                Text("·")
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 2) {
+                if let categoryName = item.categoryName {
+                    Text(categoryName)
+                }
+                HStack(spacing: 4) {
+                    Text(item.date, style: .date)
+                    if item.hasAttachments {
+                        Image(systemName: "paperclip")
+                            .accessibilityLabel("Has a receipt")
+                    }
+                }
             }
-            Text(item.date, style: .date)
-            if item.hasAttachments {
-                Image(systemName: "paperclip")
-                    .accessibilityLabel("Has a receipt")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+            HStack(spacing: 4) {
+                if let categoryName = item.categoryName {
+                    Text(categoryName)
+                    Text("·")
+                }
+                Text(item.date, style: .date)
+                if item.hasAttachments {
+                    Image(systemName: "paperclip")
+                        .accessibilityLabel("Has a receipt")
+                }
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
     }
 }

@@ -105,6 +105,7 @@ struct AddExpenseView: View {
     /// "editing at all" is the simplification, not "has content").
     @State private var isShowingMoreDetails = false
     @Environment(\.avatarImageLoader) private var avatarLoader
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     // MARK: Comments (CHECKLIST.md "Comments on an expense")
     /// Only meaningful once the expense actually exists server-side — i.e.
@@ -356,45 +357,84 @@ struct AddExpenseView: View {
         amountText = "\(text) \(op) "
     }
 
+    private var amountField: some View {
+        TextField("Amount", text: $amountText)
+            .keyboardType(.decimalPad)
+            // Same SF Rounded bold-numeral treatment as BalanceHeroView
+            // (`DESIGN_BIBLE.md`'s "single highest-leverage move",
+            // `FEATURE_BACKLOG.md` "Amount-entry typography") — the amount
+            // is the most important thing on this screen.
+            .font(.system(.title2, design: .rounded).weight(.semibold))
+            .focused($amountFocused)
+            .onChange(of: amountFocused) { _, focused in
+                // Resolve "12 + 8" to "20.00" once the field loses focus,
+                // but leave a bare number ("12") alone.
+                guard !focused, amountHasExpression,
+                      let resolved = MoneyFormat.evaluate(amountText) else { return }
+                amountText = MoneyFormat.plainString(minorUnits: resolved)
+            }
+    }
+
+    private var amountOperatorButtons: some View {
+        // `.decimalPad` has no operator keys — surface + / − so a running
+        // total can be typed in place (`CHECKLIST.md` "Inline calculator").
+        // Shown even before the field is focused (`CHECKLIST.md` UX audit
+        // [19]) — otherwise there's no hint the feature exists until you've
+        // already tapped in; tapping one now focuses the field too, so it's
+        // a valid way to *start* an expression, not just continue one.
+        Group {
+            Button { amountFocused = true; appendOperator("+") } label: { Image(systemName: "plus") }
+            Button { amountFocused = true; appendOperator("-") } label: { Image(systemName: "minus") }
+        }
+    }
+
+    /// At accessibility text sizes the amount field, both operator buttons,
+    /// and the currency picker no longer all fit one row — the old HStack
+    /// just let them compress, and the currency `Picker`'s own value label
+    /// (the thing telling you *which* currency, e.g. "USD") was squeezed
+    /// down to nothing, leaving only its chevron glyph with no way to tell
+    /// what's selected (`CHECKLIST.md` "UI audit, fresh eyes pass"). Moving
+    /// the picker to its own row below gives it room to always show its
+    /// value.
+    @ViewBuilder
+    private var amountRow: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            // Each control gets the full row width in turn — even without a
+            // currency picker in the mix, the amount field sharing a row
+            // with the two operator buttons was enough to truncate its own
+            // value at this size (`CHECKLIST.md` "UI audit, fresh eyes
+            // pass" — an amount being edited rendered as "500…").
+            VStack(alignment: .leading, spacing: 10) {
+                amountField
+                amountOperatorButtons
+                if currencyChoices.count > 1 {
+                    Picker("Currency", selection: $currency) {
+                        ForEach(currencyChoices, id: \.self) { code in Text(code).tag(code) }
+                    }
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        } else {
+            HStack {
+                amountField
+                amountOperatorButtons
+                if currencyChoices.count > 1 {
+                    Picker("Currency", selection: $currency) {
+                        ForEach(currencyChoices, id: \.self) { code in Text(code).tag(code) }
+                    }
+                    .labelsHidden()
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+
     var body: some View {
         Form {
             Section("Expense") {
-                HStack {
-                    TextField("Amount", text: $amountText)
-                        .keyboardType(.decimalPad)
-                        // Same SF Rounded bold-numeral treatment as
-                        // BalanceHeroView (`DESIGN_BIBLE.md`'s "single
-                        // highest-leverage move", `FEATURE_BACKLOG.md`
-                        // "Amount-entry typography") — the amount is the
-                        // most important thing on this screen.
-                        .font(.system(.title2, design: .rounded).weight(.semibold))
-                        .focused($amountFocused)
-                        .onChange(of: amountFocused) { _, focused in
-                            // Resolve "12 + 8" to "20.00" once the field loses
-                            // focus, but leave a bare number ("12") alone.
-                            guard !focused, amountHasExpression,
-                                  let resolved = MoneyFormat.evaluate(amountText) else { return }
-                            amountText = MoneyFormat.plainString(minorUnits: resolved)
-                        }
-                    // `.decimalPad` has no operator keys — surface + / − so a
-                    // running total can be typed in place (`CHECKLIST.md`
-                    // "Inline calculator"). Shown even before the field is
-                    // focused (`CHECKLIST.md` UX audit [19]) — otherwise
-                    // there's no hint the feature exists until you've already
-                    // tapped in; tapping one now focuses the field too, so
-                    // it's a valid way to *start* an expression, not just
-                    // continue one.
-                    Button { amountFocused = true; appendOperator("+") } label: { Image(systemName: "plus") }
-                    Button { amountFocused = true; appendOperator("-") } label: { Image(systemName: "minus") }
-                    if currencyChoices.count > 1 {
-                        Picker("Currency", selection: $currency) {
-                            ForEach(currencyChoices, id: \.self) { code in Text(code).tag(code) }
-                        }
-                        .labelsHidden()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                amountRow
                 TextField("Description", text: $description)
                 if isMultiPayer {
                     payerAmountRows
@@ -406,11 +446,26 @@ struct AddExpenseView: View {
                             onMemberAdded: { members.append($0) }
                         )
                     } label: {
-                        HStack {
-                            Text("Paid by")
-                            Spacer()
-                            Text(members.first { $0.id == payerId }?.displayName ?? "")
-                                .foregroundStyle(.secondary)
+                        // At accessibility text sizes "Paid by" and the name
+                        // no longer both fit one row — the old HStack forced
+                        // the name into a column too narrow for its own
+                        // longest word, wrapping it mid-letter ("Meer" /
+                        // "a") since there's no natural break point in a
+                        // name (`CHECKLIST.md` "UI audit, fresh eyes pass").
+                        // Stacking instead gives it the full row width.
+                        if dynamicTypeSize.isAccessibilitySize {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Paid by")
+                                Text(members.first { $0.id == payerId }?.displayName ?? "")
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            HStack {
+                                Text("Paid by")
+                                Spacer()
+                                Text(members.first { $0.id == payerId }?.displayName ?? "")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }

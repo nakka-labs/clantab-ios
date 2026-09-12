@@ -24,6 +24,14 @@ extension EnvironmentValues {
 }
 
 /// The callout bubble itself — tap anywhere on it to dismiss.
+///
+/// Caps its own text scaling at `.accessibility1` (`CHECKLIST.md` "UI audit,
+/// fresh eyes pass" — critical finding: at the largest system text size this
+/// bubble measured 563pt tall, more than half the screen, hiding the very
+/// content it was explaining). A supplementary one-time hint doesn't need to
+/// track the full accessibility range the way primary content must — capping
+/// it keeps the bubble to a few short lines at any system setting, while
+/// still growing noticeably for a user who has turned text size up.
 private struct CoachMarkBubble: View {
     let text: String
     let onDismiss: () -> Void
@@ -47,6 +55,7 @@ private struct CoachMarkBubble: View {
         }
         .buttonStyle(.plain)
         .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
 }
 
@@ -54,6 +63,10 @@ private struct CoachMarkModifier: ViewModifier {
     let id: String
     let text: String
     let edge: Edge
+    /// Clearance between the bubble and the view it's pointing at. Plain
+    /// `CGFloat`, so `nonisolated` is safe — lets the `alignmentGuide`
+    /// closure below (not main-actor-isolated) read it directly.
+    private nonisolated static let gap: CGFloat = 12
     @Environment(\.coachMarks) private var store
 
     @State private var isVisible = false
@@ -63,7 +76,17 @@ private struct CoachMarkModifier: ViewModifier {
             .overlay(alignment: edge == .top ? .top : .bottom) {
                 if isVisible {
                     CoachMarkBubble(text: text, onDismiss: dismiss)
-                        .offset(y: edge == .top ? -44 : 44)
+                        // A fixed pixel offset (the previous approach) only
+                        // clears the anchor for whatever bubble height it was
+                        // tuned against — a bubble grown to 2-3 lines still
+                        // spilled down over the anchor and the row below it
+                        // (`CHECKLIST.md` "UI audit, fresh eyes pass"). An
+                        // `alignmentGuide` measures the bubble's *own* height
+                        // each time, so it clears the anchor by exactly `gap`
+                        // regardless of how many lines the text wraps to.
+                        .alignmentGuide(edge == .top ? .top : .bottom) { d in
+                            edge == .top ? d[.bottom] + Self.gap : d[.top] - Self.gap
+                        }
                         .transition(.opacity.combined(with: .move(edge: edge)))
                         .zIndex(1)
                 }

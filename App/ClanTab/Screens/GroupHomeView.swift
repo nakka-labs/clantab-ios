@@ -9,6 +9,14 @@ enum GroupHomeAction: Equatable {
 
 struct GroupHomeView: View {
     @Environment(\.scenePhase) private var scenePhase
+    /// The swipeable hero/bubble `TabView`'s height — scales with text size
+    /// rather than a bare `250` (`CHECKLIST.md` "UI audit, fresh eyes pass"
+    /// — critical finding: at the largest system text size, the fixed
+    /// height left no room for the hero's own labels to wrap, so SwiftUI
+    /// truncated "You are owed" to "You are o…"). `250` is still exactly
+    /// what renders at the default text size; this only grows it when a
+    /// larger size actually needs the room.
+    @ScaledMetric(relativeTo: .body) private var heroTabViewHeight: CGFloat = 250
     private let client: ClanTabClient
     private let knownGroups: KnownGroupsStoring
     private let auth: AuthViewModel
@@ -168,7 +176,7 @@ struct GroupHomeView: View {
                         BalanceBubbleView(members: state.members, balances: state.balances)
                             .padding(.vertical, 12)
                     }
-                    .frame(height: 250)
+                    .frame(height: heroTabViewHeight)
                     .tabViewStyle(.page(indexDisplayMode: .always))
                     // The coach mark alone only ever fires once
                     // (`CHECKLIST.md` UX audit [11]) — this small chevron

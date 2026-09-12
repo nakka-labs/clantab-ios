@@ -30,6 +30,8 @@ struct BalanceHeroView: View {
                 Text("Your balance")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("₹0,000")
                     .font(heroFont)
                     .redacted(reason: .placeholder)
@@ -37,10 +39,19 @@ struct BalanceHeroView: View {
                 Text("You're all settled up")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
+                // `.fixedSize` so this always wraps in full rather than
+                // truncating (`CHECKLIST.md` "UI audit, fresh eyes pass" —
+                // "You are owed" clipped to "You are o…" at the largest
+                // system text size, since the card's own height used to be
+                // fixed regardless of content).
                 Text(balances.count == 1 ? headline(for: balances[0]) : "Your balance")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 VStack(spacing: 4) {
                     ForEach(balances, id: \.currency) { balance in
                         Text(amountLine(for: balance))
