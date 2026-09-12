@@ -25,6 +25,10 @@ struct SettleUpView: View {
     /// plan is in hand and re-rendered whenever it changes.
     @State private var shareCard: Image?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.coachMarks) private var coachMarks
+    /// Mirrors `coachMarks?.hasSeen` so dismissing the UPI nudge below
+    /// re-renders immediately, same pattern as `AuthViewModel.syncNudgeDismissed`.
+    @State private var hasSeenUpiNudge = false
 
     private var members: [Member] {
         viewModel.state?.members ?? []
@@ -32,6 +36,18 @@ struct SettleUpView: View {
 
     private var settlements: [SimplifiedSettlement] {
         viewModel.state?.simplifiedSettlements ?? []
+    }
+
+    /// Whether to show the one-time "add your UPI ID" nudge
+    /// (`CHECKLIST.md` UX audit [24]) — the "Pay via UPI" link on a row
+    /// (`upiPayURL(for:)`) only ever appears for a *payee* who's already set
+    /// one, so someone who's owed money in this plan and hasn't set theirs
+    /// would otherwise never learn the field exists. Gated on being owed
+    /// something in INR specifically, since UPI has no other currency.
+    private var shouldShowUpiNudge: Bool {
+        guard !hasSeenUpiNudge, let myId = viewModel.myIdentity?.memberId else { return false }
+        guard let me = members.first(where: { $0.id == myId }), me.upiVpa == nil else { return false }
+        return settlements.contains { $0.toId == myId && $0.currency == "INR" }
     }
 
     /// The plan grouped into per-currency sections, in the order currencies
@@ -62,6 +78,10 @@ struct SettleUpView: View {
                 }
             }
 
+            if shouldShowUpiNudge {
+                upiNudgeSection
+            }
+
             if let errorMessage {
                 Section {
                     Text(errorMessage).foregroundStyle(.red)
@@ -70,6 +90,9 @@ struct SettleUpView: View {
         }
         .materialSheetContent()
         .navigationTitle("Settle Up")
+        .onAppear {
+            hasSeenUpiNudge = coachMarks?.hasSeen("settleUp.addUpiId") ?? true
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Done", action: onDone)
@@ -117,7 +140,41 @@ struct SettleUpView: View {
         "\(settlement.currency):\(settlement.fromId)->\(settlement.toId)"
     }
 
+    private func dismissUpiNudge() {
+        coachMarks?.markSeen("settleUp.addUpiId")
+        withAnimation(.easeOut(duration: 0.15)) { hasSeenUpiNudge = true }
+    }
+
     private var groupName: String { viewModel.state?.group.name ?? "Your group" }
+
+    /// Extracted into its own computed property — folding this `Section`
+    /// straight into `body`'s `List` pushed the type-checker over the edge
+    /// (a recurring pattern in this codebase; see `GroupSettingsView`'s
+    /// `joinCodeSection`).
+    private var upiNudgeSection: some View {
+        Section {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "indianrupeesign.circle")
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Get paid via UPI")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Add your UPI ID under Group Settings → My UPI ID, so whoever pays you here gets a one-tap link.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Button(action: dismissUpiNudge) {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
+            }
+            .padding(.vertical, 2)
+        }
+    }
 
     private func settlementRow(_ settlement: SimplifiedSettlement) -> some View {
         let rowId = rowId(for: settlement)
