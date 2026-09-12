@@ -1368,41 +1368,105 @@ below.** ClanTab is optimized on its own merits from here on — deviate
 from Bible rules freely wherever it makes this app better; matching
 sibling apps in the portfolio is no longer a goal for this app.
 
-- [ ] **[6, critical] Group Home toolbar overloaded — fix: replace the
-      single-stack nav with a 4-tab bottom bar.** `~35k tokens` (CLI) —
-      umbrella fix for [6], [7], [8], [9], [12], [30], [32]; implement as
-      one restructuring pass, in this order.
-      1. Add a `TabView` (bottom tab bar) at the app root: Home (groups
-         list/dashboard — today's `StartView`), Friends (merged screen,
-         see [8]), Insights (promoted to top-level — global cross-group
-         view, drills into per-group detail), Settings (today's
-         `SettingsView`). `AppRoute` keeps its push/sheet model for
-         everything below a tab root (group drill-down, Add Expense,
-         Settle Up, Group Settings stay exactly as they navigate today).
-      2. `GroupHomeView.toolbar` drops to two items: Add Expense (`+`,
-         primary) and one "More" overflow menu holding everything else —
-         Group Settings, Share Invite Link/Code/View-only, Export
-         CSV/JSON/PDF, Import CSV, Recently Deleted, Recurring
-         Reminders, Filter — grouped with `Divider()`s into three
-         clusters (Share / Data / Settings). Resolves [7] and [30].
-      3. Drop the app-level Settings gear and "Your Groups" icon from
-         `GroupHomeView`'s toolbar entirely — both are now one tap away
-         via the tab bar, which also removes the two-icons-both-say-
-         settings confusion. Resolves [32].
-      4. Promote "Settle Up" out of the Members/Activity row list onto a
-         persistent CTA button on the balance hero itself, shown only
-         when the signed-in member has a nonzero balance. Insights row
-         disappears from Group Home entirely (it's a tab now). Resolves
-         [12].
-      5. Update `WhatsNewView`, onboarding copy, and any UI/snapshot
-         tests asserting the old toolbar/menu/tab structure.
-      6. Biggest single change in this batch — budget it as a full pass,
-         not an add-on to another item.
-- [ ] **[7, moderate] "Group Options" menu mixes sharing with data
-      admin.** Folded into [6] step 2 — no separate item.
+- [x] **[6, critical] Group Home toolbar overloaded — fix: replace the
+      single-stack nav with a 4-tab bottom bar.** Done 2026-09-12.
+      1. New persistent `TabView` in `RootView` — Home (`StartView`,
+         unchanged content), Friends, Insights (new — see below), Settings
+         (now a tab, not a sheet). Friends/Insights are hidden pre-auth
+         (`if auth.isSignedIn`) since neither means anything signed out —
+         Home and Settings alone cover that state, matching Settings'
+         own existing sign-in-prompt branch. **Bigger architecture change
+         than the 3 steps below describe**: group drill-down used to be a
+         full `content` swap (`AppRoute` as `RootView`'s one `@State`,
+         `.id(route)` forcing a rebuild on every change — the
+         "same-switch-case-same-identity" workaround from the 2026-09-09
+         group-switching fix). That's gone. `AppRoute` (now just
+         `.createGroup`/`.joinGroup`/`.claimMember`/`.group` — `.start`/
+         `.friends` don't exist anymore, folded into tab selection) is a
+         genuine `NavigationStack(path:)` array pushed under the Home
+         tab; a new `MainTab` enum tracks the selected tab separately.
+         `NavigationStack`'s own value-based push identity makes two
+         different `.group(groupId:)` values naturally distinct
+         destinations with fresh `@State` — the old `.id(route)` hack
+         is structurally unnecessary now, not just unneeded. Opening a
+         group from *any* tab (e.g. a friend's shared group) switches to
+         Home and pushes there, so there's exactly one place a group
+         screen can live, and the tab bar now stays visible and tappable
+         the whole time you're inside a group — a real improvement over
+         "one tap away" (`GroupHomeView`'s "Your Groups" button is fully
+         gone, not just relocated; the standard back-swipe/chevron
+         replaces it, working for free from `NavigationStack`).
+      2. `GroupHomeView.toolbar` now carries exactly two items: Add
+         Expense (`+`) and one "More" menu (`ellipsis.circle`) —
+         `groupSettingsButton` + `shareMenu` + `activityFilterMenu`
+         (previously three separate things, one of them a menu
+         confusingly iconed/labeled "share" but holding Group Settings
+         too) collapsed into one, `Section`-grouped into Filter / Share /
+         Data / Settings (a `Menu`'s `Section` renders its own divider —
+         no manual `Divider()` needed). Resolves [7] and [30].
+      3. The Settings gear and "Your Groups" icon are gone from
+         `GroupHomeView`'s toolbar entirely (see the architecture note
+         above for how "Your Groups" is really gone, not relocated).
+         Resolves [32].
+      4. `BalanceHeroView` gained an optional `onSettleUp` closure — a
+         "Settle Up" button on the card itself, shown only when
+         `viewModel.myBalances` is nonzero (the signed-in member
+         specifically has something to settle, not just "the group has
+         *a* settlement somewhere," which is what the old Members-list
+         row gated on). The separate "Settle Up" row and the "Spending
+         Insights" `NavigationLink` are both deleted from Group Home's
+         `List` outright. Resolves [12].
+      5. New `InsightsHubView` (`Screens/`) is the promoted top-level tab
+         — every known group in one list (reusing the emoji/initial
+         badge look from `GroupsListView`), tapping one fetches that
+         group's state and drills into the existing, unchanged
+         `InsightsView`. **Scoped deliberately, not the full "global
+         view" a literal reading might imply**: a genuine blended
+         cross-group chart needs a backend aggregate endpoint nothing
+         today provides — same call already made for the dashboard's
+         parked "cross-group spend graphs" item. This hub is "global
+         entry point, drills into per-group detail," not a promise of
+         blended charts; that stays parked until real usage data
+         justifies the backend work. `InsightsView` itself gained a
+         `navigationTitleText` (group emoji + name) since it's now
+         reached with no enclosing screen already carrying that context
+         — it used to just say "Insights" because `GroupHomeView`'s own
+         title covered the group name.
+      6. `FriendsView`/`SettingsView` lost their "Done" toolbar buttons
+         (nothing to dismiss anymore, both are tab roots now);
+         `SettingsView.onDone` is repurposed to switch back to the Home
+         tab right after a successful account deletion, since there's no
+         sheet for it to close. `StartView` lost its Settings/Friends
+         toolbar buttons (and the coach mark pointing at the Friends
+         one) — both were icon-only affordances the tab bar's own
+         labeled items make unnecessary, and a tab bar item doesn't need
+         a coach mark the way an icon-only button did.
+      7. Not done (out of scope for this item specifically): `WhatsNewView`
+         copy and onboarding copy — checked both, neither references the
+         old toolbar/menu/tab structure by name, so there was nothing
+         stale to fix; a "what's new" entry describing this restructuring
+         itself is a separate, deliberate addition once the whole UX-audit
+         batch lands, not per-item churn to that shared list.
+      **Verified end to end in the Simulator** (a seeded two-member
+      group, real dev session): signed-out shows exactly Home + Settings;
+      signed-in shows all 4; Friends and the Insights hub (list → drill
+      into a real group's charts, correct title, correct data) both
+      work; opening a group from Home shows the 2-item toolbar with no
+      Settings/Your-Groups icons; the "More" menu's Filter/Share/Data
+      sections all render; the Settle Up CTA on the hero opens the
+      existing sheet correctly; the tab bar stays visible and the back
+      chevron pops correctly while inside a group. `make check` green
+      (kit + worker + iOS build/tests, including the pre-existing
+      `RootViewDeepLinkTests` — its pure `launchRoute`/`resolveDeepLink`
+      functions needed no changes, only how `RootView` consumes their
+      output).
+- [x] **[7, moderate] "Group Options" menu mixes sharing with data
+      admin.** Resolved by [6] step 2 (done 2026-09-12, above) — no
+      separate item.
 - [ ] **[8, moderate] Friends and Settle Across Groups are two
       disconnected screens for the same job.** `~18k tokens` (CLI) —
-      decided: merge into one screen under the new Friends tab from [6].
+      decided: merge into one screen under the new Friends tab from [6]
+      (shipped 2026-09-12, above).
       1. Collapse `FriendsView`/`FriendDetailView` and
          `PeopleView`/`PersonSettleView` into a single Friends tab: a
          person list (today's Friends list) where tapping a person shows
@@ -1414,8 +1478,8 @@ sibling apps in the portfolio is no longer a goal for this app.
          detail screen.
       3. Once shipped, fix `WhatsNewView`'s build-8 copy to match the
          real (now-true) one-screen experience. Resolves [34].
-- [ ] **[9, minor] No persistent navigation anchor.** Resolved by [6]'s
-      tab bar — no separate item.
+- [x] **[9, minor] No persistent navigation anchor.** Resolved by [6]'s
+      tab bar (done 2026-09-12, above) — no separate item.
 - [ ] **[1, critical] No way to preview or try the app before signing
       in.** `~22k tokens` (CLI) — decided: ship a limited pre-auth
       preview rather than keep the hard sign-in wall.
@@ -1482,9 +1546,9 @@ sibling apps in the portfolio is no longer a goal for this app.
          (`.tabViewStyle(.page(indexDisplayMode: .always))`) so the
          swipe is discoverable after the one-time `coachMark(id:
          "groupHome.bubbleSwipe", …)` has already been dismissed.
-- [ ] **[12, minor] "Settle Up" / "Spending Insights" read as data
-      rows, not actions.** Resolved by [6] steps 1 and 4 — no separate
-      item.
+- [x] **[12, minor] "Settle Up" / "Spending Insights" read as data
+      rows, not actions.** Resolved by [6] steps 1 and 4 (done
+      2026-09-12, above) — no separate item.
 - [ ] **[13, minor] Undo toast has no countdown before it
       disappears.** `~5k tokens` (CLI) — `GroupHomeView`'s `undoBanner`
       overlay; add a shrinking-width or dot countdown over the existing
@@ -1589,8 +1653,8 @@ sibling apps in the portfolio is no longer a goal for this app.
       2. For the remaining server-side rejection cases, surface the
          specific reason inline instead of the generic
          `friendlyMessage`.
-- [ ] **[22, minor] Destructive settings rows don't look destructive.**
-      Resolved by [20] step 2 — no separate item.
+- [x] **[22, minor] Destructive settings rows don't look destructive.**
+      Resolved by [20] step 2 (done 2026-09-11, above) — no separate item.
 - [x] **[23, critical] "Mark as Paid" has no confirmation.** Done
       2026-09-11. `settlementRow`'s button now sets a new
       `@State confirmingSettlement: SimplifiedSettlement?` instead of
@@ -1654,8 +1718,8 @@ sibling apps in the portfolio is no longer a goal for this app.
       Feature backlog section below (`~20k tokens`, found 2026-09-08).
       No new item; flagging here only because it's the single
       highest-risk finding in the audit — CLI should prioritize it.
-- [ ] **[30, minor] "Group Options" menu has almost no grouping.**
-      Resolved by [6] step 2 — no separate item.
+- [x] **[30, minor] "Group Options" menu has almost no grouping.**
+      Resolved by [6] step 2 (done 2026-09-12, above) — no separate item.
 - [ ] **[31, moderate] Welcome-back card and the balance header repeat
       the same totals back to back.** `~6k tokens` (CLI) — decided: one
       combined component, drop the standalone header when redundant.
@@ -1664,8 +1728,8 @@ sibling apps in the portfolio is no longer a goal for this app.
          `DashboardTotalsHeader` whenever `WelcomeBackCard` is showing
          (it's the returning-user case), keep the header as the sole
          totals display otherwise.
-- [ ] **[32, minor] Duplicate of [6]** — resolved by [6] step 3, not a
-      separate fix.
+- [x] **[32, minor] Duplicate of [6]** — resolved by [6] step 3 (done
+      2026-09-12, above), not a separate fix.
 - [ ] **[33, minor] Generic errors give no retry or diagnosis.**
       `~15k tokens` (CLI) — decided: split offline from server/decoding
       failures, add retry on the highest-traffic forms.
