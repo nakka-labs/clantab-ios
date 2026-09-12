@@ -406,7 +406,9 @@ struct AddExpenseView: View {
                 }
                 // Multiple payers (`CHECKLIST.md` "Multiple payers on one
                 // expense") is the rare case — a plain toggle keeps the common
-                // single-payer Picker as the default, undisturbed.
+                // single-payer Picker as the default, undisturbed. Real
+                // button styling, not `.footnote` (`CHECKLIST.md` UX audit
+                // [16]) — this switches modes, it isn't fine print.
                 Button(isMultiPayer ? "Paid by one person" : "Split the cost between payers") {
                     isMultiPayer.toggle()
                     if isMultiPayer, payerAmountText.isEmpty {
@@ -415,7 +417,8 @@ struct AddExpenseView: View {
                         payerAmountText = [payerId: amountText]
                     }
                 }
-                .font(.footnote)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 NavigationLink {
                     CategoryPickerView(selection: $category)
                 } label: {
@@ -452,8 +455,12 @@ struct AddExpenseView: View {
                         Text("%").tag(SplitType.percentage)
                     }
                     .pickerStyle(.segmented)
+                    // Same "not fine print" treatment as the multi-payer
+                    // toggle above (`CHECKLIST.md` UX audit [16]) — this
+                    // opens a real mode switch, not a footnote.
                     Button("More Split Types (Shares, Items)") { isPresentingMoreSplits = true }
-                        .font(.footnote)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                 }
 
                 splitDetail
