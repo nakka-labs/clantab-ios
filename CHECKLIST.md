@@ -2874,33 +2874,209 @@ remains (below), same shape as round 2's closeout.
   `.xlsx` writer isn't free on iOS — no first-party framework, so it
   means pulling in a third-party SPM dependency for a format nobody's
   requested.
-- **Merge duplicate members.** Real demand (round-3 playtest, 2026-09-13
-  — two accidental/typo "indra" members in one group with no way to
-  combine them). Parked because it's genuinely large, not because it's
-  low-value: a new worker `mergeMembers` endpoint reassigning
-  `payer_id`, the `payers` JSON blob, `expense_splits.member_id`,
-  `settlements.from_id/to_id`, `comments.authorMemberId`, and resolving
-  `identity_sub`/avatar conflicts, plus a "merge into" picker UI.
-  Compounded by `removeMember`'s existing hard block on any member with
-  activity (`MEMBER_IN_USE`) — today there's no reassignment path at
-  all once a duplicate has a single expense. Revisit for v1.1.
-- **Universal, identity-level display name.** Real demand (round-3
-  playtest, 2026-09-13 — per-group names that can change anytime "can
-  lead to confusion"). Decided 2026-09-13: one central name, **no**
-  per-group override once built — `members.display_name` stays
-  per-group in the schema, but a new identity-level name on `UserDO`
-  becomes the single source shown everywhere, propagated through
-  `claim`/`addMembership` and the Friends "first name wins" heuristic.
-  Parked because it's a schema/propagation change touching claim,
-  membership, and Friends aggregation together, not a UI-only fix.
-  Revisit for v1.1.
-- **Link Apple and Google accounts.** Real demand (round-3 playtest,
-  2026-09-13). Each identity today is a wholly independent `UserDO`
-  keyed by `"<provider>:<sub>"` with no linking mechanism. Parked
-  2026-09-13 as a deliberate v1.1+ item, not launch-critical — most
-  users pick one sign-in method and stick with it. Would need a
-  verify-second-provider-while-signed-in flow plus a full merge of two
-  `UserDO`s' memberships, friends, avatar, and APNs tokens.
+
+**v1.1 backlog — real demand, scoped and ready, deliberately not v1.0.**
+Unlike the plain-bullet items above (open questions or rejected-for-now
+ideas), these three carry a concrete execution plan each, drafted
+2026-09-13 against the actual current schema/endpoints, ready to pick up
+as ordinary "To do" items whenever v1.1 work starts.
+
+- [ ] **Merge duplicate members.** `~40-60k` — real demand (round-3
+      playtest, 2026-09-13 — two accidental/typo "indra" members in one
+      group with no way to combine them). Parked for v1.1, not because
+      it's low-value but because it's genuinely large — a data-merge
+      across every table that references a member id, not a UI-only fix.
+      Grounded 2026-09-13 against the actual schema
+      (`worker/src/lib/schema.ts` `GROUP_SCHEMA`,
+      `worker/src/group-do.ts` `removeMember`'s existing reference-check
+      is the map of every table involved).
+      **Permanent, with no undo of any kind — confirmed 2026-09-13, this
+      is load-bearing for the whole design, not a caveat to add later.**
+      Unlike deleting an expense or settlement (soft-delete —
+      `deleted_at`/`deleted_by`, restorable from `RecentlyDeletedView`),
+      there is no soft-delete concept for a member anywhere in this
+      schema, and this plan doesn't add one: step 2 below hard-`DELETE`s
+      the losing member row, and the reassignment `UPDATE`s in step 1
+      overwrite `member_id`/`payer_id`/`from_id`/`to_id` in place, so
+      afterward there is no stored trace of which rows used to belong to
+      which of the two original members. `CloudKitGroupBackup`
+      (`App/ClanTab/CloudKitBackup.swift`) does **not** help here either
+      — grep-confirmed 2026-09-13, it's a write-only snapshot
+      (`GroupBackupWriting`) with no restore path anywhere in the app or
+      worker, not even a manual one; it exists for a lost-device
+      scenario, not an "undo my mistake" feature. So the confirmation in
+      step 6 is the *only* safeguard this plan provides — it has to
+      actually stop a wrong tap, not just legally cover one, and its
+      copy must say plainly that this can't be undone, not just that
+      it's "irreversible" in the fine print. If real accidental-merge
+      reports show up after this ships, the next move is a proper
+      undo window (e.g. holding the pre-merge member/reassignment data
+      for N days before the hard delete) — a deliberately separate,
+      later decision, not something to half-build now.
+      1. Worker: `GroupDO.mergeMembers(keepId, mergeId)` — one write,
+         same shape as `removeMember`'s existing reference scan.
+         Reassign `expenses.payer_id`, `settlements.from_id/to_id`,
+         `comments.author_member_id` (plain `UPDATE ... WHERE = mergeId`);
+         rewrite each `expenses.payers` JSON blob entry whose `memberId
+         == mergeId`; `expense_splits` needs care — its PK is
+         `(expense_id, member_id)`, so an expense where *both* `keepId`
+         and `mergeId` already have a split is a real conflict (they
+         were both actually on that expense — not a duplicate-name
+         situation), not something to silently sum. Refuse the whole
+         merge with a new `MERGE_CONFLICT` error in that case; the UI
+         surfaces it as "these aren't actually the same person" rather
+         than attempting a partial merge.
+      2. Worker: identity/avatar conflict rule — refuse (`MERGE_CONFLICT`)
+         if *both* members have a non-null `identity_sub` (two real,
+         separately-claimed accounts is a different problem than a typo
+         placeholder); otherwise carry over whichever `identity_sub`/
+         `avatar_key` is non-null onto the kept row. Finally delete the
+         `mergeId` row (hard delete — see the permanence note above).
+      3. Worker: log the merge before deleting anything — one structured
+         `console.log` line (group id, both member ids + display names,
+         which one was kept, timestamp), the same "at least we can see
+         what happened" role `CloudKitGroupBackup`'s own logging plays
+         elsewhere. Purely forensic, queryable via `wrangler tail` after
+         the fact — explicitly *not* a restore mechanism, and the plan
+         and any UI copy must never imply it is one.
+      4. New route `POST /api/groups/:groupId/members/:memberId/merge`
+         body `{ into: <keepMemberId> }` (`index.ts`, alongside
+         `handleRemoveMember`'s neighbors).
+      5. Kit: `ClanTabClient.mergeMembers(groupId:memberId:into:accessToken:)`
+         + request/response wire types (`ClanTabWireTypes.swift`).
+      6. App: a "Merge into…" action on `GroupSettingsView`'s member row
+         (alongside the existing rename/remove swipe actions) opening a
+         member picker (reuse `MemberPickerView`), then a
+         `.confirmationDialog` — same mechanism as "Delete Account"/
+         "Leave Group" elsewhere in this file, no extra "type the name
+         to confirm" step; the app has no precedent for that heavier
+         pattern and this shouldn't be the first place it appears.
+         **The title itself must say "This can't be undone" in plain
+         words**, not just "Merge members?" — every existing destructive
+         dialog in this app names the specific consequence in its title
+         (`GroupSettingsView.swift`'s own "Leave this group?"/"Delete
+         Account" rows), and "can't be undone" is the one fact this
+         action's title cannot afford to leave to the body text alone.
+      7. Worker tests: the reassignment across every table, the
+         `expense_splits` overlap rejection, the both-claimed rejection,
+         idempotency of a repeat call.
+- [ ] **Universal, identity-level display name.** `~50-70k` — real
+      demand (round-3 playtest, 2026-09-13 — per-group names that can
+      change anytime "can lead to confusion"). Decided 2026-09-13: one
+      central name, **no** per-group override once built. Grounded
+      2026-09-13 against `fanOutAvatar`/`setMemberAvatar`
+      (`worker/src/index.ts`, `worker/src/group-do.ts`) — "Profile
+      photos" already solved the identical propagation problem for an
+      avatar key; this is the same shape for a name.
+      1. Worker: `UserDO` gains a `user_meta` key (`display_name` —
+         no `USER_SCHEMA_VERSION` bump needed, same as
+         `avatar_uploaded_at`) + `displayName()`/`setDisplayName()`.
+      2. New route `PATCH /api/auth/profile` body `{ displayName }` →
+         `fanOutDisplayName(env, sub, name)`, mirroring
+         `fanOutAvatar` exactly: set the `UserDO` value, `listGroups()`,
+         then concurrently call a new `GroupDO.setMemberDisplayName(sub,
+         displayName)` (`UPDATE members SET display_name = ? WHERE
+         identity_sub = ?`, mirrors `setMemberAvatar`) on each.
+      3. Worker: `GroupDO.updateMember`'s `displayName` patch path
+         becomes claimed-member-proof — only a member with `identity_sub
+         IS NULL` (a placeholder) can still be renamed that way; a
+         claimed member's name now comes solely from the fan-out. Return
+         a new `MEMBER_CLAIMED` error otherwise (defense in depth — the
+         client shouldn't offer the option at all, see step 6).
+      4. Worker: `claim()` seeds the newly-claimed member's
+         `display_name` from the identity's central name when one's
+         already set (same "seed from identity" pattern `avatarKey`
+         already uses there) — the reverse the very first time: if the
+         identity has *no* central name yet, bootstrap it from whatever
+         name this claim already carries (the placeholder's typed name,
+         or `ClaimMemberView`'s "Your display name" field), so almost
+         nobody ever needs to see an explicit "set your name" prompt.
+      5. Kit: `Member.isClaimed: Bool` (new, safe to expose — just
+         `identity_sub IS NOT NULL`, never the subject itself) so the
+         client can tell claimed and unclaimed members apart without
+         leaking anything.
+      6. App: Settings gains a "Your Name" field (calls the new PATCH);
+         `GroupSettingsView`'s "Rename Member" only offered when
+         `!member.isClaimed`; `ClaimMemberView`'s "Your display name"
+         field only appears on someone's first-ever claim anywhere
+         (central name not set yet) — every later claim in another group
+         just uses it silently, no prompt.
+      7. Decide (owner): whether to run a one-time backfill copying each
+         already-claimed identity's most-recently-used per-group name
+         into the new central field at deploy time, so day-one behavior
+         looks intentional rather than blank, vs. leaving it fully lazy
+         (bootstraps the first time step 4 or 6 touches that identity).
+- [ ] **Link Apple and Google accounts.** `~90-130k`, the largest of the
+      three — real demand (round-3 playtest, 2026-09-13). Each identity
+      today is a wholly independent `UserDO` keyed by
+      `"<provider>:<sub>"` (`MANDATORY_LOGIN_PLAN.md` Part 2) with no
+      linking mechanism, and every `UserDO` lookup everywhere
+      (`handleAuthApple`/`Google`, `requireSession`, `opaquePersonId`,
+      the Friends aggregation) resolves straight from that composite
+      string with no indirection to unwind. Benefits from **merge
+      duplicate members** above as a subroutine (step 2b), so build that
+      one first if both are ever picked up.
+      1. Worker: `UserDO` gains a `linked_to` `user_meta` key — the
+         composite identity string of the "primary" identity this one
+         now redirects to. One level of indirection only (resolution
+         always starts from whichever `UserDO` a session's `sub`
+         addresses).
+      2. New route `POST /api/auth/link`, called *while signed in* as
+         the primary identity: body `{ provider, identityToken,
+         authorizationCode? }`, verified via the existing
+         `verifyAppleIdentityToken`/`verifyGoogleIdentityToken`, giving
+         a second `identity2 = "<provider>:<sub>"`.
+         a. `identity2 == primary` → no-op.
+         b. `UserDO(identity2)` never signed in before → just set its
+            `linked_to = primary` and stop; nothing to merge.
+         c. `UserDO(identity2)` already exists (the real case — signed
+            in with both separately in the past): for each of its
+            memberships not already held by primary in that group, a
+            new small `GroupDO.reclaimMember(memberId, fromSub,
+            toSub)` (`UPDATE members SET identity_sub = ? WHERE
+            identity_sub = ?`, checked that `toSub` doesn't already hold
+            a member there) + `primary.addMembership(...)`; for a group
+            where *both* identities already separately belong, that's
+            exactly the "merge duplicate members" case — call
+            `GroupDO.mergeMembers` to fold identity2's member into
+            primary's. **This makes the merge automatic, not something
+            the person confirms per group** — and merge is permanent
+            (see that item's own note on why). So `POST /api/auth/link`
+            must return the list of groups this would collapse *before*
+            committing (a dry-run pass), and the app shows that list in
+            one confirmation before calling it for real — linking two
+            accounts is not itself irreversible (the sign-in side can be
+            undone) but the member-merges it can trigger are, and that
+            has to surface once, plainly, not get buried inside "Link
+            Google Account" as a side effect nobody agreed to. Copy
+            `identity2`'s `devices` rows onto primary's. Finally strip
+            `identity2` down to just `identity`/`linked_to`
+            (`deleteAll()` then re-set `linked_to`) — its memberships/
+            devices have all moved.
+      3. Worker: `handleAuthApple`/`handleAuthGoogle`, right after
+         `ensureExists`, check `linkedTo()` — if set, mint the session
+         for the **linked** identity and read `listGroups()` from *its*
+         `UserDO`, not the one just authenticated against. One extra
+         `UserDO` read on every sign-in, for everyone, forever — worth
+         calling out as a permanent small cost, not a one-time migration
+         detail.
+      4. Worker: `handleAuthDeleteAccount` must resolve through
+         `linked_to` too. Decide (owner): does deleting a linked
+         account delete both identities' access, or does it just unlink
+         the secondary back to a blank fresh identity? Needs a real
+         answer before this ships, not an implementation detail to
+         improvise.
+      5. App: Settings gains a "Linked Accounts" section — "Link Google
+         Account" (shown only signed in with Apple, no Google linked
+         yet) reusing `GoogleSignInButton`'s existing token-producing
+         flow but a new `AuthViewModel.linkAccount(provider:
+         identityToken:)` completion (calls `/api/auth/link` with the
+         *current* session's bearer token — must not go anywhere near
+         `signIn()`'s session-replacement path) — and the mirror image
+         for "Link Apple Account."
+      6. Worker tests: fresh-secondary (2a), both-pre-existing-merge
+         (2b/2c full path), sign-in-after-link resolving to primary,
+         delete-account-while-linked per whatever step 4 decides.
 
 ## Non-goals — will not be built
 
