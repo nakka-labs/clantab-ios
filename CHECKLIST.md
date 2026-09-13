@@ -301,6 +301,15 @@
           processing as of this note. Archive at
           `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-12
           .xcarchive`.
+      3e. [x] CLI: build `1.0 (13)` archived, exported, and uploaded
+          2026-09-13 — carries the personal-Insights rework, member-
+          balance breakdown, bubble-sizing fix, delete-dialog revert, and
+          duplicate-amount fix ("Real-device findings" above) on top of
+          build 12. Checked the live build number first (`12`, matched
+          the repo), `make bump-build` → `13`, same flow as 3b/3c/3d.
+          Upload succeeded; still processing as of this note. Archive at
+          `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-13
+          .xcarchive`.
       4. Owner: run the pass on a real device — Sign in with Apple/Google,
          a push (CLI triggers it via an API expense-add), a recurring-
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
