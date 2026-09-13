@@ -113,6 +113,14 @@ struct InsightsHubView: View {
         }
         .navigationTitle("Insights")
         .task { await reload() }
+        // `auth.groups` (needed to know *my* member id in each group) comes
+        // from its own network round-trip on launch — if this tab's own
+        // `.task` above ran before that resolved (a real race: `TabView`
+        // can construct every tab eagerly, and `.task` only fires once per
+        // view identity, so tapping this tab early with nothing to re-
+        // trigger it left the charts permanently empty for the rest of the
+        // session). Re-aggregate whenever the membership list changes.
+        .onChange(of: auth.groups) { _, _ in Task { await reload() } }
         .refreshable { await reload() }
     }
 
@@ -213,9 +221,14 @@ struct InsightsHubView: View {
         groups = knownGroups.all()
         guard !chartableGroups.isEmpty else { return }
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
 
-        let myMemberIds = Dictionary(uniqueKeysWithValues: auth.groups.map { ($0.groupId, $0.memberId) })
+        // `uniquingKeysWith` rather than `uniqueKeysWithValues:` — the
+        // latter *traps* on a duplicate key, and this dictionary is built
+        // from network-sourced data; never take that risk regardless of
+        // how confident the current server logic is about uniqueness.
+        let myMemberIds = Dictionary(auth.groups.map { ($0.groupId, $0.memberId) }, uniquingKeysWith: { _, new in new })
         let fetched: [PersonalInsights.GroupContribution?] = await withTaskGroup(of: PersonalInsights.GroupContribution?.self) { taskGroup in
             for group in chartableGroups {
                 guard let myMemberId = myMemberIds[group.groupId] else { continue }
@@ -232,5 +245,14 @@ struct InsightsHubView: View {
         }
         contributions = fetched.compactMap { $0 }
         if currency.isEmpty { currency = currencies.first ?? "" }
+        // Loaded, but came back with nothing to chart even though there are
+        // known groups — either every fetch failed (offline, a stale
+        // token) or `auth.groups` hadn't resolved a member id for any of
+        // them yet. Say so rather than silently showing just the "By
+        // group" list with no numbers above it, which reads as "the
+        // charts disappeared."
+        if contributions.isEmpty {
+            loadError = "Couldn't load your personal spending. Pull to refresh to try again."
+        }
     }
 }

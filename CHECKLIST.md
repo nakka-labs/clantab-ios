@@ -2975,6 +2975,25 @@ device pass.
       (`PersonalInsightsTests`) cover the cross-group-id-isolation case
       directly — the one a naive single-call implementation would get
       wrong silently. `make check` green.
+      **Follow-up bug, same day:** Owner reported the new personal
+      charts showing nothing at all on build 13 ("insights has been
+      completely removed"). Found two real defects on review: (1)
+      `reload()`'s `myMemberIds` dictionary used
+      `Dictionary(uniqueKeysWithValues:)`, which **traps** on a
+      duplicate key — safe today only because `AuthViewModel.upsertGroup`
+      happens to dedupe, a fragile invariant for data that ultimately
+      comes from the network; switched to `uniquingKeysWith:`. (2) a
+      real race: `auth.groups` (needed to resolve *my* member id per
+      group) loads via its own network round-trip, and if this tab's
+      `.task` ran before that resolved, every group got silently
+      skipped with nothing to re-trigger the aggregation for the rest of
+      the session. Added `.onChange(of: auth.groups)` to re-aggregate
+      whenever the membership list changes. Also added a visible
+      "Couldn't load your personal spending" message for the case where
+      every fetch genuinely fails, instead of silently showing just the
+      "By group" list with no charts above it and no explanation. Not
+      yet confirmed against the real device that either was the actual
+      cause — both are real defects regardless. `make check` green.
 
 ### Parked — not dropped, revisit deliberately
 
