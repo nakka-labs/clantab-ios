@@ -107,16 +107,49 @@ public enum CSVImport {
         let lowered = header.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
 
         if lowered == ["type", "date", "description", "category", "from", "to", "amount", "currency", "splits"] {
-            return parseClanTab(dataRows)
+            return flaggingImplausibleAmounts(parseClanTab(dataRows))
         }
         if lowered.contains("cost"), lowered.contains("currency"),
            lowered.contains("date"), lowered.contains("description") {
-            return parseSplitwise(header: header, lowered: lowered, dataRows: dataRows)
+            return flaggingImplausibleAmounts(parseSplitwise(header: header, lowered: lowered, dataRows: dataRows))
         }
         if lowered.contains("who paid"), lowered.contains("for whom"), lowered.contains("split amounts") {
-            return parseSettleUp(header: header, lowered: lowered, dataRows: dataRows)
+            return flaggingImplausibleAmounts(parseSettleUp(header: header, lowered: lowered, dataRows: dataRows))
         }
         throw ParseError.unrecognizedFormat
+    }
+
+    /// Flags amounts that look wildly out of line with the rest of the same
+    /// import — a safety net against a misread decimal separator (this or a
+    /// future locale bug producing a technically-valid but implausible
+    /// number, e.g. a stray 100x) — regardless of which parser produced the
+    /// row (`CHECKLIST.md` D1). Purely additive: only ever appends a
+    /// warning, never drops or alters a row. Grouped by currency, since
+    /// mixing currencies into one "normal" would flag genuine outliers for
+    /// the wrong reason; needs a handful of same-currency rows before a
+    /// median means anything.
+    private static func flaggingImplausibleAmounts(_ result: Result) -> Result {
+        struct Item { let amountMinor: Int64; let currency: String; let label: String }
+        let items =
+            result.expenses.map { Item(amountMinor: $0.amountMinor, currency: $0.currency, label: $0.description) }
+            + result.settlements.map {
+                Item(amountMinor: $0.amountMinor, currency: $0.currency, label: "\($0.fromName) → \($0.toName)")
+            }
+        let outlierFactor: Int64 = 25
+        var extra: [String] = []
+        for (currency, group) in Dictionary(grouping: items, by: \.currency) where group.count >= 4 {
+            let median = group.map(\.amountMinor).sorted()[group.count / 2]
+            guard median > 0 else { continue }
+            for item in group where item.amountMinor > median * outlierFactor || item.amountMinor * outlierFactor < median {
+                let amount = MoneyFormat.string(minorUnits: item.amountMinor, currency: currency)
+                extra.append("Heads up: \"\(item.label)\" is \(amount) — far out of line with the rest of this import. Worth double-checking it parsed correctly (e.g. a decimal comma read as a thousands separator).")
+            }
+        }
+        guard !extra.isEmpty else { return result }
+        return Result(
+            format: result.format, expenses: result.expenses, settlements: result.settlements,
+            referencedNames: result.referencedNames, warnings: result.warnings + extra
+        )
     }
 
     /// Decodes raw file bytes to text, sniffing the encoding from a BOM when
@@ -461,8 +494,32 @@ public enum CSVImport {
     /// Signed decimal → minor units (Splitwise's per-person columns can be
     /// negative).
     static func parseSignedAmount(_ input: String) -> Int64? {
-        var s = input.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "")
+        var s = input.trimmingCharacters(in: .whitespaces)
         guard !s.isEmpty else { return nil }
+
+        // EU-locale decimal comma ("12,50" = twelve fifty), distinguished
+        // from a US-style thousands separator ("1,234" = 1234) purely by
+        // digit count: a real thousands group is always exactly 3 digits,
+        // so — with no `.` anywhere in the string — a comma followed by
+        // exactly 2 trailing digits can only be a decimal point. Before
+        // this, every comma was stripped unconditionally, so "12,50"
+        // silently read as 1250 *major* units (125000 minor — a 100x
+        // corruption), not 12.50 (`CHECKLIST.md` D1,
+        // `docs/csv-import-formats.md`'s "assumes `.` as the decimal
+        // separator" gap). A combined EU style ("1.234,56", thousands-dot +
+        // decimal-comma) is a separate, still-open gap — it has a `.`, so
+        // this doesn't fire, and the unconditional comma-strip below reads
+        // it as "1.23456" → an incorrect but plausible-looking 1.23 (not a
+        // crash, not a `nil`). Disambiguating that case needs real locale
+        // knowledge this parser doesn't have (the docs file's own
+        // "genuinely ambiguous" note); out of scope here — this fix only
+        // covers the plain decimal-comma case D1 was filed against.
+        if !s.contains("."), let lastComma = s.lastIndex(of: ","),
+           s.distance(from: s.index(after: lastComma), to: s.endIndex) == 2,
+           s[s.index(after: lastComma)...].allSatisfy(\.isNumber) {
+            s.replaceSubrange(lastComma...lastComma, with: ".")
+        }
+        s = s.replacingOccurrences(of: ",", with: "")
         let negative = s.hasPrefix("-")
         if negative { s.removeFirst() }
         let parts = s.split(separator: ".", omittingEmptySubsequences: false)

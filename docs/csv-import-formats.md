@@ -71,20 +71,31 @@ compiled and ran it unchanged — no behaviour changes were needed.)
   has. If this file was imported before — or another member imported the same
   trip — every row is added again."), so a re-import isn't silent even though
   it isn't blocked.
-- **Splitwise / Settle Up amounts assume `.` as the decimal separator.**
-  `parseAmount` strips `,` unconditionally, treating it only as a thousands
-  separator (`"1,234.00"` → 123400). An export from a EU-locale device using
-  comma-decimal would misparse: `"12,50"` (twelve-fifty, i.e. 1250 minor
-  units) currently parses as `1250` *major* units — `125000` minor, a 100x
-  error — because the `,` is stripped and the result read as a whole number.
-  Nothing in the current codebase
-  exercises this path — the real Settle Up file we have is period-decimal — so
-  this is not "fixed," it's flagged. A safe fix needs a way to *know* the
-  locale convention (e.g. detect a delimiter-shift to `;` the way Excel does
-  for comma-decimal locales) rather than guessing from the amount string
-  alone, which is genuinely ambiguous (`"1,234"` is 1234 in the US
-  convention and 1.234 in the EU one). Don't build this without a real
-  sample export from an EU-locale export to test against.
+- **Fixed 2026-09-13 (`CHECKLIST.md` D1): a plain EU-locale decimal comma no
+  longer corrupts the amount 100x.** `parseSignedAmount` used to strip every
+  `,` unconditionally, treating it only as a thousands separator — an
+  EU-locale export writing `"12,50"` (twelve-fifty) read as `1250` *major*
+  units (`125000` minor). Fixed by digit-counting rather than guessing at
+  locale: with no `.` anywhere in the string, a comma followed by *exactly*
+  2 trailing digits can only be a decimal point — a genuine thousands group
+  is always exactly 3 digits (`"1,234"` still parses as 1234, unchanged).
+  Verified with `swift test --package-path ClanTabKit --filter CSVImport`
+  (`testParseAmountEUDecimalComma`, `testClanTabEUDecimalComma`), and a
+  same-currency-outlier plausibility check (`testImplausibleAmountFlagged`)
+  now flags — never silently drops — any row whose amount lands wildly out
+  of line with the rest of the same import, as a safety net against this or
+  a similar future misparse.
+  **Still not handled — the combined EU style ("1.234,56", thousands-dot +
+  decimal-comma) remains genuinely ambiguous without knowing the source
+  locale** (`"1,234"` is 1234 in the US convention and 1.234 in the EU one —
+  the reason this was never built blind). Today it silently reads
+  `"1.234,56"` as `1.23` (comma-strip leaves `"1.23456"`, truncated to 2
+  fractional digits) — plausible-looking, not obviously broken, so the
+  outlier check above is the only net that might catch a bad case in
+  practice. A real fix needs either a genuine locale signal (e.g. detecting
+  a delimiter-shift to `;`, the way Excel does for comma-decimal locales) or
+  a real EU-locale sample export combining both separators to test against
+  — don't build it blind.
 - **Settle Up's `Timezone` column is ignored.** It's blank on every row we've
   seen in practice; `parseDate` treats the naive `yyyy-MM-dd HH:mm:ss`
   timestamp as UTC. If Settle Up does populate it for some export paths, dates

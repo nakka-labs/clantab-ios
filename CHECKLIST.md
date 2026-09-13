@@ -3096,18 +3096,34 @@ unreachable rows) already has its own entry elsewhere in this file;
 `D6` (InsightsHubView tests) is intentionally not repeated here -- moot
 now that the Insights tab is removed, see above.
 
-- [ ] **[D1, critical] CSV import can silently corrupt EU-locale
-      amounts.** ~15-20k tokens. `CSVImport`'s amount parser
-      unconditionally strips commas before parsing -- "1234,56" (EU
-      decimal comma) becomes 123456, not 1234.56, with no warning.
-      Fix: only treat a comma as a EU decimal when there's no period
-      AND exactly 2 digits follow it; otherwise keep today's
-      thousands-separator behavior. Pair with a per-row plausibility
-      check (flag anything wildly out of line with neighboring rows) as
-      a safety net regardless of which path parsed it. Add a hand-built
-      EU-style fixture; the existing US fixture must still pass
-      unchanged. Verify with `swift test --package-path ClanTabKit
-      --filter CSVImport` -- don't just claim it's fixed.
+- [x] **[D1, critical] CSV import can silently corrupt EU-locale
+      amounts.** Done 2026-09-13. `parseSignedAmount` used to strip every
+      `,` unconditionally before parsing -- `"12,50"` (EU decimal comma)
+      read as `1250` *major* units (125000 minor, a 100x error), no
+      warning. Fixed exactly as scoped: with no `.` anywhere in the
+      string, a comma followed by *exactly* 2 trailing digits can only be
+      a decimal point -- a genuine thousands group is always exactly 3
+      digits, so `"1,234"`/`"1,234.00"` still parse unchanged. Also added
+      the suggested safety net -- `flaggingImplausibleAmounts` (applied to
+      every format's `Result`) groups an import's expense/settlement
+      amounts by currency and, once a currency has ≥4 rows, flags (never
+      drops) any amount more than 25x above or below the group's median,
+      catching a bad parse this specific fix doesn't anticipate. **Found
+      while testing, scope corrected:** a combined EU style
+      (`"1.234,56"`, thousands-dot + decimal-comma) isn't `nil`-safe as
+      first assumed -- the existing comma-strip silently reads it as
+      `1.23` (`"1.23456"` truncated to 2 fractional digits), same
+      pre-existing behavior as before this fix, not a new regression.
+      Left alone per the ticket's own scope (`docs/csv-import-formats.md`:
+      genuinely ambiguous without a real locale signal, "don't build it
+      blind") -- documented honestly there instead of claimed as fixed.
+      Tests: `testParseAmountEUDecimalComma` (6 cases, incl. the existing
+      US-style cases unchanged), `testClanTabEUDecimalComma` (a full
+      quoted-CSV round-trip), `testImplausibleAmountFlagged` +
+      `testPlausibleAmountsNoWarning`. kit 358 (26 in `CSVImport` alone).
+      `make check` green end to end (kit + worker + iOS build/tests, run
+      for real in this session -- not the "shell has no toolchain" caveat
+      from the Insights-tab-removal item above).
 - [ ] **[D3, low] Recurring SwiftUI type-checker-ceiling workarounds --
       write the house rule down.** <1k tokens. Hit and worked around 6
       separate times (SettleUpView, ImportCSVView, GroupSettingsView

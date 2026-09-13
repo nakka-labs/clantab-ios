@@ -25,6 +25,24 @@ struct CSVImportTests {
         #expect(CSVImport.parseSignedAmount(input) == expected)
     }
 
+    @Test(
+        "an EU-locale decimal comma parses as a decimal point, not a stripped thousands separator (CHECKLIST.md D1)",
+        arguments: [
+            ("12,50", Int64(1250)), ("50,00", Int64(5000)), ("0,05", Int64(5)), ("-20,00", Int64(-2000)),
+            // A genuine US-style thousands separator (always 3 trailing
+            // digits) must keep working exactly as before.
+            ("1,234", Int64(123_400)), ("1,234.00", Int64(123_400)),
+        ]
+    )
+    func testParseAmountEUDecimalComma(input: String, expected: Int64) {
+        #expect(CSVImport.parseSignedAmount(input) == expected)
+    }
+
+    // Note: a combined EU thousands+decimal style ("1.234,56") is a
+    // separate, still-open gap (see `parseSignedAmount`'s doc comment and
+    // `docs/csv-import-formats.md`) — not covered by this fix, and not
+    // asserted here so as not to imply it's handled.
+
     @Test("parseAmount rejects negatives and junk")
     func testParseAmountRejects() {
         #expect(CSVImport.parseAmount("-1.00") == nil)
@@ -343,5 +361,52 @@ struct CSVImportTests {
         #expect(r.format == .settleUp)
         #expect(r.expenses.count == 2)
         #expect(r.settlements.count == 1)
+    }
+
+    // MARK: EU-locale decimal comma (CHECKLIST.md D1)
+
+    @Test("a ClanTab-shaped export edited by an EU-locale spreadsheet (decimal commas, quoted so the outer comma delimiter is unambiguous) round-trips correctly, not corrupted 100x")
+    func testClanTabEUDecimalComma() throws {
+        let csv = """
+        Type,Date,Description,Category,From,To,Amount,Currency,Splits
+        Expense,2026-07-01T12:00:00Z,Lunch,Dining,Ana,,"12,50",EUR,"Ana:6,25; Ben:6,25"
+        """
+        let r = try CSVImport.parse(csv)
+        #expect(r.warnings.isEmpty)
+        #expect(r.expenses.count == 1)
+        let e = r.expenses[0]
+        #expect(e.amountMinor == 1250) // not 125000
+        #expect(Set(e.splits) == [
+            CSVImport.DraftSplit(memberName: "Ana", amountMinor: 625),
+            CSVImport.DraftSplit(memberName: "Ben", amountMinor: 625),
+        ])
+    }
+
+    @Test("an amount wildly out of line with the rest of the same-currency import is flagged, not silently accepted or dropped")
+    func testImplausibleAmountFlagged() throws {
+        let csv = """
+        Type,Date,Description,Category,From,To,Amount,Currency,Splits
+        Expense,2026-07-01T12:00:00Z,Coffee,,Ana,,10.00,USD,Ana:10.00
+        Expense,2026-07-02T12:00:00Z,Lunch,,Ana,,12.00,USD,Ana:12.00
+        Expense,2026-07-03T12:00:00Z,Snack,,Ana,,8.00,USD,Ana:8.00
+        Expense,2026-07-04T12:00:00Z,Rent,,Ana,,1200.00,USD,Ana:1200.00
+        """
+        let r = try CSVImport.parse(csv)
+        // Never dropped — just flagged.
+        #expect(r.expenses.count == 4)
+        #expect(r.warnings.contains { $0.contains("Rent") })
+    }
+
+    @Test("a handful of ordinary rows with no real outlier get no plausibility warning")
+    func testPlausibleAmountsNoWarning() throws {
+        let csv = """
+        Type,Date,Description,Category,From,To,Amount,Currency,Splits
+        Expense,2026-07-01T12:00:00Z,Coffee,,Ana,,10.00,USD,Ana:10.00
+        Expense,2026-07-02T12:00:00Z,Lunch,,Ana,,12.00,USD,Ana:12.00
+        Expense,2026-07-03T12:00:00Z,Snack,,Ana,,8.00,USD,Ana:8.00
+        Expense,2026-07-04T12:00:00Z,Dinner,,Ana,,25.00,USD,Ana:25.00
+        """
+        let r = try CSVImport.parse(csv)
+        #expect(r.warnings.isEmpty)
     }
 }
