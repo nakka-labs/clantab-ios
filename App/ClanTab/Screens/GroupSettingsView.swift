@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 import ClanTabKit
 
 /// Rename the group, change its default currency, rename or remove members, or
@@ -58,10 +57,6 @@ struct GroupSettingsView: View {
     /// action or the general entry point below.
     @State private var reportingTarget: (target: ReportTarget, label: String)?
     @State private var reportConfirmation: String?
-    /// Cover image (`CHECKLIST.md` "Group cover image").
-    @Environment(\.avatarImageLoader) private var avatarLoader
-    @State private var pickedCover: PhotosPickerItem?
-    @State private var isSavingCover = false
     /// Merge duplicate members (`CHECKLIST.md` "Merge duplicate members") —
     /// `mergingDuplicate` opens the "merge into…" target picker; once one's
     /// picked, `pendingMerge` drives the confirmation. Two steps, not one
@@ -134,9 +129,21 @@ struct GroupSettingsView: View {
                 Text("The default currency for new expenses. Existing expenses keep the currency they were entered in.")
             }
 
-            joinCodeSection
-
-            coverImageSection
+            // Join Code + Cover Image moved to their own screen
+            // (`CHECKLIST.md` R3) — this Form covered too many concerns in
+            // one place; those two, reached the same way `SettingsView`
+            // reaches `MySpendingView`.
+            Section {
+                NavigationLink {
+                    GroupInfoView(
+                        groupId: groupId, joinCode: state.group.joinCode, coverKey: state.group.coverKey,
+                        client: client, accessToken: accessToken, sessionToken: sessionToken,
+                        onChanged: onChanged
+                    )
+                } label: {
+                    Label("Group Info", systemImage: "info.circle")
+                }
+            }
 
             defaultSplitSection
 
@@ -264,10 +271,6 @@ struct GroupSettingsView: View {
         } message: { pending in
             mergeConfirmationMessage(pending)
         }
-        .onChange(of: pickedCover) { _, item in
-            guard let item else { return }
-            Task { await handlePickedCover(item) }
-        }
         .sheet(isPresented: Binding(get: { reportingTarget != nil }, set: { if !$0 { reportingTarget = nil } })) {
             if let reportingTarget {
                 ReportContentView(
@@ -286,43 +289,6 @@ struct GroupSettingsView: View {
         }
     }
 
-    /// The join code used to be shown only once, at creation
-    /// (`CHECKLIST.md` UX audit [26]) — re-surfaced here, alongside the
-    /// existing "Share Join Code" entry in Group Home's "More" menu, both
-    /// reading it live off `state` rather than a one-time value stashed at
-    /// creation. A whole `Section` extracted on its own, like every other
-    /// one in this file below the first — `body` itself is already at the
-    /// type checker's complexity ceiling ("unable to type-check this
-    /// expression in reasonable time") without one more inline `Section`.
-    private var joinCodeSection: some View {
-        Section {
-            HStack {
-                Text(state.group.joinCode)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                Spacer()
-                Button {
-                    UIPasteboard.general.string = state.group.joinCode
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Copy Join Code")
-            }
-            // The actual shareable link used to live only in Group Home's
-            // "…" → Share menu — this screen, the one an owner's own mental
-            // model names "invite, name, picture," only showed the bare
-            // code (`CHECKLIST.md` D11). Same `ShareLink`/URL as that menu's
-            // own "Share Invite Link" row, so there's one obvious place to
-            // invite someone regardless of which screen you land on.
-            ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: groupId, accessToken: accessToken))
-        } header: {
-            Text("Join Code")
-        } footer: {
-            Text("Anyone with this code can join the group from \"Join with a Code.\"")
-        }
-    }
-
     /// A "None" chip plus a horizontally-scrolling row of preset emoji; the
     /// current pick is filled with the accent colour. Tapping the current
     /// pick again is the same as choosing "None".
@@ -338,99 +304,6 @@ struct GroupSettingsView: View {
                 }
                 .padding(.vertical, 2)
             }
-        }
-    }
-
-    // MARK: - Cover image (CHECKLIST.md "Group cover image")
-
-    private var coverKey: String { "groups/\(groupId)/cover" }
-
-    @ViewBuilder
-    private var coverImageSection: some View {
-        Section {
-            HStack(spacing: 12) {
-                Group {
-                    if state.group.coverKey != nil {
-                        GroupCoverImage(groupId: groupId, coverKey: coverKey, accessToken: accessToken)
-                    } else {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Surface.well)
-                            .overlay(Image(systemName: "photo").foregroundStyle(.tertiary))
-                    }
-                }
-                .frame(width: 72, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                PhotosPicker(
-                    selection: $pickedCover,
-                    matching: .images,
-                    preferredItemEncoding: .compatible,
-                    photoLibrary: .shared()
-                ) {
-                    Text(state.group.coverKey == nil ? "Add Cover Image" : "Change Cover")
-                }
-                .disabled(isSavingCover)
-
-                Spacer()
-                if isSavingCover { ProgressView() }
-            }
-
-            if state.group.coverKey != nil {
-                Button("Remove Cover", role: .destructive) {
-                    Task { await removeCover() }
-                }
-                .disabled(isSavingCover)
-            }
-        } header: {
-            Text("Cover Image")
-        } footer: {
-            Text("Shown on the group's card and at the top of the group. Any member can change it.")
-        }
-    }
-
-    private func handlePickedCover(_ item: PhotosPickerItem) async {
-        errorMessage = nil
-        defer { pickedCover = nil }
-        guard
-            let data = try? await item.loadTransferable(type: Data.self),
-            let picked = UIImage(data: data),
-            let jpeg = CoverImage.jpegData(from: picked),
-            let compressed = UIImage(data: jpeg)
-        else {
-            errorMessage = "Couldn't read that photo. Try another."
-            return
-        }
-
-        isSavingCover = true
-        defer { isSavingCover = false }
-        do {
-            guard let sessionToken else {
-                errorMessage = "Sign in to set a cover image."
-                return
-            }
-            let ticket = try await client.presignMediaUpload(
-                .groupCover, contentType: "image/jpeg", contentLength: jpeg.count,
-                groupId: groupId, token: sessionToken, accessToken: accessToken
-            )
-            try await client.uploadImage(jpeg, using: ticket)
-            _ = try await client.updateGroup(groupId: groupId, coverImage: .commit, accessToken: accessToken)
-            avatarLoader?.prime(coverKey, with: compressed) // show it instantly everywhere
-            onChanged()
-        } catch {
-            errorMessage = friendlyMessage(for: error)
-        }
-    }
-
-    private func removeCover() async {
-        errorMessage = nil
-        isSavingCover = true
-        defer { isSavingCover = false }
-        do {
-            _ = try await client.updateGroup(groupId: groupId, coverImage: .remove, accessToken: accessToken)
-            avatarLoader?.invalidate(coverKey)
-            onChanged()
-        } catch {
-            errorMessage = friendlyMessage(for: error)
         }
     }
 
@@ -477,7 +350,8 @@ struct GroupSettingsView: View {
 
     /// Regenerate/Archive/Leave, one red-tinted section (`CHECKLIST.md` UX
     /// audit [20]) — pulled out of `body` for the same type-checker-
-    /// complexity reason as `joinCodeSection`/`defaultSplitSection`.
+    /// complexity reason as `defaultSplitSection` (and `GroupInfoView`'s own
+    /// sections, since R3 moved those out to their own screen).
     private var dangerZoneSection: some View {
         Section {
             DangerZoneRow(
@@ -647,7 +521,7 @@ struct GroupSettingsView: View {
 
     // Pulled out of the members `Section`'s `ForEach` — folding this
     // directly into `body` hit the same type-checker complexity ceiling
-    // this codebase keeps running into (see `joinCodeSection`,
+    // this codebase keeps running into (see `defaultSplitSection`,
     // `SettleUpView.upiNudgeSection`).
     private func memberRow(_ member: Member) -> some View {
         Button {
@@ -670,7 +544,7 @@ struct GroupSettingsView: View {
                 // UI audit already flagged as unreliable for the "…" menu
                 // ([5], unconfirmed on a real device), so this isn't the
                 // only way in. Its own `Button` (`.borderless`, same
-                // isolation `joinCodeSection`'s copy button uses) so it
+                // isolation `GroupInfoView`'s join-code copy button uses) so it
                 // doesn't get swallowed by the row's own tap-to-rename
                 // `Button`.
                 if state.members.count > 1 {
@@ -768,7 +642,7 @@ struct GroupSettingsView: View {
     // Pulled out of the confirmation dialog's own closures — folding these
     // directly into `body`'s modifier chain hit the same type-checker
     // complexity ceiling this codebase keeps running into (see
-    // `joinCodeSection`, `SettleUpView.upiNudgeSection`).
+    // `defaultSplitSection`, `SettleUpView.upiNudgeSection`).
     @ViewBuilder
     private func mergeConfirmationActions(_ pending: (duplicate: Member, keep: Member)) -> some View {
         Button("Merge \(pending.duplicate.displayName) into \(pending.keep.displayName)", role: .destructive) {

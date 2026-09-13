@@ -3270,18 +3270,24 @@ explicitly before treating this as "all safely deferrable":
       found while touching this code (a comment describing
       `appendOperator` was sitting above `selectSplitType` instead).
       `make check` green (kit + worker + full iOS build/XCTest).
-- [ ] **R3. Group Options is one ~9-row Form covering five concerns.**
-      `~10-15k` for the grouping alone. This is D13, already surfaced
-      and explicitly declined pre-submission ("leave it as one Form... a
-      problem nobody's actually complained about yet") — the owner is
-      now the one complaining, so reopen it. Concretely: pull "Share
-      Invite Link" + "Export" (CSV/PDF) rows out into their own
-      `NavigationLink`-pushed sub-screens ("Share & Export"), leaving
-      the top-level Form with Group info, Members, Default Split,
-      Recurring Reminders, Danger Zone — same pattern already used for
-      Recently Deleted/Recurring Reminders elsewhere in this screen
-      family. Two sub-screens is enough to matter; don't over-fragment
-      into one screen per row.
+- [x] **R3. Group Options is one ~9-row Form covering five concerns.**
+      Done 2026-09-13, reopening D13 as the owner asked. **Scope
+      correction vs. the ticket text**: there's no "Export" row in this
+      Form at all — CSV/JSON/PDF export lives only in `GroupHomeView`'s
+      own "…" menu, never did live here — so the extraction target
+      became Join Code (+ Share Invite Link) and Cover Image instead,
+      the two sections actually in this Form. New `GroupInfoView`, reached
+      the way `SettingsView` reaches `MySpendingView` — a plain
+      `NavigationLink` in a `Section` (not the sibling-`.sheet`-in-
+      `GroupHomeView` pattern Recently Deleted/Recurring Reminders use,
+      since Share/Export logic lives in `GroupHomeView`, not here).
+      Untangled `pickedCover`/`isSavingCover` (cover-only) into the new
+      view's own state; `errorMessage` stayed on `GroupSettingsView`
+      (shared by rename/UPI/report/etc.) — the new view gets its own.
+      Top-level Form now: Group info, Group Info (link), Default Split,
+      Members, Add Someone, My UPI ID, Report a Problem, Danger Zone —
+      down from ~9 sections to ~7. `make check` green (kit + worker +
+      full iOS build/XCTest).
 - [x] **R4. [bug, moderate→high] Any member can rename any other
       member, including a signed-in one.** Done 2026-09-13.
       `GroupDO.updateMember` now refuses the `displayName` half of the
