@@ -3086,6 +3086,70 @@ a restatement of those.
       apart (red, grouped) — worth deciding if the rest needs sectioning
       too; it's grown well past "invite, name, picture."
 
+### Code-level defect audit — 2026-09-13 (system-map D1-D8)
+
+Found during a separate code-level review (architecture, god-objects,
+data-corruption risk) the same day as the flow audit above, tracked
+with full brainstormed options in `docs/system-map.html`'s D section --
+condensed here to the recommended fix + steps. `D2` (the "..." menu's
+unreachable rows) already has its own entry elsewhere in this file;
+`D6` (InsightsHubView tests) is intentionally not repeated here -- moot
+now that the Insights tab is removed, see above.
+
+- [ ] **[D1, critical] CSV import can silently corrupt EU-locale
+      amounts.** ~15-20k tokens. `CSVImport`'s amount parser
+      unconditionally strips commas before parsing -- "1234,56" (EU
+      decimal comma) becomes 123456, not 1234.56, with no warning.
+      Fix: only treat a comma as a EU decimal when there's no period
+      AND exactly 2 digits follow it; otherwise keep today's
+      thousands-separator behavior. Pair with a per-row plausibility
+      check (flag anything wildly out of line with neighboring rows) as
+      a safety net regardless of which path parsed it. Add a hand-built
+      EU-style fixture; the existing US fixture must still pass
+      unchanged. Verify with `swift test --package-path ClanTabKit
+      --filter CSVImport` -- don't just claim it's fixed.
+- [ ] **[D3, low] Recurring SwiftUI type-checker-ceiling workarounds --
+      write the house rule down.** <1k tokens. Hit and worked around 6
+      separate times (SettleUpView, ImportCSVView, GroupSettingsView
+      x4, AddExpenseView) -- same root cause every time, a `body` doing
+      too much inline. Not worth a dedicated refactor pass; add one
+      paragraph to AGENTS.md instead -- extract to a computed
+      property/subview once `body` passes ~80 lines or nests 3+
+      conditionals, before the compiler forces it. Apply retroactively
+      only when already touching a file for another reason.
+- [ ] **[D4, low, not before submission] GroupDO: one class, 34
+      methods, every group concern.** ~30-40k tokens, opportunistic
+      only. 1357 lines -- members, expenses, settlements, comments,
+      trash, tokens, claim/merge, avatars, and balance computation all
+      on one class. Do NOT split into multiple Durable Objects (breaks
+      the atomic expenses+settlements read the balance math needs) --
+      instead split the *file* into modules (members.ts / expenses.ts /
+      settlements.ts / comments.ts) the class delegates to, zero
+      runtime/schema change. Acceptance bar: worker tests pass
+      unmodified. Pick this up opportunistically, never as its own
+      pass, and never before the App Store submission.
+- [ ] **[D5, low, decent ROI] AddExpenseView: 1438 lines doing five
+      jobs.** ~15-20k tokens. Largest file in the app -- create, edit,
+      duplicate, itemized splits, and recurring-template creation all
+      in one struct. Extract the itemized line-items editor into
+      Components/ItemizedSplitEditor.swift and the recurring-template
+      section into Components/RecurringOptionsSection.swift; no
+      behavior change. Cheaper than D4 and directly serves D3's rule --
+      better ROI than D4 if only one gets picked up.
+- [ ] **[D7, low, cheap] print() in production instead of real
+      logging.** ~4-6k tokens. 5 print() calls (AuthViewModel,
+      CloudKitBackup x3, AppDelegate) -- push-registration and
+      CloudKit-backup failures are currently invisible on a real
+      TestFlight build. Swap for `os.Logger(subsystem:category:)` (free,
+      built-in, visible via Console.app/sysdiagnose) -- not a remote
+      logging pipeline, which would be overkill for this app's scale.
+- [ ] **[D8, low, watch only] worker/src/index.ts: 1657 lines, 46
+      inline route handlers.** No dedicated budget. Still
+      Ctrl+F-navigable; not urgent. When next touched, move the
+      handler being edited out into routes/*.ts by resource (groups /
+      auth / media / admin) -- pays for itself over time, never as its
+      own pass.
+
 ### Parked — not dropped, revisit deliberately
 
 - Receipt / bill reading (OCR) — needs on-device Vision work or a paid
