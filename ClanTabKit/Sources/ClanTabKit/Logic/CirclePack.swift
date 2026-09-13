@@ -35,9 +35,12 @@ public enum CirclePack {
     ///     *nonzero* weight — so a tiny-but-real balance still renders big
     ///     enough to carry a label, while a genuine zero stays a `minRadius`
     ///     dot. `0` (the default) disables it: every item floors at
-    ///     `minRadius`, the historical behaviour. Re-applied after the
-    ///     scale-to-fit shrink, so a crowded box can nudge floored circles
-    ///     into a slight overlap — acceptable for the rare tiny-balance case.
+    ///     `minRadius`, the historical behaviour. Applied as a uniform
+    ///     *shift* to every below-floor circle (see below), not a hard
+    ///     clamp — a real-device report (`CHECKLIST.md` "Real-device
+    ///     findings") found two visibly different small balances rendering
+    ///     as identically-sized circles, because the previous clamp rounded
+    ///     everything under the floor to the exact same constant.
     ///   - gap: clear space kept between circles.
     public static func layout(
         _ items: [(id: String, weight: Double)],
@@ -56,15 +59,20 @@ public enum CirclePack {
         let maxWeight = sorted.first!.weight
         let nonZeroIds = Set(items.filter { $0.weight > 0 }.map(\.id))
 
-        func radius(for weight: Double) -> Double {
+        // Pure sqrt-area scaling, no floor applied here — flooring this
+        // early would place circles for the spiral-packing step using an
+        // already-inflated size, which is fine, but baking the floor in as
+        // a hard clamp (rather than the shift below) is what collapsed
+        // distinct small balances to one identical radius.
+        func rawRadius(for weight: Double) -> Double {
             guard maxWeight > 0, weight > 0 else { return minRadius }
             let t = (weight / maxWeight).squareRoot()
-            return max(minNonZeroRadius, (minRadius + (maxRadius - minRadius) * t).rounded())
+            return minRadius + (maxRadius - minRadius) * t
         }
 
         var placed: [PackedCircle] = []
         for item in sorted {
-            let r = radius(for: item.weight)
+            let r = rawRadius(for: item.weight)
             let center = placed.isEmpty
                 ? (x: 0.0, y: 0.0)
                 : spiralSpot(radius: r, gap: gap, avoiding: placed)
@@ -85,13 +93,28 @@ public enum CirclePack {
         let dx = width / 2 - scale * (minX + maxX) / 2
         let dy = height / 2 - scale * (minY + maxY) / 2
 
+        // The legibility floor, applied once, here, as a *shift* rather
+        // than a clamp: find the smallest post-scale nonzero radius, and if
+        // it's under the floor, raise every below-floor circle by exactly
+        // enough that the smallest one reaches the floor. Each circle keeps
+        // its size *relative to the others* (their point-difference is
+        // unchanged) instead of every below-floor circle collapsing to the
+        // identical constant. A circle already at or above the floor (the
+        // common case) is untouched — this only ever nudges the genuinely
+        // tiny ones, same "may nudge into a slight overlap" trade the old
+        // clamp already accepted for this rare case.
+        let nonZeroScaled = placed.filter { nonZeroIds.contains($0.id) }.map { $0.radius * scale }
+        let smallestNonZeroScaled = nonZeroScaled.min() ?? minNonZeroRadius
+        let subFloorShift = max(0, minNonZeroRadius - smallestNonZeroScaled)
+
         return placed.map {
-            let scaled = ($0.radius * scale).rounded()
+            let scaled = $0.radius * scale
+            let boosted = nonZeroIds.contains($0.id) && scaled < minNonZeroRadius
             return PackedCircle(
                 id: $0.id,
                 x: $0.x * scale + dx,
                 y: $0.y * scale + dy,
-                radius: nonZeroIds.contains($0.id) ? max(minNonZeroRadius, scaled) : scaled
+                radius: (boosted ? scaled + subFloorShift : scaled).rounded()
             )
         }
     }

@@ -67,6 +67,27 @@ struct CirclePackTests {
         let byId = Dictionary(uniqueKeysWithValues: c.map { ($0.id, $0.radius) })
         #expect(byId["tiny"]! >= 20)
         #expect(byId["zero"] == 11)
+        // A circle already above the floor isn't shifted by the floor logic
+        // meant for circles below it.
+        #expect(byId["big"] == 68)
+    }
+
+    // Real-device report (`CHECKLIST.md` "Real-device findings", 2026-09-13):
+    // two visibly different small balances rendered as identically-sized
+    // circles — the old floor was a hard clamp, so *every* below-floor
+    // weight collapsed to the exact same constant radius.
+    @Test("two different below-floor weights still get different radii, not an identical clamp")
+    func testBelowFloorWeightsStayDistinct() {
+        let c = CirclePack.layout(
+            [(id: "biggest", weight: 14_468.60), (id: "small", weight: 150), (id: "tiny", weight: 50)],
+            width: 900, height: 700, // large enough that no scale-to-fit shrink kicks in
+            minRadius: 12, maxRadius: 68, minNonZeroRadius: 20
+        )
+        let byId = Dictionary(uniqueKeysWithValues: c.map { ($0.id, $0.radius) })
+        #expect(byId["small"]! >= 20)
+        #expect(byId["tiny"]! >= 20)
+        // The actual bug: these two used to both land on exactly 20.
+        #expect(byId["small"]! > byId["tiny"]!, "different weights collapsed to the same floored radius")
     }
 
     @Test("deterministic — input order doesn't change the layout")

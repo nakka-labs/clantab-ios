@@ -2895,23 +2895,38 @@ real touchscreen and real photo data, not just the Simulator/`idb`.
       instead of a bare name string and call `MemberAvatar(member, size:
       28)`, matching `MemberBalanceRow`'s size exactly. iOS build +
       `make check` green.
-- [ ] **Balance bubble sizing still reads as inconsistent.** Reported
-      after the round-2 "bubble-graph legibility floor" fix
-      (`CirclePack.minNonZeroRadius`) — that fix deliberately re-applies
-      a legibility floor *after* the whole cluster is scaled to fit the
-      box, which its own doc comment already accepts can "nudge floored
-      circles into a slight overlap" in a crowded group. Whether that's
-      what's being seen now, or a different issue, isn't clear without a
-      screenshot/repro — asked the Owner rather than guess and risk
-      reverting a deliberate, documented tradeoff.
-- [ ] **Duplicate expense doesn't fill the amount.** Working as designed
-      — `AddExpenseView`'s duplicate-init path has its own comment:
-      "Duplicating leaves the amount blank — everything else about the
-      expense carries over, but the amount is the one field that's
-      rarely identical trip to trip." Confirmed every other field
-      (description, payer(s), split, category, currency) does still
-      carry over. Asked the Owner whether this deliberate v1
-      decision should change now that there's real usage against it.
+- [x] **Balance bubble sizing still reads as inconsistent.** Done
+      2026-09-13 — a real bug, confirmed with a screenshot from the
+      round-2 "bubble-graph legibility floor" fix
+      (`CirclePack.minNonZeroRadius`). That fix's floor was a hard
+      `max(minNonZeroRadius, …)` **clamp**, applied to every
+      below-floor circle — so two visibly different small balances (the
+      screenshot's `AV`/`ID`, roughly ₹150 and ₹50) both collapsed to
+      the *exact same* 20pt radius, reading as "these sizes don't mean
+      anything." Verified the mechanism by replaying the screenshot's
+      real weights (₹14,468.60 / ₹11,761.85 / ₹3,266.42 / ~₹500 / ~₹150
+      / ~₹50) through the actual formula: everything under ~₹300 landed
+      at an identical raw radius before the floor even kicked in.
+      Reworked `CirclePack.layout` to apply the floor as a **shift**
+      instead: find the smallest post-scale nonzero radius, and if it's
+      under the floor, raise every below-floor circle by exactly enough
+      that the smallest one reaches the floor — each one keeps its size
+      *relative to the others* (the point-difference between any two is
+      unchanged) rather than collapsing to one constant. A circle
+      already at or above the floor (the common case, unaffected). New
+      kit test replays real below-floor weights and asserts they stay
+      distinct, not identically clamped. `make check` green.
+- [x] **Duplicate expense doesn't fill the amount.** Done 2026-09-13 —
+      was working as designed (`AddExpenseView`'s duplicate-init path
+      had its own comment explaining the blank-amount decision), but
+      asked the Owner given real usage now argues the other way:
+      confirmed, changed. Duplicating now pre-fills the amount along
+      with everything else it already carried over (description,
+      payer(s), split, category, currency); the date still doesn't
+      carry over — today's date is still the right default for a fresh
+      copy being logged now, not the original's date. No existing tests
+      covered this (no unit tests exist for `AddExpenseView`'s init
+      logic). iOS build + `make check` green.
 
 ### Parked — not dropped, revisit deliberately
 

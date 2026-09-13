@@ -242,12 +242,15 @@ struct AddExpenseView: View {
             return
         }
 
-        // Duplicating leaves the amount blank — everything else about the
-        // expense carries over, but the amount is the one field that's
-        // rarely identical trip to trip (that's the whole reason this isn't
-        // just an "undo delete" of a fresh copy).
+        // Duplicating now carries the amount over too (round-3 playtest,
+        // 2026-09-13 — real usage against the original "leave it blank,
+        // amounts are rarely identical trip to trip" decision went the
+        // other way: still editable, just pre-filled like everything
+        // else). The date stays excluded for a duplicate — today's date
+        // is the right default for a fresh copy being logged now, not the
+        // original's date.
+        _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: expense.amountMinor))
         if editing != nil {
-            _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: expense.amountMinor))
             _date = State(initialValue: expense.date)
         }
         _description = State(initialValue: expense.description)
