@@ -438,9 +438,15 @@ final class AuthViewModel {
 
     /// Delete the account (Apple Guideline 5.1.1(v), `ACCOUNTS_DESIGN.md` §11):
     /// every claimed membership reverts to a placeholder and the server-side
-    /// index is wiped. Groups, members, and expenses are untouched — signing
-    /// back in (same or different identity) is required to see them again,
-    /// same as any other sign-out. Returns whether it succeeded.
+    /// index is wiped. Groups, members, and expenses themselves are
+    /// untouched server-side — but this device's local knowledge of them
+    /// (`KnownGroupsStore`, including each group's cached access token) is
+    /// deliberately dropped here too, so signing back in is a fresh account
+    /// with no groups (`docs/appstore/testflight-pass.md` #9), not a replay
+    /// of this device's cache of groups the now-deleted identity used to be
+    /// claimed in (round-3 playtest, 2026-09-13 — this was previously
+    /// missing, so a deleted account could still see all its old groups on
+    /// sign-back-in). Returns whether it succeeded.
     func deleteAccount() async -> Bool {
         guard let token = session?.token else { return false }
         isBusy = true
@@ -449,10 +455,12 @@ final class AuthViewModel {
         do {
             try await client.deleteAccount(token: token)
             signOut()
+            knownGroups.forgetAll()
             return true
         } catch ClanTabClientError.server(let code, _) where code == "INVALID_SESSION" {
             // Already gone server-side — treat as done.
             signOut()
+            knownGroups.forgetAll()
             return true
         } catch {
             errorMessage = Self.friendlyMessage(for: error)

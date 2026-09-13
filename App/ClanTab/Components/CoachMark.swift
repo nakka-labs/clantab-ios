@@ -59,37 +59,48 @@ private struct CoachMarkBubble: View {
     }
 }
 
+/// Clearance between the bubble and the view it's pointing at.
+private let coachMarkGap: CGFloat = 12
+
+/// One visible coach mark's data, published up via `CoachMarkAnchorKey` from
+/// wherever `.coachMark` is attached to a rendering host that draws it —
+/// see that key's doc comment for why this indirection exists at all.
+private struct CoachMarkAnchor: @unchecked Sendable {
+    let anchor: Anchor<CGRect>
+    let edge: Edge
+    let text: String
+    let dismiss: () -> Void
+}
+
+/// Bubbles a visible coach mark's anchor rect up to whichever ancestor calls
+/// `.coachMarkOverlayHost()` (round-3 playtest, 2026-09-13 — a coach mark
+/// attached directly to a `List`/`Form` row via `.overlay` got clipped to
+/// that row's own bounds, since List rows clip their content; two of the
+/// three shipped coach marks live on exactly such a row). An anchor
+/// preference isn't affected by any clipping between where it's read and
+/// where it's declared, so resolving it at the host — an overlay on the
+/// *screen's* own body, a sibling layer to every row rather than nested
+/// inside one — draws the bubble unclipped regardless of where the tip
+/// itself lives.
+private struct CoachMarkAnchorKey: PreferenceKey {
+    static let defaultValue: [String: CoachMarkAnchor] = [:]
+    static func reduce(value: inout [String: CoachMarkAnchor], nextValue: () -> [String: CoachMarkAnchor]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
 private struct CoachMarkModifier: ViewModifier {
     let id: String
     let text: String
     let edge: Edge
-    /// Clearance between the bubble and the view it's pointing at. Plain
-    /// `CGFloat`, so `nonisolated` is safe — lets the `alignmentGuide`
-    /// closure below (not main-actor-isolated) read it directly.
-    private nonisolated static let gap: CGFloat = 12
     @Environment(\.coachMarks) private var store
 
     @State private var isVisible = false
 
     func body(content: Content) -> some View {
         content
-            .overlay(alignment: edge == .top ? .top : .bottom) {
-                if isVisible {
-                    CoachMarkBubble(text: text, onDismiss: dismiss)
-                        // A fixed pixel offset (the previous approach) only
-                        // clears the anchor for whatever bubble height it was
-                        // tuned against — a bubble grown to 2-3 lines still
-                        // spilled down over the anchor and the row below it
-                        // (`CHECKLIST.md` "UI audit, fresh eyes pass"). An
-                        // `alignmentGuide` measures the bubble's *own* height
-                        // each time, so it clears the anchor by exactly `gap`
-                        // regardless of how many lines the text wraps to.
-                        .alignmentGuide(edge == .top ? .top : .bottom) { d in
-                            edge == .top ? d[.bottom] + Self.gap : d[.top] - Self.gap
-                        }
-                        .transition(.opacity.combined(with: .move(edge: edge)))
-                        .zIndex(1)
-                }
+            .anchorPreference(key: CoachMarkAnchorKey.self, value: .bounds) { anchor in
+                isVisible ? [id: CoachMarkAnchor(anchor: anchor, edge: edge, text: text, dismiss: dismiss)] : [:]
             }
             .onAppear {
                 guard let store, !store.hasSeen(id) else { return }
@@ -111,8 +122,50 @@ private struct CoachMarkModifier: ViewModifier {
 
 extension View {
     /// Shows a one-time coach mark bubble anchored above (`.top`) or below
-    /// (`.bottom`) this view — see `CoachMarkModifier`.
+    /// (`.bottom`) this view — see `CoachMarkModifier`. The bubble itself
+    /// only actually renders wherever the nearest ancestor's
+    /// `.coachMarkOverlayHost()` is — this just marks the anchor and starts
+    /// the one-time show/dismiss lifecycle.
     func coachMark(id: String, text: String, edge: Edge = .top) -> some View {
         modifier(CoachMarkModifier(id: id, text: text, edge: edge))
+    }
+
+    /// Draws every currently-visible coach mark bubble anchored anywhere in
+    /// this view's subtree, as an overlay on `self` rather than nested
+    /// inside whatever `List`/`Form` row the tip itself points at — see
+    /// `CoachMarkAnchorKey`. Attach once per screen, at the same level as
+    /// that screen's own top-level content (outside/after its `List`, not
+    /// on a row within it).
+    func coachMarkOverlayHost() -> some View {
+        overlayPreferenceValue(CoachMarkAnchorKey.self) { anchors in
+            GeometryReader { proxy in
+                ForEach(Array(anchors.keys), id: \.self) { id in
+                    if let mark = anchors[id] {
+                        let rect = proxy[mark.anchor]
+                        Color.clear
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
+                            // Only the bubble itself (a `Button`) should
+                            // intercept taps — this proxy just positions it,
+                            // and must never shadow the real anchor row
+                            // underneath (its own tap/swipe actions still
+                            // need to work while a coach mark is showing).
+                            .allowsHitTesting(false)
+                            .overlay(alignment: mark.edge == .top ? .top : .bottom) {
+                                CoachMarkBubble(text: mark.text, onDismiss: mark.dismiss)
+                                    // Measures the bubble's *own* height each
+                                    // time, so it clears the anchor by exactly
+                                    // `coachMarkGap` regardless of how many
+                                    // lines the text wraps to (`CHECKLIST.md`
+                                    // "UI audit, fresh eyes pass").
+                                    .alignmentGuide(mark.edge == .top ? .top : .bottom) { d in
+                                        mark.edge == .top ? d[.bottom] + coachMarkGap : d[.top] - coachMarkGap
+                                    }
+                                    .transition(.opacity.combined(with: .move(edge: mark.edge)))
+                            }
+                    }
+                }
+            }
+        }
     }
 }

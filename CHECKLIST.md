@@ -302,12 +302,17 @@
       1. Owner: submit only after every item above, every item under
          "Design & UX polish" below, every item under "Friend playtest +
          competitive gap-fill, round 2" below (accepted 2026-09-10 as a
-         small, bounded launch delay — see that section for why), **and**
-         every item under "UX audit, build 9" below (added here
-         2026-09-12 — that section didn't exist when this gate was first
-         written). **All 34 of its findings are now done as of
-         2026-09-12**, including [29]'s pointer to "De-dupe guard on CSV
-         import" in the Feature backlog, which is also done.
+         small, bounded launch delay — see that section for why), every
+         item under "UX audit, build 9" below (added here 2026-09-12 —
+         that section didn't exist when this gate was first written;
+         **all 34 of its findings are now done as of 2026-09-12**,
+         including [29]'s pointer to "De-dupe guard on CSV import" in the
+         Feature backlog, which is also done), **and** every item under
+         "Friend playtest, round 3" below (added here 2026-09-13 — a new
+         real-device batch on build 10; the three large items in that
+         batch — merge duplicate members, universal display name, link
+         Apple/Google accounts — are deliberately *not* part of this
+         gate, see "Parked" below for why).
       Pricing is done: Price = Free across all 175 territories, set via
       the ASC API 2026-09-10 (`POST /v1/appPriceSchedules`, base
       territory USA at the free price point); 0 IAP products / 0
@@ -2669,6 +2674,135 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
       cancelled leaves an R2 orphan (rare; no client delete-object
       API). Camera capture (picker only for now).
 
+### Friend playtest, round 3 — accepted 2026-09-13
+
+Real-device feedback on build `1.0 (10)` (the build that carried the
+round-2 batch to TestFlight), 17 raw items, triaged in chat 2026-09-13.
+Scope decided deliberately, same shape as round 2: the real bugs and
+already-half-built wiring ship before submission; the three genuinely
+new, large pieces of scope (merge duplicate members, a universal
+identity-level display name, linking Apple+Google accounts) are
+**not** ship-blocking — see "Parked" below. Anything the triage found
+already shipped-and-working-as-designed (Insights as its own tab, the
+minimized Group Home toolbar, the 3-way split-type control) is noted
+but not reopened; the audits that made those calls were deliberate.
+
+- [x] **[bug] Delete Account doesn't actually sign the account out
+      locally.** Done 2026-09-13. The worker's delete was already correct
+      — `handleAuthDeleteAccount` unclaims every membership and wipes the
+      `UserDO` — but `AuthViewModel.deleteAccount()` never cleared
+      `KnownGroupsStore` (each group's cached access token included), and
+      `RootView`'s groups list is driven from that local cache, not a
+      fresh fetch. Signing back in with the same identity re-showed every
+      old group, still openable with its cached per-group access token.
+      Fixed with a new `KnownGroupsStoring.forgetAll()` default-extension
+      method (built on the existing `forget`, so it works for both the
+      real and in-memory conformances for free) called from
+      `deleteAccount()`'s two success paths (the normal one and the
+      already-`INVALID_SESSION` one) — deliberately *not* from plain
+      `signOut()`, which should still let the same identity see its
+      groups again on a normal re-sign-in. Two new `AuthViewModelTests`
+      cases cover both success paths. `make check` green (kit + worker +
+      iOS build/tests). Still needs the real-device re-verify: the
+      existing "Delete Account" TestFlight-pass step now specifically
+      exercises sign-back-in showing zero groups, not just "signed out."
+- [x] **[bug] "Delete this settlement" confirmation renders unanchored.**
+      Done 2026-09-13. The `.confirmationDialog` was attached once at the
+      `List` level while `pendingDelete` was set from a per-row swipe
+      action deep in a `ForEach` — no anchor tied the dialog to the row
+      that triggered it. Moved the dialog onto each `ActivityRow` itself
+      (`isPresented` now compares `pendingDelete?.id == item.id` instead
+      of the old list-level `presenting:`), so it's anchored to the exact
+      row on any size class. `deleteTitle` became a `(for item:)` function
+      instead of reading the shared `pendingDelete` state. iOS build green.
+- [x] **[bug] Coach marks clip inside `List`/`Form` rows.** Done
+      2026-09-13. `CoachMark` deliberately overlays outside its anchor's
+      own bounds, which two of the three live coach marks need to do from
+      inside a `List`/`Form` row (`InsightsView`'s over-time chart, Add
+      Expense's "Add Someone" row) — rows clip their own content, so the
+      bubble got cut off. Reworked to an anchor-preference pattern: `.
+      coachMark` now just marks a `CoachMarkAnchorKey` preference instead
+      of drawing an `.overlay` in place; a new `.coachMarkOverlayHost()`
+      (added once per screen, at the same level as that screen's own
+      top-level content — `GroupHomeView`, `InsightsView`, `AddExpenseView`)
+      reads the preference and draws the bubble as a sibling layer to
+      every row, unaffected by any row's own clipping, using the same
+      bubble-height-aware `alignmentGuide` math as before. Fixes all
+      three call sites uniformly, not just the two reported. iOS build +
+      `make check` green.
+- [x] **[bug] Add Expense's +/- buttons render at different sizes.**
+      Done 2026-09-13. No explicit frame on `amountOperatorButtons`;
+      "plus" and "minus" SF Symbols have different intrinsic bounding
+      boxes so `.bordered` sized the two capsules differently. Added a
+      shared 20×20 `.frame` on each glyph. iOS build green.
+- [x] **Cover photo + emoji in the create-group flow.** Done 2026-09-13.
+      Both already existed post-creation (`GroupSettingsView`'s
+      `emojiPicker` + `coverImageSection`, backed by the working R2
+      presign flow) — just never offered during `CreateGroupView`. Added
+      a "Make It Yours" section to the "created" confirmation stage
+      (after the join code, before "Continue") — same emoji chip set
+      (`GroupSettingsView.emojiOptions`, already internal, reused as-is)
+      and the same presign → upload → commit cover flow, each pick
+      applying immediately rather than needing a separate Save (no
+      `isDirty` concept needed for a one-shot creation step). Both
+      optional; "Continue" always works regardless. iOS build +
+      `make check` green.
+- [ ] **Edit settlement.** Server (`updateSettlement`) and kit
+      (`ClanTabClient.updateSettlement`) are fully wired; the client
+      never added the UI. Add an "Edit" swipe action on a settlement row
+      (`GroupHomeView`, currently `.expense`-only) opening an edit sheet
+      reusing `SettleUpView`'s fields.
+- [ ] **1:1 expense/settlement history on a group member's profile.**
+      `MemberProfileView`/`FriendDetailView` show only a net balance
+      today. Add a filtered list of the group's own expenses/settlements
+      where both the viewer and that member are involved — data's
+      already loaded client-side, this is a filter + list section.
+      (Cross-group history is out of scope here — bigger, and the
+      Friends tab already gives a cross-group net total.)
+- [ ] **Insights: a way back to a specific group from the group page.**
+      The build-9 audit deliberately promoted Insights to its own tab
+      and removed the in-group entry point — don't reverse that — but
+      give Group Home a way back in: a toolbar/menu item, or make the
+      existing balance bubble chart tappable into that group's
+      `InsightsView`.
+- [ ] **Insights: personal owe/owed totals, not just spend.** The hub
+      (`InsightsHubView`) shows a bare groups list with no numbers at
+      all — add the same per-group net total `DashboardTotals.compute`
+      already produces for the dashboard. Per-category owe/owed (as
+      opposed to per-category *spend*, which already exists) is new
+      domain logic in `Insights.swift`/`Balances.swift` attributing
+      settlement deltas to categories — do this part only if the
+      hub-level number isn't enough on its own.
+- [ ] **Smart category suggestion from expense description.** No
+      suggestion logic exists anywhere. Ship a contained client-side
+      keyword-heuristic version (pure `ClanTabKit` function mapping
+      common merchant/description words to `ExpenseCategory`, wired to
+      fire as the description field changes) — no backend/LLM infra
+      exists or is warranted for this.
+- [ ] **Add Expense: more visual weight as the primary action.** The
+      build-9 audit intentionally minimized Group Home's toolbar to two
+      items; this isn't a regression, just under-weighted. Give the `+`
+      more presence (e.g. a docked prominent button, matching
+      `StartView`'s own CTA treatment) without re-bloating the toolbar.
+- [x] **Rename "Split the cost between payers".** Done 2026-09-13.
+      Copy-only — the button's styling/placement already went through
+      two polish passes; just the label/icon was stale. Now `Label("Add
+      Payer", systemImage: "plus")` when off, "Paid by one person" to
+      toggle back. iOS build green.
+- [ ] **Friends list: explain, don't just show empty.** Working as
+      designed — `peerSettlements` only surfaces co-members with a
+      claimed identity (`identity_sub`), so a group added entirely by
+      typed name shows nobody in Friends even though the group is full
+      of people. Don't change the claimed-only invariant (that's the
+      round-2 design); instead give the empty/sparse state an actual
+      explanation + an "invite" affordance for unclaimed co-members
+      pulled from the member's own groups.
+- [ ] **Re-check split-type control on build 10 before touching it.**
+      Both prior audits (build-9, fresh-eyes) already simplified this to
+      a 3-way segmented control + a styled "More Split Types" button.
+      Confirm this feedback isn't stale (pre-build-9) before scoping any
+      further polish here.
+
 ### Parked — not dropped, revisit deliberately
 
 - Receipt / bill reading (OCR) — needs on-device Vision work or a paid
@@ -2691,6 +2825,33 @@ Splitwise/Tricount/Settle Up/Splid, primary sources only:
   `.xlsx` writer isn't free on iOS — no first-party framework, so it
   means pulling in a third-party SPM dependency for a format nobody's
   requested.
+- **Merge duplicate members.** Real demand (round-3 playtest, 2026-09-13
+  — two accidental/typo "indra" members in one group with no way to
+  combine them). Parked because it's genuinely large, not because it's
+  low-value: a new worker `mergeMembers` endpoint reassigning
+  `payer_id`, the `payers` JSON blob, `expense_splits.member_id`,
+  `settlements.from_id/to_id`, `comments.authorMemberId`, and resolving
+  `identity_sub`/avatar conflicts, plus a "merge into" picker UI.
+  Compounded by `removeMember`'s existing hard block on any member with
+  activity (`MEMBER_IN_USE`) — today there's no reassignment path at
+  all once a duplicate has a single expense. Revisit for v1.1.
+- **Universal, identity-level display name.** Real demand (round-3
+  playtest, 2026-09-13 — per-group names that can change anytime "can
+  lead to confusion"). Decided 2026-09-13: one central name, **no**
+  per-group override once built — `members.display_name` stays
+  per-group in the schema, but a new identity-level name on `UserDO`
+  becomes the single source shown everywhere, propagated through
+  `claim`/`addMembership` and the Friends "first name wins" heuristic.
+  Parked because it's a schema/propagation change touching claim,
+  membership, and Friends aggregation together, not a UI-only fix.
+  Revisit for v1.1.
+- **Link Apple and Google accounts.** Real demand (round-3 playtest,
+  2026-09-13). Each identity today is a wholly independent `UserDO`
+  keyed by `"<provider>:<sub>"` with no linking mechanism. Parked
+  2026-09-13 as a deliberate v1.1+ item, not launch-critical — most
+  users pick one sign-in method and stick with it. Would need a
+  verify-second-provider-while-signed-in flow plus a full merge of two
+  `UserDO`s' memberships, friends, avatar, and APNs tokens.
 
 ## Non-goals — will not be built
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import ClanTabKit
 
 struct CreateGroupView: View {
@@ -31,6 +32,16 @@ struct CreateGroupView: View {
     @State private var displayName = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+
+    // Cover photo + emoji, offered right on the "created" confirmation
+    // stage (round-3 playtest, 2026-09-13 — both already existed post-
+    // creation via Group Settings, just never surfaced during creation
+    // itself). Mirrors `GroupSettingsView`'s own emoji/cover fields, scaled
+    // down: no separate Save step, each pick applies immediately.
+    @State private var emoji = ""
+    @State private var pickedCover: PhotosPickerItem?
+    @State private var isSavingCover = false
+    @State private var identityErrorMessage: String?
 
     private let currencies = AppConfig.supportedCurrencies
 
@@ -100,11 +111,122 @@ struct CreateGroupView: View {
             Section("Or Share the Link") {
                 ShareLink("Share Invite Link", item: shareURL)
             }
+            identitySection(response)
             Section {
                 Button("Continue") {
                     onCreated(response.groupId, response.group.accessToken)
                 }
             }
+        }
+        .onChange(of: pickedCover) { _, item in
+            guard let item else { return }
+            Task { await handlePickedCover(item, response) }
+        }
+    }
+
+    /// Cover photo + emoji, both optional and skippable — "Continue" above
+    /// works regardless of whether either was set.
+    @ViewBuilder
+    private func identitySection(_ response: CreateGroupResponse) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Emoji").foregroundStyle(.primary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        emojiChip(nil, isSelected: emoji.isEmpty, response: response) {
+                            Image(systemName: "slash.circle").font(.body)
+                        }
+                        ForEach(GroupSettingsView.emojiOptions, id: \.self) { option in
+                            emojiChip(option, isSelected: emoji == option, response: response) {
+                                Text(option).font(.title3)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            HStack(spacing: 12) {
+                PhotosPicker(
+                    selection: $pickedCover,
+                    matching: .images,
+                    preferredItemEncoding: .compatible,
+                    photoLibrary: .shared()
+                ) {
+                    Text("Add Cover Image")
+                }
+                .disabled(isSavingCover)
+                Spacer()
+                if isSavingCover { ProgressView() }
+            }
+            if let identityErrorMessage {
+                Text(identityErrorMessage).font(.caption).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Make It Yours")
+        } footer: {
+            Text("Optional — both can be changed anytime from Group Options.")
+        }
+    }
+
+    private func emojiChip<Label: View>(
+        _ value: String?, isSelected: Bool, response: CreateGroupResponse, @ViewBuilder label: () -> Label
+    ) -> some View {
+        Button {
+            let chosen = value ?? ""
+            emoji = chosen
+            Task { await setEmoji(chosen, response) }
+        } label: {
+            label()
+                .frame(width: 40, height: 40)
+                .background(isSelected ? Color.accentColor.opacity(0.22) : Surface.well, in: Circle())
+                .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: isSelected ? 2 : 0))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(value.map { "Emoji \($0)" } ?? "No emoji")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func setEmoji(_ value: String, _ response: CreateGroupResponse) async {
+        identityErrorMessage = nil
+        do {
+            _ = try await client.updateGroup(
+                groupId: response.groupId,
+                emoji: value.isEmpty ? .cleared : .set(value),
+                accessToken: response.group.accessToken
+            )
+        } catch {
+            identityErrorMessage = friendlyMessage(for: error)
+        }
+    }
+
+    private func handlePickedCover(_ item: PhotosPickerItem, _ response: CreateGroupResponse) async {
+        identityErrorMessage = nil
+        defer { pickedCover = nil }
+        guard
+            let data = try? await item.loadTransferable(type: Data.self),
+            let picked = UIImage(data: data),
+            let jpeg = CoverImage.jpegData(from: picked)
+        else {
+            identityErrorMessage = "Couldn't read that photo. Try another."
+            return
+        }
+        guard let sessionToken = auth.session?.token else {
+            identityErrorMessage = "Sign in to set a cover image."
+            return
+        }
+        isSavingCover = true
+        defer { isSavingCover = false }
+        do {
+            let ticket = try await client.presignMediaUpload(
+                .groupCover, contentType: "image/jpeg", contentLength: jpeg.count,
+                groupId: response.groupId, token: sessionToken, accessToken: response.group.accessToken
+            )
+            try await client.uploadImage(jpeg, using: ticket)
+            _ = try await client.updateGroup(
+                groupId: response.groupId, coverImage: .commit, accessToken: response.group.accessToken
+            )
+        } catch {
+            identityErrorMessage = friendlyMessage(for: error)
         }
     }
 

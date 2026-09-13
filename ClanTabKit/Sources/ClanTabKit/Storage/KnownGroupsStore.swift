@@ -131,6 +131,16 @@ public extension KnownGroupsStoring {
     ) {
         remember(groupId: groupId, name: name, accessToken: accessToken, hidden: hidden, at: date)
     }
+
+    /// Drop every known group (and its cached access token) — account
+    /// deletion (`CHECKLIST.md` "Friend playtest, round 3"), so signing back
+    /// in afterward starts from a genuinely empty list rather than replaying
+    /// this device's local cache of groups the now-deleted identity used to
+    /// be claimed in. Built on `forget`, not a new store primitive, so it
+    /// works for any `KnownGroupsStoring` conformance for free.
+    func forgetAll() {
+        for group in all() { forget(groupId: group.groupId) }
+    }
 }
 
 /// `UserDefaults`-backed known-groups list, stored as one JSON array under

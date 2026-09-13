@@ -395,6 +395,41 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertNil(store.load())
     }
 
+    // Round-3 playtest, 2026-09-13: deleting the account left this device's
+    // `KnownGroupsStore` (including cached per-group access tokens) intact,
+    // so signing back in with the same identity still showed every old
+    // group — `docs/appstore/testflight-pass.md` #9 requires a fresh
+    // account with no groups.
+    @MainActor
+    func testDeleteAccountForgetsEveryKnownGroup() async {
+        let store = InMemorySessionStore(session(expiresIn: 20 * day))
+        let knownGroups = InMemoryKnownGroupsStore([known("g1", at: .now), known("g2", at: .now)])
+        let vm = makeVM(
+            store: store, transport: StubTransport(statusCode: 204, json: ""), knownGroups: knownGroups
+        )
+
+        let ok = await vm.deleteAccount()
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(knownGroups.all(), [])
+    }
+
+    @MainActor
+    func testDeleteAccountOnAnAlreadyInvalidSessionStillForgetsEveryKnownGroup() async {
+        let store = InMemorySessionStore(session(expiresIn: 20 * day))
+        let knownGroups = InMemoryKnownGroupsStore([known("g1", at: .now)])
+        let vm = makeVM(
+            store: store,
+            transport: StubTransport(statusCode: 401, json: #"{"error":{"code":"INVALID_SESSION","message":"gone"}}"#),
+            knownGroups: knownGroups
+        )
+
+        let ok = await vm.deleteAccount()
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(knownGroups.all(), [])
+    }
+
     @MainActor
     func testDeleteAccountKeepsTheSessionOnAServerError() async {
         let store = InMemorySessionStore(session(expiresIn: 20 * day))

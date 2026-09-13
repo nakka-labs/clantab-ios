@@ -383,8 +383,17 @@ struct AddExpenseView: View {
         // already tapped in; tapping one now focuses the field too, so it's
         // a valid way to *start* an expression, not just continue one.
         Group {
-            Button { amountFocused = true; appendOperator("+") } label: { Image(systemName: "plus") }
-            Button { amountFocused = true; appendOperator("-") } label: { Image(systemName: "minus") }
+            // "plus" and "minus" have different intrinsic bounding boxes (a
+            // cross shape vs. a single thin bar), so without an explicit
+            // frame `.bordered` sized the two capsules differently (round-3
+            // playtest, 2026-09-13). A shared square frame on each glyph
+            // keeps both buttons the same size regardless of the symbol.
+            Button { amountFocused = true; appendOperator("+") } label: {
+                Image(systemName: "plus").frame(width: 20, height: 20)
+            }
+            Button { amountFocused = true; appendOperator("-") } label: {
+                Image(systemName: "minus").frame(width: 20, height: 20)
+            }
         }
     }
 
@@ -482,13 +491,24 @@ struct AddExpenseView: View {
                 // capsule sized to its own text instead.
                 HStack {
                     Spacer()
-                    Button(isMultiPayer ? "Paid by one person" : "Split the cost between payers") {
+                    // Was the full sentence "Split the cost between payers"
+                    // — the button's styling/placement already went through
+                    // two polish passes above, but the copy itself was never
+                    // revisited (round-3 playtest, 2026-09-13: "rename to
+                    // 'add payer' or a clean + button").
+                    Button {
                         isMultiPayer.toggle()
                         if isMultiPayer, payerAmountText.isEmpty {
                             // Seed with whatever's already entered for the
                             // single payer, so switching modes doesn't lose
                             // the amount.
                             payerAmountText = [payerId: amountText]
+                        }
+                    } label: {
+                        if isMultiPayer {
+                            Text("Paid by one person")
+                        } else {
+                            Label("Add Payer", systemImage: "plus")
                         }
                     }
                     .buttonStyle(.bordered)
@@ -639,6 +659,11 @@ struct AddExpenseView: View {
                 includedMemberIds.insert(member.id)
             }
         }
+        // At the screen level, not on the `Form` row the
+        // "addExpense.addMember" coach mark is attached to — a sibling
+        // overlay layer draws unclipped by that row's own bounds
+        // (`CoachMarkAnchorKey`).
+        .coachMarkOverlayHost()
     }
 
     // MARK: - Receipts (CHECKLIST.md "Photo attachment on an expense")

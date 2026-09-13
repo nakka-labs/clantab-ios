@@ -269,6 +269,24 @@ struct GroupHomeView: View {
                                         .tint(.orange)
                                     }
                                 }
+                                // Anchored to the row that triggered it, not the
+                                // `List` as a whole (round-3 playtest,
+                                // 2026-09-13) — a `confirmationDialog` renders
+                                // as a popover on wider size classes, and one
+                                // attached way up at the List level had no
+                                // anchor tied to the specific row, so it could
+                                // appear pointing at nothing.
+                                .confirmationDialog(
+                                    deleteTitle(for: item),
+                                    isPresented: Binding(
+                                        get: { pendingDelete?.id == item.id },
+                                        set: { if !$0 { pendingDelete = nil } }
+                                    ),
+                                    titleVisibility: .visible
+                                ) {
+                                    Button("Delete", role: .destructive) { Task { await performDelete(item) } }
+                                    Button("Cancel", role: .cancel) {}
+                                }
                         }
                     }
                     if let mutationError {
@@ -495,15 +513,6 @@ struct GroupHomeView: View {
             }
             .materialSheet()
         }
-        .confirmationDialog(
-            deleteTitle,
-            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingDelete
-        ) { item in
-            Button("Delete", role: .destructive) { Task { await performDelete(item) } }
-            Button("Cancel", role: .cancel) {}
-        }
         .sheet(isPresented: $isPresentingGroupSettings) {
             if let state = viewModel.state {
                 NavigationStack {
@@ -584,11 +593,14 @@ struct GroupHomeView: View {
         .animation(.claimSettle, value: undoBanner)
         .sensoryFeedback(.success, trigger: expenseAddedTrigger)
         .sensoryFeedback(.success, trigger: settlementMarkedTrigger)
+        // At the screen level, not on the row the "groupHome.bubbleSwipe"
+        // coach mark is attached to — a sibling overlay layer draws
+        // unclipped by that row's own bounds (`CoachMarkAnchorKey`).
+        .coachMarkOverlayHost()
     }
 
-    private var deleteTitle: String {
-        guard let pendingDelete else { return "" }
-        if case .settlement = pendingDelete.kind { return "Delete this settlement?" }
+    private func deleteTitle(for item: ActivityItem) -> String {
+        if case .settlement = item.kind { return "Delete this settlement?" }
         return "Delete this expense?"
     }
 

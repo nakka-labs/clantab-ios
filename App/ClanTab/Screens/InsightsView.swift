@@ -193,6 +193,11 @@ struct InsightsView: View {
                 content: .recap(totalMinor: groupTotal, byMember: byMember, currency: currency)
             ))
         }
+        // At the screen level, not on the `List` row the
+        // "insights.chartsAreInteractive" coach mark is attached to — a
+        // sibling overlay layer draws unclipped by that row's own bounds
+        // (`CoachMarkAnchorKey`).
+        .coachMarkOverlayHost()
     }
 
     /// The bar nearest the current scrub position.
