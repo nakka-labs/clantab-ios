@@ -310,6 +310,16 @@
           Upload succeeded; still processing as of this note. Archive at
           `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-13
           .xcarchive`.
+      3f. [x] CLI: build `1.0 (14)` archived, exported, and uploaded
+          2026-09-13 — carries the Insights race-condition/crash-risk
+          fix (`.onChange(of: auth.groups)`, safe dictionary
+          construction) found reviewing the Owner's "insights completely
+          removed" report on build 13. Checked the live build number
+          first (`13`, matched the repo), `make bump-build` → `14`, same
+          flow as 3b–3e. Upload succeeded; still processing as of this
+          note. Archive at
+          `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-14
+          .xcarchive`.
       4. Owner: run the pass on a real device — Sign in with Apple/Google,
          a push (CLI triggers it via an API expense-add), a recurring-
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
