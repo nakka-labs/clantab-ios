@@ -58,10 +58,6 @@ struct AddExpenseView: View {
     /// enough that scanning it is real friction.
     @State private var memberSearchText = ""
     @State private var isPresentingAddMember = false
-    /// Drives `MoreSplitsSheet` (`CHECKLIST.md` UX audit [15]) — the primary
-    /// segmented control only carries Equally/Exact/%; Shares and Items (and
-    /// a way back) live one tap away here.
-    @State private var isPresentingMoreSplits = false
     @State private var exactAmountText: [String: String] = [:]
     @State private var percentText: [String: String] = [:]
     /// Per-member ratio weights for a `.shares` split (`CHECKLIST.md` "Split by
@@ -331,13 +327,10 @@ struct AddExpenseView: View {
         amountText.contains(where: { $0 == "+" || $0 == "-" })
     }
 
-    /// Append `+` / `-` to the running amount expression, keeping focus so the
-    /// next term can be typed. A trailing operator is swapped, not stacked
-    /// (`"12 + "` then `-` → `"12 - "`); a blank field is left alone.
     /// The one place `splitType` actually changes (`CHECKLIST.md` UX audit
-    /// [15]) — called from both the primary segmented control and
-    /// `MoreSplitsSheet`, so the seeding side effects run regardless of
-    /// which one picked Shares/Items.
+    /// [15], R2) — called from the single "Split type" `Menu` in `body`, so
+    /// every mode's seeding side effect runs regardless of which one was
+    /// picked.
     private func selectSplitType(_ newValue: SplitType) {
         splitType = newValue
         // Seed the first line item the moment "Items" is picked (unless
@@ -352,6 +345,9 @@ struct AddExpenseView: View {
         }
     }
 
+    /// Append `+` / `-` to the running amount expression, keeping focus so the
+    /// next term can be typed. A trailing operator is swapped, not stacked
+    /// (`"12 + "` then `-` → `"12 - "`); a blank field is left alone.
     private func appendOperator(_ op: String) {
         var text = amountText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
@@ -521,41 +517,35 @@ struct AddExpenseView: View {
             }
 
             Section("Split") {
-                // A 5-way segmented control gave every mode equal visual
-                // weight (`CHECKLIST.md` UX audit [15]) — Equally/Exact/%
-                // cover the common case and stay a 1-tap segmented control;
-                // Shares/Items (rarer) move one tap further, behind
-                // `MoreSplitsSheet`.
-                if splitType == .shares || splitType == .itemized {
+                // One control for all 5 modes (`CHECKLIST.md` R2) — used to
+                // be a 3-way segmented `Picker` (Equally/Exact/%) plus a
+                // separate "More Split Types" button/sheet for Shares/Items,
+                // two different UI patterns stitched together for one
+                // choice. `selectSplitType` already centralizes every
+                // side effect of switching — unaffected by collapsing the
+                // entry point down to one `Menu`. Same "`Menu` wrapping a
+                // `Picker`-like set of choices" shape `GroupHomeView`'s own
+                // `activityFilterMenu` already uses elsewhere in the app.
+                Menu {
+                    ForEach(SplitType.allCases, id: \.self) { type in
+                        Button {
+                            selectSplitType(type)
+                        } label: {
+                            if type == splitType {
+                                Label(type.fullLabel, systemImage: "checkmark")
+                            } else {
+                                Text(type.fullLabel)
+                            }
+                        }
+                    }
+                } label: {
                     HStack {
                         Text("Split type")
                         Spacer()
                         Text(splitType.fullLabel).foregroundStyle(.secondary)
                     }
-                    Button("Change") { isPresentingMoreSplits = true }
-                } else {
-                    Picker("Split type", selection: Binding(
-                        get: { splitType },
-                        set: { selectSplitType($0) }
-                    )) {
-                        Text("Equally").tag(SplitType.equal)
-                        Text("Exact").tag(SplitType.exact)
-                        Text("%").tag(SplitType.percentage)
-                    }
-                    .pickerStyle(.segmented)
-                    // Same "not fine print" treatment as the multi-payer
-                    // toggle above (`CHECKLIST.md` UX audit [16]) — this
-                    // opens a real mode switch, not a footnote. Same
-                    // hug-and-center fix as that toggle too (`CHECKLIST.md`
-                    // UI audit fresh-eyes-pass [6]).
-                    HStack {
-                        Spacer()
-                        Button("More Split Types (Shares, Items)") { isPresentingMoreSplits = true }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        Spacer()
-                    }
                 }
+                .tint(.primary)
 
                 splitDetail
             }
@@ -637,9 +627,6 @@ struct AddExpenseView: View {
                     onCancel: { self.reportingComment = nil }
                 )
             }
-        }
-        .sheet(isPresented: $isPresentingMoreSplits) {
-            MoreSplitsSheet(current: splitType, onPicked: selectSplitType)
         }
         .sheet(isPresented: $isPresentingAddMember) {
             AddMemberSheet(groupId: groupId, client: client, accessToken: accessToken) { member in

@@ -3256,21 +3256,20 @@ explicitly before treating this as "all safely deferrable":
       member is claimed before it'll refuse an edit — R4's minimal fix
       is a strict subset of this plan's step 3, so if R1 gets picked up
       first, R4 falls out of it for free.
-- [ ] **R2. Split-by control reads as two different UI patterns stitched
-      together.** `~15-20k`. Confirmed in `AddExpenseView`: a 3-way
-      segmented `Picker` (Equally/Exact/%) sits next to a separate
-      "More Split Types" button that opens `MoreSplitsSheet` for
-      Shares/Items — one control for 3 of 5 modes, a whole extra sheet
-      for the other 2. Two audits already touched this styling
-      (UX audit [16], UI audit [6]) without addressing the actual split
-      — cosmetic fixes on top of a two-tier structure. Replace with one
-      control covering all 5: either a `Menu`/dropdown listing
-      Equally/Exact/%/Shares/Items (collapses to one tap, no modal for
-      the "rare" 2), or make `MoreSplitsSheet` the only entry point and
-      put all 5 there as full-width rows/tabs. Whichever the owner
-      prefers, `selectSplitType` already centralizes every side effect
-      of switching types, so the seeding logic doesn't change — this is
-      presentation-only.
+- [x] **R2. Split-by control reads as two different UI patterns stitched
+      together.** Done 2026-09-13, owner chose the `Menu`/dropdown option
+      over making `MoreSplitsSheet` the sole entry point. Replaced the
+      3-way segmented `Picker` + "More Split Types" button + `.shares`/
+      `.itemized` summary-row branch with one `Menu { ForEach(SplitType
+      .allCases) { ... } }` (added `CaseIterable` to the enum) — same
+      "`Menu` wrapping a `Picker`-like set of choices" shape
+      `GroupHomeView.activityFilterMenu` already used elsewhere, so this
+      isn't a new pattern for the app. `selectSplitType` untouched, as
+      the item predicted — presentation-only. Deleted `MoreSplitsSheet`,
+      no callers left; fixed a pre-existing doc-comment mis-attachment
+      found while touching this code (a comment describing
+      `appendOperator` was sitting above `selectSplitType` instead).
+      `make check` green (kit + worker + full iOS build/XCTest).
 - [ ] **R3. Group Options is one ~9-row Form covering five concerns.**
       `~10-15k` for the grouping alone. This is D13, already surfaced
       and explicitly declined pre-submission ("leave it as one Form... a

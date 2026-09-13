@@ -1,9 +1,8 @@
 import ClanTabKit
 
 /// App-side display copy for `SplitType` — the kit stays UI-free, so this
-/// lives here rather than on the model itself. Shared by `AddExpenseView`'s
-/// segmented control / summary row and `MoreSplitsSheet` (`CHECKLIST.md` UX
-/// audit [15]).
+/// lives here rather than on the model itself. Used by `AddExpenseView`'s
+/// "Split type" `Menu` and summary row (`CHECKLIST.md` UX audit [15], R2).
 extension SplitType {
     var shortLabel: String {
         switch self {

@@ -9,7 +9,7 @@ import Foundation
 /// remainder, so the split integrity rule (`AGENTS.md`) and the server's
 /// exact-sum check are unchanged. An `itemized` expense also carries its
 /// `items`, and a `shares` expense its `shares`, for display / re-edit.
-public enum SplitType: String, Codable, Sendable {
+public enum SplitType: String, Codable, Sendable, CaseIterable {
     case equal
     case exact
     case percentage
