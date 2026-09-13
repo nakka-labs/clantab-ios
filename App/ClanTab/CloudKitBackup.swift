@@ -82,7 +82,10 @@ final class CloudKitGroupBackup: GroupBackupWriting {
             members: members, expenses: expenses, settlements: settlements,
             capturedAt: timestamp
         )
-        guard let payload = try? CloudBackup.encode(snapshot) else { return }
+        guard let payload = try? CloudBackup.encode(snapshot) else {
+            stateStore.recordFailure(at: timestamp, forGroupId: groupId)
+            return
+        }
         let checksum = CloudBackup.checksum(of: payload)
 
         let prior = stateStore.state(forGroupId: groupId)
@@ -97,7 +100,10 @@ final class CloudKitGroupBackup: GroupBackupWriting {
         // the per-field size soft limit, so the blob always goes via an asset.
         let assetURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("clantab-backup-\(groupId)-\(UUID().uuidString).json")
-        guard (try? payload.write(to: assetURL, options: .atomic)) != nil else { return }
+        guard (try? payload.write(to: assetURL, options: .atomic)) != nil else {
+            stateStore.recordFailure(at: timestamp, forGroupId: groupId)
+            return
+        }
         defer { try? FileManager.default.removeItem(at: assetURL) }
 
         let record = Self.makeRecord(for: snapshot, payloadURL: assetURL, checksum: checksum)
@@ -112,12 +118,15 @@ final class CloudKitGroupBackup: GroupBackupWriting {
             // result too before treating the backup as done.
             guard case .success? = result.saveResults[record.recordID] else {
                 logger.error("CloudKit backup for \(groupId, privacy: .public): save returned no success result")
+                stateStore.recordFailure(at: timestamp, forGroupId: groupId)
                 return
             }
             stateStore.record(CloudBackupState(lastBackupAt: timestamp, checksum: checksum), forGroupId: groupId)
+            stateStore.clearFailure(forGroupId: groupId)
             logger.info("CloudKit backup ok: \(CloudBackup.recordName(forGroupId: groupId), privacy: .public) (\(snapshot.expenses.count) expenses, \(snapshot.settlements.count) settlements)")
         } catch {
             logger.error("CloudKit backup failed for \(groupId, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            stateStore.recordFailure(at: timestamp, forGroupId: groupId)
         }
     }
 

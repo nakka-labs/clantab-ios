@@ -182,4 +182,90 @@ struct CloudBackupStateStoreTests {
         let reloaded = UserDefaultsCloudBackupStateStore(defaults: defaults).state(forGroupId: "g1")
         #expect(reloaded == CloudBackupState(lastBackupAt: t0, checksum: "xyz"))
     }
+
+    // MARK: - Failure tracking (CHECKLIST.md R15)
+
+    @Test("in-memory store tracks a failure per group, independent of a successful state")
+    func testInMemoryFailureTracking() {
+        let store = InMemoryCloudBackupStateStore()
+        #expect(store.lastFailure(forGroupId: "g1") == nil)
+
+        store.recordFailure(at: t0, forGroupId: "g1")
+        #expect(store.lastFailure(forGroupId: "g1") == t0)
+        #expect(store.lastFailure(forGroupId: "g2") == nil)
+        #expect(store.state(forGroupId: "g1") == nil) // failure doesn't fake a success
+
+        store.clearFailure(forGroupId: "g1")
+        #expect(store.lastFailure(forGroupId: "g1") == nil)
+    }
+
+    @Test("clearing a failure that was never recorded is a harmless no-op")
+    func testClearFailureNoOp() {
+        let store = InMemoryCloudBackupStateStore()
+        store.clearFailure(forGroupId: "g1") // doesn't crash or throw
+        #expect(store.lastFailure(forGroupId: "g1") == nil)
+    }
+
+    @Test("UserDefaults store persists failures across instances, keyed by group")
+    func testUserDefaultsFailurePersistence() throws {
+        let suite = "CloudBackupStateStoreTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        UserDefaultsCloudBackupStateStore(defaults: defaults).recordFailure(at: t0, forGroupId: "g1")
+        #expect(UserDefaultsCloudBackupStateStore(defaults: defaults).lastFailure(forGroupId: "g1") == t0)
+
+        UserDefaultsCloudBackupStateStore(defaults: defaults).clearFailure(forGroupId: "g1")
+        #expect(UserDefaultsCloudBackupStateStore(defaults: defaults).lastFailure(forGroupId: "g1") == nil)
+    }
+}
+
+@Suite("CloudBackupSummary")
+struct CloudBackupSummaryTests {
+    private let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    private var t1: Date { t0.addingTimeInterval(3600) }
+
+    @Test("no groups known, or no group has ever attempted, is neverBackedUp")
+    func testNeverBackedUp() {
+        let store = InMemoryCloudBackupStateStore()
+        #expect(CloudBackupSummary.compute(groupIds: [], stateStore: store) == .neverBackedUp)
+        #expect(CloudBackupSummary.compute(groupIds: ["g1", "g2"], stateStore: store) == .neverBackedUp)
+    }
+
+    @Test("the most recent success across every known group wins when nothing is failing")
+    func testSynced() {
+        let store = InMemoryCloudBackupStateStore()
+        store.record(CloudBackupState(lastBackupAt: t0, checksum: "a"), forGroupId: "g1")
+        store.record(CloudBackupState(lastBackupAt: t1, checksum: "b"), forGroupId: "g2")
+        #expect(CloudBackupSummary.compute(groupIds: ["g1", "g2"], stateStore: store) == .synced(lastBackupAt: t1))
+    }
+
+    @Test("a failure newer than the last success reports failing, carrying the last success along")
+    func testFailingAfterASuccess() {
+        let store = InMemoryCloudBackupStateStore()
+        store.record(CloudBackupState(lastBackupAt: t0, checksum: "a"), forGroupId: "g1")
+        store.recordFailure(at: t1, forGroupId: "g2")
+        #expect(
+            CloudBackupSummary.compute(groupIds: ["g1", "g2"], stateStore: store)
+                == .failing(lastFailureAt: t1, lastBackupAt: t0)
+        )
+    }
+
+    @Test("a failure with no success anywhere yet is failing with a nil lastBackupAt")
+    func testFailingWithNoPriorSuccess() {
+        let store = InMemoryCloudBackupStateStore()
+        store.recordFailure(at: t0, forGroupId: "g1")
+        #expect(
+            CloudBackupSummary.compute(groupIds: ["g1"], stateStore: store)
+                == .failing(lastFailureAt: t0, lastBackupAt: nil)
+        )
+    }
+
+    @Test("a success more recent than a stale failure reports synced, not failing")
+    func testSuccessSupersedesAnOlderFailure() {
+        let store = InMemoryCloudBackupStateStore()
+        store.recordFailure(at: t0, forGroupId: "g1")
+        store.record(CloudBackupState(lastBackupAt: t1, checksum: "a"), forGroupId: "g1")
+        #expect(CloudBackupSummary.compute(groupIds: ["g1"], stateStore: store) == .synced(lastBackupAt: t1))
+    }
 }

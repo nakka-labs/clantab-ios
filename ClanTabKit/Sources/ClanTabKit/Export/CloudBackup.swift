@@ -161,11 +161,22 @@ public struct CloudBackupState: Codable, Sendable, Equatable {
 public protocol CloudBackupStateStoring: Sendable {
     func state(forGroupId groupId: String) -> CloudBackupState?
     func record(_ state: CloudBackupState, forGroupId groupId: String)
+    /// When the most recent backup *attempt* for this group didn't land —
+    /// `nil` means either never attempted, or the last attempt succeeded
+    /// (`recordFailure`/`clearFailure` keep this in sync with `record`).
+    /// `CHECKLIST.md` R15: every failure path used to be swallowed with no
+    /// signal at all beyond `os.Logger`; this is the minimal "it's failing"
+    /// bit a Settings row can show — not *why*, just that the last attempt
+    /// didn't land.
+    func lastFailure(forGroupId groupId: String) -> Date?
+    func recordFailure(at date: Date, forGroupId groupId: String)
+    func clearFailure(forGroupId groupId: String)
 }
 
 /// `UserDefaults`-backed, one JSON dictionary keyed by groupId.
 public final class UserDefaultsCloudBackupStateStore: CloudBackupStateStoring, @unchecked Sendable {
     private static let key = "clantab.cloudBackup.state"
+    private static let failureKey = "clantab.cloudBackup.failures"
     private let defaults: UserDefaults
     private let lock = NSLock()
 
@@ -186,9 +197,37 @@ public final class UserDefaultsCloudBackupStateStore: CloudBackupStateStoring, @
         defaults.set(data, forKey: Self.key)
     }
 
+    public func lastFailure(forGroupId groupId: String) -> Date? {
+        lock.lock(); defer { lock.unlock() }
+        return loadFailures()[groupId]
+    }
+
+    public func recordFailure(at date: Date, forGroupId groupId: String) {
+        lock.lock(); defer { lock.unlock() }
+        var all = loadFailures()
+        all[groupId] = date
+        guard let data = try? JSONEncoder().encode(all) else { return }
+        defaults.set(data, forKey: Self.failureKey)
+    }
+
+    public func clearFailure(forGroupId groupId: String) {
+        lock.lock(); defer { lock.unlock() }
+        var all = loadFailures()
+        guard all.removeValue(forKey: groupId) != nil else { return }
+        guard let data = try? JSONEncoder().encode(all) else { return }
+        defaults.set(data, forKey: Self.failureKey)
+    }
+
     private func load() -> [String: CloudBackupState] {
         guard let data = defaults.data(forKey: Self.key),
               let decoded = try? JSONDecoder().decode([String: CloudBackupState].self, from: data)
+        else { return [:] }
+        return decoded
+    }
+
+    private func loadFailures() -> [String: Date] {
+        guard let data = defaults.data(forKey: Self.failureKey),
+              let decoded = try? JSONDecoder().decode([String: Date].self, from: data)
         else { return [:] }
         return decoded
     }
@@ -197,6 +236,7 @@ public final class UserDefaultsCloudBackupStateStore: CloudBackupStateStoring, @
 /// In-memory state store for tests and previews.
 public final class InMemoryCloudBackupStateStore: CloudBackupStateStoring, @unchecked Sendable {
     private var states: [String: CloudBackupState]
+    private var failures: [String: Date] = [:]
     private let lock = NSLock()
 
     public init(_ states: [String: CloudBackupState] = [:]) {
@@ -211,5 +251,55 @@ public final class InMemoryCloudBackupStateStore: CloudBackupStateStoring, @unch
     public func record(_ state: CloudBackupState, forGroupId groupId: String) {
         lock.lock(); defer { lock.unlock() }
         states[groupId] = state
+    }
+
+    public func lastFailure(forGroupId groupId: String) -> Date? {
+        lock.lock(); defer { lock.unlock() }
+        return failures[groupId]
+    }
+
+    public func recordFailure(at date: Date, forGroupId groupId: String) {
+        lock.lock(); defer { lock.unlock() }
+        failures[groupId] = date
+    }
+
+    public func clearFailure(forGroupId groupId: String) {
+        lock.lock(); defer { lock.unlock() }
+        failures.removeValue(forKey: groupId)
+    }
+}
+
+/// One status across every group a device knows about, for a single Settings
+/// row (`CHECKLIST.md` R15) — the backup itself is per-group, but nobody
+/// wants a row per group just to answer "is this working?".
+public enum CloudBackupOverallStatus: Equatable, Sendable {
+    /// No group has ever backed up successfully, and no failure either —
+    /// most likely nothing has synced yet (fresh install, no iCloud
+    /// account). The Settings row still checks live `CKAccountStatus`
+    /// separately for that distinction; this case alone doesn't imply one.
+    case neverBackedUp
+    case synced(lastBackupAt: Date)
+    /// The most recent *attempt* across every group failed, more recently
+    /// than any success (or there's never been a success at all —
+    /// `lastBackupAt: nil`).
+    case failing(lastFailureAt: Date, lastBackupAt: Date?)
+}
+
+public enum CloudBackupSummary {
+    /// "Failing" wins whenever the most recent failure is newer than the
+    /// most recent success across every known group; otherwise the most
+    /// recent success wins. Pure — no CloudKit import, so it's testable
+    /// without an iCloud account (mirrors `CloudBackupSchedule`'s own
+    /// clock-injected, dependency-free style).
+    public static func compute(groupIds: [String], stateStore: CloudBackupStateStoring) -> CloudBackupOverallStatus {
+        let lastSuccess = groupIds.compactMap { stateStore.state(forGroupId: $0)?.lastBackupAt }.max()
+        let lastFailure = groupIds.compactMap { stateStore.lastFailure(forGroupId: $0) }.max()
+        if let lastFailure, lastFailure > (lastSuccess ?? .distantPast) {
+            return .failing(lastFailureAt: lastFailure, lastBackupAt: lastSuccess)
+        }
+        if let lastSuccess {
+            return .synced(lastBackupAt: lastSuccess)
+        }
+        return .neverBackedUp
     }
 }

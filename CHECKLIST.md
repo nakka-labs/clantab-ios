@@ -3418,22 +3418,26 @@ explicitly before treating this as "all safely deferrable":
       (same fields: from, to, amount, currency, date) reachable from
       Group Home's "+"/"…" alongside Add Expense, calling the existing
       `addSettlement`. No new backend work.
-- [ ] **R15. CloudKit backup — no visible status or manual trigger
-      anywhere.** `~5-8k` for visibility; more if a manual trigger is
-      wanted. The tier-2 backup (`CloudKitGroupBackup`,
-      `App/ClanTab/CloudKitBackup.swift`) is real and already
-      shipped — fire-and-forget on every `GroupViewModel.updateCaches`,
-      by design (see "CloudKit backup, tier 2" above, done 2026-09-08).
-      But it's invisible: no Settings row, no "last backed up" or
-      status indicator, nothing — the only backup UI that exists at all
-      is `BackupNudgeCard`'s CSV export nudge (tier 1). Add a Settings
-      row ("iCloud Backup: last synced 2h ago" / "Not signed into
-      iCloud" for the failure path, which today swallows every error
-      silently) so the feature is legible; a manual "Back Up Now" button
-      is optional on top, since the automatic cadence
-      (`CloudBackupSchedule.shouldBackUp`) already covers the real need
-      — the request here reads more like "prove it's working," which a
-      status line answers without needing a button at all.
+- [x] **R15. CloudKit backup — no visible status or manual trigger
+      anywhere.** Done 2026-09-13, visibility only (no manual trigger —
+      per the item's own note, a status line answers "prove it's
+      working" without needing a button). Every failure path in
+      `CloudKitGroupBackup.backUpIfNeeded` used to swallow silently past
+      `os.Logger`; added `lastFailure`/`recordFailure`/`clearFailure` to
+      `CloudBackupStateStoring` (both stores), called from every non-
+      success return/catch in `backUpIfNeeded`, cleared on the next
+      success. New pure `CloudBackupSummary.compute(groupIds:stateStore:)`
+      in ClanTabKit aggregates every known group into one
+      `CloudBackupOverallStatus` (`.neverBackedUp` / `.synced` /
+      `.failing`, failure wins iff newer than the last success) — a
+      Settings row per group would've been silly. New
+      `CloudBackupStatusRow` (`App/ClanTab/Components/`) live-checks
+      `CKAccountStatus` first (distinguishes "not signed into iCloud"
+      from a real write failure) then falls back to the summary, reusing
+      `RemindHistory.relativeLabel` for the "2h ago" phrasing rather than
+      hand-rolling another one. New Settings section, signed-in only
+      (backup itself only ever runs for a claimed group). `make check`
+      green (kit 373 · worker 315 · full iOS build + XCTest).
 - [x] **R16. Add a "My Spending" entry point on the Home page too.**
       Done 2026-09-13. Not a toolbar icon — `StartView` deliberately
       dropped its icon toolbar for the tab bar (own comment in that file),

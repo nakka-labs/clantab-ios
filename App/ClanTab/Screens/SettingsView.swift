@@ -100,6 +100,16 @@ struct SettingsView: View {
                 }
             }
 
+            // iCloud backup status (`CHECKLIST.md` R15) — `CloudKitGroupBackup`
+            // itself only ever runs for a claimed group (`myIdentity` guard
+            // in `GroupViewModel.updateCaches`), so this row is as pointless
+            // pre-sign-in as My Spending above.
+            if auth.isSignedIn {
+                Section {
+                    CloudBackupStatusRow(knownGroups: knownGroups)
+                }
+            }
+
             // "Settle Across Groups" used to live here as its own screen
             // (`PeopleView`) — retired (`CHECKLIST.md` UX audit [8]): the
             // same capability now lives on every friend's own detail screen,
