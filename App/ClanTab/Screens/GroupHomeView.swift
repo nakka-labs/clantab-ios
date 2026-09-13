@@ -45,6 +45,10 @@ struct GroupHomeView: View {
     /// render-off-screen-then-`ShareLink` pattern `SettleUpView`/
     /// `InsightsView` already use.
     @State private var balancesShareCard: Image?
+    /// Which members the balances share card includes (`CHECKLIST.md` R10)
+    /// — `nil` means "everyone with a nonzero balance," the default.
+    @State private var balancesShareSelection: Set<String>?
+    @State private var isPresentingBalancesShareCustomize = false
     @State private var duplicatingExpense: Expense?
     @State private var pendingDelete: ActivityItem?
     @State private var isPresentingAddExpense = false
@@ -122,8 +126,48 @@ struct GroupHomeView: View {
     /// at least two members have a nonzero balance in the dominant currency
     /// (`FEATURE_BACKLOG.md` "Balance bubble/circle-pack view").
     private func showsBubblePage(_ state: GroupStateResponse) -> Bool {
-        guard let currency = state.balances.max(by: { abs($0.netMinor) < abs($1.netMinor) })?.currency else { return false }
+        let currency = Balances.dominantCurrency(state.balances)
+        guard !currency.isEmpty else { return false }
         return Set(state.balances.filter { $0.currency == currency }.map(\.memberId)).count >= 2
+    }
+
+    /// This group's balances, narrowed to the one dominant currency the
+    /// balances share card actually renders (`CHECKLIST.md` R10) — what
+    /// `ShareCardRowPicker` offers has to match what `RecapCard.balancesBody`
+    /// shows, or a "selected" row could silently vanish from the card.
+    private func balancesInDominantCurrency(_ balances: [Balance]) -> [Balance] {
+        let currency = Balances.dominantCurrency(balances)
+        return balances.filter { $0.currency == currency && $0.netMinor != 0 }
+    }
+
+    private func memberName(_ memberId: String, in members: [Member]) -> String {
+        members.first { $0.id == memberId }?.displayName ?? "Someone"
+    }
+
+    private func balancesShareSelectionBinding(for balances: [Balance]) -> Binding<Set<String>> {
+        Binding(
+            get: { balancesShareSelection ?? Set(balancesInDominantCurrency(balances).map(\.memberId)) },
+            set: { balancesShareSelection = $0 }
+        )
+    }
+
+    @MainActor
+    private func renderBalancesShareCard() {
+        guard let state = viewModel.state else { return }
+        // Fix the currency *before* filtering by selection — otherwise
+        // deselecting whoever holds the dominant currency's largest balance
+        // could shift `RecapCard`'s own dominant-currency pick to a
+        // different currency entirely, silently changing what the card is
+        // even about instead of just hiding a row.
+        let dominant = balancesInDominantCurrency(state.balances)
+        let effectiveSelection = balancesShareSelection ?? Set(dominant.map(\.memberId))
+        let selectedBalances = dominant.filter { effectiveSelection.contains($0.memberId) }
+        balancesShareCard = RecapCard.render(RecapCard(
+            groupName: state.group.name,
+            groupEmoji: state.group.emoji,
+            members: state.members,
+            content: .balances(selectedBalances)
+        ))
     }
 
     var body: some View {
@@ -370,14 +414,24 @@ struct GroupHomeView: View {
             pendingInitialAction = action
             runInitialActionIfReady()
         }
-        .task(id: viewModel.state?.balances) {
-            guard let state = viewModel.state else { return }
-            balancesShareCard = RecapCard.render(RecapCard(
-                groupName: state.group.name,
-                groupEmoji: state.group.emoji,
-                members: state.members,
-                content: .balances(state.balances)
-            ))
+        .task(id: viewModel.state?.balances) { renderBalancesShareCard() }
+        .task(id: balancesShareSelection) { renderBalancesShareCard() }
+        .sheet(isPresented: $isPresentingBalancesShareCustomize) {
+            if let state = viewModel.state {
+                NavigationStack {
+                    ShareCardRowPicker(
+                        rows: balancesInDominantCurrency(state.balances).map { balance in
+                            ShareCardRow(
+                                id: balance.memberId,
+                                title: memberName(balance.memberId, in: state.members),
+                                subtitle: MoneyFormat.string(minorUnits: abs(balance.netMinor), currency: Balances.dominantCurrency(state.balances))
+                            )
+                        },
+                        selection: balancesShareSelectionBinding(for: state.balances)
+                    )
+                }
+                .materialSheet()
+            }
         }
         .task {
             await viewModel.load()
@@ -874,6 +928,13 @@ struct GroupHomeView: View {
                             "Share Balances Card", item: balancesShareCard,
                             preview: SharePreview("\(state.group.name) — balances", image: balancesShareCard)
                         )
+                        // Customize which rows it includes (`CHECKLIST.md`
+                        // R10) — a menu, not a toolbar icon like Settle
+                        // Up/Insights get, since this card's entry point is
+                        // itself already inside a `Menu`.
+                        Button("Customize Balances Card…", systemImage: "slider.horizontal.3") {
+                            isPresentingBalancesShareCustomize = true
+                        }
                     }
                 }
 

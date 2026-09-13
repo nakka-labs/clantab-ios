@@ -96,4 +96,14 @@ public enum Balances {
         }
         return result
     }
+
+    /// The single currency with the most money moving — a group's balances
+    /// are never blended across currencies, so anything that has to show
+    /// "the" balance state in one view (`BalanceBubbleView`, `RecapCard`'s
+    /// `.balances` card, `CHECKLIST.md` R10's balances-card picker) picks
+    /// this one. `""` for an empty/all-zero set — callers already treat that
+    /// as "nothing to show."
+    public static func dominantCurrency(_ balances: [Balance]) -> String {
+        balances.max { abs($0.netMinor) < abs($1.netMinor) }?.currency ?? ""
+    }
 }

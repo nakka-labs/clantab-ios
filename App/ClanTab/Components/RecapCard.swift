@@ -129,15 +129,9 @@ struct RecapCard: View {
         }
     }
 
-    /// Mirrors `BalanceBubbleView`'s own "one dominant currency" convention
-    /// — a card is one snapshot, never blended across currencies.
-    private func dominantCurrency(_ balances: [Balance]) -> String {
-        balances.max { abs($0.netMinor) < abs($1.netMinor) }?.currency ?? ""
-    }
-
     @ViewBuilder
     private func balancesBody(_ balances: [Balance]) -> some View {
-        let currency = dominantCurrency(balances)
+        let currency = Balances.dominantCurrency(balances)
         let inCurrency = balances.filter { $0.currency == currency && $0.netMinor != 0 }
         if inCurrency.isEmpty {
             VStack(spacing: 16) {

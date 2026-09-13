@@ -205,4 +205,29 @@ struct BalancesTests {
     func testApplyingCarriedBalanceZeroForUncachedIsNoop() {
         #expect(Balances.applyingCarriedBalance(to: [], memberId: "me", currency: "GBP", netMinor: 0) == [])
     }
+
+    // MARK: - dominantCurrency (CHECKLIST.md R10, shared by BalanceBubbleView/RecapCard)
+
+    @Test("picks the currency with the largest-magnitude single balance")
+    func testDominantCurrencyPicksLargestMagnitude() {
+        let balances = [
+            Balance(memberId: "alice", currency: "USD", netMinor: 200),
+            Balance(memberId: "bob", currency: "INR", netMinor: -5000),
+        ]
+        #expect(Balances.dominantCurrency(balances) == "INR")
+    }
+
+    @Test("magnitude, not sign, decides it")
+    func testDominantCurrencyIgnoresSign() {
+        let balances = [
+            Balance(memberId: "alice", currency: "USD", netMinor: -9000),
+            Balance(memberId: "bob", currency: "INR", netMinor: 100),
+        ]
+        #expect(Balances.dominantCurrency(balances) == "USD")
+    }
+
+    @Test("empty balances yield an empty string, not a crash")
+    func testDominantCurrencyEmpty() {
+        #expect(Balances.dominantCurrency([]) == "")
+    }
 }

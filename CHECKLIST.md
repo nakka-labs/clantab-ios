@@ -3367,15 +3367,27 @@ explicitly before treating this as "all safely deferrable":
       "Share" section — named to not be confused with the pre-existing
       "Share View-only Balances" (a web URL, not an image). `make check`
       green (kit + worker + full iOS build/XCTest).
-- [ ] **R10. Share cards always include everything — no selection.**
-      `~10-15k`, layered on R9. Both the existing Settle Up share card
-      and the new balances card (R9) currently render every suggested
-      payment / every balance unconditionally — no way to share just
-      one or two lines (e.g. "just what Priya owes," not the whole
-      group's business). Add a selection step before rendering:
-      checkboxes on each line in a lightweight picker sheet, filtering
-      what `RecapCard` receives. One shared component, since both
-      screens feed `RecapCard` the same shape of row list already.
+- [x] **R10. Share cards always include everything — no selection.**
+      Done 2026-09-13, across all three `RecapCard` producers (Settle
+      Up, Insights, and R9's new balances card — one more than scoped,
+      since R9 landed in the meantime). New shared `ShareCardRowPicker`
+      (`ShareCardRow`: id/title/subtitle, domain-agnostic) — each call
+      site maps its own typed rows (`SimplifiedSettlement` via the
+      existing `rowId(for:)`; `MemberSpend`, already `Identifiable`;
+      `Balance` by `memberId`) to `[ShareCardRow]`, gets a `Set<String>`
+      back (`nil` selection state = "everything," the default), and
+      filters before building `RecapCard.Content`. One correctness catch
+      on the balances card specifically: filtering `state.balances` by
+      the raw selection *before* fixing the dominant currency could let
+      deselecting the currency's biggest holder silently flip which
+      currency the whole card is about — fixed by narrowing to
+      `balancesInDominantCurrency` first, filtering second. Also
+      extracted `Balances.dominantCurrency` (ClanTabKit, new tests) since
+      this made it the third independent reimplementation of the same
+      formula (`BalanceBubbleView`, `RecapCard`, now this) —
+      `BalanceBubbleView`/`RecapCard`/`showsBubblePage` all switched to
+      it. `make check` green (kit 376 · worker 315 · full iOS
+      build/XCTest).
 - [x] **R11. No partial settlement.** Done 2026-09-13. The
       `.confirmationDialog` (couldn't host a `TextField`) became a sheet
       presenting new `ConfirmSettlementView` (sibling type in

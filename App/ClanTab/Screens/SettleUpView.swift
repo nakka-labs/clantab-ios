@@ -32,6 +32,10 @@ struct SettleUpView: View {
     /// The shareable recap card (`CHECKLIST.md`), rendered off-screen once the
     /// plan is in hand and re-rendered whenever it changes.
     @State private var shareCard: Image?
+    /// Which rows the share card includes (`CHECKLIST.md` R10) — `nil` means
+    /// "everything," the default; a customized set is keyed by `rowId(for:)`.
+    @State private var shareSelection: Set<String>?
+    @State private var isPresentingShareCustomize = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.coachMarks) private var coachMarks
     /// Mirrors `coachMarks?.hasSeen` so dismissing the UPI nudge below
@@ -56,6 +60,23 @@ struct SettleUpView: View {
         guard !hasSeenUpiNudge, let myId = viewModel.myIdentity?.memberId else { return false }
         guard let me = members.first(where: { $0.id == myId }), me.upiVpa == nil else { return false }
         return settlements.contains { $0.toId == myId && $0.currency == "INR" }
+    }
+
+    /// `shareSelection` materialized to every row when it's still `nil`
+    /// (nothing customized yet) — what the picker checks against and what
+    /// `selectedSettlements` filters by.
+    private var effectiveShareSelection: Set<String> {
+        shareSelection ?? Set(settlements.map(rowId(for:)))
+    }
+
+    private var shareSelectionBinding: Binding<Set<String>> {
+        Binding(get: { effectiveShareSelection }, set: { shareSelection = $0 })
+    }
+
+    /// The settlements the share card actually renders — everything, unless
+    /// customized down via `ShareCardRowPicker` (`CHECKLIST.md` R10).
+    private var selectedSettlements: [SimplifiedSettlement] {
+        settlements.filter { effectiveShareSelection.contains(rowId(for: $0)) }
     }
 
     /// The plan grouped into per-currency sections, in the order currencies
@@ -115,6 +136,16 @@ struct SettleUpView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Done", action: onDone)
             }
+            if !settlements.isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isPresentingShareCustomize = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .accessibilityLabel("Customize what the share card includes")
+                }
+            }
             if let shareCard {
                 ToolbarItem(placement: .primaryAction) {
                     ShareLink(
@@ -126,13 +157,22 @@ struct SettleUpView: View {
                 }
             }
         }
-        .task(id: settlements) {
-            shareCard = RecapCard.render(RecapCard(
-                groupName: groupName,
-                groupEmoji: viewModel.state?.group.emoji,
-                members: members,
-                content: .settleUp(settlements)
-            ))
+        .task(id: shareSelection) { renderShareCard() }
+        .task(id: settlements) { renderShareCard() }
+        .sheet(isPresented: $isPresentingShareCustomize) {
+            NavigationStack {
+                ShareCardRowPicker(
+                    rows: settlements.map { s in
+                        ShareCardRow(
+                            id: rowId(for: s),
+                            title: "\(name(for: s.fromId)) → \(name(for: s.toId))",
+                            subtitle: MoneyFormat.string(minorUnits: s.amountMinor, currency: s.currency)
+                        )
+                    },
+                    selection: shareSelectionBinding
+                )
+            }
+            .materialSheet()
         }
         .sheet(isPresented: Binding(get: { confirmingSettlement != nil }, set: { if !$0 { confirmingSettlement = nil } })) {
             if let settlement = confirmingSettlement {
@@ -155,6 +195,16 @@ struct SettleUpView: View {
 
     private func rowId(for settlement: SimplifiedSettlement) -> String {
         "\(settlement.currency):\(settlement.fromId)->\(settlement.toId)"
+    }
+
+    @MainActor
+    private func renderShareCard() {
+        shareCard = RecapCard.render(RecapCard(
+            groupName: groupName,
+            groupEmoji: viewModel.state?.group.emoji,
+            members: members,
+            content: .settleUp(selectedSettlements)
+        ))
     }
 
     private func dismissUpiNudge() {

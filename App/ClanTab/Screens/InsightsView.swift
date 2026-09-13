@@ -21,6 +21,10 @@ struct InsightsView: View {
     @State private var currency: String = ""
     /// The shareable recap card, rendered off-screen for the current currency.
     @State private var shareCard: Image?
+    /// Which members the share card includes (`CHECKLIST.md` R10) — `nil`
+    /// means "everyone," the default.
+    @State private var shareSelection: Set<String>?
+    @State private var isPresentingShareCustomize = false
     /// Drag position over the over-time chart (`CHECKLIST.md` "Chart
     /// interaction") — `nil` when not scrubbing.
     @State private var scrubbedDate: Date?
@@ -52,6 +56,24 @@ struct InsightsView: View {
     }
     private var selectedMember: Member? {
         selectedMemberId.flatMap { id in members.first { $0.id == id } }
+    }
+
+    /// `shareSelection` materialized to every member when it's still `nil`.
+    private var effectiveShareSelection: Set<String> {
+        shareSelection ?? Set(byMember.map(\.id))
+    }
+
+    private var shareSelectionBinding: Binding<Set<String>> {
+        Binding(get: { effectiveShareSelection }, set: { shareSelection = $0 })
+    }
+
+    /// The recap card's row list, customized down from `byMember`
+    /// (`CHECKLIST.md` R10) — the *total* stays the whole group's regardless
+    /// (same "recap shouldn't quietly narrow" reasoning the `.task` below
+    /// already documents for `selectedMemberId`), only which member rows
+    /// show is selectable.
+    private var selectedByMember: [MemberSpend] {
+        byMember.filter { effectiveShareSelection.contains($0.id) }
     }
 
     /// The group's emoji + name when there's a real one to show, "Insights"
@@ -167,6 +189,16 @@ struct InsightsView: View {
         .navigationTitle(navigationTitleText)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if !expenses.isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isPresentingShareCustomize = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .accessibilityLabel("Customize what the share card includes")
+                }
+            }
             if let shareCard, !expenses.isEmpty {
                 ToolbarItem(placement: .primaryAction) {
                     ShareLink(
@@ -181,18 +213,18 @@ struct InsightsView: View {
         .onAppear {
             if currency.isEmpty { currency = currencies.first ?? "" }
         }
-        .task(id: currency) {
-            guard !currency.isEmpty else { return }
-            // Always the whole group's recap, regardless of a member filter
-            // on-screen (`CHECKLIST.md` "All Insights graphs interactive") —
-            // sharing a recap card mid-filter shouldn't quietly share a
-            // narrower number than "Total spent" normally means.
-            shareCard = RecapCard.render(RecapCard(
-                groupName: groupName,
-                groupEmoji: groupEmoji,
-                members: members,
-                content: .recap(totalMinor: groupTotal, byMember: byMember, currency: currency)
-            ))
+        .task(id: currency) { renderShareCard() }
+        .task(id: shareSelection) { renderShareCard() }
+        .sheet(isPresented: $isPresentingShareCustomize) {
+            NavigationStack {
+                ShareCardRowPicker(
+                    rows: byMember.map { entry in
+                        ShareCardRow(id: entry.id, title: entry.member.displayName, subtitle: money(entry.totalMinor))
+                    },
+                    selection: shareSelectionBinding
+                )
+            }
+            .materialSheet()
         }
         // At the screen level, not on the `List` row the
         // "insights.chartsAreInteractive" coach mark is attached to — a
@@ -481,6 +513,22 @@ struct InsightsView: View {
 
     private func money(_ minor: Int64) -> String {
         MoneyFormat.string(minorUnits: minor, currency: currency)
+    }
+
+    /// Always the whole group's total, regardless of a member filter
+    /// on-screen (`CHECKLIST.md` "All Insights graphs interactive") — sharing
+    /// a recap card mid-filter shouldn't quietly share a narrower number than
+    /// "Total spent" normally means. Only which member *rows* show is
+    /// customizable (`selectedByMember`, R10).
+    @MainActor
+    private func renderShareCard() {
+        guard !currency.isEmpty else { return }
+        shareCard = RecapCard.render(RecapCard(
+            groupName: groupName,
+            groupEmoji: groupEmoji,
+            members: members,
+            content: .recap(totalMinor: groupTotal, byMember: selectedByMember, currency: currency)
+        ))
     }
 
     /// Tapping the already-selected member clears the filter — a toggle, not

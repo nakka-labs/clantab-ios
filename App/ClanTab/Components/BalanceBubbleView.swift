@@ -15,7 +15,7 @@ struct BalanceBubbleView: View {
     /// The currency the bubbles are drawn in — whichever has the single
     /// largest-magnitude balance, so the view tracks the real money movement.
     private var currency: String {
-        balances.max { abs($0.netMinor) < abs($1.netMinor) }?.currency ?? ""
+        Balances.dominantCurrency(balances)
     }
 
     private func net(_ memberId: String) -> Int64 {
