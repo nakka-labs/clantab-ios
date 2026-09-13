@@ -46,13 +46,6 @@ struct GroupHomeView: View {
     @State private var isPresentingImport = false
     @State private var isPresentingGroupSettings = false
     @State private var isPresentingRecentlyDeleted = false
-    /// A way back into this group's own charts (`CHECKLIST.md` "Friend
-    /// playtest, round 3") — the build-9 audit deliberately promoted
-    /// Insights to its own tab and removed the in-group entry point, but
-    /// gave Group Home no way back in. `InsightsView` needs no groupId/
-    /// client of its own; it's a pure view over data this screen already
-    /// has loaded.
-    @State private var isPresentingInsights = false
     @State private var isPresentingRecurringReminders = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
@@ -185,13 +178,32 @@ struct GroupHomeView: View {
                     // something to settle, same gate the row used to have.
                     onSettleUp: viewModel.myBalances.isEmpty ? nil : { isPresentingSettleUp = true }
                 )
-                if let state = viewModel.state, showsBubblePage(state) {
-                    // A second, swipeable page — the balance-bubble view
-                    // (`FEATURE_BACKLOG.md` "Balance bubble/circle-pack view").
+                let showsBubble = viewModel.state.map(showsBubblePage) ?? false
+                // Insights as its own swipeable page, not a menu item
+                // (`CHECKLIST.md` R13, reopening D12) — independent of the
+                // bubble page's own gate, since Insights is worth showing
+                // any time there's spend history, even a settled-up or
+                // single-balance group. `InsightsView` renders its own
+                // `List` when non-empty, which scrolls happily inside the
+                // fixed `heroTabViewHeight` rather than needing a second
+                // wrapper.
+                let showsInsights = !(viewModel.state?.expenses.isEmpty ?? true)
+                if let state = viewModel.state, showsBubble || showsInsights {
                     TabView {
                         hero
-                        BalanceBubbleView(members: state.members, balances: state.balances)
-                            .padding(.vertical, 12)
+                        if showsBubble {
+                            // A swipeable page — the balance-bubble view
+                            // (`FEATURE_BACKLOG.md` "Balance bubble/circle-
+                            // pack view").
+                            BalanceBubbleView(members: state.members, balances: state.balances)
+                                .padding(.vertical, 12)
+                        }
+                        if showsInsights {
+                            InsightsView(
+                                expenses: state.expenses, members: state.members,
+                                groupName: state.group.name, groupEmoji: state.group.emoji
+                            )
+                        }
                     }
                     .frame(height: heroTabViewHeight)
                     .tabViewStyle(.page(indexDisplayMode: .always))
@@ -208,7 +220,10 @@ struct GroupHomeView: View {
                             .padding(.bottom, 6)
                             .accessibilityHidden(true)
                     }
-                    .coachMark(id: "groupHome.bubbleSwipe", text: "Swipe for a bubble view of who owes what.", edge: .bottom)
+                    // id left unchanged (`CHECKLIST.md` R13) — a dismissed
+                    // coach mark shouldn't reappear for existing users just
+                    // because the copy grew to cover the new Insights page.
+                    .coachMark(id: "groupHome.bubbleSwipe", text: "Swipe for more — who owes what, and your spending insights.", edge: .bottom)
                 } else {
                     hero
                 }
@@ -465,24 +480,6 @@ struct GroupHomeView: View {
                 )
             }
             .materialSheet()
-        }
-        .sheet(isPresented: $isPresentingInsights) {
-            if let state = viewModel.state {
-                NavigationStack {
-                    InsightsView(
-                        expenses: state.expenses,
-                        members: state.members,
-                        groupName: state.group.name,
-                        groupEmoji: state.group.emoji
-                    )
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Done") { isPresentingInsights = false }
-                        }
-                    }
-                }
-                .materialSheet()
-            }
         }
         .sheet(isPresented: $isPresentingSettleUp) {
             NavigationStack {
@@ -845,11 +842,6 @@ struct GroupHomeView: View {
                 if !state.expenses.isEmpty || !state.settlements.isEmpty {
                     Section("Filter") {
                         activityFilterMenu(state: state)
-                    }
-                    Section {
-                        Button("View Insights", systemImage: "chart.pie") {
-                            isPresentingInsights = true
-                        }
                     }
                 }
 

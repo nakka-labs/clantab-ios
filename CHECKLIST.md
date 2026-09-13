@@ -3406,19 +3406,20 @@ explicitly before treating this as "all safely deferrable":
       recipe needs temporary source patches to work around sim-only
       CloudKit/Keychain crashes — owner call 2026-09-13 to rely on
       build+test for the rest of this batch instead).
-- [ ] **R13. Add "View Insights" as a 3rd swipeable page on Group
-      Home, not a menu item.** `~8-12k`. This reopens D12, explicitly
-      decided the other way 4 days ago ("leave it in the menu... not
-      worth the screen real estate without real demand") — the owner
-      is now the demand. `GroupHomeView`'s hero `TabView` currently
-      has exactly 2 pages (`BalanceHeroView`, `BalanceBubbleView`,
-      `heroTabViewHeight`-scaled). Add `InsightsView` (already exists,
-      already takes `expenses`/`members`/`groupName`/`groupEmoji` with
-      no extra fetch, per the "Insights: a way back to a specific
-      group" item above) as a 3rd page in the same `TabView`. Worth
-      deciding explicitly whether the "…" menu's "View Insights" entry
-      is then redundant and should be dropped, or kept as a second
-      route to the same place.
+- [x] **R13. Add "View Insights" as a 3rd swipeable page on Group
+      Home, not a menu item.** Done 2026-09-13, reopening D12 as the
+      owner asked. `InsightsView` is now a 3rd page in the hero
+      `TabView`, gated independently of the bubble page's own condition
+      (`showsBubblePage`) — Insights shows whenever the group has any
+      expense history at all, even settled-up or single-balance, using
+      its own `List` (scrolls happily inside the fixed
+      `heroTabViewHeight` — no extra wrapper needed). Dropped the "…"
+      menu's "View Insights" entry and `isPresentingInsights` sheet, per
+      the item's own call to not keep two routes to the same place —
+      the `TabView` page is the only one now. Coach-mark copy widened to
+      "who owes what, and your spending insights"; **id left unchanged**
+      so a dismissed coach mark doesn't reappear for existing users.
+      `make check` green (kit + worker + full iOS build/XCTest).
 - [x] **R14. Add a manual "Record a Settlement" option, independent of
       Settle Up's suggestions.** Done 2026-09-13, no backend work as
       scoped — `addSettlement` unchanged. New `AddSettlementView`, a
