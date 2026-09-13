@@ -2177,7 +2177,61 @@ by [5]'s own menu-reachability issue), ReportContentView, the category
 picker, multi-payer entry, the CSV import screen itself, and the
 emoji/cover-image pickers.
 
-### Feature backlog — absorbed from the competitive scan
+### Rescan for new findings — 2 real bugs found and fixed, 2026-09-13
+
+Asked to scan the app again after the fresh-eyes audit above was fully
+closed out, this time reaching for the screens that audit's own
+"still not exercised" note flagged. Set up a 3-member group with real
+expenses to walk through the category picker, the multi-payer toggle,
+split-type switching, and the onboarding carousel — all clean, no new
+UI findings. But the same session surfaced two real, unrelated bugs one
+level down from the UI, both while checking whether a change one
+member makes shows up for another member watching the same group live:
+
+- [x] **[1, moderate] `fetchGroupState`'s foreground poll could get
+      stuck on stale, cached data indefinitely.** Done 2026-09-13 —
+      `URLSessionTransport` sent every request through `URLSession
+      .shared` with the default `.useProtocolCachePolicy`, and the
+      worker sends no `Cache-Control` header on any response. Caught
+      live: added an expense to a group already open in the simulator,
+      and the foreground poll kept returning `cache_hit=true` in
+      Console for 5+ minutes straight — the exact same byte count every
+      time, the group's state from *before* the expense, never once
+      reaching the network again. This is the ordinary "someone else
+      adds an expense while you're looking at this screen" case, not an
+      edge case — once one `GET` response for a group gets cached, nothing
+      short of an app relaunch would ever show that group's live state
+      again. Fixed with one line at the transport layer:
+      `request.cachePolicy = .reloadIgnoringLocalCacheData` before every
+      request, so a poll always means a real network round-trip, matching
+      the sync model's own assumption (`DESIGN.md` §7) that a poll
+      reflects the server's current state. Verified live end-to-end:
+      posted a second member's expense against a group already open in
+      the app, and it appeared on its own within one poll cycle, no
+      interaction needed.
+- [x] **[2, moderate] A malformed expense `date` can permanently break
+      a group for everyone in it.** Done 2026-09-13 — found by accident
+      chasing [1]: a couple of test expenses created with a bare
+      `"date": "2026-09-10"` (no time component) were accepted by the
+      worker's `requireString` check, but the app's `JSONDecoder
+      .dateDecodingStrategy = .iso8601` (`ISO8601DateFormatter`'s
+      default options) requires a full date-time and rejects a bare
+      date. The real app's own UI never produces a bare date, so this
+      couldn't happen through normal use — but the worker had no
+      defense against a bad one arriving some other way (a bug in a
+      future app version, a hand-built request, a future import path).
+      Once stored, the effect is severe: *every* member's next
+      `fetchGroupState` for that group fails to decode the whole
+      response, and there's no way to fix it through the app either,
+      since loading the edit screen to fix the bad expense needs that
+      same decode to succeed first — the group is stuck for good.
+      Added `requireISODate` (`worker/src/lib/parse.ts`) — same shape
+      as `requireString`, plus a regex + parse check for a full ISO
+      8601 date-time — and use it for the expense `date` field (shared
+      by both add and update, `parseExpenseBody`). A new worker test
+      confirms a bare date is now rejected with `BAD_REQUEST` instead
+      of silently stored. `make check` green (345 ClanTabKit tests, 304
+      worker tests).
 
 Splitwise/Tricount/Settle Up/Splid, primary sources only:
 

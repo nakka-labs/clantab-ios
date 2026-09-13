@@ -87,6 +87,27 @@ export function optionalInteger(obj: Obj, key: string): number | undefined {
   return v;
 }
 
+/** Like `requireString`, but for a field the iOS client decodes as `Date`
+ * with `JSONDecoder.dateDecodingStrategy = .iso8601` — `ISO8601DateFormatter`
+ * with its default options, which requires a full date-time
+ * ("2026-09-10T00:00:00Z"), not a bare date ("2026-09-10"). `requireString`
+ * alone would accept either, and the app's own UI only ever sends the full
+ * form — but nothing stopped a malformed one from reaching here (a bug
+ * elsewhere, a future caller, a hand-built request). Once stored, *every*
+ * client's next `fetchGroupState` for that group fails to decode the whole
+ * response and gets stuck — there's no way to fix it through the app either,
+ * since loading the edit screen needs that same decode to succeed first.
+ * Rejecting the bad shape at the door is cheap insurance against a group
+ * becoming permanently unusable for everyone in it. */
+export function requireISODate(obj: Obj, key: string): string {
+  const v = requireString(obj, key);
+  const isFullISO8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(v);
+  if (!isFullISO8601 || Number.isNaN(new Date(v).getTime())) {
+    throw new BadRequestError(`Field "${key}" must be a full ISO 8601 date-time (e.g. "2026-09-10T00:00:00Z").`);
+  }
+  return v;
+}
+
 export function requireArray(obj: Obj, key: string): unknown[] {
   const v = obj[key];
   if (!Array.isArray(v)) {

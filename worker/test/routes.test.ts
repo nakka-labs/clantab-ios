@@ -275,6 +275,33 @@ describe("POST /api/groups/:groupId/expenses", () => {
     expect(state.json.expenses).toHaveLength(1);
   });
 
+  it("rejects a bare date without a time component", async () => {
+    // The iOS client decodes this field as `Date` with `JSONDecoder
+    // .dateDecodingStrategy = .iso8601` (`ISO8601DateFormatter`'s default
+    // options), which requires a full date-time, not a bare date. Accepting
+    // one here would let it slip into a group's stored state, where every
+    // client's next `fetchGroupState` fails to decode the whole response —
+    // and there'd be no way to fix it through the app either, since editing
+    // that expense first needs the same decode to succeed.
+    const { status, json } = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 1000 }],
+        amountMinor: 1000,
+        description: "Lunch",
+        date: "2026-01-01",
+        splitType: "equal",
+        splits: [
+          { memberId: a, amountMinor: 500 },
+          { memberId: b, amountMinor: 500 },
+        ],
+      },
+      token,
+    );
+    expect(status).toBe(400);
+    expect((json.error as Json).code).toBe("BAD_REQUEST");
+  });
+
   it("rejects splits that don't sum to the amount (SPLIT_MISMATCH)", async () => {
     const { status, json } = await post(
       `/api/groups/${groupId}/expenses`,

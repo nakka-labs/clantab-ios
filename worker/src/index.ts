@@ -38,6 +38,7 @@ import {
   readJsonObject,
   rejectUnknownKeys,
   requireArray,
+  requireISODate,
   requireInteger,
   requireString,
 } from "./lib/parse.ts";
@@ -493,7 +494,7 @@ function parseExpenseBody(body: Record<string, unknown>, allowId: boolean): AddE
     amountMinor: requireInteger(body, "amountMinor"),
     currency: optionalString(body, "currency"),
     description: requireString(body, "description"),
-    date: requireString(body, "date"),
+    date: requireISODate(body, "date"),
     splitType,
     splits,
     items,
