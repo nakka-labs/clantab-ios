@@ -3339,18 +3339,22 @@ explicitly before treating this as "all safely deferrable":
       no separate high-res copy stored server-side, so this fixes the
       real complaint (no way to see it larger at all) without revealing
       new detail. `make check`'s iOS build green.
-- [ ] **R8. Tapping an activity row jumps straight into editing —
-      there's no read-only details view.** `~15-20k`. Confirmed: no
-      `ActivityDetailView` exists anywhere in the codebase;
-      `GroupHomeView`'s `ActivityRow.onTapGesture` calls `edit(item)`
-      directly, for both expenses and settlements. A mis-tap starts an
-      edit session on someone's expense with no warning. Add an
-      `ActivityDetailView` (amount, splits/payers, category, date,
-      comments for an expense; from/to/amount/date for a settlement) as
-      the tap destination, with an explicit "Edit" button/toolbar item
-      that opens the existing `AddExpenseView`/`EditSettlementView`
-      sheets — matches the pattern this codebase already uses elsewhere
-      (view first, edit is a deliberate second step).
+- [x] **R8. Tapping an activity row jumps straight into editing —
+      there's no read-only details view.** Done 2026-09-13. New
+      `ActivityDetailView`: header (category badge/avatar, title, big
+      amount, date), then for an expense — per-payer breakdown (multi-
+      payer only; a single payer is already named in the section header),
+      category, per-split breakdown, a horizontal receipt strip (reusing
+      `ReceiptThumbnail` read-only) when there are attachments, and
+      comments (fetched read-only via the existing `listComments` — no
+      add/delete UI here, that stays behind Edit); for a settlement —
+      from/to (amount/date already in the header, shared by both kinds).
+      Toolbar "Edit" button calls the existing `edit(_:)`, dismissing
+      this sheet first so `AddExpenseView`/`EditSettlementView` present
+      cleanly after. `GroupHomeView.ActivityRow.onTapGesture` now opens
+      this (`viewingItem` sheet) instead of calling `edit(item)` directly;
+      the row's own swipe-action "Edit" stays untouched, a separate fast
+      path. `make check` green (kit + worker + full iOS build/XCTest).
 - [ ] **R9. No "Share Balances" image card for the plain balance view.**
       `~8-12k`. `SettleUpView` and `InsightsView` each already render a
       shareable PNG via `RecapCard`/`ImageRenderer` (`shareCard` +

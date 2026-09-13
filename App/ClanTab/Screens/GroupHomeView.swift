@@ -33,6 +33,12 @@ struct GroupHomeView: View {
     /// "Record a Settlement" (`CHECKLIST.md` R14) — manual entry, independent
     /// of Settle Up's suggestions.
     @State private var isPresentingAddSettlement = false
+    /// The read-only detail screen a tap opens now (`CHECKLIST.md` R8) —
+    /// `edit(_:)` (which sets `editingExpense`/`editingSettlement`) is only
+    /// reached from here via an explicit "Edit" button, or still directly
+    /// from the row's own swipe action (a separate, already-deliberate fast
+    /// path, left untouched).
+    @State private var viewingItem: ActivityItem?
     @State private var duplicatingExpense: Expense?
     @State private var pendingDelete: ActivityItem?
     @State private var isPresentingAddExpense = false
@@ -269,7 +275,7 @@ struct GroupHomeView: View {
                         ForEach(items) { item in
                             ActivityRow(item: item)
                                 .contentShape(Rectangle())
-                                .onTapGesture { edit(item) }
+                                .onTapGesture { viewingItem = item }
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) { pendingDelete = item } label: {
                                         Label("Delete", systemImage: "trash")
@@ -569,6 +575,22 @@ struct GroupHomeView: View {
                         Task { await viewModel.refetch() }
                     },
                     onCancel: { isPresentingAddSettlement = false }
+                )
+            }
+            .materialSheet()
+        }
+        .sheet(item: $viewingItem) { item in
+            NavigationStack {
+                ActivityDetailView(
+                    item: item,
+                    members: viewModel.state?.members ?? [],
+                    groupId: viewModel.groupId,
+                    client: client,
+                    accessToken: viewModel.accessToken,
+                    onEdit: {
+                        viewingItem = nil
+                        edit(item)
+                    }
                 )
             }
             .materialSheet()
