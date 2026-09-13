@@ -73,21 +73,9 @@ struct AddExpenseView: View {
     @State private var taxText = ""
     @State private var tipText = ""
 
-    /// One editable line item — the mutable, string-typed counterpart to
-    /// `ClanTabKit.LineItem`, resolved to exact splits only on save.
-    struct ItemDraft: Identifiable {
-        let id: String
-        var name: String
-        var amountText: String
-        var participantIds: Set<String>
+    // `ItemDraft` and the itemized-editor UI itself now live in
+    // `Components/ItemizedSplitEditor.swift` (`CHECKLIST.md` D5).
 
-        init(id: String = UUID().uuidString, name: String = "", amountText: String = "", participantIds: Set<String>) {
-            self.id = id
-            self.name = name
-            self.amountText = amountText
-            self.participantIds = participantIds
-        }
-    }
     @State private var category: ExpenseCategory = .uncategorized
     @State private var isSubmitting = false
     @State private var errorMessage: String?
@@ -899,7 +887,10 @@ struct AddExpenseView: View {
         case .shares:
             shareSplitRows
         case .itemized:
-            itemizedSplitRows
+            ItemizedSplitEditor(
+                itemDrafts: $itemDrafts, taxText: $taxText, tipText: $tipText, amountText: $amountText,
+                members: members, currency: currency, amountMinor: amountMinor, remainingLabel: remainingLabel
+            )
         }
     }
 
@@ -1084,10 +1075,11 @@ struct AddExpenseView: View {
     }
 
     // MARK: Itemized split
-
-    private var itemsOnlyTotal: Int64 {
-        itemDrafts.reduce(Int64(0)) { $0 + (MoneyFormat.minorUnits(from: $1.amountText) ?? 0) }
-    }
+    //
+    // The editor UI moved to `Components/ItemizedSplitEditor.swift`
+    // (`CHECKLIST.md` D5) — `taxMinorValue`/`tipMinorValue`/`itemizedTotal`
+    // stay here because `canSubmit`/`save()` need them too, via the same
+    // `ItemizedSplitMath` the editor itself uses, so the two can't drift.
 
     private var taxMinorValue: Int64 { MoneyFormat.minorUnits(from: taxText) ?? 0 }
     private var tipMinorValue: Int64 { MoneyFormat.minorUnits(from: tipText) ?? 0 }
@@ -1095,128 +1087,9 @@ struct AddExpenseView: View {
     /// What the itemization actually adds up to: the items themselves, plus
     /// tax/tip (`CHECKLIST.md` "Tax/tip proportional split on itemized
     /// expenses") — this is what must equal `amountMinor`, not the items alone.
-    private var itemizedTotal: Int64 { itemsOnlyTotal + taxMinorValue + tipMinorValue }
-
-    /// `true` once the amount is known and the line items don't add up to it.
-    private var itemizedMismatch: Bool {
-        guard let amountMinor else { return false }
-        return amountMinor != itemizedTotal
+    private var itemizedTotal: Int64 {
+        ItemizedSplitMath.total(itemDrafts, taxMinor: taxMinorValue, tipMinor: tipMinorValue)
     }
-
-    @ViewBuilder
-    private var itemizedSplitRows: some View {
-        ForEach($itemDrafts) { $item in
-            VStack(spacing: 6) {
-                HStack(spacing: 8) {
-                    TextField("Item", text: $item.name)
-                    TextField("0.00", text: $item.amountText)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 80)
-                        .foregroundStyle(itemizedMismatch && (MoneyFormat.minorUnits(from: item.amountText) ?? 0) > 0 ? Color.red : Color.primary)
-                }
-                // An inline avatar row, not a `Menu` (`CHECKLIST.md` UX audit
-                // [18]) — who's sharing this item is visible at a glance, and
-                // toggling one doesn't require opening anything.
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(members) { member in
-                            let isIncluded = item.participantIds.contains(member.id)
-                            Button {
-                                if isIncluded {
-                                    item.participantIds.remove(member.id)
-                                } else {
-                                    item.participantIds.insert(member.id)
-                                }
-                            } label: {
-                                MemberAvatar(member, size: 30)
-                                    .saturation(isIncluded ? 1 : 0)
-                                    .opacity(isIncluded ? 1 : 0.35)
-                                    .overlay(alignment: .bottomTrailing) {
-                                        if isIncluded {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .font(.system(size: 13))
-                                                .symbolRenderingMode(.palette)
-                                                .foregroundStyle(.white, .green)
-                                                .background(Circle().fill(.white).padding(1.5))
-                                                .offset(x: 2, y: 2)
-                                        }
-                                    }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(member.displayName)
-                            .accessibilityAddTraits(isIncluded ? [.isSelected] : [])
-                            .accessibilityHint("Double tap to \(isIncluded ? "remove" : "add")")
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-                if item.participantIds.isEmpty {
-                    Text("No one — tap someone above to add them")
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-            }
-            // No longer `.accessibilityElement(children: .combine)` — that
-            // collapsed the name/amount fields and every avatar toggle into
-            // one opaque VoiceOver stop, which would have made the new
-            // per-member buttons (added for [18] above) unreachable. Each
-            // field and avatar is its own stop now, which is also more
-            // useful: a VoiceOver user can act on one member at a time
-            // instead of getting a single "Line item X" blob.
-        }
-        .onDelete { itemDrafts.remove(atOffsets: $0) }
-
-        Button {
-            itemDrafts.append(ItemDraft(participantIds: Set(members.map(\.id))))
-        } label: {
-            Label("Add Item", systemImage: "plus.circle")
-        }
-        .font(.footnote)
-
-        // Tax/tip (`CHECKLIST.md` "Tax/tip proportional split on itemized
-        // expenses") — split by each person's own item subtotal at save time
-        // (`Validation.itemizedSplit`), not split evenly like the items above.
-        HStack(spacing: 8) {
-            Text("Tax")
-            TextField("0.00", text: $taxText)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-        }
-        HStack(spacing: 8) {
-            Text("Tip")
-            TextField("0.00", text: $tipText)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-        }
-        if taxMinorValue > 0 || tipMinorValue > 0 {
-            Text("Split by what each person ordered, not evenly.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-
-        if let amountMinor {
-            HStack {
-                Text(remainingLabel(amountMinor - itemizedTotal))
-                    .font(.footnote)
-                    .foregroundStyle(amountMinor == itemizedTotal ? Color.secondary : Color.red)
-                Spacer()
-                if itemizedMismatch, itemizedTotal > 0 {
-                    Button("Use \(MoneyFormat.string(minorUnits: itemizedTotal, currency: currency))") {
-                        amountText = MoneyFormat.plainString(minorUnits: itemizedTotal)
-                    }
-                    .font(.footnote)
-                }
-            }
-        } else if itemizedTotal > 0 {
-            // No amount typed yet — offer the items' sum as the amount.
-            Button("Set amount to \(MoneyFormat.string(minorUnits: itemizedTotal, currency: currency))") {
-                amountText = MoneyFormat.plainString(minorUnits: itemizedTotal)
-            }
-            .font(.footnote)
-        }
-    }
-
 
     private func includedBinding(for memberId: String) -> Binding<Bool> {
         Binding(

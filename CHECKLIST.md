@@ -3142,14 +3142,30 @@ now that the Insights tab is removed, see above.
       runtime/schema change. Acceptance bar: worker tests pass
       unmodified. Pick this up opportunistically, never as its own
       pass, and never before the App Store submission.
-- [ ] **[D5, low, decent ROI] AddExpenseView: 1438 lines doing five
-      jobs.** ~15-20k tokens. Largest file in the app -- create, edit,
-      duplicate, itemized splits, and recurring-template creation all
-      in one struct. Extract the itemized line-items editor into
-      Components/ItemizedSplitEditor.swift and the recurring-template
-      section into Components/RecurringOptionsSection.swift; no
-      behavior change. Cheaper than D4 and directly serves D3's rule --
-      better ROI than D4 if only one gets picked up.
+- [x] **[D5, low, decent ROI] AddExpenseView: 1438 lines doing five
+      jobs.** Done 2026-09-13, half as scoped. The itemized line-items
+      editor moved to `Components/ItemizedSplitEditor.swift` -- `ItemDraft`
+      + the whole itemized-rows body (line items, tax/tip, the running
+      total vs. the expense amount) -- 1438 -> 1311 lines. Every binding
+      handed down is the same `@State` `AddExpenseView` already owned, so
+      this is a pure move; the total/mismatch math it shares with
+      `canSubmit`/`save()` now lives in one place (`ItemizedSplitMath`)
+      instead of two, so the two can't drift.
+      **Scope corrected on the other half:** there is no "recurring-
+      template section" to extract -- grepped and read `init` directly.
+      Recurring-template *creation* is `NewRecurringReminderView.swift`,
+      a wholly separate screen; all `AddExpenseView` does with a
+      `RecurringTemplate` is pre-fill ~8 `init` lines (amount/description/
+      payer/currency/category) when logging a fresh expense from one, one
+      branch of the same `editing`/`duplicating`/`recurringTemplate`/
+      `defaultSplit` guard chain that has to read as one flow. There's no
+      view body to move and nothing to name `RecurringOptionsSection` --
+      splitting 8 lines of a cohesive init into another file would add
+      indirection, not remove complexity. Left in place; documented here
+      instead of building a component that doesn't correspond to real
+      code.
+      `make check` green end to end (kit + worker + iOS build/tests, run
+      for real).
 - [x] **[D7, low, cheap] print() in production instead of real
       logging.** Done 2026-09-13. All 5 `print()` calls (AuthViewModel,
       CloudKitBackup x3, AppDelegate) replaced with a file-local
