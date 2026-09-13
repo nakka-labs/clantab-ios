@@ -3380,18 +3380,24 @@ explicitly before treating this as "all safely deferrable":
       balance math already handles partial settlements correctly today
       (it's just simple subtraction), this is purely a missing input
       field, not new balance logic.
-- [ ] **R12. "Paid by" should be one multi-select list, not a picker plus
-      a mode-toggle button.** `~15-20k`. Confirmed in `AddExpenseView`:
-      single-payer uses `MemberPickerView` (select-one), and a separate
-      "Add Payer" button (`Label("Add Payer", …)`) switches into a
-      different multi-payer entry UI entirely. Collapse into one
-      multi-select member list with checkmarks — selecting exactly one
-      behaves like today's single-payer case, selecting more reveals
-      the existing per-payer amount split UI `isMultiPayer` already
-      drives. Removes the separate toggle button; the transition from
-      1 to 2+ selections becomes the only signal needed. `payerId` /
-      `enteredPayers` state already model both cases — this is a UI
-      merge, not new state.
+- [x] **R12. "Paid by" should be one multi-select list, not a picker plus
+      a mode-toggle button.** Done 2026-09-13. New `PayerPickerView`
+      (multi-select sibling of the now-deleted `MemberPickerView`, which
+      had no other callers left once this landed) drives a new
+      `selectedPayerIds: Set<String>` — the *only* new state, kept
+      one-way in sync via `.onChange` into the real save()/validation
+      model (`payerId`/`isMultiPayer`/`payerAmountText`, all unchanged),
+      exactly the "UI merge, not new state" the item called for. Picking
+      exactly one collapses back to the plain "Paid by <name>" row and
+      `isMultiPayer = false`; 2+ reveals `payerAmountRows`, now filtered
+      to the selection instead of a searchable list of the whole group
+      (the picker is the membership control now). The picker itself
+      refuses to let the last remaining payer be deselected — an expense
+      always needs at least one. `make check` green (kit + worker + full
+      iOS build/XCTest); not verified live in the simulator (the memory
+      recipe needs temporary source patches to work around sim-only
+      CloudKit/Keychain crashes — owner call 2026-09-13 to rely on
+      build+test for the rest of this batch instead).
 - [ ] **R13. Add "View Insights" as a 3rd swipeable page on Group
       Home, not a menu item.** `~8-12k`. This reopens D12, explicitly
       decided the other way 4 days ago ("leave it in the menu... not

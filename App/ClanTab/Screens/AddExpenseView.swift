@@ -38,6 +38,12 @@ struct AddExpenseView: View {
     /// Per-member contribution amounts while `isMultiPayer` — parallel to
     /// `exactAmountText`'s shape, just on the credit side of the expense.
     @State private var payerAmountText: [String: String] = [:]
+    /// Drives `PayerPickerView` (`CHECKLIST.md` R12) — the one selection
+    /// state a single multi-select list needs; `payerId`/`isMultiPayer`/
+    /// `payerAmountText` stay the actual save()/validation model (unchanged)
+    /// and are kept in sync from this via `onChange` in `body`, so this is a
+    /// UI merge, not new state.
+    @State private var selectedPayerIds: Set<String>
     @State private var currency: String
     /// The expense's own date (`CHECKLIST.md` UX audit [14]) — defaults to
     /// "now" at the moment this sheet opens (adding), overridden in `init` to
@@ -207,7 +213,9 @@ struct AddExpenseView: View {
             _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: template.amountMinor))
             _description = State(initialValue: template.description)
             let payerStillAMember = members.contains { $0.id == template.payerId }
-            _payerId = State(initialValue: payerStillAMember ? template.payerId : (currentMemberId ?? members.first?.id ?? ""))
+            let templatePayerId = payerStillAMember ? template.payerId : (currentMemberId ?? members.first?.id ?? "")
+            _payerId = State(initialValue: templatePayerId)
+            _selectedPayerIds = State(initialValue: [templatePayerId])
             _currency = State(initialValue: template.currency)
             _category = State(initialValue: ExpenseCategory.resolve(name: template.category, symbolName: template.categoryIcon))
             _includedMemberIds = State(initialValue: Set(members.map(\.id)))
@@ -215,7 +223,9 @@ struct AddExpenseView: View {
         }
 
         guard let expense = editing ?? duplicating else {
-            _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
+            let freshPayerId = currentMemberId ?? members.first?.id ?? ""
+            _payerId = State(initialValue: freshPayerId)
+            _selectedPayerIds = State(initialValue: [freshPayerId])
             _currency = State(initialValue: defaultCurrency)
             _includedMemberIds = State(initialValue: Set(members.map(\.id)))
             // Open on the group's saved default split when it's still valid
@@ -251,8 +261,11 @@ struct AddExpenseView: View {
                 uniqueKeysWithValues: expense.payers.map { ($0.memberId, MoneyFormat.plainString(minorUnits: $0.amountMinor)) }
             ))
             _payerId = State(initialValue: currentMemberId ?? members.first?.id ?? "")
+            _selectedPayerIds = State(initialValue: Set(expense.payers.map(\.memberId)))
         } else {
-            _payerId = State(initialValue: expense.payerId ?? currentMemberId ?? members.first?.id ?? "")
+            let singlePayerId = expense.payerId ?? currentMemberId ?? members.first?.id ?? ""
+            _payerId = State(initialValue: singlePayerId)
+            _selectedPayerIds = State(initialValue: [singlePayerId])
         }
         _currency = State(initialValue: expense.currency)
         _splitType = State(initialValue: expense.splitType)
@@ -446,75 +459,53 @@ struct AddExpenseView: View {
                         guard category == .uncategorized, let suggestion = CategorySuggestion.suggest(for: newValue) else { return }
                         category = suggestion
                     }
-                if isMultiPayer {
-                    payerAmountRows
-                } else {
-                    NavigationLink {
-                        MemberPickerView(
-                            selection: $payerId, members: members, groupId: groupId,
-                            client: client, accessToken: accessToken,
-                            onMemberAdded: { members.append($0) }
-                        )
-                    } label: {
-                        // At accessibility text sizes "Paid by" and the name
-                        // no longer both fit one row — the old HStack forced
-                        // the name into a column too narrow for its own
-                        // longest word, wrapping it mid-letter ("Meer" /
-                        // "a") since there's no natural break point in a
-                        // name (`CHECKLIST.md` "UI audit, fresh eyes pass").
-                        // Stacking instead gives it the full row width.
-                        if dynamicTypeSize.isAccessibilitySize {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Paid by")
-                                Text(members.first { $0.id == payerId }?.displayName ?? "")
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else {
-                            HStack {
-                                Text("Paid by")
-                                Spacer()
-                                Text(members.first { $0.id == payerId }?.displayName ?? "")
-                                    .foregroundStyle(.secondary)
-                            }
+                // One multi-select list, not a picker plus a separate
+                // "Add Payer" mode-toggle button (`CHECKLIST.md` R12) —
+                // selecting exactly one person behaves like the old
+                // single-payer case, selecting more reveals `payerAmountRows`
+                // below. `payerId`/`isMultiPayer`/`payerAmountText` stay the
+                // actual save()/validation model, kept in sync by the
+                // `onChange` below — this is a UI merge, not new state.
+                NavigationLink {
+                    PayerPickerView(
+                        selection: $selectedPayerIds, members: members, groupId: groupId,
+                        client: client, accessToken: accessToken,
+                        onMemberAdded: { members.append($0) }
+                    )
+                } label: {
+                    // At accessibility text sizes "Paid by" and the name(s)
+                    // no longer both fit one row (`CHECKLIST.md` "UI audit,
+                    // fresh eyes pass") — stacking instead gives it the full
+                    // row width.
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Paid by")
+                            Text(paidBySummary).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        HStack {
+                            Text("Paid by")
+                            Spacer()
+                            Text(paidBySummary).foregroundStyle(.secondary)
                         }
                     }
                 }
-                // Multiple payers (`CHECKLIST.md` "Multiple payers on one
-                // expense") is the rare case — a plain toggle keeps the common
-                // single-payer Picker as the default, undisturbed. Real
-                // button styling, not `.footnote` (`CHECKLIST.md` UX audit
-                // [16]) — this switches modes, it isn't fine print. A List
-                // row stretches the capsule to the full row width, which
-                // reads naturally hugging short, centered content and less so
-                // stretched edge-to-edge with left-aligned text — it looked
-                // like a list row wearing a button's clothes (`CHECKLIST.md`
-                // UI audit fresh-eyes-pass [6]). Centered `Spacer()`s keep the
-                // capsule sized to its own text instead.
-                HStack {
-                    Spacer()
-                    // Was the full sentence "Split the cost between payers"
-                    // — the button's styling/placement already went through
-                    // two polish passes above, but the copy itself was never
-                    // revisited (round-3 playtest, 2026-09-13: "rename to
-                    // 'add payer' or a clean + button").
-                    Button {
-                        isMultiPayer.toggle()
-                        if isMultiPayer, payerAmountText.isEmpty {
-                            // Seed with whatever's already entered for the
-                            // single payer, so switching modes doesn't lose
-                            // the amount.
-                            payerAmountText = [payerId: amountText]
+                .onChange(of: selectedPayerIds) { _, newValue in
+                    if newValue.count == 1, let onlyId = newValue.first {
+                        payerId = onlyId
+                        isMultiPayer = false
+                    } else {
+                        isMultiPayer = true
+                        // Seed a blank amount for anyone newly added (never
+                        // overwrite one already typed), drop anyone removed.
+                        for id in newValue where payerAmountText[id] == nil {
+                            payerAmountText[id] = id == payerId ? amountText : ""
                         }
-                    } label: {
-                        if isMultiPayer {
-                            Text("Paid by one person")
-                        } else {
-                            Label("Add Payer", systemImage: "plus")
-                        }
+                        payerAmountText = payerAmountText.filter { newValue.contains($0.key) }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    Spacer()
+                }
+                if isMultiPayer {
+                    payerAmountRows
                 }
                 NavigationLink {
                     CategoryPickerView(selection: $category)
@@ -961,10 +952,21 @@ struct AddExpenseView: View {
         }
     }
 
+    /// "Paid by" row summary — the one person's name, or a count once
+    /// `PayerPickerView` has more than one selected (`CHECKLIST.md` R12).
+    private var paidBySummary: String {
+        if selectedPayerIds.count <= 1 {
+            return members.first { $0.id == payerId }?.displayName ?? ""
+        }
+        return "\(selectedPayerIds.count) people"
+    }
+
+    /// Amount entry for each selected payer — `PayerPickerView` is the
+    /// membership control now, so this only ever shows the people already
+    /// chosen there, not a search over the whole group (`CHECKLIST.md` R12).
     @ViewBuilder
     private var payerAmountRows: some View {
-        memberSearchField
-        ForEach(filteredMembers) { member in
+        ForEach(members.filter { selectedPayerIds.contains($0.id) }) { member in
             HStack(spacing: 10) {
                 MemberAvatar(member, size: 24)
                 Text(member.displayName)

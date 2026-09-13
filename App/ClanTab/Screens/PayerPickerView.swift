@@ -1,14 +1,14 @@
 import SwiftUI
 import ClanTabKit
 
-/// Picks who paid: a searchable list of the group's members (`CHECKLIST.md`
-/// "Add member inline from Add Expense... + search on the member picker"),
-/// plus an inline "Add" for someone not in the group yet — the same
-/// add-by-name-only placeholder `GroupSettingsView`'s "Add Someone" already
-/// uses, just reachable without leaving this sheet. Pushed from
-/// `AddExpenseView`; writes the selection back through the binding and pops.
-struct MemberPickerView: View {
-    @Binding var selection: String
+/// Picks who paid — one multi-select list, not a picker plus a separate
+/// "Add Payer" mode-toggle button (`CHECKLIST.md` R12). Selecting exactly
+/// one member behaves like the old single-payer case; selecting more reveals
+/// the per-payer amount split `AddExpenseView.payerAmountRows` already
+/// drives off `isMultiPayer`. Same searchable-list-plus-inline-add shape as
+/// `MemberPickerView`, just with checkmarks instead of select-and-pop.
+struct PayerPickerView: View {
+    @Binding var selection: Set<String>
     let members: [Member]
     let groupId: String
     let client: ClanTabClient
@@ -16,7 +16,6 @@ struct MemberPickerView: View {
     /// Called once a new member is actually added, so the caller can append
     /// it to its own local member list immediately.
     let onMemberAdded: (Member) -> Void
-    @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
     @State private var isAdding = false
@@ -40,19 +39,26 @@ struct MemberPickerView: View {
             Section {
                 ForEach(filteredMembers) { member in
                     Button {
-                        selection = member.id
-                        dismiss()
+                        toggle(member.id)
                     } label: {
                         HStack(spacing: 12) {
                             MemberAvatar(member, size: 28)
                             Text(member.displayName)
                             Spacer()
-                            if selection == member.id {
+                            if selection.contains(member.id) {
                                 Image(systemName: "checkmark").foregroundStyle(.tint)
                             }
                         }
                     }
                     .tint(.primary)
+                }
+            } footer: {
+                // An expense always needs at least one payer — the last
+                // remaining selection can't be tapped off (see `toggle`
+                // below), so the row alone (dimmed, not a "disabled" gray)
+                // hints at why nothing happened.
+                if selection.count == 1 {
+                    Text("At least one person has to have paid.")
                 }
             }
 
@@ -82,6 +88,18 @@ struct MemberPickerView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    /// Never lets the selection go empty — same principle as
+    /// `GroupSettingsView.isRemovable`'s "a group must keep at least one
+    /// member," just for payers on this one expense.
+    private func toggle(_ memberId: String) {
+        if selection.contains(memberId) {
+            guard selection.count > 1 else { return }
+            selection.remove(memberId)
+        } else {
+            selection.insert(memberId)
+        }
+    }
+
     private func addAndSelect() async {
         isAdding = true
         errorMessage = nil
@@ -91,8 +109,8 @@ struct MemberPickerView: View {
                 groupId: groupId, JoinGroupRequest(displayName: trimmedSearch), accessToken: accessToken
             )
             onMemberAdded(response.member)
-            selection = response.member.id
-            dismiss()
+            selection.insert(response.member.id)
+            searchText = ""
         } catch {
             errorMessage = friendlyMessage(for: error)
         }
