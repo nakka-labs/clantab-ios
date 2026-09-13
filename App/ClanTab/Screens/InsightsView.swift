@@ -4,11 +4,12 @@ import ClanTabKit
 
 /// Spending visualisations for a group — total, over time, by category, and by
 /// member. All computation is `ClanTabKit.Insights` (pure); this view only lays
-/// the results out. Reached by drilling into a group from the top-level
-/// Insights tab (`InsightsHubView`, `CHECKLIST.md` UX audit [6]) — its own
-/// nav title carries the group's name since nothing else on screen does
-/// anymore. Shows nothing but an empty state until the group has at least
-/// one expense.
+/// the results out. Reached via Group Home's "…" menu → "View Insights"
+/// (`CHECKLIST.md` "Insights: a way back to a specific group from the group
+/// page" — the top-level Insights tab this used to hang off was removed
+/// 2026-09-13, see `CHECKLIST.md` D14) — its own nav title carries the
+/// group's name since nothing else on screen does anymore. Shows nothing but
+/// an empty state until the group has at least one expense.
 struct InsightsView: View {
     let expenses: [Expense]
     let members: [Member]

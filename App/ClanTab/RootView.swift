@@ -139,9 +139,9 @@ struct RootView: View {
             // Insights tab") — it duplicated Home's own cross-group total
             // and per-group balance list, was the app's most fragile screen
             // (D6, broke twice in one day), and had no demonstrated demand.
-            // `InsightsHubView.swift`/`PersonalInsights.swift` are now dead
-            // code, kept only in case the category-spend chart gets rebuilt
-            // as a standalone "My Spending" screen later.
+            // The one non-duplicate piece it had — personal spend by
+            // category — was rebuilt small as `MySpendingView`, reached from
+            // Settings below (`CHECKLIST.md` D14), not a tab of its own.
             if auth.isSignedIn {
                 NavigationStack {
                     FriendsView(auth: auth, onOpenGroup: { enterGroup($0) })
@@ -152,7 +152,7 @@ struct RootView: View {
 
             NavigationStack {
                 SettingsView(
-                    auth: auth, knownGroups: knownGroups,
+                    auth: auth, knownGroups: knownGroups, client: client,
                     onboarding: onboarding, coachMarks: coachMarks,
                     onDone: { selectedTab = .home }
                 )

@@ -2,18 +2,25 @@ import SwiftUI
 import Charts
 import ClanTabKit
 
-/// The global Insights tab — personal, cross-group data and graphs
-/// (`CHECKLIST.md` "Insights tab must show personal data, not a groups
-/// list"): overall owe/owed totals, and your own spend by category,
-/// aggregated across every group you're in. Reworked 2026-09-13 from the
-/// build-9 audit's "every known group in one list, tap one to drill into
-/// its own spend charts" design — a real-device report called that out as
-/// backwards: this tab should be personal data, not a second groups list
-/// that leads into per-group data. A specific group's own spend/category/
-/// member charts now live on that group's own page instead
-/// (`GroupHomeView`'s "View Insights", added the same day) — this tab
-/// deliberately never navigates into one.
-struct InsightsHubView: View {
+/// Personal, cross-group spending — the one piece of the old Insights tab
+/// that wasn't a duplicate of Home's own dashboard (`CHECKLIST.md` D14):
+/// your own spend by category, aggregated across every group you're in.
+/// Reached from Settings, not a tab of its own — a single screen doesn't
+/// need the real estate a whole tab costs, especially for a feature with no
+/// demonstrated demand beyond this one figure (the same reasoning that
+/// removed the Insights tab in the first place, `RootView`'s own note where
+/// that tab used to be).
+///
+/// Deliberately does **not** repeat the cross-group owe/owed total or the
+/// per-group balance list `InsightsHubView` used to show — `StartView`'s
+/// dashboard already covers both; this screen is only the part that was
+/// genuinely unique. Reuses `PersonalInsights`/`CategorySpend` (kit) and the
+/// same chart/row code `InsightsHubView` had, including both fixes from its
+/// "insights completely removed" bug (`CHECKLIST.md` D6 / "Real-device
+/// findings, builds 11/12" — the `uniquingKeysWith` dictionary build and the
+/// `auth.groups`-load race's `.onChange`) — this screen depends on both
+/// exactly as much as the view it replaces did.
+struct MySpendingView: View {
     let client: ClanTabClient
     let knownGroups: KnownGroupsStoring
     let auth: AuthViewModel
@@ -46,16 +53,6 @@ struct InsightsHubView: View {
 
     var body: some View {
         List {
-            // The same cross-group owe/owed summary the dashboard's own
-            // header shows — renders nothing until balances have loaded or
-            // every currency nets to zero.
-            if !chartableGroups.isEmpty {
-                Section {
-                    DashboardTotalsHeader(groups: chartableGroups)
-                }
-                .listRowBackground(Color.clear)
-            }
-
             if chartableGroups.isEmpty {
                 ContentUnavailableView {
                     Label { Text("Nothing to Chart Yet") } icon: {
@@ -95,54 +92,21 @@ struct InsightsHubView: View {
                         }
                     }
                 }
-
-                // Per-group balances — still personal data (what *you* owe
-                // or are owed in each group), just broken out by group; not
-                // a navigation list into that group's own spend charts (see
-                // this view's own doc comment).
-                Section("By group") {
-                    ForEach(chartableGroups) { group in
-                        groupRow(group)
-                    }
-                }
             }
 
             if let loadError {
                 Section { Text(loadError).foregroundStyle(.red) }
             }
         }
-        .navigationTitle("Insights")
+        .navigationTitle("My Spending")
         .task { await reload() }
-        // `auth.groups` (needed to know *my* member id in each group) comes
-        // from its own network round-trip on launch — if this tab's own
-        // `.task` above ran before that resolved (a real race: `TabView`
-        // can construct every tab eagerly, and `.task` only fires once per
-        // view identity, so tapping this tab early with nothing to re-
-        // trigger it left the charts permanently empty for the rest of the
-        // session). Re-aggregate whenever the membership list changes.
+        // See this view's own doc comment — the exact race `InsightsHubView`
+        // hit (`CHECKLIST.md` D6): `auth.groups` resolves from its own
+        // network round-trip, and if this screen's `.task` ran first, every
+        // group was silently skipped with nothing left to re-trigger the
+        // aggregation.
         .onChange(of: auth.groups) { _, _ in Task { await reload() } }
         .refreshable { await reload() }
-    }
-
-    private func groupRow(_ group: KnownGroup) -> some View {
-        HStack(spacing: 12) {
-            if let emoji = group.emoji, !emoji.isEmpty {
-                Text(emoji).font(.body)
-                    .frame(width: 32, height: 32)
-                    .background(GroupColor.color(forId: group.groupId).opacity(0.18), in: Circle())
-            } else {
-                Text(GroupsListView.initial(for: group))
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
-                    .background(GroupColor.badge(forId: group.groupId), in: Circle())
-            }
-            Text(group.name.isEmpty ? "Group" : group.name)
-            Spacer()
-            if let line = GroupsListView.balanceLine(for: group) {
-                Text(line).font(.caption).foregroundStyle(.secondary)
-            }
-        }
     }
 
     private var categoryPie: some View {
@@ -215,7 +179,7 @@ struct InsightsHubView: View {
     /// heavier half — fetches every known group's full state so
     /// `PersonalInsights` has real expenses to aggregate. Best-effort: a
     /// group that fails to load is silently dropped from the aggregate
-    /// rather than failing the whole tab, same shape as this app's other
+    /// rather than failing the whole screen, same shape as this app's other
     /// fan-out reads (`handleAuthFriends`'s cross-group aggregation).
     private func reload() async {
         groups = knownGroups.all()
@@ -248,9 +212,8 @@ struct InsightsHubView: View {
         // Loaded, but came back with nothing to chart even though there are
         // known groups — either every fetch failed (offline, a stale
         // token) or `auth.groups` hadn't resolved a member id for any of
-        // them yet. Say so rather than silently showing just the "By
-        // group" list with no numbers above it, which reads as "the
-        // charts disappeared."
+        // them yet. Say so rather than silently showing an empty screen with
+        // no explanation.
         if contributions.isEmpty {
             loadError = "Couldn't load your personal spending. Pull to refresh to try again."
         }

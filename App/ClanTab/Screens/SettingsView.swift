@@ -11,6 +11,10 @@ import ClanTabKit
 struct SettingsView: View {
     let auth: AuthViewModel
     let knownGroups: KnownGroupsStoring
+    /// Needed only for `MySpendingView`'s per-group state fetch
+    /// (`CHECKLIST.md` D14) — this screen otherwise never talks to the
+    /// network directly.
+    let client: ClanTabClient
     /// "Show tips again" (`CHECKLIST.md`) resets both of these.
     let onboarding: OnboardingStoring
     let coachMarks: CoachMarkStoring?
@@ -80,6 +84,20 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("Account")
+            }
+
+            // My Spending (`CHECKLIST.md` D14) — the one piece of the old
+            // Insights tab that wasn't a duplicate of Home's own dashboard,
+            // rebuilt small as a single screen reached from here rather than
+            // a whole tab. Signed-in only: nothing to chart otherwise.
+            if auth.isSignedIn {
+                Section {
+                    NavigationLink {
+                        MySpendingView(client: client, knownGroups: knownGroups, auth: auth)
+                    } label: {
+                        Label("My Spending", systemImage: "chart.pie")
+                    }
+                }
             }
 
             // "Settle Across Groups" used to live here as its own screen

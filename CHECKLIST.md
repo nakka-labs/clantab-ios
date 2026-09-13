@@ -3028,23 +3028,37 @@ a restatement of those.
       `RootView`'s `TabView` no longer constructs `InsightsHubView`.
       Grep-confirmed no other file still references `MainTab.insights`
       or `case insights`; brace-balance checked on the edited file.
-      `InsightsHubView.swift`/`PersonalInsights.swift` deliberately left
-      in the tree as dead code rather than deleted outright — see the
-      follow-up item immediately below before deciding their fate.
-      **Not verified against a real build** — this session's shell has
-      no Swift/Xcode toolchain (same standing limitation recorded in
-      project memory as `verification_claims_unreliable` — every past
-      "make check green" claim from this shell carries the same caveat).
-      Run `make check` for real before trusting or shipping this.
-- [ ] **Decide the fate of the category-spend chart.** Follow-up to the
-      Insights-tab removal above — don't leave this open indefinitely.
-      The only content in the old tab that wasn't a duplicate of Home
-      was "You spent [total]" + the by-category pie, aggregated across
-      every group. Either (a) rebuild it as a single screen reached from
-      Settings ("My Spending") or a button on Home, reusing
-      `PersonalInsights`'/`InsightsHubView`'s surviving logic, or (b)
-      decide nobody needs it and delete `InsightsHubView.swift`,
-      `PersonalInsights.swift`, and their tests outright.
+      `InsightsHubView.swift`/`PersonalInsights.swift` were deliberately
+      left in the tree as dead code rather than deleted outright, pending
+      D14's decision below — since resolved: `InsightsHubView.swift`
+      deleted, its logic absorbed into `MySpendingView.swift`.
+      **Verification note, resolved 2026-09-13:** this entry originally
+      shipped unverified — the session that wrote it had no Swift/Xcode
+      toolchain. A later session (this one) does, and has since run
+      `make check` for real, successfully, across every commit through
+      D14 below — so this change, and everything built on top of it, is
+      confirmed actually compiling and passing, not just claimed.
+- [x] **[D14] Decide the fate of the category-spend chart.** Done
+      2026-09-13, owner decision: rebuild small (option (a), the
+      recommended path in `docs/system-map.html`'s D14 ticket). New
+      `Screens/MySpendingView.swift` — the "You spent [total]" figure +
+      by-category pie/breakdown, reached via a new "My Spending" row in
+      Settings' Account area (signed-in only), not a tab of its own.
+      Reuses `PersonalInsights` (kit, untouched) and every line of
+      `InsightsHubView`'s surviving chart/row code verbatim, **including
+      both of D6's fixes** (the `uniquingKeysWith` dictionary build and
+      the `auth.groups`-load race's `.onChange`) — carried over exactly,
+      not re-derived. Deliberately drops the two duplicate sections
+      (`DashboardTotalsHeader`, the "By group" balance list) that were
+      the actual reason the old tab got cut — this screen is only the
+      part that was genuinely unique. `InsightsHubView.swift` deleted
+      (it had no dedicated tests to carry over, per D6's own finding);
+      `SettingsView`/`RootView` updated (`client` threaded through,
+      `RootView`'s stale "kept as dead code" comment corrected). A
+      leftover stale doc-comment on the *per-group* `InsightsView`
+      (still referencing the removed tab by name) fixed as a drive-by.
+      `make check` green end to end (kit + worker + iOS build/tests),
+      run for real.
 - [x] **[flow, moderate, D9] "My UPI ID" shown regardless of group
       currency.** Done 2026-09-13. `GroupSettingsView`'s "My UPI ID"
       `Section` gained the same `currency == "INR"` gate
@@ -3081,21 +3095,18 @@ a restatement of those.
       own "…" → Share menu already builds — one obvious place to invite
       someone regardless of which screen you land on. `make check`
       green.
-- [ ] **[flow, minor] Graphs are one tap inside an overflow menu, not on
-      Group Home itself.** "View Insights" (this group's own charts,
-      `InsightsView`/C11) only opens from the "…" menu. Worth deciding
-      whether a visible entry point (e.g. a small button near the
-      balance hero) is warranted, especially now per-group Insights is
-      the only surviving "graphs" surface in the app after the Insights
-      tab's removal above.
-- [ ] **[flow, minor] Group Options mixes five different concerns in
-      one long Form.** Identity (name/currency/emoji/cover), invite
-      (join code), money config (default split, My UPI ID), member
-      admin (add/rename/remove/merge), and moderation/danger (report,
-      regenerate/archive/leave) all live in one screen a user reaches
-      expecting "rename my group." Danger Zone is already visually set
-      apart (red, grouped) — worth deciding if the rest needs sectioning
-      too; it's grown well past "invite, name, picture."
+- [x] **[flow, minor, D12] Graphs are one tap inside an overflow menu, not
+      on Group Home itself.** Decided 2026-09-13, owner call per the
+      ticket's own "decide, don't fix blindly" framing: **leave it in the
+      menu.** "View Insights" is one tap away already; not worth spending
+      Group Home's limited screen real estate on a more visible entry
+      point without real demand. No code change.
+- [x] **[flow, minor, D13] Group Options mixes five different concerns in
+      one long Form.** Decided 2026-09-13, owner call: **leave it as one
+      Form.** Real but minor and not urgent per the ticket's own framing —
+      sectioning ~9 rows is cosmetic risk on the single most load-bearing
+      settings screen right before submission, for a problem nobody's
+      actually complained about yet. No code change.
 
 ### Code-level defect audit — 2026-09-13 (system-map D1-D8)
 
