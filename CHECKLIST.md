@@ -2974,6 +2974,13 @@ waiting for v1.1 — the other two are still genuinely parked.
          plain access-token auth doesn't exercise), 404s, and the missing-
          `into`-field 400. `make check` green throughout (kit + worker +
          iOS build/tests).
+      8. [x] Deployed to production 2026-09-13 (`make worker-deploy`,
+         version `b898202f-0cdf-4bde-ac57-d4aff405c971`) — smoke-tested
+         live (`POST .../members/x/merge` against an unknown group → 404,
+         confirming the route is registered, not a 500/mis-route). The
+         app-side UI isn't in any TestFlight build yet — build 11 predates
+         this work; folded into the next build once the Owner's current
+         round-3 pass on build 11 is done.
 - [ ] **Universal, identity-level display name.** `~50-70k` — real
       demand (round-3 playtest, 2026-09-13 — per-group names that can
       change anytime "can lead to confusion"). Decided 2026-09-13: one
