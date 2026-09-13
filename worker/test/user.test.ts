@@ -147,4 +147,30 @@ describe("UserDO", () => {
 
     expect(await u.deviceTokens()).toEqual([]);
   });
+
+  // --- displayName (CHECKLIST.md R1) --------------------------------------
+
+  it("displayName is null until set, then persists", async () => {
+    const u = user("sub-name");
+    expect(await u.displayName()).toBeNull();
+
+    await u.setDisplayName("Priya");
+    expect(await u.displayName()).toBe("Priya");
+  });
+
+  it("setDisplayName overwrites on a repeat call", async () => {
+    const u = user("sub-name-overwrite");
+    await u.setDisplayName("Priya");
+    await u.setDisplayName("Priya Sharma");
+    expect(await u.displayName()).toBe("Priya Sharma");
+  });
+
+  it("deleteAll clears the display name too", async () => {
+    const u = user("sub-delete-name");
+    await u.setDisplayName("Priya");
+
+    await u.deleteAll();
+
+    expect(await u.displayName()).toBeNull();
+  });
 });

@@ -300,3 +300,18 @@ public struct ClaimableMembersResponse: Decodable, Sendable {
 public struct ClaimMemberResponse: Decodable, Sendable {
     public let member: Member
 }
+
+// MARK: - GET/PATCH /api/auth/profile (CHECKLIST.md R1)
+
+public struct MyProfileResponse: Decodable, Sendable {
+    /// This identity's central display name, or `nil` if never set.
+    public let displayName: String?
+}
+
+public struct UpdateProfileRequest: Encodable, Sendable {
+    public let displayName: String
+
+    public init(displayName: String) {
+        self.displayName = displayName
+    }
+}

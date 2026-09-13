@@ -81,6 +81,14 @@ final class AuthViewModel {
     /// A separate busy flag for the photo upload/remove so it doesn't gate the
     /// "Delete Account" button (which reads `isBusy`).
     private(set) var isUpdatingAvatar = false
+    /// The signed-in identity's one central display name (`CHECKLIST.md`
+    /// R1), or `nil` if never set. Fetched on launch/sign-in alongside
+    /// `myAvatarKey`; drives Settings' "Your Name" field and whether
+    /// `ClaimMemberView` prompts for a name at all.
+    private(set) var myDisplayName: String?
+    /// A separate busy flag for the name update, same reasoning as
+    /// `isUpdatingAvatar`.
+    private(set) var isUpdatingDisplayName = false
     /// Mirrors `syncNudge.isDismissed()` so a dismissal re-renders observers.
     private(set) var syncNudgeDismissed: Bool
 
@@ -211,6 +219,7 @@ final class AuthViewModel {
             applyGroups(response.groups ?? [])
             requestPushAuthorizationIfNeeded()
             await fetchMyAvatarKey()
+            await fetchMyDisplayName()
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
         }
@@ -232,6 +241,7 @@ final class AuthViewModel {
             applyGroups(response.groups ?? [])
             requestPushAuthorizationIfNeeded()
             await fetchMyAvatarKey()
+            await fetchMyDisplayName()
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
         }
@@ -392,6 +402,14 @@ final class AuthViewModel {
             upsertGroup(GroupMembershipSummary(groupId: groupId, memberId: response.member.id, displayName: response.member.displayName))
             knownGroups.remember(groupId: groupId, accessToken: accessToken)
             await refreshGroups()
+            // If this was the identity's first-ever claim anywhere, the
+            // server just bootstrapped its central name from whatever name
+            // this claim carried (`CHECKLIST.md` R1) — refetch so the local
+            // `myDisplayName` reflects that immediately, not just after the
+            // next launch.
+            if myDisplayName == nil {
+                await fetchMyDisplayName()
+            }
             return true
         } catch {
             errorMessage = Self.friendlyMessage(for: error)
@@ -531,6 +549,42 @@ final class AuthViewModel {
         }
     }
 
+    // MARK: - Display name (CHECKLIST.md R1 "Universal, identity-level display name")
+
+    /// Pull the identity's own central name so Settings can render it, and
+    /// `ClaimMemberView` can decide whether to prompt for one, on a cold
+    /// launch. Silent — a failure just leaves `myDisplayName` as-is.
+    func fetchMyDisplayName() async {
+        guard let token = session?.token else { return }
+        do {
+            myDisplayName = try await client.myDisplayName(token: token)
+        } catch ClanTabClientError.server(let code, _) where code == "INVALID_SESSION" {
+            signOut()
+        } catch {
+            // Transient — keep whatever we had.
+        }
+    }
+
+    /// Set the identity's one central display name — fans out to every
+    /// claimed group's member row server-side. On success `myDisplayName` is
+    /// updated locally too. Returns whether it succeeded, with
+    /// `errorMessage` set on failure.
+    @discardableResult
+    func setDisplayName(_ name: String) async -> Bool {
+        guard let token = session?.token else { return false }
+        isUpdatingDisplayName = true
+        errorMessage = nil
+        defer { isUpdatingDisplayName = false }
+        do {
+            try await client.updateProfile(displayName: name, token: token)
+            myDisplayName = name
+            return true
+        } catch {
+            errorMessage = Self.friendlyMessage(for: error)
+            return false
+        }
+    }
+
     // MARK: - Launch
 
     /// On every launch: restore the session, verify the Apple credential is still
@@ -560,6 +614,7 @@ final class AuthViewModel {
         if session != nil {
             await refreshGroups()
             await fetchMyAvatarKey()
+            await fetchMyDisplayName()
         }
     }
 

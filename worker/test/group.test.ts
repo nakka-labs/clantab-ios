@@ -706,6 +706,29 @@ describe("GroupDO", () => {
       if (!other.ok) expect(other.error.code).toBe("ALREADY_CLAIMED");
     });
 
+    // --- centralDisplayName (CHECKLIST.md R1) -----------------------------
+
+    it("claim() seeds the member's name from centralDisplayName when the identity already has one", async () => {
+      const g = group("g-claim-central");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "CTR234");
+
+      const r = await g.claim(ana.id, "sub-central", null, "Priya Sharma");
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.value.member.displayName).toBe("Priya Sharma");
+
+      const state = await g.getState();
+      expect(state.members[0]?.displayName).toBe("Priya Sharma");
+    });
+
+    it("claim() leaves the placeholder's own name alone when centralDisplayName is null", async () => {
+      const g = group("g-claim-no-central");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "NOC234");
+
+      const r = await g.claim(ana.id, "sub-no-central", null, null);
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.value.member.displayName).toBe("Ana");
+    });
+
     it("one identity can hold at most one membership per group", async () => {
       const g = group("g-claim-one");
       const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "ONE234");
@@ -737,6 +760,27 @@ describe("GroupDO", () => {
       expect(await g.memberIdentity(ana.id)).toEqual({ sub: null });
       await g.unclaim(ana.id, "sub-a"); // idempotent
       expect((await g.claimable()).members.map((m) => m.id)).toContain(ana.id);
+    });
+
+    it("setMemberDisplayName renames the claimed member and bypasses updateMember's R4 gate, but only for that identity", async () => {
+      const g = group("g-set-display-name");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "SDN234");
+      const { member: ben } = await g.addMember("Ben");
+      await g.claim(ana.id, "sub-ana");
+
+      // This is exactly the write `updateMember` refuses for a claimed
+      // member (R4) — `setMemberDisplayName` is the system-only path that's
+      // allowed to make it, since it's propagating the identity's own name
+      // change, not a rename from someone else.
+      await g.setMemberDisplayName("sub-ana", "Priya Sharma");
+      const state = await g.getState();
+      expect(state.members.find((m) => m.id === ana.id)?.displayName).toBe("Priya Sharma");
+      expect(state.members.find((m) => m.id === ben.id)?.displayName).toBe("Ben"); // untouched
+
+      // A no-op for an identity that isn't a claimed member here.
+      await g.setMemberDisplayName("sub-nobody", "Should Not Apply");
+      const stateAfter = await g.getState();
+      expect(stateAfter.members.find((m) => m.id === ana.id)?.displayName).toBe("Priya Sharma");
     });
   });
 

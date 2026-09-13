@@ -150,8 +150,11 @@ const ROUTES: Route[] = [
   route("GET", "/api/auth/avatar", handleGetAvatar),
   route("PUT", "/api/auth/avatar", handleSetAvatar),
   route("DELETE", "/api/auth/avatar", handleClearAvatar),
+  route("GET", "/api/auth/profile", handleGetProfile),
+  route("PATCH", "/api/auth/profile", handleUpdateProfile),
   route("POST", "/api/media/presign", handleMediaPresign),
   route("GET", "/api/admin/reports", handleAdminReports),
+  route("POST", "/api/admin/backfill-display-names", handleAdminBackfillDisplayNames),
   route("GET", "/g/:groupId/balances", handleBalancesPage),
   route("GET", "/g/:groupId", handleCapabilityPage),
   route("GET", "/.well-known/apple-app-site-association", handleAppleAppSiteAssociation),
@@ -1306,11 +1309,18 @@ async function handleEnsureFriendTab(request: Request, env: Env): Promise<Respon
     // (`handleClaim`).
     const myAvatarKey = (await me.hasAvatar()) ? await avatarKey(sub) : null;
     const peerAvatarKey = (await peer.hasAvatar()) ? await avatarKey(peerSub) : null;
+    // Same "identity's central name wins, if it has one" rule as
+    // `handleClaim` (`CHECKLIST.md` R1) — a private tab is still a claim on
+    // each side, it just skips the placeholder step.
+    const myCentralName = await me.displayName();
+    const peerCentralName = await peer.displayName();
+    const myName = myCentralName ?? myDisplayName;
+    const theirName = peerCentralName ?? theirDisplayName;
 
-    const { member: mine } = await tabGroup.initGroup("Private tab", currency, myDisplayName, joinCode);
-    await tabGroup.claim(mine.id, sub, myAvatarKey);
-    const { member: theirs } = await tabGroup.addMember(theirDisplayName);
-    await tabGroup.claim(theirs.id, peerSub, peerAvatarKey);
+    const { member: mine } = await tabGroup.initGroup("Private tab", currency, myName, joinCode);
+    await tabGroup.claim(mine.id, sub, myAvatarKey, myCentralName);
+    const { member: theirs } = await tabGroup.addMember(theirName);
+    await tabGroup.claim(theirs.id, peerSub, peerAvatarKey, peerCentralName);
     await tabGroup.markHidden();
 
     // `GroupDO` is authoritative; both `UserDO` indexes are self-healing
@@ -1319,8 +1329,13 @@ async function handleEnsureFriendTab(request: Request, env: Env): Promise<Respon
     // peer's own `GET /api/auth/friends` / `GET /api/auth/groups` now lists
     // it too.
     await Promise.all([
-      me.addMembership(tabGroupId, mine.id, myDisplayName, true),
-      peer.addMembership(tabGroupId, theirs.id, theirDisplayName, true),
+      me.addMembership(tabGroupId, mine.id, myName, true),
+      peer.addMembership(tabGroupId, theirs.id, theirName, true),
+    ]);
+    // Bootstrap whichever side had no central name yet, same as `handleClaim`.
+    await Promise.all([
+      myCentralName === null ? me.setDisplayName(myName) : Promise.resolve(),
+      peerCentralName === null ? peer.setDisplayName(theirName) : Promise.resolve(),
     ]);
   }
 
@@ -1379,9 +1394,12 @@ async function handleClaim(request: Request, env: Env, params: Params): Promise<
 
   // Seed the new member's `avatar_key` from this identity's photo, if any
   // (`CHECKLIST.md` "Profile photos") — one write, no follow-up fan-out to this
-  // group needed.
+  // group needed. Same idea for `display_name` (R1) — the identity's already-
+  // set central name (if any) wins over the placeholder's, seeded in the same
+  // write `GroupDO.claim` does for the avatar.
   const avatarKeyForSub = (await user.hasAvatar()) ? await avatarKey(sub) : null;
-  const result = await group.claim(params.memberId ?? "", sub, avatarKeyForSub);
+  const centralDisplayName = await user.displayName();
+  const result = await group.claim(params.memberId ?? "", sub, avatarKeyForSub, centralDisplayName);
   if (!result.ok) {
     return json(result.error.code === "UNKNOWN_MEMBER" ? 404 : 409, { error: result.error });
   }
@@ -1389,6 +1407,13 @@ async function handleClaim(request: Request, env: Env, params: Params): Promise<
   // update after the fact (a miss just briefly hides one group from
   // `GET /api/auth/groups`). ACCOUNTS_DESIGN.md §2.
   await user.addMembership(groupId, result.value.member.id, result.value.member.displayName);
+  // The identity had no central name yet — bootstrap it from whatever name
+  // this claim ended up carrying (the placeholder's, or a freshly-typed one
+  // from `ClaimMemberView`'s join-then-claim path), so almost nobody ever
+  // needs an explicit "set your name" prompt (`CHECKLIST.md` R1 step 4/7).
+  if (centralDisplayName === null) {
+    await user.setDisplayName(result.value.member.displayName);
+  }
   return json(200, result.value);
 }
 
@@ -1439,6 +1464,42 @@ async function fanOutAvatar(env: Env, sub: string, key: string | null): Promise<
   const { groups } = await user.listGroups();
   await Promise.all(
     groups.map((g) => env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).setMemberAvatar(sub, key)),
+  );
+}
+
+/** This identity's central display name, or `null` — for the client to
+ * render Settings' "Your Name" field on a cold launch, and for
+ * `ClaimMemberView` to know whether to prompt for a name at all (`CHECKLIST.md`
+ * R1: only the identity's *first-ever* claim anywhere should ask). Mirrors
+ * `handleGetAvatar` exactly. */
+async function handleGetProfile(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const displayName = await env.USER_DO.get(env.USER_DO.idFromName(sub)).displayName();
+  return json(200, { displayName });
+}
+
+/** Set this identity's one central display name — every group member it's
+ * claimed shows this name from now on, a plain group-settings rename no
+ * longer applies to a claimed member (`GroupDO.updateMember`'s R4 gate).
+ * `CHECKLIST.md` R1. Mirrors `fanOutAvatar` exactly: set the `UserDO` value,
+ * `listGroups()`, then push `GroupDO.setMemberDisplayName` to each — a
+ * system-only method, not a call through `updateMember`, so it isn't itself
+ * subject to that gate. */
+async function handleUpdateProfile(request: Request, env: Env): Promise<Response> {
+  const sub = await requireSession(request, env);
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["displayName"]);
+  const displayName = requireString(body, "displayName");
+  await fanOutDisplayName(env, sub, displayName);
+  return new Response(null, { status: 204 });
+}
+
+async function fanOutDisplayName(env: Env, sub: string, displayName: string): Promise<void> {
+  const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
+  await user.setDisplayName(displayName);
+  const { groups } = await user.listGroups();
+  await Promise.all(
+    groups.map((g) => env.GROUP_DO.get(env.GROUP_DO.idFromName(g.groupId)).setMemberDisplayName(sub, displayName)),
   );
 }
 
@@ -1548,6 +1609,66 @@ async function handleAdminReports(request: Request, env: Env): Promise<Response>
   if (bearerToken(request) !== env.ADMIN_TOKEN) throw new UnauthorizedError();
   const reports = await env.REPORTS_DO.get(env.REPORTS_DO.idFromName("global")).list();
   return json(200, reports);
+}
+
+/** One-time backfill for R1's universal display name (`CHECKLIST.md` R1 step
+ * 7, owner-confirmed 2026-09-13) — seeds `UserDO.user_meta.display_name` for
+ * every already-claimed identity from that identity's own most-recently-
+ * claimed membership (`UserDO.listGroups()`'s own ordering — the same
+ * "which name wins" call `handleClaim`'s bootstrap already makes for a fresh
+ * claim, just applied retroactively). Intentionally the only place in this
+ * codebase that writes to `GroupDO` member rows or `UserDO` outside a normal
+ * request — a script, not permanent runtime logic.
+ *
+ * Durable Objects aren't enumerable directly, so this starts from `JOIN_CODES`
+ * (every group gets a join code at creation, so its keys are a full group
+ * index) to discover every claimed identity's `sub`, then reads each one's
+ * own `UserDO` for the name to seed. Paginated via the KV list's own cursor —
+ * call repeatedly (same `cursor` param) until the response's `done` is
+ * `true`. Idempotent and safe to re-run or interrupt: it only ever writes an
+ * identity that still has no central name, and does nothing to any `GroupDO`
+ * row (no fan-out — the point is seeding day-one behavior for *future*
+ * claims/PATCHes, not retroactively unifying every group's existing names).
+ */
+async function handleAdminBackfillDisplayNames(request: Request, env: Env): Promise<Response> {
+  if (!env.ADMIN_TOKEN) throw new BareNotFoundError();
+  if (bearerToken(request) !== env.ADMIN_TOKEN) throw new UnauthorizedError();
+
+  const cursor = new URL(request.url).searchParams.get("cursor") ?? undefined;
+  const page = await env.JOIN_CODES.list({ cursor, limit: 50 });
+
+  const groupIds = new Set<string>();
+  for (const key of page.keys) {
+    const groupId = await env.JOIN_CODES.get(key.name);
+    if (groupId) groupIds.add(groupId);
+  }
+
+  const subsPerGroup = await Promise.all(
+    Array.from(groupIds).map((groupId) => env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId)).claimedIdentitySubs()),
+  );
+  const subs = new Set(subsPerGroup.flat());
+
+  let identitiesSeeded = 0;
+  await Promise.all(
+    Array.from(subs).map(async (sub) => {
+      const user = env.USER_DO.get(env.USER_DO.idFromName(sub));
+      if ((await user.displayName()) !== null) return; // already has one
+      const { groups } = await user.listGroups();
+      const name = groups[0]?.displayName; // most recently claimed, per listGroups' own ordering
+      if (name) {
+        await user.setDisplayName(name);
+        identitiesSeeded++;
+      }
+    }),
+  );
+
+  return json(200, {
+    groupsScanned: groupIds.size,
+    identitiesSeen: subs.size,
+    identitiesSeeded,
+    cursor: page.list_complete ? null : page.cursor,
+    done: page.list_complete,
+  });
 }
 
 // --- helpers ------------------------------------------------------------

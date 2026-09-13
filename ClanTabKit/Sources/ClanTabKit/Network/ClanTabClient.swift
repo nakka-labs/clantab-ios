@@ -413,6 +413,29 @@ public actor ClanTabClient {
         try await performNoContent(request)
     }
 
+    /// This identity's central display name, or `nil` if never set
+    /// (`CHECKLIST.md` R1). For rendering Settings' "Your Name" field on a
+    /// cold launch, and for `ClaimMemberView` to know whether to prompt for
+    /// one at all.
+    public func myDisplayName(token: String) async throws -> String? {
+        let response: MyProfileResponse = try await get("api/auth/profile", bearer: token)
+        return response.displayName
+    }
+
+    /// Set this identity's one central display name — every claimed group's
+    /// member row updates to match, and a plain group-settings rename no
+    /// longer applies to that member (`CHECKLIST.md` R1, R4). `204 No
+    /// Content` on success, so this goes through `performNoContent`
+    /// directly rather than the decoding `patch` helper.
+    public func updateProfile(displayName: String, token: String) async throws {
+        var request = URLRequest(url: url(for: "api/auth/profile"))
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(UpdateProfileRequest(displayName: displayName))
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await performNoContent(request)
+    }
+
     /// This group's placeholder members — the "this is me" picker (§6). Needs
     /// the access token too, same as any other group route — a not-yet-claimed
     /// caller has no claimed-member fallback yet (`ACCESS_TOKEN_PLAN.md` Part 1).

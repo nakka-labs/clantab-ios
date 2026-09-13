@@ -98,6 +98,17 @@ export class UserDO extends DurableObject {
     return this.meta(USER_META_KEYS.avatarUploadedAt) !== null;
   }
 
+  /** The identity's one central display name (`CHECKLIST.md` R1) — `null`
+   * until set via `PATCH /api/auth/profile`, a first claim's bootstrap, or
+   * the one-time backfill. */
+  async displayName(): Promise<string | null> {
+    return this.meta(USER_META_KEYS.displayName);
+  }
+
+  async setDisplayName(name: string): Promise<void> {
+    this.setMeta(USER_META_KEYS.displayName, name);
+  }
+
   /** The identity's groups, newest-claimed first. Returns groupIds + the member
    * id within each — never group contents. */
   async listGroups(): Promise<{ groups: Membership[] }> {

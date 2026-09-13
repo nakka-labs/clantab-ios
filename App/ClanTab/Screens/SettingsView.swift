@@ -30,6 +30,7 @@ struct SettingsView: View {
     @State private var sheetError: String?
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var photoError: String?
+    @State private var nameDraft = ""
     @AppStorage("clantab.theme") private var theme = AppTheme.system
     /// Which screen a returning user lands on (`CHECKLIST.md` "Settings:
     /// launch-screen preference"). `""` — the dashboard; a groupId — that
@@ -50,6 +51,8 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
 
                     profilePhotoRow
+
+                    yourNameRow
 
                     Button("Sign Out") { auth.signOut() }
                 } else {
@@ -215,10 +218,33 @@ struct SettingsView: View {
         }
     }
 
-    /// The signed-in user's name for the initials fallback — their name in the
-    /// most-recently-claimed group, or a neutral placeholder.
+    /// The signed-in user's name for the initials fallback — the identity's
+    /// central name (`CHECKLIST.md` R1) once it has one, else their name in
+    /// the most-recently-claimed group (the old heuristic, from before there
+    /// was a central name to ask), else a neutral placeholder.
     private var myDisplayName: String {
-        auth.groups.first?.displayName ?? "You"
+        auth.myDisplayName ?? auth.groups.first?.displayName ?? "You"
+    }
+
+    // MARK: - Your Name (CHECKLIST.md R1 "Universal, identity-level display name")
+
+    private var trimmedNameDraft: String { nameDraft.trimmingCharacters(in: .whitespaces) }
+    private var isNameDirty: Bool { !trimmedNameDraft.isEmpty && trimmedNameDraft != (auth.myDisplayName ?? "") }
+
+    @ViewBuilder
+    private var yourNameRow: some View {
+        HStack {
+            TextField("Your Name", text: $nameDraft, prompt: Text("Your Name"))
+            if auth.isUpdatingDisplayName {
+                ProgressView()
+            } else if isNameDirty {
+                Button("Save") { Task { await auth.setDisplayName(trimmedNameDraft) } }
+            }
+        }
+        .onChange(of: auth.myDisplayName, initial: true) { _, newValue in
+            // Don't clobber an in-progress edit if the fetch resolves late.
+            if nameDraft.isEmpty { nameDraft = newValue ?? "" }
+        }
     }
 
     private func handlePickedPhoto(_ item: PhotosPickerItem) async {

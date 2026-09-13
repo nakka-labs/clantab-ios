@@ -461,4 +461,32 @@ struct ClanTabAuthClientTests {
         #expect(request?.httpMethod == "DELETE")
         #expect(request?.url?.absoluteString == "https://clantab.example.com/api/auth/avatar")
     }
+
+    @Test("myDisplayName GETs api/auth/profile and unwraps the nullable name")
+    func testMyDisplayName() async throws {
+        let transport = FakeTransport(statusCode: 200, body: jsonData(["displayName": "Priya"]))
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        #expect(try await client.myDisplayName(token: "sess") == "Priya")
+        #expect(await transport.lastRequest?.httpMethod == "GET")
+        #expect(await transport.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/auth/profile")
+
+        await transport.setStub(statusCode: 200, body: jsonData(["displayName": NSNull()]))
+        #expect(try await client.myDisplayName(token: "sess") == nil)
+    }
+
+    @Test("updateProfile PATCHes api/auth/profile with a bearer and the name, tolerating a 204")
+    func testUpdateProfile() async throws {
+        let transport = FakeTransport(statusCode: 204, body: Data())
+        let client = ClanTabClient(baseURL: baseURL, transport: transport)
+
+        try await client.updateProfile(displayName: "Priya Sharma", token: "sess")
+        let request = await transport.lastRequest
+        #expect(request?.httpMethod == "PATCH")
+        #expect(request?.url?.absoluteString == "https://clantab.example.com/api/auth/profile")
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer sess")
+        let body = try #require(await transport.lastRequest?.httpBody)
+        let decoded = try JSONSerialization.jsonObject(with: body) as? [String: String]
+        #expect(decoded == ["displayName": "Priya Sharma"])
+    }
 }

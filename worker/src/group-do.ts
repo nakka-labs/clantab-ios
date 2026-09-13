@@ -724,11 +724,38 @@ export class GroupDO extends DurableObject {
     return { members: rows.map((r) => this.toMember(r)) };
   }
 
+  /** Every identity claimed in this group — just the subs, no names (the
+   * name comes from `UserDO.listGroups()`, the identity's own authoritative
+   * "most recently claimed" ordering, not anything on this row). Used only
+   * by the one-time display-name backfill (`CHECKLIST.md` R1 step 7) to
+   * discover which `UserDO`s exist at all, since there's no way to enumerate
+   * Durable Object instances directly. */
+  async claimedIdentitySubs(): Promise<string[]> {
+    return this.sql
+      .exec<{ identity_sub: string }>("SELECT identity_sub FROM members WHERE identity_sub IS NOT NULL")
+      .toArray()
+      .map((r) => r.identity_sub);
+  }
+
   /** Link a placeholder member to a signed-in identity — `sub` is the
    * composite `"<provider>:<sub>"` string (`MANDATORY_LOGIN_PLAN.md` Part 2),
    * not a bare provider subject id. Idempotent: re-claiming the same member
-   * with the same `sub` is a no-op success. */
-  async claim(memberId: string, sub: string, avatarKey: string | null = null): Promise<Result<{ member: Member }>> {
+   * with the same `sub` is a no-op success.
+   *
+   * `centralDisplayName` is the identity's existing `UserDO` name
+   * (`CHECKLIST.md` R1), fetched by the caller before calling this — when
+   * set, it overrides whatever name the placeholder already carried (the
+   * identity's name wins everywhere, once it has one); when `null` (the
+   * identity has no central name yet), the placeholder's own name is left
+   * alone, and the caller is expected to bootstrap the identity's central
+   * name from it after this returns (`fanOutDisplayName`'s doc comment has
+   * the full round-trip). */
+  async claim(
+    memberId: string,
+    sub: string,
+    avatarKey: string | null = null,
+    centralDisplayName: string | null = null,
+  ): Promise<Result<{ member: Member }>> {
     const rows = this.sql
       .exec<MemberRow>("SELECT * FROM members WHERE id = ?", memberId)
       .toArray();
@@ -752,8 +779,15 @@ export class GroupDO extends DurableObject {
 
     // Seed `avatar_key` from the identity in the same write — the caller passes
     // it (or `null`) from the `UserDO` "has a photo" bit (`CHECKLIST.md`).
-    this.sql.exec("UPDATE members SET identity_sub = ?, avatar_key = ? WHERE id = ?", sub, avatarKey, memberId);
-    return ok({ member: this.toMember({ ...row, identity_sub: sub, avatar_key: avatarKey }) });
+    const displayName = centralDisplayName ?? row.display_name;
+    this.sql.exec(
+      "UPDATE members SET identity_sub = ?, avatar_key = ?, display_name = ? WHERE id = ?",
+      sub,
+      avatarKey,
+      displayName,
+      memberId,
+    );
+    return ok({ member: this.toMember({ ...row, identity_sub: sub, avatar_key: avatarKey, display_name: displayName }) });
   }
 
   /** Point every member this identity holds across this group at (or away from)
@@ -762,6 +796,17 @@ export class GroupDO extends DurableObject {
    * identity isn't a claimed member here. */
   async setMemberAvatar(sub: string, avatarKey: string | null): Promise<void> {
     this.sql.exec("UPDATE members SET avatar_key = ? WHERE identity_sub = ?", avatarKey, sub);
+  }
+
+  /** The per-group leg of the `PATCH /api/auth/profile` fan-out
+   * (`CHECKLIST.md` R1) — mirrors `setMemberAvatar` exactly, including being
+   * a no-op if the identity isn't a claimed member here. Deliberately a
+   * separate system-only method from `updateMember`, not a caller of it: the
+   * gate `updateMember` added in R4 is "a user can't rename someone else,"
+   * not "the system can't propagate an identity's own name change" — this
+   * bypasses that gate entirely rather than fighting it. */
+  async setMemberDisplayName(sub: string, displayName: string): Promise<void> {
+    this.sql.exec("UPDATE members SET display_name = ? WHERE identity_sub = ?", displayName, sub);
   }
 
   /** Revert a member to a placeholder, but only if it's currently `sub`'s —

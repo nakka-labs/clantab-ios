@@ -43,17 +43,34 @@ struct ClaimMemberView: View {
                     }
                 }
                 Section(members.isEmpty ? "Add Yourself" : "Not Listed?") {
-                    TextField("Your display name", text: $newMemberName)
-                    Button {
-                        Task { await joinFresh() }
-                    } label: {
-                        if isJoiningFresh {
-                            ProgressView()
-                        } else {
-                            Text("Join as a New Member")
+                    // A name field only on the identity's first-ever claim
+                    // anywhere (`CHECKLIST.md` R1) — once it has a central
+                    // name, every later claim just uses it silently, no
+                    // prompt needed.
+                    if let centralName = auth.myDisplayName {
+                        Button {
+                            Task { await joinFresh(name: centralName) }
+                        } label: {
+                            if isJoiningFresh {
+                                ProgressView()
+                            } else {
+                                Text("Join as \(centralName)")
+                            }
                         }
+                        .disabled(auth.isBusy || isJoiningFresh)
+                    } else {
+                        TextField("Your display name", text: $newMemberName)
+                        Button {
+                            Task { await joinFresh(name: trimmedNewMemberName) }
+                        } label: {
+                            if isJoiningFresh {
+                                ProgressView()
+                            } else {
+                                Text("Join as a New Member")
+                            }
+                        }
+                        .disabled(trimmedNewMemberName.isEmpty || auth.isBusy || isJoiningFresh)
                     }
-                    .disabled(trimmedNewMemberName.isEmpty || auth.isBusy || isJoiningFresh)
                 }
             } else if loadError == nil {
                 Section {
@@ -115,9 +132,10 @@ struct ClaimMemberView: View {
     }
 
     /// Add a brand-new member (your own display name) and immediately claim
-    /// it — the "join fresh" outcome, now always identity-linked.
-    private func joinFresh() async {
-        let name = trimmedNewMemberName
+    /// it — the "join fresh" outcome, now always identity-linked. `name` is
+    /// either the identity's already-known central name, or whatever was
+    /// just typed for its first-ever claim (`CHECKLIST.md` R1).
+    private func joinFresh(name: String) async {
         guard !name.isEmpty else { return }
         loadError = nil
         isJoiningFresh = true

@@ -155,6 +155,13 @@ export const USER_META_KEYS = {
    * the value itself is only for a future "photo since" display. A new
    * `user_meta` key — no `USER_SCHEMA_VERSION` bump. */
   avatarUploadedAt: "avatar_uploaded_at",
+  /** The identity's one central display name (`CHECKLIST.md` R1) — set via
+   * `PATCH /api/auth/profile`, fanned out to every group's `members.display_name`
+   * the same way `avatarUploadedAt` fans out to `avatar_key`. Absent for an
+   * identity that's never set one (bootstrapped lazily at first claim or first
+   * `PATCH`, or by the one-time backfill — see `fanOutDisplayName`). A new
+   * `user_meta` key — no `USER_SCHEMA_VERSION` bump, same as `avatarUploadedAt`. */
+  displayName: "display_name",
 } as const;
 
 /**

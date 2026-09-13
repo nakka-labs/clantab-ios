@@ -3246,16 +3246,62 @@ explicitly before treating this as "all safely deferrable":
   already exist and already work; the report is a pure discoverability
   gap. Don't rebuild either — just surface them.
 
-- [ ] **R1. Universal, identity-level display name.** Already fully scoped
-      under "Parked → v1.1 backlog" above (`UserDO.user_meta`, `PATCH
-      /api/auth/profile`, `fanOutDisplayName`, claimed-member-proof
-      `updateMember`, Settings "Your Name" field) — re-requested by the
-      owner in this same terms ("set once, editable in Settings, same
-      across all groups"), nothing new to design. `~50-70k`. Note the
-      overlap with R4 below: both need the server to know whether a
-      member is claimed before it'll refuse an edit — R4's minimal fix
-      is a strict subset of this plan's step 3, so if R1 gets picked up
-      first, R4 falls out of it for free.
+- [x] **R1. Universal, identity-level display name.** Done 2026-09-13, all
+      7 steps of the "Parked → v1.1 backlog" plan below (that entry closed
+      too, same work).
+      1. `UserDO`: new `user_meta` key `display_name` (no schema bump,
+         same treatment as `avatar_uploaded_at`) + `displayName()`/
+         `setDisplayName()`.
+      2. `worker`: `GET`/`PATCH /api/auth/profile` (`GET` wasn't in the
+         original plan text — added so the client, and `ClaimMemberView`,
+         can know the identity's name *before* acting, mirroring
+         `GET /api/auth/avatar` exactly) + `fanOutDisplayName` mirroring
+         `fanOutAvatar`.
+      3. `GroupDO`: new system-only `setMemberDisplayName` (mirrors
+         `setMemberAvatar`, bypasses R4's gate entirely — that gate is
+         "a user can't rename someone else," not "the system can't
+         propagate an identity's own change"). R4's gate itself, landed
+         earlier in this batch, needed no changes here.
+      4. `claim()` gained a `centralDisplayName` param: seeds the newly-
+         claimed member from the identity's existing central name when
+         set (overriding the placeholder's own), passed by `handleClaim`/
+         `handleEnsureFriendTab` (the private-tab flow — extended too,
+         for consistency, since it's still a claim on each side even
+         though it skips the placeholder step); bootstraps the identity's
+         central name from whatever the claim carried when it had none.
+      5. `isClaimed` — landed in R4.
+      6. App: `SettingsView` "Your Name" row (also fixed the pre-existing
+         `myDisplayName` heuristic to prefer the real central name once
+         set, falling back to the old per-group guess); `GroupSettingsView`
+         rename gating — landed in R4; `ClaimMemberView`'s name field now
+         only shows on a first-ever claim (`auth.myDisplayName == nil`) —
+         otherwise a single "Join as `<name>`" button, no typing.
+      7. **Backfill — owner-confirmed, one-time.** New admin route
+         `POST /api/admin/backfill-display-names` (`ADMIN_TOKEN`-gated,
+         same pattern as `/api/admin/reports`), paginated via `JOIN_CODES`
+         KV's own cursor (every group gets a join code at creation, so
+         it's a full group index — Durable Objects aren't enumerable
+         directly). Per page: discover every claimed identity via a new
+         `GroupDO.claimedIdentitySubs()`, then for each with no central
+         name yet, seed it from `UserDO.listGroups()`'s own most-recently-
+         claimed entry. Idempotent, resumable, touches no `GroupDO` row
+         (seeds day-one behavior for *future* claims/PATCHes, doesn't
+         retroactively unify already-diverged per-group names). **Not
+         yet run against production** — implemented and tested, but
+         actually invoking it is a real, if easily-idempotent, production
+         data change; call it once per page (repeat with the returned
+         `cursor` until `done: true`) when ready, e.g. via `curl -X POST
+         -H "Authorization: Bearer $ADMIN_TOKEN"
+         https://clantab.nakka.dev/api/admin/backfill-display-names`.
+      Worker tests found a genuine subtlety worth recording: `handleClaim`'s
+      own step-4 bootstrap means *any* claim through the normal route
+      already seeds the central name the moment it happens — the backfill
+      route is only ever a no-op for identities claimed through this
+      code, and only does real work for identities claimed *before* this
+      feature shipped. The backfill test simulates that by claiming
+      through direct `GroupDO`/`UserDO` calls, bypassing the route's own
+      auto-bootstrap, same as a pre-R1 claim would have.
+      `make check` green (kit + worker + full iOS build/XCTest).
 - [x] **R2. Split-by control reads as two different UI patterns stitched
       together.** Done 2026-09-13, owner chose the `Menu`/dropdown option
       over making `MoreSplitsSheet` the sole entry point. Replaced the
@@ -3333,6 +3379,11 @@ explicitly before treating this as "all safely deferrable":
       posture. Applies to both profile and group cover; receipts
       (`ReceiptImage.swift`) stay auto-resize-only, they're not a
       user-facing crop case.
+      **Deferred 2026-09-13, owner call** — the one item in this batch
+      needing a genuinely new custom interactive control (drag/pinch),
+      disproportionately large next to the other 15; flagged as its own
+      follow-up rather than blocking the rest of the batch. R1-R5, R7-R16
+      all done same day.
 - [x] **R7. Tapping a member's profile picture doesn't show it larger.**
       Done 2026-09-13. `MemberProfileView`'s header `MemberAvatar` is now
       a `Button` (only when `member.avatarKey != nil` — no point opening a
@@ -3616,52 +3667,10 @@ waiting for v1.1 — the other two are still genuinely parked.
          app-side UI isn't in any TestFlight build yet — build 11 predates
          this work; folded into the next build once the Owner's current
          round-3 pass on build 11 is done.
-- [ ] **Universal, identity-level display name.** `~50-70k` — real
-      demand (round-3 playtest, 2026-09-13 — per-group names that can
-      change anytime "can lead to confusion"). Decided 2026-09-13: one
-      central name, **no** per-group override once built. Grounded
-      2026-09-13 against `fanOutAvatar`/`setMemberAvatar`
-      (`worker/src/index.ts`, `worker/src/group-do.ts`) — "Profile
-      photos" already solved the identical propagation problem for an
-      avatar key; this is the same shape for a name.
-      1. Worker: `UserDO` gains a `user_meta` key (`display_name` —
-         no `USER_SCHEMA_VERSION` bump needed, same as
-         `avatar_uploaded_at`) + `displayName()`/`setDisplayName()`.
-      2. New route `PATCH /api/auth/profile` body `{ displayName }` →
-         `fanOutDisplayName(env, sub, name)`, mirroring
-         `fanOutAvatar` exactly: set the `UserDO` value, `listGroups()`,
-         then concurrently call a new `GroupDO.setMemberDisplayName(sub,
-         displayName)` (`UPDATE members SET display_name = ? WHERE
-         identity_sub = ?`, mirrors `setMemberAvatar`) on each.
-      3. Worker: `GroupDO.updateMember`'s `displayName` patch path
-         becomes claimed-member-proof — only a member with `identity_sub
-         IS NULL` (a placeholder) can still be renamed that way; a
-         claimed member's name now comes solely from the fan-out. Return
-         a new `MEMBER_CLAIMED` error otherwise (defense in depth — the
-         client shouldn't offer the option at all, see step 6).
-      4. Worker: `claim()` seeds the newly-claimed member's
-         `display_name` from the identity's central name when one's
-         already set (same "seed from identity" pattern `avatarKey`
-         already uses there) — the reverse the very first time: if the
-         identity has *no* central name yet, bootstrap it from whatever
-         name this claim already carries (the placeholder's typed name,
-         or `ClaimMemberView`'s "Your display name" field), so almost
-         nobody ever needs to see an explicit "set your name" prompt.
-      5. Kit: `Member.isClaimed: Bool` (new, safe to expose — just
-         `identity_sub IS NOT NULL`, never the subject itself) so the
-         client can tell claimed and unclaimed members apart without
-         leaking anything.
-      6. App: Settings gains a "Your Name" field (calls the new PATCH);
-         `GroupSettingsView`'s "Rename Member" only offered when
-         `!member.isClaimed`; `ClaimMemberView`'s "Your display name"
-         field only appears on someone's first-ever claim anywhere
-         (central name not set yet) — every later claim in another group
-         just uses it silently, no prompt.
-      7. Decide (owner): whether to run a one-time backfill copying each
-         already-claimed identity's most-recently-used per-group name
-         into the new central field at deploy time, so day-one behavior
-         looks intentional rather than blank, vs. leaving it fully lazy
-         (bootstraps the first time step 4 or 6 touches that identity).
+- [x] **Universal, identity-level display name.** Done 2026-09-13 — see
+      R1 above (owner feedback batch) for the full implementation; this
+      entry was its original scoping, re-requested by the owner in the
+      same terms.
 - [ ] **Link Apple and Google accounts.** `~90-130k`, the largest of the
       three — real demand (round-3 playtest, 2026-09-13). Each identity
       today is a wholly independent `UserDO` keyed by

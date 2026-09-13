@@ -599,6 +599,71 @@ describe("GET /api/admin/reports (Apple Guideline 1.2, SHIP_PLAN.md Track 3 §7)
   });
 });
 
+describe('POST /api/admin/backfill-display-names (CHECKLIST.md R1 step 7, one-time backfill)', () => {
+  const adminToken = "test-only-admin-token";
+
+  it("401s without, or with the wrong, bearer token", async () => {
+    expect((await call("POST", "/api/admin/backfill-display-names")).status).toBe(401);
+    expect((await call("POST", "/api/admin/backfill-display-names", { bearer: "wrong" })).status).toBe(401);
+  });
+
+  it("seeds an identity's central name from its most-recently-claimed group, and reports done: true when everything fits one page", async () => {
+    const sub = "backfill.seed.1";
+    const g1 = await makeGroup();
+    const m1 = await addMember(g1.groupId, "Older Claim", g1.token);
+    // Direct DO calls, not the HTTP claim route — that route now bootstraps
+    // the central name itself the moment *any* claim happens with none set
+    // yet (see the "first claim... bootstraps" test above), so going
+    // through it here would make the backfill a no-op before it even runs.
+    // This simulates a claim made *before* R1 existed, which never touched
+    // `UserDO.displayName` at all — exactly what the backfill is for.
+    await env.GROUP_DO.get(env.GROUP_DO.idFromName(g1.groupId)).claim(m1, sub);
+    await env.USER_DO.get(env.USER_DO.idFromName(sub)).addMembership(g1.groupId, m1, "Older Claim");
+
+    await new Promise((r) => setTimeout(r, 2)); // distinct added_at ordering
+
+    const g2 = await makeGroup();
+    const m2 = await addMember(g2.groupId, "Newer Claim", g2.token);
+    await env.GROUP_DO.get(env.GROUP_DO.idFromName(g2.groupId)).claim(m2, sub);
+    await env.USER_DO.get(env.USER_DO.idFromName(sub)).addMembership(g2.groupId, m2, "Newer Claim");
+
+    const { status, json } = await call("POST", "/api/admin/backfill-display-names", { bearer: adminToken });
+    expect(status).toBe(200);
+    expect(json.done).toBe(true);
+    expect(json.cursor).toBeNull();
+    expect(json.identitiesSeeded as number).toBeGreaterThanOrEqual(1);
+
+    const bearer = await token(sub);
+    expect((await call("GET", "/api/auth/profile", { bearer })).json).toEqual({ displayName: "Newer Claim" });
+  });
+
+  it("never overwrites an identity that already has a central name", async () => {
+    const sub = "backfill.skip.1";
+    const bearer = await token(sub);
+    await call("PATCH", "/api/auth/profile", { bearer, body: { displayName: "Already Set" } });
+
+    const g = await makeGroup();
+    const m = await addMember(g.groupId, "Placeholder Name", g.token);
+    await call("POST", `/api/groups/${g.groupId}/members/${m}/claim`, { bearer, token: g.token });
+
+    await call("POST", "/api/admin/backfill-display-names", { bearer: adminToken });
+    expect((await call("GET", "/api/auth/profile", { bearer })).json).toEqual({ displayName: "Already Set" });
+  });
+
+  it("is idempotent — running it twice in a row doesn't change anything the second time", async () => {
+    const sub = "backfill.idempotent.1";
+    const bearer = await token(sub);
+    const g = await makeGroup();
+    const m = await addMember(g.groupId, "One True Name", g.token);
+    await call("POST", `/api/groups/${g.groupId}/members/${m}/claim`, { bearer, token: g.token });
+
+    await call("POST", "/api/admin/backfill-display-names", { bearer: adminToken });
+    const second = await call("POST", "/api/admin/backfill-display-names", { bearer: adminToken });
+    expect((await call("GET", "/api/auth/profile", { bearer })).json).toEqual({ displayName: "One True Name" });
+    expect(second.status).toBe(200); // ran cleanly, whatever identitiesSeeded reports the second time
+  });
+});
+
 describe('PUT / DELETE /api/auth/avatar (CHECKLIST.md "Profile photos")', () => {
   const memberNamed = (state: Json, name: string) =>
     (state.members as Json[]).find((m) => (m.displayName as string) === name);
@@ -683,5 +748,101 @@ describe('PUT / DELETE /api/auth/avatar (CHECKLIST.md "Profile photos")', () => 
     expect(await env.MEDIA.head(key)).toBeNull();
     const state = (await call("GET", `/api/groups/${g.groupId}`, { token: g.token })).json;
     expect(memberNamed(state, "Goner")?.avatarKey).toBeUndefined();
+  });
+});
+
+describe('PATCH /api/auth/profile (CHECKLIST.md R1 "Universal, identity-level display name")', () => {
+  const memberNamed = (state: Json, name: string) =>
+    (state.members as Json[]).find((m) => (m.displayName as string) === name);
+  const memberWithId = (state: Json, id: string) =>
+    (state.members as Json[]).find((m) => (m.id as string) === id);
+
+  it("401s without a session", async () => {
+    expect((await call("GET", "/api/auth/profile")).status).toBe(401);
+    expect((await call("PATCH", "/api/auth/profile", { body: { displayName: "X" } })).status).toBe(401);
+  });
+
+  it("GET returns null before a name is set and the name after", async () => {
+    const bearer = await token("profile.get.1");
+    expect((await call("GET", "/api/auth/profile", { bearer })).json).toEqual({ displayName: null });
+
+    await call("PATCH", "/api/auth/profile", { bearer, body: { displayName: "Priya" } });
+    expect((await call("GET", "/api/auth/profile", { bearer })).json).toEqual({ displayName: "Priya" });
+  });
+
+  it("400s a missing, blank, or unknown-field body", async () => {
+    const bearer = await token("profile.badbody.1");
+    expect((await call("PATCH", "/api/auth/profile", { bearer, body: {} })).status).toBe(400);
+    expect((await call("PATCH", "/api/auth/profile", { bearer, body: { displayName: "" } })).status).toBe(400);
+    expect(
+      (await call("PATCH", "/api/auth/profile", { bearer, body: { displayName: "X", extra: 1 } })).status,
+    ).toBe(400);
+  });
+
+  it("fans the new name out to every claimed group, even one claimed after the PATCH", async () => {
+    const sub = "profile.fanout.1";
+    const bearer = await token(sub);
+
+    const g1 = await makeGroup();
+    const g2 = await makeGroup();
+    const m1 = await addMember(g1.groupId, "Old Name", g1.token);
+    await call("POST", `/api/groups/${g1.groupId}/members/${m1}/claim`, { bearer, token: g1.token });
+
+    expect((await call("PATCH", "/api/auth/profile", { bearer, body: { displayName: "Priya Sharma" } })).status)
+      .toBe(204);
+
+    const state1 = (await call("GET", `/api/groups/${g1.groupId}`, { token: g1.token })).json;
+    expect(memberWithId(state1, m1)?.displayName).toBe("Priya Sharma");
+
+    // Claimed *after* the PATCH — the central name should still win, same
+    // as any first claim once an identity has one set (below).
+    const m2 = await addMember(g2.groupId, "Different Name", g2.token);
+    await call("POST", `/api/groups/${g2.groupId}/members/${m2}/claim`, { bearer, token: g2.token });
+    const state2 = (await call("GET", `/api/groups/${g2.groupId}`, { token: g2.token })).json;
+    expect(memberWithId(state2, m2)?.displayName).toBe("Priya Sharma");
+  });
+
+  it("a claimed member's own group-settings rename no longer applies — PATCH is the only way to change it", async () => {
+    const sub = "profile.renameblocked.1";
+    const bearer = await token(sub);
+    const g = await makeGroup();
+    const m = await addMember(g.groupId, "Original", g.token);
+    await call("POST", `/api/groups/${g.groupId}/members/${m}/claim`, { bearer, token: g.token });
+
+    const renamed = await call("PATCH", `/api/groups/${g.groupId}/members/${m}`, {
+      body: { displayName: "Sneaky Rename" }, token: g.token,
+    });
+    expect(renamed.status).toBe(409);
+
+    expect((await call("PATCH", "/api/auth/profile", { bearer, body: { displayName: "Real Name" } })).status)
+      .toBe(204);
+    const state = (await call("GET", `/api/groups/${g.groupId}`, { token: g.token })).json;
+    expect(memberWithId(state, m)?.displayName).toBe("Real Name");
+  });
+
+  it("a first claim seeds the member from an already-set central name, overriding the placeholder's own", async () => {
+    const sub = "profile.claimoverride.1";
+    const bearer = await token(sub);
+    await call("PATCH", "/api/auth/profile", { bearer, body: { displayName: "Central Name" } });
+
+    const g = await makeGroup();
+    const m = await addMember(g.groupId, "Placeholder Name", g.token);
+    const claim = await call("POST", `/api/groups/${g.groupId}/members/${m}/claim`, { bearer, token: g.token });
+    expect((claim.json.member as Json).displayName).toBe("Central Name");
+  });
+
+  it("a first claim with no central name set yet bootstraps one from the claimed member's own name", async () => {
+    const sub = "profile.bootstrap.1";
+    const bearer = await token(sub);
+    const g = await makeGroup();
+    const m = await addMember(g.groupId, "Bootstrapped Name", g.token);
+    await call("POST", `/api/groups/${g.groupId}/members/${m}/claim`, { bearer, token: g.token });
+
+    // Second claim in a different group now sees a central name — proof the
+    // first claim wrote it back to UserDO, not just used it locally.
+    const g2 = await makeGroup();
+    const m2 = await addMember(g2.groupId, "Different Placeholder", g2.token);
+    const claim2 = await call("POST", `/api/groups/${g2.groupId}/members/${m2}/claim`, { bearer, token: g2.token });
+    expect((claim2.json.member as Json).displayName).toBe("Bootstrapped Name");
   });
 });
