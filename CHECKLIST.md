@@ -271,6 +271,18 @@
          (`betaBuildLocalization` en-US) + the beta app localization
          (feedback email `indra@nakka.dev`, privacy URL). Full pass
          checklist: `docs/appstore/testflight-pass.md`.
+      3b. [x] CLI: build `1.0 (10)` archived, exported, and uploaded
+          2026-09-13 — carries every fix since build 9 (the fresh-eyes UI
+          audit's [3]/[4]/[6]/[7] and the rescan's two backend fixes, both
+          above). Checked the live build number in ASC first (`9`, matched
+          the repo — no drift to correct this time), `make bump-build` →
+          `10`, `xcodebuild archive` + `-exportArchive` with `destination:
+          upload` in `ExportOptions.plist` (the newer one-step flow —
+          no separate `altool` calls needed) using the Admin-role ASC API
+          key. `processingState VALID` within ~2 minutes, automatically
+          assigned to the internal **"test-team"** group alongside builds
+          1–9, "What to Test" set. Archive at
+          `~/Library/Developer/Xcode/Archives/2026-09-13/`.
       4. Owner: run the pass on a real device — Sign in with Apple/Google,
          a push (CLI triggers it via an API expense-add), a recurring-
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening

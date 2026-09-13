@@ -1,4 +1,4 @@
-# TestFlight on-device end-to-end pass — ClanTab 1.0 (9)
+# TestFlight on-device end-to-end pass — ClanTab 1.0 (10)
 
 The pre-submission device pass (`CHECKLIST.md` "TestFlight on-device end-to-end
 pass"). Build 7 was the first to post-date **real push delivery**,
@@ -14,11 +14,21 @@ Friends/cross-group work was only smoke-tested unauthenticated via curl
 during CLI development (`production_priority.md`), so it's the higher-value
 half of this pass.
 
-- **Build:** `1.0 (9)`, uploaded 2026-09-11. (A stray build 8 exists in App
+Build 10 doesn't change what's being tested here — no feature work, just the
+UI audit's fresh-eyes fixes (Danger Zone treatment for Delete Account, Friends
+tab context copy, Add Expense's split-button styling, Report a Problem
+copy) and two backend fixes found along the way (`CHECKLIST.md` "Rescan for
+new findings"): `fetchGroupState` could get stuck serving a stale cached
+response instead of the group's live state, and the worker now rejects a
+malformed expense date instead of silently storing one that would later break
+decoding for every member. Nothing in Part 1 or Part 2 below changed as a
+result — this pass still exercises the same ground as it did for build 9.
+
+- **Build:** `1.0 (10)`, uploaded 2026-09-13. (A stray build 8 exists in App
   Store Connect from outside this batch's history — ignore it, it predates
   round-2 and isn't assigned to the test group.)
 - **Distribution:** internal group **"test-team"** (`id0399@gmail.com`).
-  Install from the **TestFlight** app on the device — it should offer 9 as
+  Install from the **TestFlight** app on the device — it should offer 10 as
   an update once Apple finishes processing.
 - **Device prerequisites:** a real iPhone (Universal Links + push don't work
   in the Simulator), signed into **iCloud**, able to do **Sign in with
@@ -89,7 +99,7 @@ specific member's linked account, not just anyone in the group.
 
 ## After it passes
 
-Tag the release (`git tag v1.0-9`). Monetization is decided (free, no IAP —
+Tag the release (`git tag v1.0-10`). Monetization is decided (free, no IAP —
 `CHECKLIST.md` "Decide the monetization stance") and the price is already
 set to Free across all territories via the ASC API (2026-09-10). The only
 thing left between here and submission is the submit decision itself
