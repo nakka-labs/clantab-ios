@@ -739,6 +739,39 @@ describe("GroupDO", () => {
     });
   });
 
+  describe('mergeMembers (CHECKLIST.md "Merge duplicate members")', () => {
+    it("refuses to merge two members who are each already claimed by a real identity → MERGE_CONFLICT", async () => {
+      const g = group("g-merge-both-claimed");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "MBC234");
+      const { member: indra2 } = await g.addMember("Indra 2");
+      await g.claim(ana.id, "apple:ana-sub");
+      await g.claim(indra2.id, "google:indra2-sub");
+
+      const r = await g.mergeMembers(ana.id, indra2.id);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe("MERGE_CONFLICT");
+
+      // Refused, not partially applied — both members still stand, both
+      // still claimed by their own identity.
+      expect((await g.getState()).members.map((m) => m.id)).toEqual(expect.arrayContaining([ana.id, indra2.id]));
+      expect(await g.memberIdentity(ana.id)).toEqual({ sub: "apple:ana-sub" });
+      expect(await g.memberIdentity(indra2.id)).toEqual({ sub: "google:indra2-sub" });
+    });
+
+    it("merging a claimed member into an unclaimed one carries the identity over", async () => {
+      const g = group("g-merge-claim-carryover");
+      const { member: ana } = await g.initGroup("Trip", "USD", "Ana", "MCC234");
+      const { member: indra2 } = await g.addMember("Indra 2");
+      await g.claim(indra2.id, "google:indra2-sub");
+
+      const r = await g.mergeMembers(ana.id, indra2.id);
+      expect(r.ok).toBe(true);
+
+      expect(await g.memberIdentity(ana.id)).toEqual({ sub: "google:indra2-sub" });
+      expect((await g.claimable()).members.map((m) => m.id)).not.toContain(ana.id);
+    });
+  });
+
   describe("claimedRecipientsExcluding (FEATURE_BACKLOG.md — push notifications)", () => {
     it("lists every claimed member except the one excluded, with its memberId, and skips guests", async () => {
       const g = group("g-notify");

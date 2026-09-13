@@ -491,6 +491,118 @@ export class GroupDO extends DurableObject {
     return ok({ removed: true });
   }
 
+  /** Fold `mergeId`'s entire history onto `keepId`, then delete `mergeId`
+   * (`CHECKLIST.md` "Merge duplicate members" — round-3 playtest, two
+   * accidental "indra" members in one group with no way to combine them).
+   *
+   * **Permanent — there is no undo.** Every reassignment below is an
+   * in-place `UPDATE` (no soft-delete column to restore from, unlike an
+   * expense/settlement), and `mergeId`'s member row is hard-`DELETE`d at
+   * the end. The caller (`index.ts`) is expected to have gotten explicit,
+   * plainly-worded confirmation before ever reaching this method — see
+   * that route's own doc comment.
+   *
+   * Refuses (`MERGE_CONFLICT`) in the two cases where "merge" would be the
+   * wrong operation entirely, not just a risky one:
+   *  - both members are already claimed by a signed-in identity — two real
+   *    accounts colliding is a different problem than a typo placeholder,
+   *    and silently reassigning someone's linked identity is not this
+   *    method's job.
+   *  - both members already have a split on the very same expense — they
+   *    were both actually on that expense as distinct people, so summing
+   *    or dropping one side's split would misrepresent what happened
+   *    rather than fix a duplicate.
+   */
+  async mergeMembers(keepId: string, mergeId: string): Promise<Result<{ member: Member }>> {
+    if (keepId === mergeId) {
+      const row = this.sql.exec<MemberRow>("SELECT * FROM members WHERE id = ?", keepId).toArray()[0];
+      if (row === undefined) return fail("NOT_FOUND", `Member "${keepId}" is not in this group.`);
+      return ok({ member: this.toMember(row) }); // no-op: nothing to merge
+    }
+
+    const rows = this.sql
+      .exec<MemberRow>("SELECT * FROM members WHERE id IN (?, ?)", keepId, mergeId)
+      .toArray();
+    const keep = rows.find((r) => r.id === keepId);
+    const merge = rows.find((r) => r.id === mergeId);
+    if (keep === undefined) return fail("NOT_FOUND", `Member "${keepId}" is not in this group.`);
+    if (merge === undefined) return fail("NOT_FOUND", `Member "${mergeId}" is not in this group.`);
+
+    if (keep.identity_sub !== null && merge.identity_sub !== null) {
+      return fail(
+        "MERGE_CONFLICT",
+        "Both members are linked to a signed-in account. That's two real accounts, not a duplicate.",
+      );
+    }
+
+    const overlap = this.sql
+      .exec<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM expense_splits a
+         JOIN expense_splits b ON a.expense_id = b.expense_id
+         WHERE a.member_id = ? AND b.member_id = ?`,
+        keepId,
+        mergeId,
+      )
+      .toArray()[0]!.n;
+    if (overlap > 0) {
+      return fail(
+        "MERGE_CONFLICT",
+        "These members are both on the same expense already — they aren't actually the same person.",
+      );
+    }
+
+    // Forensic-only — queryable via `wrangler tail` after the fact if a
+    // merge ever needs explaining. Not a restore mechanism (see the
+    // method's own doc comment): logged *before* the delete below so it's
+    // never lost to a mid-write failure.
+    console.log(
+      `mergeMembers: group=${this.requireMeta(META_KEYS.name)} keep=${keepId} (${keep.display_name}) merge=${mergeId} (${merge.display_name}) at=${new Date().toISOString()}`,
+    );
+
+    this.sql.exec("UPDATE expenses SET payer_id = ? WHERE payer_id = ?", keepId, mergeId);
+    this.sql.exec("UPDATE expense_splits SET member_id = ? WHERE member_id = ?", keepId, mergeId);
+    this.sql.exec("UPDATE settlements SET from_id = ? WHERE from_id = ?", keepId, mergeId);
+    this.sql.exec("UPDATE settlements SET to_id = ? WHERE to_id = ?", keepId, mergeId);
+    this.sql.exec("UPDATE comments SET author_member_id = ? WHERE author_member_id = ?", keepId, mergeId);
+
+    // A member might be a *non-primary* payer on a multi-payer expense
+    // (`CHECKLIST.md` "Multiple payers on one expense") — the `UPDATE
+    // expenses` above only ever touches `payer_id`, the first payer. These
+    // blobs are small, so it's simplest to rewrite in JS than add a SQL
+    // JSON update just for this (same call this file already made in
+    // `removeMember`'s reference scan).
+    const multiPayerRows = this.sql
+      .exec<{ id: string; payers: string }>("SELECT id, payers FROM expenses WHERE payers IS NOT NULL")
+      .toArray();
+    for (const row of multiPayerRows) {
+      const payers = JSON.parse(row.payers) as ExpensePayment[];
+      if (!payers.some((p) => p.memberId === mergeId)) continue;
+      const rewritten = payers.map((p) => (p.memberId === mergeId ? { ...p, memberId: keepId } : p));
+      this.sql.exec("UPDATE expenses SET payers = ? WHERE id = ?", JSON.stringify(rewritten), row.id);
+    }
+
+    // Carry over whichever side has data the other lacks — never silently
+    // drop it. `identity_sub` is exclusive by construction (the check
+    // above refused if both were set); `avatar_key`/`upi_vpa` just prefer
+    // whichever member already had one.
+    this.sql.exec(
+      `UPDATE members SET
+         identity_sub = COALESCE(identity_sub, ?),
+         avatar_key = COALESCE(avatar_key, ?),
+         upi_vpa = COALESCE(upi_vpa, ?)
+       WHERE id = ?`,
+      merge.identity_sub,
+      merge.avatar_key,
+      merge.upi_vpa,
+      keepId,
+    );
+
+    this.sql.exec("DELETE FROM members WHERE id = ?", mergeId);
+
+    const updated = this.sql.exec<MemberRow>("SELECT * FROM members WHERE id = ?", keepId).toArray()[0]!;
+    return ok({ member: this.toMember(updated) });
+  }
+
   private groupSummary(): GroupSummary {
     return {
       name: this.requireMeta(META_KEYS.name),

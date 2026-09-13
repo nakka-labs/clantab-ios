@@ -62,6 +62,13 @@ struct GroupSettingsView: View {
     @Environment(\.avatarImageLoader) private var avatarLoader
     @State private var pickedCover: PhotosPickerItem?
     @State private var isSavingCover = false
+    /// Merge duplicate members (`CHECKLIST.md` "Merge duplicate members") —
+    /// `mergingDuplicate` opens the "merge into…" target picker; once one's
+    /// picked, `pendingMerge` drives the confirmation. Two steps, not one
+    /// combined sheet, so the confirmation dialog's title can name both
+    /// people once they're both known.
+    @State private var mergingDuplicate: Member?
+    @State private var pendingMerge: (duplicate: Member, keep: Member)?
 
     init(
         groupId: String,
@@ -135,35 +142,12 @@ struct GroupSettingsView: View {
 
             Section {
                 ForEach(state.members) { member in
-                    Button {
-                        renameText = member.displayName
-                        renamingMember = member
-                    } label: {
-                        HStack(spacing: 10) {
-                            MemberAvatar(member, size: 28)
-                            Text(member.displayName).foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "pencil").font(.caption).foregroundStyle(.tertiary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .swipeActions {
-                        // Omitted rather than shown disabled when we already
-                        // know it'll be rejected (`CHECKLIST.md` UX audit
-                        // [21]) — the section footer below states the rule,
-                        // this is just not offering the one swipe action
-                        // that would silently fail against it.
-                        if isRemovable(member) {
-                            Button("Remove", role: .destructive) { Task { await remove(member) } }
-                        }
-                        Button("Report") { reportingTarget = (.member(id: member.id), member.displayName) }
-                            .tint(.orange)
-                    }
+                    memberRow(member)
                 }
             } header: {
                 Text("Members")
             } footer: {
-                Text("A member can only be removed if they have no expenses or settlements and aren't signed in.")
+                Text("A member can only be removed if they have no expenses or settlements and aren't signed in. Two accidental duplicates (a typo, someone added twice) can be folded into one with Merge — that can't be undone.")
             }
 
             Section {
@@ -223,33 +207,7 @@ struct GroupSettingsView: View {
             // (`CHECKLIST.md` UX audit [20]). One red-tinted "Danger Zone"
             // groups them instead, each row carrying its own warning icon
             // and consequence line.
-            Section {
-                DangerZoneRow(
-                    icon: "arrow.triangle.2.circlepath",
-                    title: "Regenerate Link",
-                    caption: "Makes a fresh invite link and code; the old ones stop working immediately, for anyone still holding them. Not undoable.",
-                    isLoading: isRegenerating,
-                    action: { confirmingRegenerate = true }
-                )
-                DangerZoneRow(
-                    icon: "archivebox",
-                    title: state.group.archivedAt == nil ? "Archive Group" : "Unarchive Group",
-                    caption: state.group.archivedAt == nil
-                        ? "Hides the group from everyone's list once the trip's over. Nothing is deleted, and any member can bring it back."
-                        : "This group is archived. Unarchive it to move it back into everyone's list.",
-                    isLoading: isArchiving,
-                    action: { Task { await setArchived(state.group.archivedAt == nil) } }
-                )
-                DangerZoneRow(
-                    icon: "rectangle.portrait.and.arrow.right",
-                    title: "Leave This Group",
-                    caption: "Removes this group from this device. Your expenses stay for everyone else.",
-                    isLoading: false,
-                    action: { confirmingLeave = true }
-                )
-            } header: {
-                Text("Danger Zone").foregroundStyle(.red)
-            }
+            dangerZoneSection
         }
         .materialSheetContent()
         .navigationTitle("Group Settings")
@@ -282,6 +240,24 @@ struct GroupSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The old link and join code stop working immediately, for anyone still holding them. Not undoable.")
+        }
+        .sheet(item: $mergingDuplicate) { duplicate in
+            NavigationStack { mergeTargetPicker(for: duplicate) }
+        }
+        // The dialog's own title says "can't be undone" in plain words —
+        // deliberate, matching every other permanent action in this
+        // screen's own Danger Zone, and the one fact this action can't
+        // afford to leave to the message body alone (`CHECKLIST.md`
+        // "Merge duplicate members").
+        .confirmationDialog(
+            "This can't be undone",
+            isPresented: Binding(get: { pendingMerge != nil }, set: { if !$0 { pendingMerge = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingMerge
+        ) { pending in
+            mergeConfirmationActions(pending)
+        } message: { pending in
+            mergeConfirmationMessage(pending)
         }
         .onChange(of: pickedCover) { _, item in
             guard let item else { return }
@@ -487,6 +463,39 @@ struct GroupSettingsView: View {
         }
     }
 
+    /// Regenerate/Archive/Leave, one red-tinted section (`CHECKLIST.md` UX
+    /// audit [20]) — pulled out of `body` for the same type-checker-
+    /// complexity reason as `joinCodeSection`/`defaultSplitSection`.
+    private var dangerZoneSection: some View {
+        Section {
+            DangerZoneRow(
+                icon: "arrow.triangle.2.circlepath",
+                title: "Regenerate Link",
+                caption: "Makes a fresh invite link and code; the old ones stop working immediately, for anyone still holding them. Not undoable.",
+                isLoading: isRegenerating,
+                action: { confirmingRegenerate = true }
+            )
+            DangerZoneRow(
+                icon: "archivebox",
+                title: state.group.archivedAt == nil ? "Archive Group" : "Unarchive Group",
+                caption: state.group.archivedAt == nil
+                    ? "Hides the group from everyone's list once the trip's over. Nothing is deleted, and any member can bring it back."
+                    : "This group is archived. Unarchive it to move it back into everyone's list.",
+                isLoading: isArchiving,
+                action: { Task { await setArchived(state.group.archivedAt == nil) } }
+            )
+            DangerZoneRow(
+                icon: "rectangle.portrait.and.arrow.right",
+                title: "Leave This Group",
+                caption: "Removes this group from this device. Your expenses stay for everyone else.",
+                isLoading: false,
+                action: { confirmingLeave = true }
+            )
+        } header: {
+            Text("Danger Zone").foregroundStyle(.red)
+        }
+    }
+
     /// One row of the "Danger Zone" section (`CHECKLIST.md` UX audit [20]) —
     /// a leading warning icon plus a title/consequence pair, replacing what
     /// used to be three separate `Section`s each with their own footer.
@@ -624,6 +633,40 @@ struct GroupSettingsView: View {
         }
     }
 
+    // Pulled out of the members `Section`'s `ForEach` — folding this
+    // directly into `body` hit the same type-checker complexity ceiling
+    // this codebase keeps running into (see `joinCodeSection`,
+    // `SettleUpView.upiNudgeSection`).
+    private func memberRow(_ member: Member) -> some View {
+        Button {
+            renameText = member.displayName
+            renamingMember = member
+        } label: {
+            HStack(spacing: 10) {
+                MemberAvatar(member, size: 28)
+                Text(member.displayName).foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "pencil").font(.caption).foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .swipeActions {
+            // Omitted rather than shown disabled when we already know it'll
+            // be rejected (`CHECKLIST.md` UX audit [21]) — the section
+            // footer below states the rule, this is just not offering the
+            // one swipe action that would silently fail against it.
+            if isRemovable(member) {
+                Button("Remove", role: .destructive) { Task { await remove(member) } }
+            }
+            if state.members.count > 1 {
+                Button("Merge…") { mergingDuplicate = member }
+                    .tint(.purple)
+            }
+            Button("Report") { reportingTarget = (.member(id: member.id), member.displayName) }
+                .tint(.orange)
+        }
+    }
+
     private func isRemovable(_ member: Member) -> Bool {
         Self.isRemovable(member, myMemberId: myMemberId, expenses: state.expenses, settlements: state.settlements)
     }
@@ -650,6 +693,62 @@ struct GroupSettingsView: View {
         errorMessage = nil
         do {
             try await client.removeMember(groupId: groupId, memberId: member.id, accessToken: accessToken)
+            onChanged()
+        } catch {
+            errorMessage = friendlyMessage(for: error)
+        }
+    }
+
+    // MARK: - Merge duplicate members (CHECKLIST.md "Merge duplicate members")
+
+    /// "Who is `duplicate` actually the same person as?" — every other
+    /// member, tap one to move to the confirmation. Deliberately not
+    /// `MemberPickerView` (that screen's "Add <name>" affordance makes no
+    /// sense here — a merge target has to already exist).
+    private func mergeTargetPicker(for duplicate: Member) -> some View {
+        List(state.members.filter { $0.id != duplicate.id }) { candidate in
+            Button {
+                mergingDuplicate = nil
+                pendingMerge = (duplicate: duplicate, keep: candidate)
+            } label: {
+                HStack(spacing: 12) {
+                    MemberAvatar(candidate, size: 28)
+                    Text(candidate.displayName)
+                }
+            }
+            .tint(.primary)
+        }
+        .navigationTitle("Merge \(duplicate.displayName) Into…")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { mergingDuplicate = nil }
+            }
+        }
+    }
+
+    // Pulled out of the confirmation dialog's own closures — folding these
+    // directly into `body`'s modifier chain hit the same type-checker
+    // complexity ceiling this codebase keeps running into (see
+    // `joinCodeSection`, `SettleUpView.upiNudgeSection`).
+    @ViewBuilder
+    private func mergeConfirmationActions(_ pending: (duplicate: Member, keep: Member)) -> some View {
+        Button("Merge \(pending.duplicate.displayName) into \(pending.keep.displayName)", role: .destructive) {
+            Task { await mergeMembers(pending) }
+        }
+        Button("Cancel", role: .cancel) {}
+    }
+
+    private func mergeConfirmationMessage(_ pending: (duplicate: Member, keep: Member)) -> Text {
+        Text("Every expense, settlement, and comment of \(pending.duplicate.displayName)'s moves onto \(pending.keep.displayName), and \(pending.duplicate.displayName) is deleted. There's no undo and no restore — only do this if you're sure they're the same person.")
+    }
+
+    private func mergeMembers(_ pending: (duplicate: Member, keep: Member)) async {
+        errorMessage = nil
+        do {
+            _ = try await client.mergeMembers(
+                groupId: groupId, memberId: pending.duplicate.id, into: pending.keep.id, accessToken: accessToken
+            )
             onChanged()
         } catch {
             errorMessage = friendlyMessage(for: error)

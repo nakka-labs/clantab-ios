@@ -1461,6 +1461,121 @@ describe("group + member settings", () => {
   });
 });
 
+describe('POST /api/groups/:groupId/members/:memberId/merge (CHECKLIST.md "Merge duplicate members")', () => {
+  let groupId: string;
+  let token: string;
+  let a: string; // the "keep" member for most cases
+  let b: string; // the "merge" (duplicate) member for most cases
+
+  beforeEach(async () => {
+    const g = await makeGroup();
+    groupId = g.groupId;
+    token = g.token;
+    a = g.creatorId;
+    b = await addMember(groupId, "Indra 2", token);
+  });
+
+  it("reassigns an expense payer, its splits, a settlement, and a comment onto the kept member", async () => {
+    // `a` and `b` deliberately never share a split on the same expense here
+    // — that's the one case `mergeMembers` refuses (tested separately
+    // below), since two people already on the same expense aren't a
+    // duplicate to silently resolve.
+    const c = await addMember(groupId, "Cara", token);
+    const expenseRes = await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: b, amountMinor: 1000 }], amountMinor: 1000, description: "Lunch", date: "2026-01-01T12:00:00Z",
+        splitType: "equal", splits: [{ memberId: b, amountMinor: 500 }, { memberId: c, amountMinor: 500 }],
+      },
+      token,
+    );
+    const expenseId = (expenseRes.json.expense as Json).id as string;
+    await post(`/api/groups/${groupId}/expenses/${expenseId}/comments`, { authorMemberId: b, text: "hi" }, token);
+    await post(`/api/groups/${groupId}/settlements`, { fromId: a, toId: b, amountMinor: 200, currency: "INR" }, token);
+
+    const { status, json } = await post(`/api/groups/${groupId}/members/${b}/merge`, { into: a }, token);
+    expect(status).toBe(200);
+    expect((json.member as Json).id).toBe(a);
+
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    expect((state.json.members as Json[]).map((m) => m.id)).not.toContain(b);
+    const expense = (state.json.expenses as Json[])[0]!;
+    expect(expense.payers).toEqual([{ memberId: a, amountMinor: 1000 }]);
+    expect(
+      ((await get(`/api/groups/${groupId}/expenses/${expenseId}/comments`, undefined, token)).json.comments as Json[])[0],
+    ).toMatchObject({ authorMemberId: a });
+    const settlement = (state.json.settlements as Json[])[0]!;
+    expect(settlement.fromId).toBe(a);
+    expect(settlement.toId).toBe(a);
+  });
+
+  it("merges a multi-payer expense's non-primary payer entry", async () => {
+    const c = await addMember(groupId, "Cara", token);
+    await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 700 }, { memberId: b, amountMinor: 300 }],
+        amountMinor: 1000, description: "Groceries", date: "2026-01-01T12:00:00Z",
+        splitType: "equal", splits: [{ memberId: a, amountMinor: 500 }, { memberId: c, amountMinor: 500 }],
+      },
+      token,
+    );
+
+    const { status } = await post(`/api/groups/${groupId}/members/${b}/merge`, { into: a }, token);
+    expect(status).toBe(200);
+
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    const expense = (state.json.expenses as Json[])[0]!;
+    expect(expense.payers).toEqual([{ memberId: a, amountMinor: 700 }, { memberId: a, amountMinor: 300 }]);
+  });
+
+  it("carries over avatar/UPI VPA from the merged member when the kept one has none", async () => {
+    await patch(`/api/groups/${groupId}/members/${b}`, { upiVpa: "indra2@upi" }, token);
+
+    const { json } = await post(`/api/groups/${groupId}/members/${b}/merge`, { into: a }, token);
+    expect(json.member).toMatchObject({ id: a, upiVpa: "indra2@upi" });
+  });
+
+  it("merging a member into itself is a harmless no-op", async () => {
+    const { status, json } = await post(`/api/groups/${groupId}/members/${a}/merge`, { into: a }, token);
+    expect(status).toBe(200);
+    expect((json.member as Json).id).toBe(a);
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    expect((state.json.members as Json[]).map((m) => m.id)).toContain(a);
+  });
+
+  it("refuses to merge two members already on the same expense → 409 MERGE_CONFLICT", async () => {
+    await post(
+      `/api/groups/${groupId}/expenses`,
+      {
+        payers: [{ memberId: a, amountMinor: 1000 }], amountMinor: 1000, description: "Dinner", date: "2026-01-01T12:00:00Z",
+        splitType: "equal", splits: [{ memberId: a, amountMinor: 500 }, { memberId: b, amountMinor: 500 }],
+      },
+      token,
+    );
+
+    const { status, json } = await post(`/api/groups/${groupId}/members/${b}/merge`, { into: a }, token);
+    expect(status).toBe(409);
+    expect((json.error as Json).code).toBe("MERGE_CONFLICT");
+
+    // Refused, not partially applied — both members still stand, untouched.
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    expect((state.json.members as Json[]).map((m) => m.id)).toEqual(expect.arrayContaining([a, b]));
+  });
+
+  it("merging an unknown member → 404", async () => {
+    expect((await post(`/api/groups/${groupId}/members/ghost/merge`, { into: a }, token)).status).toBe(404);
+  });
+
+  it("merging into an unknown member → 404", async () => {
+    expect((await post(`/api/groups/${groupId}/members/${b}/merge`, { into: "ghost" }, token)).status).toBe(404);
+  });
+
+  it("merge with no 'into' field → 400", async () => {
+    expect((await post(`/api/groups/${groupId}/members/${b}/merge`, {}, token)).status).toBe(400);
+  });
+});
+
 describe("POST /api/groups/:groupId/report (Apple Guideline 1.2, SHIP_PLAN.md Track 3 §7)", () => {
   let groupId: string;
   let token: string;

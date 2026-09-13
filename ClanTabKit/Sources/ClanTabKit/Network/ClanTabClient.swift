@@ -138,6 +138,27 @@ public actor ClanTabClient {
         try await performNoContent(request)
     }
 
+    /// Fold `memberId`'s entire history onto `into`, then delete `memberId`
+    /// (`CHECKLIST.md` "Merge duplicate members").
+    ///
+    /// **Permanent — there is no undo of any kind.** No soft-delete, no
+    /// restore path (the CloudKit group backup is write-only, `App/ClanTab/
+    /// CloudKitBackup.swift` — it doesn't help here either). The caller must
+    /// have already gotten explicit confirmation whose title says "can't be
+    /// undone" in plain words before ever calling this — see
+    /// `GroupSettingsView`'s merge action.
+    ///
+    /// Throws `.server(code: "MERGE_CONFLICT", …)` if both members are
+    /// already linked to a signed-in account, or if they already share a
+    /// split on the same expense (they aren't actually the same person).
+    public func mergeMembers(groupId: String, memberId: String, into: String, accessToken: String? = nil) async throws -> JoinGroupResponse {
+        try await post(
+            "api/groups/\(groupId)/members/\(memberId)/merge",
+            body: MergeMemberRequest(into: into),
+            accessToken: accessToken
+        )
+    }
+
     /// Rotate the group's `access_token` — every previously shared link/code
     /// stops working immediately (`ACCESS_TOKEN_PLAN.md` Part 1). Needs the
     /// *current* token (or nothing, for a not-yet-tokened group) to

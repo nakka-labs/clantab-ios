@@ -115,6 +115,7 @@ const ROUTES: Route[] = [
   route("POST", "/api/groups/:groupId/members", handleJoinGroup),
   route("PATCH", "/api/groups/:groupId/members/:memberId", handleRenameMember),
   route("DELETE", "/api/groups/:groupId/members/:memberId", handleRemoveMember),
+  route("POST", "/api/groups/:groupId/members/:memberId/merge", handleMergeMember),
   route("GET", "/api/groups/:groupId", handleGetState),
   route("PATCH", "/api/groups/:groupId", handleUpdateGroup),
   route("POST", "/api/groups/:groupId/regenerate-link", handleRegenerateLink),
@@ -364,6 +365,20 @@ async function handleRenameMember(request: Request, env: Env, params: Params): P
   return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
 }
 
+/** Fold `:memberId`'s entire history onto `into` and delete `:memberId`
+ * (`CHECKLIST.md` "Merge duplicate members"). **Permanent — no undo, no
+ * restore path** (`GroupDO.mergeMembers`'s own doc comment has the full
+ * reasoning). The app is expected to have shown a confirmation whose title
+ * says "can't be undone" in plain words before ever calling this. */
+async function handleMergeMember(request: Request, env: Env, params: Params): Promise<Response> {
+  const group = await requireGroup(request, env, params.groupId ?? "");
+  const body = await readJsonObject(request);
+  rejectUnknownKeys(body, ["into"]);
+  const into = requireString(body, "into");
+  const result = await group.mergeMembers(into, params.memberId ?? "");
+  return result.ok ? json(200, result.value) : domainErrorResponse(result.error);
+}
+
 async function handleRemoveMember(request: Request, env: Env, params: Params): Promise<Response> {
   const group = await requireGroup(request, env, params.groupId ?? "");
   const result = await group.removeMember(params.memberId ?? "");
@@ -518,10 +533,12 @@ function parseSettlementBody(body: Record<string, unknown>, allowId: boolean): A
   };
 }
 
-/** A `Result` domain error → HTTP status: `NOT_FOUND` → 404, `MEMBER_IN_USE` →
- * 409, everything else (bad split, unknown split member, …) → 400. */
+/** A `Result` domain error → HTTP status: `NOT_FOUND` → 404, `MEMBER_IN_USE`/
+ * `MERGE_CONFLICT` → 409, everything else (bad split, unknown split
+ * member, …) → 400. */
 function domainErrorResponse(error: { code: string; message: string }): Response {
-  const status = error.code === "NOT_FOUND" ? 404 : error.code === "MEMBER_IN_USE" ? 409 : 400;
+  const status =
+    error.code === "NOT_FOUND" ? 404 : error.code === "MEMBER_IN_USE" || error.code === "MERGE_CONFLICT" ? 409 : 400;
   return json(status, { error });
 }
 

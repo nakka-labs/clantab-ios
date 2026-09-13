@@ -2887,19 +2887,17 @@ remains (below), same shape as round 2's closeout.
 
 **v1.1 backlog — real demand, scoped and ready, deliberately not v1.0.**
 Unlike the plain-bullet items above (open questions or rejected-for-now
-ideas), these three carry a concrete execution plan each, drafted
-2026-09-13 against the actual current schema/endpoints, ready to pick up
-as ordinary "To do" items whenever v1.1 work starts.
+ideas), these carry a concrete execution plan each, drafted 2026-09-13
+against the actual current schema/endpoints, ready to pick up as ordinary
+"To do" items whenever v1.1 work starts. "Merge duplicate members" was
+pulled forward and finished same-day (marked `[x]` below) rather than
+waiting for v1.1 — the other two are still genuinely parked.
 
-- [ ] **Merge duplicate members.** `~40-60k` — real demand (round-3
+- [x] **Merge duplicate members.** Done 2026-09-13 — pulled forward out
+      of the v1.1 backlog same-day, in parallel with the Owner's
+      real-device TestFlight pass on build 11. Real demand (round-3
       playtest, 2026-09-13 — two accidental/typo "indra" members in one
-      group with no way to combine them). Parked for v1.1, not because
-      it's low-value but because it's genuinely large — a data-merge
-      across every table that references a member id, not a UI-only fix.
-      Grounded 2026-09-13 against the actual schema
-      (`worker/src/lib/schema.ts` `GROUP_SCHEMA`,
-      `worker/src/group-do.ts` `removeMember`'s existing reference-check
-      is the map of every table involved).
+      group with no way to combine them).
       **Permanent, with no undo of any kind — confirmed 2026-09-13, this
       is load-bearing for the whole design, not a caveat to add later.**
       Unlike deleting an expense or settlement (soft-delete —
@@ -2923,53 +2921,59 @@ as ordinary "To do" items whenever v1.1 work starts.
       undo window (e.g. holding the pre-merge member/reassignment data
       for N days before the hard delete) — a deliberately separate,
       later decision, not something to half-build now.
-      1. Worker: `GroupDO.mergeMembers(keepId, mergeId)` — one write,
-         same shape as `removeMember`'s existing reference scan.
-         Reassign `expenses.payer_id`, `settlements.from_id/to_id`,
-         `comments.author_member_id` (plain `UPDATE ... WHERE = mergeId`);
-         rewrite each `expenses.payers` JSON blob entry whose `memberId
-         == mergeId`; `expense_splits` needs care — its PK is
-         `(expense_id, member_id)`, so an expense where *both* `keepId`
-         and `mergeId` already have a split is a real conflict (they
-         were both actually on that expense — not a duplicate-name
-         situation), not something to silently sum. Refuse the whole
-         merge with a new `MERGE_CONFLICT` error in that case; the UI
-         surfaces it as "these aren't actually the same person" rather
-         than attempting a partial merge.
-      2. Worker: identity/avatar conflict rule — refuse (`MERGE_CONFLICT`)
-         if *both* members have a non-null `identity_sub` (two real,
-         separately-claimed accounts is a different problem than a typo
-         placeholder); otherwise carry over whichever `identity_sub`/
-         `avatar_key` is non-null onto the kept row. Finally delete the
-         `mergeId` row (hard delete — see the permanence note above).
-      3. Worker: log the merge before deleting anything — one structured
-         `console.log` line (group id, both member ids + display names,
-         which one was kept, timestamp), the same "at least we can see
-         what happened" role `CloudKitGroupBackup`'s own logging plays
-         elsewhere. Purely forensic, queryable via `wrangler tail` after
-         the fact — explicitly *not* a restore mechanism, and the plan
-         and any UI copy must never imply it is one.
-      4. New route `POST /api/groups/:groupId/members/:memberId/merge`
-         body `{ into: <keepMemberId> }` (`index.ts`, alongside
-         `handleRemoveMember`'s neighbors).
-      5. Kit: `ClanTabClient.mergeMembers(groupId:memberId:into:accessToken:)`
-         + request/response wire types (`ClanTabWireTypes.swift`).
-      6. App: a "Merge into…" action on `GroupSettingsView`'s member row
-         (alongside the existing rename/remove swipe actions) opening a
-         member picker (reuse `MemberPickerView`), then a
-         `.confirmationDialog` — same mechanism as "Delete Account"/
-         "Leave Group" elsewhere in this file, no extra "type the name
-         to confirm" step; the app has no precedent for that heavier
-         pattern and this shouldn't be the first place it appears.
-         **The title itself must say "This can't be undone" in plain
-         words**, not just "Merge members?" — every existing destructive
-         dialog in this app names the specific consequence in its title
-         (`GroupSettingsView.swift`'s own "Leave this group?"/"Delete
-         Account" rows), and "can't be undone" is the one fact this
-         action's title cannot afford to leave to the body text alone.
-      7. Worker tests: the reassignment across every table, the
-         `expense_splits` overlap rejection, the both-claimed rejection,
-         idempotency of a repeat call.
+      1. [x] Worker: `GroupDO.mergeMembers(keepId, mergeId)` — reassigns
+         `expenses.payer_id`, `expense_splits.member_id`,
+         `settlements.from_id/to_id`, `comments.author_member_id`, and
+         rewrites each `expenses.payers` JSON blob entry naming `mergeId`
+         (a non-primary payer on a multi-payer expense). Refuses
+         (`MERGE_CONFLICT`) when `keepId`/`mergeId` already share a split
+         on the same expense — built as a `JOIN expense_splits a JOIN
+         expense_splits b ON a.expense_id = b.expense_id` overlap check —
+         rather than silently summing two people who were genuinely both
+         on that expense.
+      2. [x] Worker: refuses (`MERGE_CONFLICT`) when both members already
+         have a non-null `identity_sub`; otherwise carries over whichever
+         of `identity_sub`/`avatar_key`/`upi_vpa` the losing side has via
+         `COALESCE` (this last field wasn't in the original plan text —
+         added since leaving it behind would silently lose data, the same
+         principle the plan already applied to identity/avatar). Then
+         hard-`DELETE`s the `mergeId` row.
+      3. [x] Worker: one `console.log` line before the delete (group name,
+         both member ids + display names, which was kept, timestamp) —
+         forensic only, verified appearing in `wrangler`/test stdout.
+      4. [x] New route `POST /api/groups/:groupId/members/:memberId/merge`
+         body `{ into: <keepMemberId> }`, `MERGE_CONFLICT` mapped to a 409
+         alongside `MEMBER_IN_USE` in the shared `domainErrorResponse`.
+      5. [x] Kit: `ClanTabClient.mergeMembers(groupId:memberId:into:accessToken:)`
+         + `MergeMemberRequest`, reusing the existing `JoinGroupResponse`
+         (`{member}`) rather than a new response type.
+      6. [x] App: a "Merge…" swipe action on `GroupSettingsView`'s member
+         row (shown whenever the group has another member to merge into)
+         opens a small dedicated target picker — **not** `MemberPickerView`
+         as originally planned: that component's own "Add ‘name’" inline-
+         create affordance makes no sense for picking an existing merge
+         target, so reusing it would have offered a nonsensical action.
+         Picking a target sets up a `.confirmationDialog` titled **"This
+         can't be undone"** (plain words, matching "Leave this group?"/
+         "Delete Account" elsewhere in this screen), whose message names
+         both people and what moves where. Hit the codebase's known
+         type-checker complexity ceiling twice while wiring this in
+         (`GroupSettingsView.body` — same issue `joinCodeSection`/
+         `SettleUpView.upiNudgeSection` document) — fixed by extracting
+         the new dialog's closures into named functions and pulling the
+         member row and the whole Danger Zone section out into their own
+         computed properties, same pattern as the section's existing
+         `joinCodeSection`/`defaultSplitSection`.
+      7. [x] Worker tests: full reassignment across every table (expense
+         payer/splits, a multi-payer entry, a settlement, a comment),
+         avatar/UPI carry-over, the self-merge no-op, the
+         `expense_splits`-overlap `MERGE_CONFLICT`, both-already-claimed
+         `MERGE_CONFLICT` (as a direct `GroupDO` unit test in
+         `group.test.ts`, alongside the existing claim-flow tests — that
+         one needs `claim()`'s identity plumbing, which `routes.test.ts`'s
+         plain access-token auth doesn't exercise), 404s, and the missing-
+         `into`-field 400. `make check` green throughout (kit + worker +
+         iOS build/tests).
 - [ ] **Universal, identity-level display name.** `~50-70k` — real
       demand (round-3 playtest, 2026-09-13 — per-group names that can
       change anytime "can lead to confusion"). Decided 2026-09-13: one

@@ -125,6 +125,19 @@ public struct JoinGroupResponse: Decodable, Sendable {
     public let member: Member
 }
 
+// MARK: - POST /api/groups/:groupId/members/:memberId/merge
+
+/// Fold the member in the URL path onto `into` (`CHECKLIST.md` "Merge
+/// duplicate members"). **Permanent — no undo, no restore path**; see
+/// `ClanTabClient.mergeMembers`'s own doc comment.
+public struct MergeMemberRequest: Encodable, Sendable {
+    public let into: String
+
+    public init(into: String) {
+        self.into = into
+    }
+}
+
 // MARK: - PATCH /api/groups/:groupId/members/:memberId
 
 /// Whether an optional request field should be left alone, cleared, or set to

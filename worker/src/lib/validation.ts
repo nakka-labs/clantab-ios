@@ -15,7 +15,12 @@ export type ValidationCode =
   | "MEMBER_IN_USE"
   // accounts / claim flow (ACCOUNTS_DESIGN.md §6)
   | "ALREADY_CLAIMED"
-  | "IDENTITY_ALREADY_IN_GROUP";
+  | "IDENTITY_ALREADY_IN_GROUP"
+  // merge duplicate members (CHECKLIST.md "Merge duplicate members"): both
+  // are already-claimed accounts (a real conflict, not a typo duplicate), or
+  // both are on the very same expense already (they aren't actually the
+  // same person)
+  | "MERGE_CONFLICT";
 
 /** A validation failure that maps directly to a `DESIGN.md` §2 error envelope. */
 export class ValidationFailure extends Error {
