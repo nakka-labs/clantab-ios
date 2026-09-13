@@ -17,10 +17,19 @@ struct FriendsView: View {
         List {
             if let friends {
                 if friends.isEmpty {
+                    // The old copy ("share a group and they'll show up
+                    // here") was actively misleading — only a co-member who
+                    // has signed in themselves ever appears (`peerSettlements`
+                    // only surfaces a linked identity, by design; a member
+                    // added by typed name alone never counts until they
+                    // claim it). A playtester in several groups full of
+                    // people still saw a bare empty state and read it as
+                    // broken, not "nobody's signed in yet" (`CHECKLIST.md`
+                    // "Friend playtest, round 3").
                     ContentUnavailableView(
                         "No Friends Yet",
                         image: "EmptyStateGlyph",
-                        description: Text("Share a group with someone and they'll show up here — settled up or not.")
+                        description: Text("Nobody in your groups has signed into ClanTab yet — only people who have show up here, settled up or not. Share your group's invite link (from Group Options) so they can join.")
                     )
                 } else {
                     // A lone row (or a short list of them) otherwise leaves the
@@ -40,7 +49,7 @@ struct FriendsView: View {
                             }
                         }
                     } footer: {
-                        Text("Anyone you share a group with, settled up or not. Tap someone for your shared history across groups, or to start a private 1:1 tab.")
+                        Text("Anyone who's signed into ClanTab and shares a group with you, settled up or not — someone who hasn't signed in yet won't appear until they do. Tap someone for your shared history across groups, or to start a private 1:1 tab.")
                     }
                 }
             } else if let loadError {

@@ -29,6 +29,7 @@ struct GroupHomeView: View {
     @State private var nudgeError: String?
     @State private var mutationError: String?
     @State private var editingExpense: Expense?
+    @State private var editingSettlement: Settlement?
     @State private var duplicatingExpense: Expense?
     @State private var pendingDelete: ActivityItem?
     @State private var isPresentingAddExpense = false
@@ -36,6 +37,13 @@ struct GroupHomeView: View {
     @State private var isPresentingImport = false
     @State private var isPresentingGroupSettings = false
     @State private var isPresentingRecentlyDeleted = false
+    /// A way back into this group's own charts (`CHECKLIST.md` "Friend
+    /// playtest, round 3") — the build-9 audit deliberately promoted
+    /// Insights to its own tab and removed the in-group entry point, but
+    /// gave Group Home no way back in. `InsightsView` needs no groupId/
+    /// client of its own; it's a pure view over data this screen already
+    /// has loaded.
+    @State private var isPresentingInsights = false
     @State private var isPresentingRecurringReminders = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
@@ -210,7 +218,10 @@ struct GroupHomeView: View {
                                 myMemberId: viewModel.myIdentity?.memberId,
                                 groupId: viewModel.groupId,
                                 client: client,
-                                accessToken: viewModel.accessToken
+                                accessToken: viewModel.accessToken,
+                                expenses: state.expenses,
+                                settlements: state.settlements,
+                                groupMembers: state.members
                             )
                         } label: {
                             MemberBalanceRow(
@@ -260,13 +271,20 @@ struct GroupHomeView: View {
                                     Button(role: .destructive) { pendingDelete = item } label: {
                                         Label("Delete", systemImage: "trash")
                                     }
-                                    if case .expense(let expense) = item.kind {
+                                    switch item.kind {
+                                    case .expense(let expense):
                                         Button { edit(item) } label: { Label("Edit", systemImage: "pencil") }
                                             .tint(.blue)
                                         Button { duplicatingExpense = expense } label: {
                                             Label("Duplicate", systemImage: "doc.on.doc")
                                         }
                                         .tint(.orange)
+                                    case .settlement:
+                                        // No "Duplicate" — a repeated payment isn't
+                                        // the common case the way a repeated
+                                        // expense is.
+                                        Button { edit(item) } label: { Label("Edit", systemImage: "pencil") }
+                                            .tint(.blue)
                                     }
                                 }
                                 // Anchored to the row that triggered it, not the
@@ -395,6 +413,30 @@ struct GroupHomeView: View {
                 ProgressView()
             }
         }
+        // Front and centre, not just a small icon buried in the nav bar
+        // (`CHECKLIST.md` "Friend playtest, round 3") — the build-9 audit
+        // deliberately minimized the toolbar to two items, so this adds
+        // visual weight without reversing that: the toolbar `+` stays for
+        // VoiceOver/quick access, this floating button is the unmissable
+        // one for a sighted glance at the screen.
+        .overlay(alignment: .bottomTrailing) {
+            // Hidden while the undo banner shows — that card spans the same
+            // bottom edge, and the two would visually collide.
+            if viewModel.state != nil, undoBanner == nil {
+                Button {
+                    isPresentingAddExpense = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color.accentColor, in: Circle())
+                        .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                }
+                .padding(20)
+                .accessibilityLabel("Add Expense")
+            }
+        }
         .toolbar {
             // Down to two items (`CHECKLIST.md` UX audit [6] step 2/3): Add
             // Expense, primary, and one "More" menu holding everything else.
@@ -432,6 +474,24 @@ struct GroupHomeView: View {
                 )
             }
             .materialSheet()
+        }
+        .sheet(isPresented: $isPresentingInsights) {
+            if let state = viewModel.state {
+                NavigationStack {
+                    InsightsView(
+                        expenses: state.expenses,
+                        members: state.members,
+                        groupName: state.group.name,
+                        groupEmoji: state.group.emoji
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { isPresentingInsights = false }
+                        }
+                    }
+                }
+                .materialSheet()
+            }
         }
         .sheet(isPresented: $isPresentingSettleUp) {
             NavigationStack {
@@ -488,6 +548,24 @@ struct GroupHomeView: View {
                         Task { await viewModel.refetch() }
                     },
                     onCancel: { editingExpense = nil }
+                )
+            }
+            .materialSheet()
+        }
+        .sheet(item: $editingSettlement) { settlement in
+            NavigationStack {
+                EditSettlementView(
+                    groupId: viewModel.groupId,
+                    members: viewModel.state?.members ?? [],
+                    settlement: settlement,
+                    client: client,
+                    accessToken: viewModel.accessToken,
+                    onSaved: {
+                        editingSettlement = nil
+                        mutationError = nil
+                        Task { await viewModel.refetch() }
+                    },
+                    onCancel: { editingSettlement = nil }
                 )
             }
             .materialSheet()
@@ -614,9 +692,13 @@ struct GroupHomeView: View {
     }
 
     private func edit(_ item: ActivityItem) {
-        if case .expense(let expense) = item.kind {
+        switch item.kind {
+        case .expense(let expense):
             mutationError = nil
             editingExpense = expense
+        case .settlement(let settlement):
+            mutationError = nil
+            editingSettlement = settlement
         }
     }
 
@@ -705,6 +787,11 @@ struct GroupHomeView: View {
                 if !state.expenses.isEmpty || !state.settlements.isEmpty {
                     Section("Filter") {
                         activityFilterMenu(state: state)
+                    }
+                    Section {
+                        Button("View Insights", systemImage: "chart.pie") {
+                            isPresentingInsights = true
+                        }
                     }
                 }
 

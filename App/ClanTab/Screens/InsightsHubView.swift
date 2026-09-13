@@ -21,6 +21,17 @@ struct InsightsHubView: View {
 
     var body: some View {
         List {
+            // Personal totals, not just a bare list of groups (`CHECKLIST.md`
+            // "Friend playtest, round 3") — the same cross-group summary the
+            // dashboard's own header shows; renders nothing until balances
+            // have loaded or every currency nets to zero.
+            if !chartableGroups.isEmpty {
+                Section {
+                    DashboardTotalsHeader(groups: chartableGroups)
+                }
+                .listRowBackground(Color.clear)
+            }
+
             if chartableGroups.isEmpty {
                 ContentUnavailableView {
                     Label { Text("Nothing to Chart Yet") } icon: {
@@ -60,6 +71,16 @@ struct InsightsHubView: View {
                     .background(GroupColor.badge(forId: group.groupId), in: Circle())
             }
             Text(group.name.isEmpty ? "Group" : group.name)
+            Spacer()
+            // Personal owe/owed, not just a bare group name (`CHECKLIST.md`
+            // "Friend playtest, round 3") — same cached `myBalances` and
+            // phrasing the "Your Groups" list already uses, so this hub
+            // isn't just a second, less useful copy of that list.
+            if let line = GroupsListView.balanceLine(for: group) {
+                Text(line)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }

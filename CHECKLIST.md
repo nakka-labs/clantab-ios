@@ -297,6 +297,13 @@
          in either account's main groups list / dashboard totals. This
          is the one class of check the CLI's live-smoke-test couldn't
          cover (every new route needs a real Bearer session).
+         **Added 2026-09-13, once a build carrying the round-3 batch
+         ships:** Delete Account specifically re-checked for "signing
+         back in shows zero groups" (not just "signed out") — the exact
+         bug that batch fixed; an Edit on a settlement row actually
+         saves; a description like "Uber to airport" auto-picks a
+         category; the Group Home floating Add Expense button doesn't
+         collide with the undo banner after a delete.
       5. Owner: tag the version once it passes.
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above, every item under
@@ -2687,6 +2694,11 @@ already shipped-and-working-as-designed (Insights as its own tab, the
 minimized Group Home toolbar, the 3-way split-type control) is noted
 but not reopened; the audits that made those calls were deliberate.
 
+**Batch closed 2026-09-13** — all 13 in-scope items done, `make check`
+green throughout (kit + worker + iOS build/tests), committed on
+`round3-playtest-batch`. Only the Owner-only real-device re-verify
+remains (below), same shape as round 2's closeout.
+
 - [x] **[bug] Delete Account doesn't actually sign the account out
       locally.** Done 2026-09-13. The worker's delete was already correct
       — `handleAuthDeleteAccount` unclaims every membership and wipes the
@@ -2747,61 +2759,98 @@ but not reopened; the audits that made those calls were deliberate.
       `isDirty` concept needed for a one-shot creation step). Both
       optional; "Continue" always works regardless. iOS build +
       `make check` green.
-- [ ] **Edit settlement.** Server (`updateSettlement`) and kit
-      (`ClanTabClient.updateSettlement`) are fully wired; the client
-      never added the UI. Add an "Edit" swipe action on a settlement row
-      (`GroupHomeView`, currently `.expense`-only) opening an edit sheet
-      reusing `SettleUpView`'s fields.
-- [ ] **1:1 expense/settlement history on a group member's profile.**
-      `MemberProfileView`/`FriendDetailView` show only a net balance
-      today. Add a filtered list of the group's own expenses/settlements
-      where both the viewer and that member are involved — data's
-      already loaded client-side, this is a filter + list section.
-      (Cross-group history is out of scope here — bigger, and the
-      Friends tab already gives a cross-group net total.)
-- [ ] **Insights: a way back to a specific group from the group page.**
-      The build-9 audit deliberately promoted Insights to its own tab
-      and removed the in-group entry point — don't reverse that — but
-      give Group Home a way back in: a toolbar/menu item, or make the
-      existing balance bubble chart tappable into that group's
-      `InsightsView`.
-- [ ] **Insights: personal owe/owed totals, not just spend.** The hub
-      (`InsightsHubView`) shows a bare groups list with no numbers at
-      all — add the same per-group net total `DashboardTotals.compute`
-      already produces for the dashboard. Per-category owe/owed (as
-      opposed to per-category *spend*, which already exists) is new
-      domain logic in `Insights.swift`/`Balances.swift` attributing
-      settlement deltas to categories — do this part only if the
-      hub-level number isn't enough on its own.
-- [ ] **Smart category suggestion from expense description.** No
-      suggestion logic exists anywhere. Ship a contained client-side
-      keyword-heuristic version (pure `ClanTabKit` function mapping
-      common merchant/description words to `ExpenseCategory`, wired to
-      fire as the description field changes) — no backend/LLM infra
-      exists or is warranted for this.
-- [ ] **Add Expense: more visual weight as the primary action.** The
-      build-9 audit intentionally minimized Group Home's toolbar to two
-      items; this isn't a regression, just under-weighted. Give the `+`
-      more presence (e.g. a docked prominent button, matching
-      `StartView`'s own CTA treatment) without re-bloating the toolbar.
+- [x] **Edit settlement.** Done 2026-09-13. Server (`updateSettlement`)
+      and kit (`ClanTabClient.updateSettlement`) were fully wired; the
+      client never added the UI. A settlement has no description/category
+      — just from/to/amount/currency (date is preserved server-side) — so
+      it got its own small form, `EditSettlementView`, rather than reusing
+      `SettleUpView` (that screen is the suggested-payments *plan*, a
+      different concept from an already-recorded settlement). Wired into
+      `GroupHomeView`: tapping a settlement row and a new per-row "Edit"
+      swipe action (settlements previously only had "Delete") both open
+      it. iOS build + `make check` green.
+- [x] **1:1 expense/settlement history on a group member's profile.**
+      Done 2026-09-13. `MemberProfileView` showed only a net balance.
+      Added a "Together in This Group" section: every expense where both
+      the viewer and the member appear among payers/splits, and every
+      settlement between the two of them, newest first — reusing the
+      existing `ActivityItem`/`ActivityRow` from `GroupHomeView`'s own
+      feed rather than a new row type. `GroupHomeView` now also passes
+      `state.expenses`/`.settlements`/`.members` through (defaulted to
+      `[]` on the type itself, so no other call site needed touching).
+      Cross-group history stays out of scope — the Friends tab already
+      gives a cross-group net total. iOS build + `make check` green.
+- [x] **Insights: a way back to a specific group from the group page.**
+      Done 2026-09-13. The build-9 audit deliberately promoted Insights
+      to its own tab and removed the in-group entry point — didn't
+      reverse that — but Group Home now has a way back in: a "View
+      Insights" item in the existing "More" menu's Filter section (next
+      to the filter controls, since both act on the same activity data),
+      opening `InsightsView` as a sheet. `InsightsView` needs no groupId/
+      client of its own — it's a pure view over `expenses`/`members`/
+      `groupName`/`groupEmoji`, all of which Group Home already has
+      loaded, so no new fetch. iOS build + `make check` green.
+- [x] **Insights: personal owe/owed totals, not just spend.** Done
+      2026-09-13. The hub (`InsightsHubView`) showed a bare groups list
+      with no numbers at all. Added the cross-group `DashboardTotalsHeader`
+      (same component the dashboard uses, over `DashboardTotals.compute`)
+      above the list, plus a per-row balance line on each group
+      (`GroupsListView.balanceLine(for:)`, reused as-is) — so the hub
+      shows "You owe ₹500 overall" up top and each group's own owe/owed
+      next to its name, not just names. Per-category owe/owed (as opposed
+      to per-category *spend*, which already exists in `InsightsView`)
+      would need new domain logic attributing settlement deltas to
+      categories — skipped for now per the original scope note ("do this
+      part only if the hub-level number isn't enough on its own"); the
+      two additions above already answer the actual complaint. iOS build
+      + `make check` green.
+- [x] **Smart category suggestion from expense description.** Done
+      2026-09-13. No suggestion logic existed anywhere. Added
+      `CategorySuggestion.suggest(for:)` (pure `ClanTabKit`, a
+      first-match keyword table over the same 9 default categories,
+      case-insensitive substring match — "Uber to airport" → Transport,
+      "Costco run" → Groceries, etc.), wired to `AddExpenseView`'s
+      description field via `.onChange`. Only fires while `category ==
+      .uncategorized` — the one value that only ever means "nothing's
+      been picked yet" (an edit/duplicate/recurring-template always sets
+      a real category up front) — so it can never fight a category the
+      user, or another flow, already set. 4 new kit tests. No backend/LLM
+      infra needed or used. iOS build + `make check` green.
+- [x] **Add Expense: more visual weight as the primary action.** Done
+      2026-09-13. The build-9 audit intentionally minimized Group Home's
+      toolbar to two items — didn't reverse that (the toolbar `+` stays,
+      for VoiceOver/quick access). Added a floating 56pt accent-circle
+      button, bottom-trailing, as the unmissable-at-a-glance version;
+      hidden while the undo banner shows since that card spans the same
+      bottom edge and the two would otherwise collide. iOS build +
+      `make check` green.
 - [x] **Rename "Split the cost between payers".** Done 2026-09-13.
       Copy-only — the button's styling/placement already went through
       two polish passes; just the label/icon was stale. Now `Label("Add
       Payer", systemImage: "plus")` when off, "Paid by one person" to
       toggle back. iOS build green.
-- [ ] **Friends list: explain, don't just show empty.** Working as
-      designed — `peerSettlements` only surfaces co-members with a
-      claimed identity (`identity_sub`), so a group added entirely by
-      typed name shows nobody in Friends even though the group is full
-      of people. Don't change the claimed-only invariant (that's the
-      round-2 design); instead give the empty/sparse state an actual
-      explanation + an "invite" affordance for unclaimed co-members
-      pulled from the member's own groups.
-- [ ] **Re-check split-type control on build 10 before touching it.**
-      Both prior audits (build-9, fresh-eyes) already simplified this to
-      a 3-way segmented control + a styled "More Split Types" button.
-      Confirm this feedback isn't stale (pre-build-9) before scoping any
-      further polish here.
+- [x] **Friends list: explain, don't just show empty.** Done 2026-09-13.
+      Working as designed — `peerSettlements` only surfaces co-members
+      with a claimed identity — but the copy actively misled: both the
+      empty state and the populated list's own footer said "share a
+      group and they'll show up," when only a co-member who has *signed
+      in* ever does. Reworded both to say that plainly and point at the
+      actual fix (share the group's invite link so they can join).
+      Didn't build the heavier "surface unclaimed co-members with a
+      per-member invite affordance" — that needs either a new worker
+      endpoint or an extra `fetchGroupState` per known group just to
+      power an empty-state hint; accurate copy alone directly answers
+      what the playtester actually hit. iOS build + `make check` green.
+- [x] **Re-check split-type control on build 10 before touching it.**
+      Verified 2026-09-13, no code change. `AddExpenseView`'s current
+      `Section("Split")` is exactly what both prior audits already
+      produced: a 3-way segmented control (Equally/Exact/%) for the
+      common case, a real centered `.bordered` "More Split Types" button
+      (not a footnote) behind `MoreSplitsSheet` for the rarer Shares/
+      Items modes. Nothing in the current implementation matches "looks
+      like fine print" or "cluttered" — this reads as stale feedback
+      from before build 9, not a new issue on build 10. Leaving as-is
+      rather than speculatively restyling an already-fixed control.
 
 ### Parked — not dropped, revisit deliberately
 

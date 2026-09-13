@@ -445,6 +445,16 @@ struct AddExpenseView: View {
             Section("Expense") {
                 amountRow
                 TextField("Description", text: $description)
+                    // Smart category suggestion (`CHECKLIST.md` "Friend
+                    // playtest, round 3") — only while the category is
+                    // still genuinely unset, so it can never fight a
+                    // category the user (or an edit/duplicate/recurring
+                    // template) already set; `.uncategorized` is the one
+                    // value that only ever means "nothing's been picked."
+                    .onChange(of: description) { _, newValue in
+                        guard category == .uncategorized, let suggestion = CategorySuggestion.suggest(for: newValue) else { return }
+                        category = suggestion
+                    }
                 if isMultiPayer {
                     payerAmountRows
                 } else {

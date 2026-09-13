@@ -20,6 +20,16 @@ struct MemberProfileView: View {
     let groupId: String
     let client: ClanTabClient
     let accessToken: String?
+    /// This group's own active ledger — used only to build "Together in this
+    /// group" below (`CHECKLIST.md` "Friend playtest, round 3"), not for any
+    /// balance math (that stays server-computed, passed in via `balances`/
+    /// `simplifiedSettlements`). Defaults empty so every existing call site
+    /// (and every preview) keeps compiling unchanged.
+    var expenses: [Expense] = []
+    var settlements: [Settlement] = []
+    /// Needed only to resolve names inside `ActivityItem`/`ActivityRow` —
+    /// same list `GroupHomeView`'s own activity feed uses.
+    var groupMembers: [Member] = []
 
     @State private var remindingEdge: SimplifiedSettlement?
     @State private var remindSent: Set<String> = [] // edge ids that got a confirmed "sent"
@@ -32,6 +42,26 @@ struct MemberProfileView: View {
             ($0.fromId == myMemberId && $0.toId == member.id) ||
             ($0.fromId == member.id && $0.toId == myMemberId)
         }
+    }
+
+    /// Every expense/settlement in this group where both me and this member
+    /// are involved — an expense counts if both appear among its payers or
+    /// its splits (so it still counts even if one of us didn't personally
+    /// pay), a settlement if we're its two parties either direction. Newest
+    /// first, same shape as `GroupHomeView`'s own activity feed.
+    private var sharedHistory: [ActivityItem] {
+        guard let myMemberId else { return [] }
+        let sharedExpenses = expenses.filter { expense in
+            let involved = Set(expense.payers.map(\.memberId) + expense.splits.map(\.memberId))
+            return involved.contains(myMemberId) && involved.contains(member.id)
+        }
+        let sharedSettlements = settlements.filter {
+            ($0.fromId == myMemberId && $0.toId == member.id) ||
+            ($0.fromId == member.id && $0.toId == myMemberId)
+        }
+        let items = sharedExpenses.map { ActivityItem(expense: $0, members: groupMembers) }
+            + sharedSettlements.map { ActivityItem(settlement: $0, members: groupMembers) }
+        return items.sorted { $0.date > $1.date }
     }
 
     var body: some View {
@@ -70,6 +100,14 @@ struct MemberProfileView: View {
                     }
                     if let remindError {
                         Text(remindError).foregroundStyle(.red).font(.footnote)
+                    }
+                }
+            }
+
+            if myMemberId != nil, !sharedHistory.isEmpty {
+                Section("Together in This Group") {
+                    ForEach(sharedHistory) { item in
+                        ActivityRow(item: item)
                     }
                 }
             }
