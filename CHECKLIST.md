@@ -3150,13 +3150,17 @@ now that the Insights tab is removed, see above.
       section into Components/RecurringOptionsSection.swift; no
       behavior change. Cheaper than D4 and directly serves D3's rule --
       better ROI than D4 if only one gets picked up.
-- [ ] **[D7, low, cheap] print() in production instead of real
-      logging.** ~4-6k tokens. 5 print() calls (AuthViewModel,
-      CloudKitBackup x3, AppDelegate) -- push-registration and
-      CloudKit-backup failures are currently invisible on a real
-      TestFlight build. Swap for `os.Logger(subsystem:category:)` (free,
-      built-in, visible via Console.app/sysdiagnose) -- not a remote
-      logging pipeline, which would be overkill for this app's scale.
+- [x] **[D7, low, cheap] print() in production instead of real
+      logging.** Done 2026-09-13. All 5 `print()` calls (AuthViewModel,
+      CloudKitBackup x3, AppDelegate) replaced with a file-local
+      `Logger(subsystem: "com.clantab.app", category: …)` (one category
+      per file — "Auth"/"CloudKitBackup"/"Push"), `.error` for every
+      failure path and `.info` for CloudKitBackup's existing "backup ok"
+      success line (previously used for real-device verification, per
+      `CHECKLIST.md`'s CloudKit backup item above). No behavior change —
+      pure logging swap, visible via Console.app/sysdiagnose on a real
+      TestFlight build instead of nowhere. `make check` green (kit +
+      worker + iOS build/tests).
 - [ ] **[D8, low, watch only] worker/src/index.ts: 1657 lines, 46
       inline route handlers.** No dedicated budget. Still
       Ctrl+F-navigable; not urgent. When next touched, move the

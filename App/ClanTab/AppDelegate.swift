@@ -1,6 +1,12 @@
 import UIKit
 import UserNotifications
+import os
 import ClanTabKit
+
+/// Visible via Console.app/sysdiagnose on a real device — unlike `print()`,
+/// which is silent on a TestFlight/release build (`CHECKLIST.md` D7:
+/// push-registration failures were otherwise invisible in the field).
+private let logger = Logger(subsystem: "com.clantab.app", category: "Push")
 
 extension Notification.Name {
     /// Posted by `AppDelegate` when the user taps a push notification
@@ -74,7 +80,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // Expected on the Simulator (no real APNs registration is possible
         // there) and on a real device until the Apple Developer portal setup
         // in `NEXT_STEPS.md` Phase 6 is done — never fatal.
-        print("Push registration failed: \(error)")
+        logger.error("Push registration failed: \(error.localizedDescription)")
     }
 
     private func flushPendingDeviceToken() {

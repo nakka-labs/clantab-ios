@@ -1,6 +1,12 @@
 import CloudKit
 import Foundation
+import os
 import ClanTabKit
+
+/// Visible via Console.app/sysdiagnose on a real device — unlike `print()`,
+/// which is silent on a TestFlight/release build (`CHECKLIST.md` D7: backup
+/// failures were otherwise invisible in the field).
+private let logger = Logger(subsystem: "com.clantab.app", category: "CloudKitBackup")
 
 /// Writes a lossless per-group ledger snapshot somewhere off-device
 /// (`CHECKLIST.md` "CloudKit backup, tier 2"). A *backup destination only* —
@@ -105,13 +111,13 @@ final class CloudKitGroupBackup: GroupBackupWriting {
             // `atomically: true` throws on failure, but confirm the per-record
             // result too before treating the backup as done.
             guard case .success? = result.saveResults[record.recordID] else {
-                print("CloudKit backup for \(groupId): save returned no success result")
+                logger.error("CloudKit backup for \(groupId, privacy: .public): save returned no success result")
                 return
             }
             stateStore.record(CloudBackupState(lastBackupAt: timestamp, checksum: checksum), forGroupId: groupId)
-            print("CloudKit backup ok: \(CloudBackup.recordName(forGroupId: groupId)) (\(snapshot.expenses.count) expenses, \(snapshot.settlements.count) settlements)")
+            logger.info("CloudKit backup ok: \(CloudBackup.recordName(forGroupId: groupId), privacy: .public) (\(snapshot.expenses.count) expenses, \(snapshot.settlements.count) settlements)")
         } catch {
-            print("CloudKit backup failed for \(groupId): \(error)")
+            logger.error("CloudKit backup failed for \(groupId, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 

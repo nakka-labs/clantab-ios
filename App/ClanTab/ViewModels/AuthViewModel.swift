@@ -3,7 +3,13 @@ import Foundation
 import Observation
 import UIKit
 import UserNotifications
+import os
 import ClanTabKit
+
+/// Visible via Console.app/sysdiagnose on a real device — unlike `print()`,
+/// which is silent on a TestFlight/release build (`CHECKLIST.md` D7: device-
+/// token registration failures were otherwise invisible in the field).
+private let logger = Logger(subsystem: "com.clantab.app", category: "Auth")
 
 /// Where the signed-in Apple credential stands right now, as reported by
 /// `ASAuthorizationAppleIDProvider.getCredentialState` on launch
@@ -163,7 +169,7 @@ final class AuthViewModel {
         } catch {
             // Best-effort — a registration failure shouldn't surface as a
             // user-facing error; the next launch tries again.
-            print("registerDeviceToken failed: \(error)")
+            logger.error("registerDeviceToken failed: \(error.localizedDescription)")
         }
     }
 
