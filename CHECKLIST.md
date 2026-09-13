@@ -3045,31 +3045,42 @@ a restatement of those.
       `PersonalInsights`'/`InsightsHubView`'s surviving logic, or (b)
       decide nobody needs it and delete `InsightsHubView.swift`,
       `PersonalInsights.swift`, and their tests outright.
-- [ ] **[flow, moderate] "My UPI ID" shown regardless of group
-      currency.** `GroupSettingsView`'s UPI section is gated only on
-      `myMember != nil` — no currency check — while `SettleUpView`'s own
-      UPI nudge and `UPIPayLink.url` correctly gate on `currency ==
-      "INR"` (UPI's only currency, confirmed in `UPIPayLink.swift`'s own
-      doc comment). A group whose default currency is USD/EUR still
-      prompts every member to add a UPI ID that can never activate for
-      them — confusing for non-Indian users on an app submitted
-      globally. Gate the Group Settings section on the group's currency
-      too, matching Settle Up's existing rule.
-- [ ] **[flow, moderate] "Remind" has no cooldown or history across
-      visits.** `MemberProfileView.remindSent` is `@State` — resets
-      every time the screen closes and reopens. Nothing stops
-      re-reminding the same person repeatedly across separate visits,
-      and there's no "reminded 2h ago" indicator, only a session-only
-      checkmark. Persist last-reminded-at per edge (locally is enough)
-      and show it instead.
-- [ ] **[flow, minor] "Invite" is split across two different screens.**
-      The actual shareable invite link + view-only balances link
-      (`ShareLink("Share Invite Link", ...)` etc.) live in Group Home's
-      "…" → Share menu. Group Options (`GroupSettingsView`) — the screen
-      an owner's own mental model names as "invite, name, picture" —
-      only shows the bare join code to copy, no link. Consider
-      surfacing "Share Invite Link" from Group Options too, so there's
-      one obvious place to invite someone.
+- [x] **[flow, moderate, D9] "My UPI ID" shown regardless of group
+      currency.** Done 2026-09-13. `GroupSettingsView`'s "My UPI ID"
+      `Section` gained the same `currency == "INR"` gate
+      `SettleUpView`'s UPI nudge and `UPIPayLink.url` already use — a
+      USD/EUR group no longer prompts every member for a UPI ID that
+      can never activate for them. Reads the form's own live `currency`
+      `@State`, not `state.group.currency`, so switching currency in the
+      same session hides/shows it immediately, no save required. `make
+      check` green.
+- [x] **[flow, moderate, D10] "Remind" has no cooldown or history across
+      visits.** Done 2026-09-13. New `RemindHistoryStoring` (kit,
+      `Storage/` — `UserDefaults`-backed `[String: Date]` per edge key,
+      same shape as `BalanceAgingStoring`) + pure `RemindHistory` (kit,
+      `Logic/` — `isInCooldown` (4h) and a hand-rolled `relativeLabel`
+      ("2h ago"/"3d ago"), dependency-free rather than
+      `RelativeDateTimeFormatter` since this package also runs on Linux
+      CI). `MemberProfileView.remindSent` (`@State Set`, reset on every
+      screen close) replaced with `lastRemindedAt: [String: Date]`
+      seeded from the store on `.task` and written back through it on
+      every successful send — survives closing and reopening the
+      screen, which is the actual bug. The button now reads "Reminded
+      2h ago" (disabled) instead of a session-only checkmark, and
+      re-enables once the cooldown passes. Defaulted
+      (`remindHistory: RemindHistoryStoring = UserDefaultsRemindHistoryStore()`)
+      so `GroupHomeView`'s one call site needed no change. Tests:
+      `RemindHistoryTests` (10, kit — cooldown boundary, every
+      `relativeLabel` bucket, clock-skew floor, both store
+      conformances). kit 368. `make check` green (kit + worker + iOS
+      build/tests).
+- [x] **[flow, minor, D11] "Invite" is split across two different
+      screens.** Done 2026-09-13. `GroupSettingsView.joinCodeSection`
+      gained a `ShareLink("Share Invite Link", ...)` row using the exact
+      same `AppConfig.groupShareURL(groupId:accessToken:)` Group Home's
+      own "…" → Share menu already builds — one obvious place to invite
+      someone regardless of which screen you land on. `make check`
+      green.
 - [ ] **[flow, minor] Graphs are one tap inside an overflow menu, not on
       Group Home itself.** "View Insights" (this group's own charts,
       `InsightsView`/C11) only opens from the "…" menu. Worth deciding

@@ -30,9 +30,18 @@ struct MemberProfileView: View {
     /// Needed only to resolve names inside `ActivityItem`/`ActivityRow` —
     /// same list `GroupHomeView`'s own activity feed uses.
     var groupMembers: [Member] = []
+    /// Where "last reminded" persists across visits (`CHECKLIST.md` D10) —
+    /// defaulted so the one call site (`GroupHomeView`) needs no changes,
+    /// same pattern `KnownGroupsStore`'s Keychain-backed default uses.
+    var remindHistory: RemindHistoryStoring = UserDefaultsRemindHistoryStore()
 
     @State private var remindingEdge: SimplifiedSettlement?
-    @State private var remindSent: Set<String> = [] // edge ids that got a confirmed "sent"
+    /// Edge key -> when a reminder was last sent, seeded from `remindHistory`
+    /// on appear and kept in sync with it on every send — was a bare
+    /// in-memory `Set` (`CHECKLIST.md` D10), so it reset the moment this
+    /// screen closed and reopened, with nothing stopping a repeat reminder
+    /// on every single visit.
+    @State private var lastRemindedAt: [String: Date] = [:]
     @State private var remindError: String?
 
     /// The settle-up edges that involve both me and this member.
@@ -165,6 +174,7 @@ struct MemberProfileView: View {
         .background(Surface.canvas)
         .navigationTitle(member.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .task { lastRemindedAt = remindHistory.load() }
     }
 
     @ViewBuilder
@@ -203,8 +213,11 @@ struct MemberProfileView: View {
     @ViewBuilder
     private func remindButton(_ edge: SimplifiedSettlement) -> some View {
         let key = edgeKey(edge)
-        if remindSent.contains(key) {
-            Label("Reminder sent", systemImage: "checkmark.circle")
+        if let lastSent = lastRemindedAt[key], RemindHistory.isInCooldown(lastRemindedAt: lastSent) {
+            // A real timestamp, not a session-only checkmark (`CHECKLIST.md`
+            // D10) — survives closing and reopening this screen, so
+            // reopening it can't be used to route around the cooldown.
+            Label("Reminded \(RemindHistory.relativeLabel(since: lastSent))", systemImage: "checkmark.circle")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         } else {
@@ -232,7 +245,8 @@ struct MemberProfileView: View {
                 groupId: groupId, memberId: member.id, fromMemberId: myMemberId, accessToken: accessToken
             )
             if response.sent {
-                remindSent.insert(edgeKey(edge))
+                lastRemindedAt[edgeKey(edge)] = Date()
+                remindHistory.save(lastRemindedAt)
             } else {
                 remindError = "\(member.displayName) hasn't signed in yet, so there's no device to notify."
             }

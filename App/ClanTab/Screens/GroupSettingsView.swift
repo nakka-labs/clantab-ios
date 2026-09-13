@@ -164,7 +164,12 @@ struct GroupSettingsView: View {
                 Text("Adds them to the ledger by name alone — no app or account needed. They can sign in and claim this spot for themselves later.")
             }
 
-            if myMember != nil {
+            // Gated on the group's own currency, not just having a claimed
+            // member — UPI only exists for INR (`UPIPayLink`'s own doc
+            // comment, already the rule `SettleUpView`'s UPI nudge follows).
+            // A USD/EUR group used to prompt every member for a UPI ID that
+            // could never activate for them (`CHECKLIST.md` D9).
+            if myMember != nil, currency == "INR" {
                 Section {
                     HStack {
                         TextField("name@bank", text: $myUpiVpa)
@@ -304,6 +309,13 @@ struct GroupSettingsView: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Copy Join Code")
             }
+            // The actual shareable link used to live only in Group Home's
+            // "…" → Share menu — this screen, the one an owner's own mental
+            // model names "invite, name, picture," only showed the bare
+            // code (`CHECKLIST.md` D11). Same `ShareLink`/URL as that menu's
+            // own "Share Invite Link" row, so there's one obvious place to
+            // invite someone regardless of which screen you land on.
+            ShareLink("Share Invite Link", item: AppConfig.groupShareURL(groupId: groupId, accessToken: accessToken))
         } header: {
             Text("Join Code")
         } footer: {
