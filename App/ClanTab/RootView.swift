@@ -130,22 +130,24 @@ struct RootView: View {
             .tabItem { Label("Home", systemImage: "house") }
             .tag(MainTab.home)
 
-            // Friends/Insights need a signed-in identity to mean anything
+            // Friends needs a signed-in identity to mean anything
             // (`AGENTS.md` "Mandatory identity") — hidden rather than shown
             // empty pre-auth, same call as the old hard sign-in wall on
             // `StartView` itself.
+            //
+            // Insights tab removed 2026-09-13 (`CHECKLIST.md` "Remove the
+            // Insights tab") — it duplicated Home's own cross-group total
+            // and per-group balance list, was the app's most fragile screen
+            // (D6, broke twice in one day), and had no demonstrated demand.
+            // `InsightsHubView.swift`/`PersonalInsights.swift` are now dead
+            // code, kept only in case the category-spend chart gets rebuilt
+            // as a standalone "My Spending" screen later.
             if auth.isSignedIn {
                 NavigationStack {
                     FriendsView(auth: auth, onOpenGroup: { enterGroup($0) })
                 }
                 .tabItem { Label("Friends", systemImage: "person.2") }
                 .tag(MainTab.friends)
-
-                NavigationStack {
-                    InsightsHubView(client: client, knownGroups: knownGroups, auth: auth)
-                }
-                .tabItem { Label("Insights", systemImage: "chart.bar") }
-                .tag(MainTab.insights)
             }
 
             NavigationStack {

@@ -3005,6 +3005,87 @@ device pass.
       yet confirmed against the real device that either was the actual
       cause — both are real defects regardless. `make check` green.
 
+### End-user flow audit — 2026-09-13, fresh pass
+
+Owner asked for a full functional flow audit "purely from an end user
+POV" across every screen, independent of the code-level defect list
+already tracked separately (see the D-ticket set in the system-map
+artifact — CSV EU-locale corruption, the "…" menu's possibly-unreachable
+bottom rows, `InsightsHubView`'s missing tests). This round is genuinely
+new findings from walking the app screen-to-screen as a user would, not
+a restatement of those.
+
+- [x] **Remove the Insights tab.** Done 2026-09-13, owner decision — not
+      v1.1-into-v1.0 scope creep, a deliberate cut. Two of the tab's four
+      sections were literally the same component/data Home's dashboard
+      already shows (the cross-group total header, the per-group balance
+      list); the only non-duplicate content was the "You spent" total +
+      by-category pie. It was also the single most fragile screen in the
+      app — broke fully in build 13, got an unconfirmed fix in build 14
+      the same day — with no demonstrated demand behind it (this app has
+      no telemetry; it was built same-day off one playtest note).
+      `MainTab` dropped from 4 cases to 3 (home/friends/settings);
+      `RootView`'s `TabView` no longer constructs `InsightsHubView`.
+      Grep-confirmed no other file still references `MainTab.insights`
+      or `case insights`; brace-balance checked on the edited file.
+      `InsightsHubView.swift`/`PersonalInsights.swift` deliberately left
+      in the tree as dead code rather than deleted outright — see the
+      follow-up item immediately below before deciding their fate.
+      **Not verified against a real build** — this session's shell has
+      no Swift/Xcode toolchain (same standing limitation recorded in
+      project memory as `verification_claims_unreliable` — every past
+      "make check green" claim from this shell carries the same caveat).
+      Run `make check` for real before trusting or shipping this.
+- [ ] **Decide the fate of the category-spend chart.** Follow-up to the
+      Insights-tab removal above — don't leave this open indefinitely.
+      The only content in the old tab that wasn't a duplicate of Home
+      was "You spent [total]" + the by-category pie, aggregated across
+      every group. Either (a) rebuild it as a single screen reached from
+      Settings ("My Spending") or a button on Home, reusing
+      `PersonalInsights`'/`InsightsHubView`'s surviving logic, or (b)
+      decide nobody needs it and delete `InsightsHubView.swift`,
+      `PersonalInsights.swift`, and their tests outright.
+- [ ] **[flow, moderate] "My UPI ID" shown regardless of group
+      currency.** `GroupSettingsView`'s UPI section is gated only on
+      `myMember != nil` — no currency check — while `SettleUpView`'s own
+      UPI nudge and `UPIPayLink.url` correctly gate on `currency ==
+      "INR"` (UPI's only currency, confirmed in `UPIPayLink.swift`'s own
+      doc comment). A group whose default currency is USD/EUR still
+      prompts every member to add a UPI ID that can never activate for
+      them — confusing for non-Indian users on an app submitted
+      globally. Gate the Group Settings section on the group's currency
+      too, matching Settle Up's existing rule.
+- [ ] **[flow, moderate] "Remind" has no cooldown or history across
+      visits.** `MemberProfileView.remindSent` is `@State` — resets
+      every time the screen closes and reopens. Nothing stops
+      re-reminding the same person repeatedly across separate visits,
+      and there's no "reminded 2h ago" indicator, only a session-only
+      checkmark. Persist last-reminded-at per edge (locally is enough)
+      and show it instead.
+- [ ] **[flow, minor] "Invite" is split across two different screens.**
+      The actual shareable invite link + view-only balances link
+      (`ShareLink("Share Invite Link", ...)` etc.) live in Group Home's
+      "…" → Share menu. Group Options (`GroupSettingsView`) — the screen
+      an owner's own mental model names as "invite, name, picture" —
+      only shows the bare join code to copy, no link. Consider
+      surfacing "Share Invite Link" from Group Options too, so there's
+      one obvious place to invite someone.
+- [ ] **[flow, minor] Graphs are one tap inside an overflow menu, not on
+      Group Home itself.** "View Insights" (this group's own charts,
+      `InsightsView`/C11) only opens from the "…" menu. Worth deciding
+      whether a visible entry point (e.g. a small button near the
+      balance hero) is warranted, especially now per-group Insights is
+      the only surviving "graphs" surface in the app after the Insights
+      tab's removal above.
+- [ ] **[flow, minor] Group Options mixes five different concerns in
+      one long Form.** Identity (name/currency/emoji/cover), invite
+      (join code), money config (default split, My UPI ID), member
+      admin (add/rename/remove/merge), and moderation/danger (report,
+      regenerate/archive/leave) all live in one screen a user reaches
+      expecting "rename my group." Danger Zone is already visually set
+      apart (red, grouped) — worth deciding if the rest needs sectioning
+      too; it's grown well past "invite, name, picture."
+
 ### Parked — not dropped, revisit deliberately
 
 - Receipt / bill reading (OCR) — needs on-device Vision work or a paid
