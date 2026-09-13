@@ -320,6 +320,30 @@
           note. Archive at
           `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-14
           .xcarchive`.
+      3g. [x] CLI: build `1.0 (15)` archived, exported, and uploaded
+          2026-09-13 — carries every fix since build 14: the full D1-D14
+          code-level-defect audit (EU-locale CSV corruption + its
+          plausibility-flag safety net, the type-checker house rule,
+          `AddExpenseView`'s itemized-editor extraction, `print()` →
+          `os.Logger`, the UPI-ID currency gate, the Remind cooldown,
+          the Group-Settings invite link) and the Insights-tab-removal
+          follow-through (`MySpendingView` replacing `InsightsHubView`).
+          Checked the live build number via the ASC API first (`GET
+          /v1/builds?filter[app]=6807057518&sort=-uploadedDate&limit=1`
+          — `14`, matched the repo; note for next time: `curl`'s URL
+          globbing parser chokes on the literal `[app]` in that query
+          string with exit 3 "URL malformed" unless called with `-g`).
+          `make bump-build` → `15`, same archive + `-exportArchive`
+          `destination: upload` flow as 3b–3f, same Admin-role ASC API
+          key. `processingState VALID` within ~2 minutes (confirmed via
+          the API, not assumed), `usesNonExemptEncryption: false`
+          auto-answered, already assigned to the internal **test-team**
+          group alongside builds 1–14. Set the "What to Test" note via
+          `PATCH /v1/betaBuildLocalizations/:id` (plain, tester-facing
+          language — CSV import fix, My Spending replacing Insights, UPI
+          ID/Remind/Invite fixes). Archive at
+          `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-15
+          .xcarchive`.
       4. Owner: run the pass on a real device — Sign in with Apple/Google,
          a push (CLI triggers it via an API expense-add), a recurring-
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
