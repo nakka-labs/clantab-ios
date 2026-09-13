@@ -293,6 +293,14 @@
           `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-11
           .xcarchive`. Owner testing this build in parallel with the
           "Merge duplicate members" work below.
+      3d. [x] CLI: build `1.0 (12)` archived, exported, and uploaded
+          2026-09-13 — adds the merge-duplicate-members app UI on top of
+          round-3 (worker side already deployed separately). Checked the
+          live build number first (`11`, matched the repo), `make
+          bump-build` → `12`, same flow as 3b/3c. Upload succeeded; still
+          processing as of this note. Archive at
+          `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-12
+          .xcarchive`.
       4. Owner: run the pass on a real device — Sign in with Apple/Google,
          a push (CLI triggers it via an API expense-add), a recurring-
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
