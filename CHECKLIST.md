@@ -3369,16 +3369,21 @@ explicitly before treating this as "all safely deferrable":
       checkboxes on each line in a lightweight picker sheet, filtering
       what `RecapCard` receives. One shared component, since both
       screens feed `RecapCard` the same shape of row list already.
-- [ ] **R11. No partial settlement.** `~10-15k`. `SettleUpView`'s "Mark
-      as Paid" always records the full suggested `settlement.amountMinor`
-      — confirmed no editable amount field anywhere in that flow. Real
-      gap: half of real-world settling is "I paid them ₹500 of the
-      ₹1,200 for now." Add an editable amount field on the confirm step
-      (default = full suggested amount, editable down), call the
-      existing `addSettlement` with whatever amount was entered — the
-      balance math already handles partial settlements correctly today
-      (it's just simple subtraction), this is purely a missing input
-      field, not new balance logic.
+- [x] **R11. No partial settlement.** Done 2026-09-13. The
+      `.confirmationDialog` (couldn't host a `TextField`) became a sheet
+      presenting new `ConfirmSettlementView` (sibling type in
+      `SettleUpView.swift`, same file-sharing precedent as
+      `ReceiptViewer`/`ReceiptThumbnail`) — an editable amount defaulted
+      to the full suggested `settlement.amountMinor`, a note when it's
+      been edited down (or up), Confirm disabled at zero/blank. No
+      server change, as scoped — `addSettlement` already accepted any
+      `amountMinor`. Caught and fixed one thing the item's own text
+      didn't anticipate: "Retry" (UX audit [33]) resubmits `failedSettlement`
+      after a failure, and used to always fall back to the *full*
+      suggested amount regardless of what had actually been typed — added
+      `failedAmountMinor` alongside `failedSettlement` so Retry resubmits
+      the exact partial amount that failed, not a silently different one.
+      `make check` green (kit + worker + full iOS build/XCTest).
 - [x] **R12. "Paid by" should be one multi-select list, not a picker plus
       a mode-toggle button.** Done 2026-09-13. New `PayerPickerView`
       (multi-select sibling of the now-deleted `MemberPickerView`, which

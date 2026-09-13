@@ -24,6 +24,10 @@ struct SettleUpView: View {
     /// exact same `markPaid` call rather than needing the user to find the
     /// row and tap "Mark as Paid" again (`CHECKLIST.md` UX audit [33]).
     @State private var failedSettlement: SimplifiedSettlement?
+    /// The amount that failed alongside `failedSettlement` — R11 made that
+    /// amount editable, so "Retry" has to resubmit *that* figure, not
+    /// silently fall back to the full suggested `settlement.amountMinor`.
+    @State private var failedAmountMinor: Int64?
     @State private var confirmingSettlement: SimplifiedSettlement?
     /// The shareable recap card (`CHECKLIST.md`), rendered off-screen once the
     /// plan is in hand and re-rendered whenever it changes.
@@ -95,7 +99,7 @@ struct SettleUpView: View {
                     // again is the entire fix.
                     if let failedSettlement {
                         Button("Retry") {
-                            Task { await markPaid(failedSettlement, rowId: rowId(for: failedSettlement)) }
+                            Task { await markPaid(failedSettlement, amountMinor: failedAmountMinor, rowId: rowId(for: failedSettlement)) }
                         }
                         .disabled(pendingRowId != nil)
                     }
@@ -130,24 +134,23 @@ struct SettleUpView: View {
                 content: .settleUp(settlements)
             ))
         }
-        .confirmationDialog(
-            "Mark as paid?",
-            isPresented: Binding(get: { confirmingSettlement != nil }, set: { if !$0 { confirmingSettlement = nil } }),
-            presenting: confirmingSettlement,
-            actions: { settlement in
-                Button("Mark as Paid") {
-                    Task { await markPaid(settlement, rowId: rowId(for: settlement)) }
+        .sheet(isPresented: Binding(get: { confirmingSettlement != nil }, set: { if !$0 { confirmingSettlement = nil } })) {
+            if let settlement = confirmingSettlement {
+                NavigationStack {
+                    ConfirmSettlementView(
+                        settlement: settlement,
+                        payerName: name(for: settlement.fromId),
+                        payeeName: name(for: settlement.toId),
+                        onConfirm: { amountMinor in
+                            confirmingSettlement = nil
+                            Task { await markPaid(settlement, amountMinor: amountMinor, rowId: rowId(for: settlement)) }
+                        },
+                        onCancel: { confirmingSettlement = nil }
+                    )
                 }
-                Button("Cancel", role: .cancel) {}
-            },
-            message: { settlement in
-                Text(
-                    "\(name(for: settlement.fromId)) pays \(name(for: settlement.toId)) "
-                        + "\(MoneyFormat.string(minorUnits: settlement.amountMinor, currency: settlement.currency)). "
-                        + "ClanTab just records this as settled — it doesn't move any money."
-                )
+                .materialSheet()
             }
-        )
+        }
     }
 
     private func rowId(for settlement: SimplifiedSettlement) -> String {
@@ -261,10 +264,17 @@ struct SettleUpView: View {
         )
     }
 
-    private func markPaid(_ settlement: SimplifiedSettlement, rowId: String) async {
+    /// `amountMinor` is whatever `ConfirmSettlementView` confirmed — partial
+    /// settlement (`CHECKLIST.md` R11) — falling back to the full suggested
+    /// `settlement.amountMinor` only when nothing else set it. The balance
+    /// math already handles a partial amount correctly (simple subtraction);
+    /// this was purely a missing input field, no server change needed.
+    private func markPaid(_ settlement: SimplifiedSettlement, amountMinor: Int64? = nil, rowId: String) async {
+        let resolvedAmountMinor = amountMinor ?? settlement.amountMinor
         pendingRowId = rowId
         errorMessage = nil
         failedSettlement = nil
+        failedAmountMinor = nil
         defer { pendingRowId = nil }
 
         do {
@@ -274,7 +284,7 @@ struct SettleUpView: View {
                     id: UUID().uuidString,
                     fromId: settlement.fromId,
                     toId: settlement.toId,
-                    amountMinor: settlement.amountMinor,
+                    amountMinor: resolvedAmountMinor,
                     currency: settlement.currency
                 ),
                 accessToken: accessToken
@@ -284,6 +294,75 @@ struct SettleUpView: View {
         } catch {
             errorMessage = friendlyMessage(for: error)
             failedSettlement = settlement
+            failedAmountMinor = resolvedAmountMinor
+        }
+    }
+}
+
+/// The confirm step for "Mark as Paid" — an editable amount, defaulted to
+/// the full suggested `settlement.amountMinor` (`CHECKLIST.md` R11: half of
+/// real-world settling is "I paid them part of it for now"). Sibling type in
+/// this file rather than its own, same as `ReceiptViewer` living alongside
+/// `ReceiptThumbnail` — small, single-caller, tightly coupled to the screen
+/// that presents it.
+private struct ConfirmSettlementView: View {
+    let settlement: SimplifiedSettlement
+    let payerName: String
+    let payeeName: String
+    let onConfirm: (Int64) -> Void
+    let onCancel: () -> Void
+
+    @State private var amountText: String
+
+    init(settlement: SimplifiedSettlement, payerName: String, payeeName: String, onConfirm: @escaping (Int64) -> Void, onCancel: @escaping () -> Void) {
+        self.settlement = settlement
+        self.payerName = payerName
+        self.payeeName = payeeName
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
+        _amountText = State(initialValue: MoneyFormat.plainString(minorUnits: settlement.amountMinor))
+    }
+
+    private var amountMinor: Int64? { MoneyFormat.minorUnits(from: amountText) }
+    private var isFullAmount: Bool { amountMinor == settlement.amountMinor }
+
+    var body: some View {
+        Form {
+            Section {
+                Text("\(payerName) pays \(payeeName)")
+                HStack {
+                    TextField("0.00", text: $amountText)
+                        .keyboardType(.decimalPad)
+                        .font(.title2.weight(.semibold))
+                    Text(settlement.currency).foregroundStyle(.secondary)
+                }
+                if let amountMinor, !isFullAmount {
+                    let suggested = MoneyFormat.string(minorUnits: settlement.amountMinor, currency: settlement.currency)
+                    Text(
+                        amountMinor < settlement.amountMinor
+                            ? "Partial payment — the suggested amount was \(suggested)."
+                            : "More than the suggested \(suggested)."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            } footer: {
+                Text("ClanTab just records this as settled — it doesn't move any money.")
+            }
+        }
+        .navigationTitle("Mark as Paid")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", action: onCancel)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Confirm") {
+                    guard let amountMinor else { return }
+                    onConfirm(amountMinor)
+                }
+                .disabled((amountMinor ?? 0) <= 0)
+            }
         }
     }
 }
