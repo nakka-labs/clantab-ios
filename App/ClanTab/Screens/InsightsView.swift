@@ -148,7 +148,7 @@ struct InsightsView: View {
                                 icon: "person",
                                 amountMinor: entry.totalMinor,
                                 of: groupTotal,
-                                memberName: entry.member.displayName,
+                                member: entry.member,
                                 isSelected: selectedMemberId == entry.member.id
                             )
                             .contentShape(Rectangle())
@@ -421,23 +421,30 @@ struct InsightsView: View {
     }
 
     /// A category/member row: icon, name, a proportional bar, and the amount.
-    /// Pass `memberName` for a member row — it gets that member's identity
-    /// avatar and tints the bar with their `MemberColor`. `of` is the bar's
-    /// denominator — the (possibly member-filtered) `total` for a category
-    /// row, always the unfiltered `groupTotal` for a member row (`CHECKLIST.md`
-    /// "All Insights graphs interactive" — the group breakdown that's *doing*
-    /// the filtering can't sensibly be proportioned against its own filter).
+    /// Pass `member` for a member row — it gets that member's real identity
+    /// avatar (photo when they have one, same as everywhere else a member
+    /// shows up — round-3 playtest, 2026-09-13: this row previously used
+    /// `MemberAvatar(name:)`, which never shows a photo, and a smaller size
+    /// than Group Home's own member rows) and tints the bar with their
+    /// `MemberColor`. `of` is the bar's denominator — the (possibly member-
+    /// filtered) `total` for a category row, always the unfiltered
+    /// `groupTotal` for a member row (`CHECKLIST.md` "All Insights graphs
+    /// interactive" — the group breakdown that's *doing* the filtering can't
+    /// sensibly be proportioned against its own filter).
     private func breakdownRow(
         title: String, icon: String, amountMinor: Int64, of total: Int64,
-        memberName: String? = nil, isSelected: Bool = false
+        member: Member? = nil, isSelected: Bool = false
     ) -> some View {
         let fraction = total > 0 ? Double(amountMinor) / Double(total) : 0
-        let tint = memberName.map { MemberColor.color(for: $0) } ?? Color.accentColor
+        let tint = member.map { MemberColor.color(for: $0.displayName) } ?? Color.accentColor
 
         let name = Group {
-            if let memberName {
+            if let member {
                 HStack(spacing: 8) {
-                    MemberAvatar(name: memberName, size: 22)
+                    // Same size as `MemberBalanceRow`'s own avatar (Group
+                    // Home's member list) — this row is the same identity,
+                    // it shouldn't render smaller here.
+                    MemberAvatar(member, size: 28)
                     Text(title).fontWeight(isSelected ? .semibold : .regular)
                 }
             } else {

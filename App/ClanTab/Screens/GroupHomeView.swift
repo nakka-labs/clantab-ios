@@ -287,24 +287,6 @@ struct GroupHomeView: View {
                                             .tint(.blue)
                                     }
                                 }
-                                // Anchored to the row that triggered it, not the
-                                // `List` as a whole (round-3 playtest,
-                                // 2026-09-13) — a `confirmationDialog` renders
-                                // as a popover on wider size classes, and one
-                                // attached way up at the List level had no
-                                // anchor tied to the specific row, so it could
-                                // appear pointing at nothing.
-                                .confirmationDialog(
-                                    deleteTitle(for: item),
-                                    isPresented: Binding(
-                                        get: { pendingDelete?.id == item.id },
-                                        set: { if !$0 { pendingDelete = nil } }
-                                    ),
-                                    titleVisibility: .visible
-                                ) {
-                                    Button("Delete", role: .destructive) { Task { await performDelete(item) } }
-                                    Button("Cancel", role: .cancel) {}
-                                }
                         }
                     }
                     if let mutationError {
@@ -591,6 +573,27 @@ struct GroupHomeView: View {
             }
             .materialSheet()
         }
+        // Attached at the List level, not per-row (reverted 2026-09-13 —
+        // the per-row attempt from earlier the same day made the dialog
+        // disappear immediately on a real device: setting `pendingDelete`
+        // from a `.swipeActions` button also retracts that row's revealed
+        // swipe UI, and a `.confirmationDialog` living on the same row
+        // instance that's mid-retraction gets torn down with it. A
+        // List-level dialog with no anchor tied to a specific row can, in
+        // principle, render its popover pointing at nothing on a wide
+        // size class — a real but far smaller problem than "delete is
+        // unusable everywhere," so this is the trade to make until a
+        // proper fix (e.g. an anchor-preference host, `CoachMark`'s own
+        // pattern) is worth the effort for what's a rare size class here.
+        .confirmationDialog(
+            deleteTitle,
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingDelete
+        ) { item in
+            Button("Delete", role: .destructive) { Task { await performDelete(item) } }
+            Button("Cancel", role: .cancel) {}
+        }
         .sheet(isPresented: $isPresentingGroupSettings) {
             if let state = viewModel.state {
                 NavigationStack {
@@ -677,8 +680,9 @@ struct GroupHomeView: View {
         .coachMarkOverlayHost()
     }
 
-    private func deleteTitle(for item: ActivityItem) -> String {
-        if case .settlement = item.kind { return "Delete this settlement?" }
+    private var deleteTitle: String {
+        guard let pendingDelete else { return "" }
+        if case .settlement = pendingDelete.kind { return "Delete this settlement?" }
         return "Delete this expense?"
     }
 

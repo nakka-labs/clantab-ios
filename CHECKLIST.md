@@ -2737,14 +2737,19 @@ remains (below), same shape as round 2's closeout.
       existing "Delete Account" TestFlight-pass step now specifically
       exercises sign-back-in showing zero groups, not just "signed out."
 - [x] **[bug] "Delete this settlement" confirmation renders unanchored.**
-      Done 2026-09-13. The `.confirmationDialog` was attached once at the
-      `List` level while `pendingDelete` was set from a per-row swipe
-      action deep in a `ForEach` — no anchor tied the dialog to the row
-      that triggered it. Moved the dialog onto each `ActivityRow` itself
-      (`isPresented` now compares `pendingDelete?.id == item.id` instead
-      of the old list-level `presenting:`), so it's anchored to the exact
-      row on any size class. `deleteTitle` became a `(for item:)` function
-      instead of reading the shared `pendingDelete` state. iOS build green.
+      Done 2026-09-13, **then reverted the same day** — real-device
+      feedback found the per-row fix made the dialog disappear
+      immediately, unable to interact with it at all: setting
+      `pendingDelete` from a `.swipeActions` button also retracts that
+      row's revealed swipe UI, and a `.confirmationDialog` living on the
+      row instance that's mid-retraction gets torn down with it. Reverted
+      to the original list-level `.confirmationDialog` (`presenting:
+      pendingDelete`, `deleteTitle` back to a plain computed property) —
+      "delete works everywhere, dialog occasionally mis-anchors on a wide
+      size class" beats "delete is unusable everywhere." A real fix (an
+      anchor-preference host, `CoachMark`'s own pattern) is still owed if
+      the mis-anchor complaint recurs, but isn't worth the complexity
+      until it does. iOS build + `make check` green.
 - [x] **[bug] Coach marks clip inside `List`/`Form` rows.** Done
       2026-09-13. `CoachMark` deliberately overlays outside its anchor's
       own bounds, which two of the three live coach marks need to do from
@@ -2869,6 +2874,44 @@ remains (below), same shape as round 2's closeout.
       like fine print" or "cluttered" — this reads as stale feedback
       from before build 9, not a new issue on build 10. Leaving as-is
       rather than speculatively restyling an already-fixed control.
+
+### Real-device findings, builds 11/12 — 2026-09-13
+
+Owner feedback while running the round-3/merge-members TestFlight pass
+on an actual device — the first time this session's own fixes got a
+real touchscreen and real photo data, not just the Simulator/`idb`.
+
+- [x] **[bug, regression] Settlement/expense delete confirmation
+      disappeared immediately — unusable.** Done (reverted) 2026-09-13.
+      Caused by this same session's earlier "anchor the dialog to its
+      row" fix, above — see that item for the root cause and the revert.
+- [x] **[bug] Insights' member breakdown rows never showed a photo, and
+      rendered smaller than Group Home's member rows.** Done 2026-09-13.
+      `InsightsView.breakdownRow` called `MemberAvatar(name:size: 22)` —
+      the name-only initializer, which `MemberAvatar`'s own doc comment
+      says never resolves a photo (`avatarKey` stays `nil`) — instead of
+      passing the actual `Member` it already had in hand
+      (`entry.member`). Changed the row to take an optional `Member`
+      instead of a bare name string and call `MemberAvatar(member, size:
+      28)`, matching `MemberBalanceRow`'s size exactly. iOS build +
+      `make check` green.
+- [ ] **Balance bubble sizing still reads as inconsistent.** Reported
+      after the round-2 "bubble-graph legibility floor" fix
+      (`CirclePack.minNonZeroRadius`) — that fix deliberately re-applies
+      a legibility floor *after* the whole cluster is scaled to fit the
+      box, which its own doc comment already accepts can "nudge floored
+      circles into a slight overlap" in a crowded group. Whether that's
+      what's being seen now, or a different issue, isn't clear without a
+      screenshot/repro — asked the Owner rather than guess and risk
+      reverting a deliberate, documented tradeoff.
+- [ ] **Duplicate expense doesn't fill the amount.** Working as designed
+      — `AddExpenseView`'s duplicate-init path has its own comment:
+      "Duplicating leaves the amount blank — everything else about the
+      expense carries over, but the amount is the one field that's
+      rarely identical trip to trip." Confirmed every other field
+      (description, payer(s), split, category, currency) does still
+      carry over. Asked the Owner whether this deliberate v1
+      decision should change now that there's real usage against it.
 
 ### Parked — not dropped, revisit deliberately
 
