@@ -44,6 +44,24 @@ struct MemberProfileView: View {
         }
     }
 
+    /// Every settle-up edge touching this member, against *anyone* in the
+    /// group — not just against me (`settleEdges`, above, which the
+    /// "Settle up" section still uses for its own pay/remind actions).
+    /// Round-3 playtest, 2026-09-13: "Balance in this group" showed only
+    /// the member's single net figure with no breakdown of who actually
+    /// makes it up.
+    private var allEdges: [SimplifiedSettlement] {
+        simplifiedSettlements.filter { $0.fromId == member.id || $0.toId == member.id }
+    }
+
+    private func otherPartyId(_ edge: SimplifiedSettlement) -> String {
+        edge.fromId == member.id ? edge.toId : edge.fromId
+    }
+
+    private func name(for memberId: String) -> String {
+        groupMembers.first { $0.id == memberId }?.displayName ?? "Someone"
+    }
+
     /// Every expense/settlement in this group where both me and this member
     /// are involved — an expense counts if both appear among its payers or
     /// its splits (so it still counts even if one of us didn't personally
@@ -81,12 +99,27 @@ struct MemberProfileView: View {
                 if balances.isEmpty {
                     Text("Settled up").foregroundStyle(.secondary)
                 } else {
+                    // The breakdown first — every other member's own edge
+                    // with this one ("Priya owes ₹500", "Ana is owed ₹200")
+                    // — then the net total each edge adds up to, visually
+                    // set apart so the two never read as the same kind of
+                    // line.
+                    ForEach(allEdges, id: \.self) { edge in
+                        let theyOweMe = edge.toId == member.id
+                        let amount = MoneyFormat.string(minorUnits: edge.amountMinor, currency: edge.currency)
+                        HStack {
+                            Text("\(name(for: otherPartyId(edge))) \(theyOweMe ? "owes" : "is owed")")
+                            Spacer()
+                            Text(amount).foregroundStyle(theyOweMe ? .green : .red)
+                        }
+                    }
                     ForEach(balances, id: \.currency) { balance in
                         let amount = MoneyFormat.string(minorUnits: abs(balance.netMinor), currency: balance.currency)
                         HStack {
-                            Text(balance.netMinor > 0 ? "Is owed" : "Owes")
+                            Text("Total").fontWeight(.semibold)
                             Spacer()
                             Text(amount)
+                                .fontWeight(.semibold)
                                 .foregroundStyle(balance.netMinor > 0 ? .green : .red)
                         }
                     }

@@ -2827,6 +2827,10 @@ remains (below), same shape as round 2's closeout.
       part only if the hub-level number isn't enough on its own"); the
       two additions above already answer the actual complaint. iOS build
       + `make check` green.
+      **Superseded 2026-09-13** (see "Real-device findings" below) — a
+      follow-up report made clear the actual ask was replacing the
+      groups-list-that-drills-in design entirely, not just adding
+      numbers to it; that's the real redesign.
 - [x] **Smart category suggestion from expense description.** Done
       2026-09-13. No suggestion logic existed anywhere. Added
       `CategorySuggestion.suggest(for:)` (pure `ClanTabKit`, a
@@ -2880,6 +2884,9 @@ remains (below), same shape as round 2's closeout.
 Owner feedback while running the round-3/merge-members TestFlight pass
 on an actual device — the first time this session's own fixes got a
 real touchscreen and real photo data, not just the Simulator/`idb`.
+Two rounds of feedback landed the same day; both are folded into this
+one section rather than split across two, since it's all the same
+device pass.
 
 - [x] **[bug, regression] Settlement/expense delete confirmation
       disappeared immediately — unusable.** Done (reverted) 2026-09-13.
@@ -2927,6 +2934,38 @@ real touchscreen and real photo data, not just the Simulator/`idb`.
       copy being logged now, not the original's date. No existing tests
       covered this (no unit tests exist for `AddExpenseView`'s init
       logic). iOS build + `make check` green.
+- [x] **Member profile's "Balance in this group" showed only a bare net
+      figure, no breakdown of who makes it up.** Done 2026-09-13. Added
+      every settle-up edge touching this member against *anyone* in the
+      group (not just against the viewer, which the existing "Settle
+      up" section below already covers for its own pay/remind actions)
+      — "Priya owes ₹500" / "Ana is owed ₹200" per counterparty, then
+      the net total each currency's edges add up to, set apart with a
+      bold "Total" row. `SimplifiedSettlement` was already passed in
+      whole; this was a display gap, not a data gap.
+- [x] **Insights tab (from the tab bar) must show personal data and
+      graphs, not a list of groups leading into group data.** Done
+      2026-09-13 — reopens/supersedes the round-3 batch's "Insights:
+      personal owe/owed totals" item above, which only added numbers to
+      the existing groups-list-that-drills-in design; this is the
+      actual redesign that item stopped short of. Reworked
+      `InsightsHubView` from "every known group, tap one to open its own
+      spend charts" to real personal aggregates: the existing cross-group
+      `DashboardTotalsHeader`, plus new `PersonalInsights` (`ClanTabKit`)
+      — my own share of spend by category, summed across every group's
+      own `Insights.byCategory` result (each computed with *that*
+      group's correct member id, then merged; a single call across
+      combined multi-group expenses would silently mis-filter, since
+      member ids are per-group) — rendered as a pie chart + breakdown
+      rows, same visual language as the per-group `InsightsView`. A
+      "By group" section still lists each group's own balance line, but
+      informationally — no `NavigationLink` into that group's charts
+      anymore; a specific group's own spend/category/member breakdown
+      is reached from that group's own page instead (`GroupHomeView`'s
+      "View Insights", from the round-3 batch). 4 new kit tests
+      (`PersonalInsightsTests`) cover the cross-group-id-isolation case
+      directly — the one a naive single-call implementation would get
+      wrong silently. `make check` green.
 
 ### Parked — not dropped, revisit deliberately
 

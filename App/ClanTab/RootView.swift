@@ -142,7 +142,7 @@ struct RootView: View {
                 .tag(MainTab.friends)
 
                 NavigationStack {
-                    InsightsHubView(client: client, knownGroups: knownGroups)
+                    InsightsHubView(client: client, knownGroups: knownGroups, auth: auth)
                 }
                 .tabItem { Label("Insights", systemImage: "chart.bar") }
                 .tag(MainTab.insights)
