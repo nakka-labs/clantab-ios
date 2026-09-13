@@ -3355,15 +3355,18 @@ explicitly before treating this as "all safely deferrable":
       this (`viewingItem` sheet) instead of calling `edit(item)` directly;
       the row's own swipe-action "Edit" stays untouched, a separate fast
       path. `make check` green (kit + worker + full iOS build/XCTest).
-- [ ] **R9. No "Share Balances" image card for the plain balance view.**
-      `~8-12k`. `SettleUpView` and `InsightsView` each already render a
-      shareable PNG via `RecapCard`/`ImageRenderer` (`shareCard` +
-      `ShareLink`) — proven pattern, twice over. There's nothing
-      equivalent for the group's current balance state (the
-      Home/bubble-view numbers) independent of Settle Up's *suggested
-      payments* framing. Add a third `RecapCard` variant — "who owes
-      what right now" — reachable from Group Home's "…" menu, reusing
-      the same render/share plumbing.
+- [x] **R9. No "Share Balances" image card for the plain balance view.**
+      Done 2026-09-13. New `RecapCard.Content.balances([Balance])` — takes
+      the full per-member, per-currency set (`state.balances`) and picks
+      the single dominant currency itself, mirroring
+      `BalanceBubbleView`'s own convention exactly, so the call site is
+      just `state.balances`. Rendered off-screen in `GroupHomeView` via a
+      new `.task(id: viewModel.state?.balances)`, same
+      render-then-`ShareLink` plumbing `SettleUpView`/`InsightsView`
+      already use. New "Share Balances Card" entry in `moreMenu`'s
+      "Share" section — named to not be confused with the pre-existing
+      "Share View-only Balances" (a web URL, not an image). `make check`
+      green (kit + worker + full iOS build/XCTest).
 - [ ] **R10. Share cards always include everything — no selection.**
       `~10-15k`, layered on R9. Both the existing Settle Up share card
       and the new balances card (R9) currently render every suggested

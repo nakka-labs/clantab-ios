@@ -12,6 +12,13 @@ struct RecapCard: View {
         case settleUp([SimplifiedSettlement])
         /// Total spent in `currency`, plus per-member spend (already sorted).
         case recap(totalMinor: Int64, byMember: [MemberSpend], currency: String)
+        /// "Who owes what right now" (`CHECKLIST.md` R9) — the group's
+        /// current balance state, independent of Settle Up's *suggested
+        /// payments* framing. The full per-member, per-currency set, same
+        /// shape `GroupHomeView`'s own `BalanceBubbleView` takes — this
+        /// picks the single dominant currency itself, same convention that
+        /// view already uses, so the call site just passes `state.balances`.
+        case balances([Balance])
     }
 
     let groupName: String
@@ -63,6 +70,7 @@ struct RecapCard: View {
         switch content {
         case .settleUp: return "SETTLE UP"
         case .recap: return "SPENDING RECAP"
+        case .balances: return "CURRENT BALANCES"
         }
     }
 
@@ -75,6 +83,8 @@ struct RecapCard: View {
                 settleUpBody(settlements)
             case .recap(let total, let byMember, let currency):
                 recapBody(total: total, byMember: byMember, currency: currency)
+            case .balances(let balances):
+                balancesBody(balances)
             }
         }
         .padding(44)
@@ -113,6 +123,51 @@ struct RecapCard: View {
             }
             if settlements.count > shown.count {
                 Text("+ \(settlements.count - shown.count) more")
+                    .font(.system(size: 26, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.4))
+            }
+        }
+    }
+
+    /// Mirrors `BalanceBubbleView`'s own "one dominant currency" convention
+    /// — a card is one snapshot, never blended across currencies.
+    private func dominantCurrency(_ balances: [Balance]) -> String {
+        balances.max { abs($0.netMinor) < abs($1.netMinor) }?.currency ?? ""
+    }
+
+    @ViewBuilder
+    private func balancesBody(_ balances: [Balance]) -> some View {
+        let currency = dominantCurrency(balances)
+        let inCurrency = balances.filter { $0.currency == currency && $0.netMinor != 0 }
+        if inCurrency.isEmpty {
+            VStack(spacing: 16) {
+                Text("🎉").font(.system(size: 88))
+                Text("Everyone's settled up")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.85))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
+        } else {
+            // Owed-the-most first, on either side — the figures people
+            // actually care about at a glance.
+            let sorted = inCurrency.sorted { abs($0.netMinor) > abs($1.netMinor) }
+            let shown = sorted.prefix(7)
+            ForEach(Array(shown), id: \.memberId) { balance in
+                HStack(spacing: 14) {
+                    personChip(name(balance.memberId))
+                    Spacer(minLength: 12)
+                    Text(balance.netMinor > 0 ? "is owed" : "owes")
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.black.opacity(0.4))
+                    Text(MoneyFormat.string(minorUnits: abs(balance.netMinor), currency: currency))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(balance.netMinor > 0 ? Color.green.opacity(0.85) : Color.red.opacity(0.85))
+                }
+            }
+            if sorted.count > shown.count {
+                Text("+ \(sorted.count - shown.count) more")
                     .font(.system(size: 26, weight: .semibold, design: .rounded))
                     .foregroundStyle(.black.opacity(0.4))
             }

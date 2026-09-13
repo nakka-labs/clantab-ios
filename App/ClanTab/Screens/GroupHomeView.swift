@@ -39,6 +39,12 @@ struct GroupHomeView: View {
     /// from the row's own swipe action (a separate, already-deliberate fast
     /// path, left untouched).
     @State private var viewingItem: ActivityItem?
+    /// "Share Balances" card (`CHECKLIST.md` R9) — "who owes what right
+    /// now," independent of Settle Up's own share card (which frames the
+    /// *suggested payments*, not the raw balance state). Same
+    /// render-off-screen-then-`ShareLink` pattern `SettleUpView`/
+    /// `InsightsView` already use.
+    @State private var balancesShareCard: Image?
     @State private var duplicatingExpense: Expense?
     @State private var pendingDelete: ActivityItem?
     @State private var isPresentingAddExpense = false
@@ -363,6 +369,15 @@ struct GroupHomeView: View {
             // won't re-run, so react to the prop change too.
             pendingInitialAction = action
             runInitialActionIfReady()
+        }
+        .task(id: viewModel.state?.balances) {
+            guard let state = viewModel.state else { return }
+            balancesShareCard = RecapCard.render(RecapCard(
+                groupName: state.group.name,
+                groupEmoji: state.group.emoji,
+                members: state.members,
+                content: .balances(state.balances)
+            ))
         }
         .task {
             await viewModel.load()
@@ -850,6 +865,15 @@ struct GroupHomeView: View {
                     ShareLink("Share Join Code (\(state.group.joinCode))", item: state.group.joinCode)
                     if let viewLinkURL = viewModel.viewLinkURL {
                         ShareLink("Share View-only Balances", item: viewLinkURL)
+                    }
+                    // An image card, not the URL above — "who owes what
+                    // right now" (`CHECKLIST.md` R9), same shareable-card
+                    // pattern Settle Up/Insights already have.
+                    if let balancesShareCard {
+                        ShareLink(
+                            "Share Balances Card", item: balancesShareCard,
+                            preview: SharePreview("\(state.group.name) — balances", image: balancesShareCard)
+                        )
                     }
                 }
 
