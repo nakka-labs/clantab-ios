@@ -680,15 +680,16 @@ describe("GroupDO", () => {
 
       const r = await g.claim(ana.id, "apple-sub-ana");
       expect(r.ok).toBe(true);
-      if (r.ok) expect(r.value.member).toEqual({ id: ana.id, displayName: "Ana" });
+      if (r.ok) expect(r.value.member).toEqual({ id: ana.id, displayName: "Ana", isClaimed: true });
 
       expect((await g.claimable()).members.map((m) => m.id)).toEqual([ben.id]);
       expect(await g.memberIdentity(ana.id)).toEqual({ sub: "apple-sub-ana" });
-      // getState still doesn't expose identity.
+      // getState still doesn't expose the identity `sub` itself — `isClaimed`
+      // (CHECKLIST.md R4) is derived from it but never leaks the subject.
       const state = await g.getState();
       expect(state.members).toEqual([
-        { id: ana.id, displayName: "Ana" },
-        { id: ben.id, displayName: "Ben" },
+        { id: ana.id, displayName: "Ana", isClaimed: true },
+        { id: ben.id, displayName: "Ben", isClaimed: false },
       ]);
     });
 

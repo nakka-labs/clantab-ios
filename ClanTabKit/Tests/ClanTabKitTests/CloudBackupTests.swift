@@ -4,8 +4,8 @@ import Foundation
 
 @Suite("CloudBackup")
 struct CloudBackupTests {
-    private let alice = Member(id: "alice", displayName: "Alice")
-    private let bob = Member(id: "bob", displayName: "Bob")
+    private let alice = Member(id: "alice", displayName: "Alice", isClaimed: false)
+    private let bob = Member(id: "bob", displayName: "Bob", isClaimed: false)
     private let t0 = Date(timeIntervalSince1970: 1_700_000_000)
 
     private func expense(id: String = "e1", amount: Int64 = 1250) -> Expense {

@@ -4,9 +4,9 @@ import Foundation
 
 @Suite("Balances")
 struct BalancesTests {
-    let alice = Member(id: "alice", displayName: "Alice")
-    let bob = Member(id: "bob", displayName: "Bob")
-    let carol = Member(id: "carol", displayName: "Carol")
+    let alice = Member(id: "alice", displayName: "Alice", isClaimed: false)
+    let bob = Member(id: "bob", displayName: "Bob", isClaimed: false)
+    let carol = Member(id: "carol", displayName: "Carol", isClaimed: false)
 
     private func expense(
         id: String = "e1",

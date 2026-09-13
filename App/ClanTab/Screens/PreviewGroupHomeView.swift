@@ -89,9 +89,9 @@ struct PreviewGroupHomeView: View {
     private static let groupName = "Goa Trip"
     private static let currency = "INR"
 
-    private static let alex = Member(id: "preview-alex", displayName: "Alex")
-    private static let priya = Member(id: "preview-priya", displayName: "Priya")
-    private static let rohan = Member(id: "preview-rohan", displayName: "Rohan")
+    private static let alex = Member(id: "preview-alex", displayName: "Alex", isClaimed: false)
+    private static let priya = Member(id: "preview-priya", displayName: "Priya", isClaimed: false)
+    private static let rohan = Member(id: "preview-rohan", displayName: "Rohan", isClaimed: false)
     private static let members = [alex, priya, rohan]
 
     private static func equalSplit(_ amountMinor: Int64) -> [ExpenseSplit] {

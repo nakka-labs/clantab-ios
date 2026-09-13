@@ -1396,10 +1396,25 @@ describe("group + member settings", () => {
   it("PATCH a member renames them", async () => {
     const { status, json } = await patch(`/api/groups/${groupId}/members/${b}`, { displayName: "Benjamin" }, token);
     expect(status).toBe(200);
-    expect(json.member).toEqual({ id: b, displayName: "Benjamin" });
+    expect(json.member).toEqual({ id: b, displayName: "Benjamin", isClaimed: false });
 
     const state = await get(`/api/groups/${groupId}`, undefined, token);
     expect((state.json.members as Json[]).find((m) => m.id === b)?.displayName).toBe("Benjamin");
+  });
+
+  it("PATCH refuses to rename a claimed member → 409 MEMBER_IN_USE, but still allows their UPI VPA (CHECKLIST.md R4)", async () => {
+    await env.GROUP_DO.get(env.GROUP_DO.idFromName(groupId)).claim(b, "apple:ben-r4");
+
+    const renamed = await patch(`/api/groups/${groupId}/members/${b}`, { displayName: "Not Ben" }, token);
+    expect(renamed.status).toBe(409);
+    expect((renamed.json.error as Json).code).toBe("MEMBER_IN_USE");
+
+    const state = await get(`/api/groups/${groupId}`, undefined, token);
+    expect((state.json.members as Json[]).find((m) => m.id === b)).toMatchObject({ displayName: "Ben", isClaimed: true });
+
+    const upi = await patch(`/api/groups/${groupId}/members/${b}`, { upiVpa: "ben@upi" }, token);
+    expect(upi.status).toBe(200);
+    expect(upi.json.member).toEqual({ id: b, displayName: "Ben", upiVpa: "ben@upi", isClaimed: true });
   });
 
   it("PATCH an unknown member → 404 NOT_FOUND", async () => {
@@ -1411,13 +1426,13 @@ describe("group + member settings", () => {
   it("PATCH sets a member's UPI VPA independently of displayName, and an explicit null clears it", async () => {
     const { status, json } = await patch(`/api/groups/${groupId}/members/${b}`, { upiVpa: "ben@upi" }, token);
     expect(status).toBe(200);
-    expect(json.member).toEqual({ id: b, displayName: "Ben", upiVpa: "ben@upi" });
+    expect(json.member).toEqual({ id: b, displayName: "Ben", upiVpa: "ben@upi", isClaimed: false });
 
     const state = await get(`/api/groups/${groupId}`, undefined, token);
     expect((state.json.members as Json[]).find((m) => m.id === b)).toMatchObject({ upiVpa: "ben@upi" });
 
     const cleared = await patch(`/api/groups/${groupId}/members/${b}`, { upiVpa: null }, token);
-    expect(cleared.json.member).toEqual({ id: b, displayName: "Ben" });
+    expect(cleared.json.member).toEqual({ id: b, displayName: "Ben", isClaimed: false });
   });
 
   it("PATCH rejects an empty-string upiVpa (use null to clear)", async () => {

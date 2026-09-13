@@ -8,8 +8,8 @@ import ClanTabKit
 /// be rejected.
 final class GroupSettingsViewTests: XCTestCase {
 
-    private func member(_ id: String) -> Member {
-        Member(id: id, displayName: id)
+    private func member(_ id: String, isClaimed: Bool = false) -> Member {
+        Member(id: id, displayName: id, isClaimed: isClaimed)
     }
 
     private func expense(payerId: String, splitMemberIds: [String]) -> Expense {

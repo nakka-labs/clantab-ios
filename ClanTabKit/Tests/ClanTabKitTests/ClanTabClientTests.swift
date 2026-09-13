@@ -21,7 +21,7 @@ struct ClanTabClientTests {
         let responseBody = jsonData([
             "groupId": "g123",
             "joinCode": "K7M9P2",
-            "member": ["id": "m1", "displayName": "Alice"],
+            "member": ["id": "m1", "displayName": "Alice", "isClaimed": false],
             "group": ["name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2"],
         ])
         let transport = FakeTransport(statusCode: 201, body: responseBody)
@@ -33,7 +33,7 @@ struct ClanTabClientTests {
 
         #expect(response.groupId == "g123")
         #expect(response.joinCode == "K7M9P2")
-        #expect(response.member == Member(id: "m1", displayName: "Alice"))
+        #expect(response.member == Member(id: "m1", displayName: "Alice", isClaimed: false))
         #expect(response.group.currency == "INR")
 
         let request = await transport.lastRequest
@@ -361,9 +361,9 @@ struct ClanTabClientTests {
 
     @Test("renameMember PATCHes and removeMember DELETEs the member path")
     func testMemberRenameRemove() async throws {
-        let rename = FakeTransport(statusCode: 200, body: jsonData(["member": ["id": "m2", "displayName": "Benjamin"]]))
+        let rename = FakeTransport(statusCode: 200, body: jsonData(["member": ["id": "m2", "displayName": "Benjamin", "isClaimed": false]]))
         let renamed = try await ClanTabClient(baseURL: baseURL, transport: rename).renameMember(groupId: "g1", memberId: "m2", displayName: "Benjamin")
-        #expect(renamed.member == Member(id: "m2", displayName: "Benjamin"))
+        #expect(renamed.member == Member(id: "m2", displayName: "Benjamin", isClaimed: false))
         #expect(await rename.lastRequest?.httpMethod == "PATCH")
         #expect(await rename.lastRequest?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/members/m2")
 
@@ -376,7 +376,7 @@ struct ClanTabClientTests {
 
     @Test("renameMember decodes a member's upiVpa when the server sets one")
     func testRenameMemberDecodesUpiVpa() async throws {
-        let transport = FakeTransport(statusCode: 200, body: jsonData(["member": ["id": "m2", "displayName": "Ben", "upiVpa": "ben@upi"]]))
+        let transport = FakeTransport(statusCode: 200, body: jsonData(["member": ["id": "m2", "displayName": "Ben", "upiVpa": "ben@upi", "isClaimed": false]]))
         let response = try await ClanTabClient(baseURL: baseURL, transport: transport)
             .renameMember(groupId: "g1", memberId: "m2", upiVpa: .set("ben@upi"))
         #expect(response.member.upiVpa == "ben@upi")
@@ -661,8 +661,8 @@ struct ClanTabClientTests {
         let responseBody = jsonData([
             "group": ["name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2"],
             "members": [
-                ["id": "m1", "displayName": "Alice"],
-                ["id": "m2", "displayName": "Bob"],
+                ["id": "m1", "displayName": "Alice", "isClaimed": false],
+                ["id": "m2", "displayName": "Bob", "isClaimed": false],
             ],
             "expenses": [
                 [

@@ -4,8 +4,8 @@ import Foundation
 
 @Suite("Export")
 struct ExportTests {
-    let alice = Member(id: "alice", displayName: "Alice")
-    let bob = Member(id: "bob", displayName: "Bob")
+    let alice = Member(id: "alice", displayName: "Alice", isClaimed: false)
+    let bob = Member(id: "bob", displayName: "Bob", isClaimed: false)
 
     private func makeExpense(
         id: String = "e1",

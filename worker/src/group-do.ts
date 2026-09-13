@@ -427,10 +427,25 @@ export class GroupDO extends DurableObject {
 
   /** Update a member's display name and/or UPI VPA (`FEATURE_BACKLOG.md`
    * "UPI deep link on Settle Up") — the caller (`index.ts`) enforces that at
-   * least one of the two is present. An empty-string `upiVpa` clears it. */
+   * least one of the two is present. An empty-string `upiVpa` clears it.
+   * The `displayName` half is refused for a claimed member (`identity_sub
+   * IS NOT NULL`) — `CHECKLIST.md` R4: unlike `removeMember`, this had no
+   * gate at all, so any bearer with the group's access token could rename a
+   * real, signed-in person. `upiVpa` still goes through unconditionally —
+   * a claimed member's own UPI id is theirs to set from any device with the
+   * group's token, same as before. */
   async updateMember(id: string, patch: { displayName?: string; upiVpa?: string }): Promise<Result<{ member: Member }>> {
-    const found = this.sql.exec<MemberRow>("SELECT id FROM members WHERE id = ?", id).toArray();
+    const found = this.sql
+      .exec<MemberRow>("SELECT id, identity_sub FROM members WHERE id = ?", id)
+      .toArray();
     if (found.length === 0) return fail("NOT_FOUND", `Member "${id}" is not in this group.`);
+    // Checked before either write lands — the client only ever sends one
+    // field per call, but if a future caller ever sent both at once, a
+    // refused rename shouldn't silently swallow a UPI-id change that would
+    // otherwise have succeeded.
+    if (patch.displayName !== undefined && found[0]!.identity_sub !== null) {
+      return fail("MEMBER_IN_USE", "This member is linked to an account and can't be renamed here.");
+    }
     if (patch.displayName !== undefined) {
       this.sql.exec("UPDATE members SET display_name = ? WHERE id = ?", patch.displayName, id);
     }
@@ -1238,7 +1253,7 @@ export class GroupDO extends DurableObject {
       displayName,
       createdAt,
     );
-    return { id, displayName };
+    return { id, displayName, isClaimed: false };
   }
 
   private readMembers(): Member[] {
@@ -1249,13 +1264,15 @@ export class GroupDO extends DurableObject {
   }
 
   /** Omits `upiVpa` / `avatarKey` entirely when unset, matching the `category?`
-   * wire shape. */
+   * wire shape. `isClaimed` is always present — it's a plain boolean, not an
+   * optional value that can be absent. */
   private toMember(row: MemberRow): Member {
     return {
       id: row.id,
       displayName: row.display_name,
       ...(row.upi_vpa != null ? { upiVpa: row.upi_vpa } : {}),
       ...(row.avatar_key != null ? { avatarKey: row.avatar_key } : {}),
+      isClaimed: row.identity_sub !== null,
     };
   }
 

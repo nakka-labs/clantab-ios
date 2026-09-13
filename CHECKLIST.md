@@ -3230,6 +3230,222 @@ now that the Insights tab is removed, see above.
       auth / media / admin) -- pays for itself over time, never as its
       own pass.
 
+### Owner feedback batch — 16 items, 2026-09-13 (ideated, not yet built)
+
+Ideation pass only — every item below is scoped against the actual current
+code (grepped/read this session, not guessed), nothing implemented yet.
+None of these are added to the ship-blocking gate above; they're a v1.1-
+shaped backlog unless the owner says otherwise. Two calls worth flagging
+explicitly before treating this as "all safely deferrable":
+
+- **R4 is a live bug, not a feature request** — any member can rename any
+  other member today, claimed identities included. Cheap to fix in
+  isolation, worth pulling forward regardless of what happens to the rest
+  of this batch.
+- **R5 and R15 aren't missing features** — Merge and CloudKit backup both
+  already exist and already work; the report is a pure discoverability
+  gap. Don't rebuild either — just surface them.
+
+- [ ] **R1. Universal, identity-level display name.** Already fully scoped
+      under "Parked → v1.1 backlog" above (`UserDO.user_meta`, `PATCH
+      /api/auth/profile`, `fanOutDisplayName`, claimed-member-proof
+      `updateMember`, Settings "Your Name" field) — re-requested by the
+      owner in this same terms ("set once, editable in Settings, same
+      across all groups"), nothing new to design. `~50-70k`. Note the
+      overlap with R4 below: both need the server to know whether a
+      member is claimed before it'll refuse an edit — R4's minimal fix
+      is a strict subset of this plan's step 3, so if R1 gets picked up
+      first, R4 falls out of it for free.
+- [ ] **R2. Split-by control reads as two different UI patterns stitched
+      together.** `~15-20k`. Confirmed in `AddExpenseView`: a 3-way
+      segmented `Picker` (Equally/Exact/%) sits next to a separate
+      "More Split Types" button that opens `MoreSplitsSheet` for
+      Shares/Items — one control for 3 of 5 modes, a whole extra sheet
+      for the other 2. Two audits already touched this styling
+      (UX audit [16], UI audit [6]) without addressing the actual split
+      — cosmetic fixes on top of a two-tier structure. Replace with one
+      control covering all 5: either a `Menu`/dropdown listing
+      Equally/Exact/%/Shares/Items (collapses to one tap, no modal for
+      the "rare" 2), or make `MoreSplitsSheet` the only entry point and
+      put all 5 there as full-width rows/tabs. Whichever the owner
+      prefers, `selectSplitType` already centralizes every side effect
+      of switching types, so the seeding logic doesn't change — this is
+      presentation-only.
+- [ ] **R3. Group Options is one ~9-row Form covering five concerns.**
+      `~10-15k` for the grouping alone. This is D13, already surfaced
+      and explicitly declined pre-submission ("leave it as one Form... a
+      problem nobody's actually complained about yet") — the owner is
+      now the one complaining, so reopen it. Concretely: pull "Share
+      Invite Link" + "Export" (CSV/PDF) rows out into their own
+      `NavigationLink`-pushed sub-screens ("Share & Export"), leaving
+      the top-level Form with Group info, Members, Default Split,
+      Recurring Reminders, Danger Zone — same pattern already used for
+      Recently Deleted/Recurring Reminders elsewhere in this screen
+      family. Two sub-screens is enough to matter; don't over-fragment
+      into one screen per row.
+- [x] **R4. [bug, moderate→high] Any member can rename any other
+      member, including a signed-in one.** Done 2026-09-13.
+      `GroupDO.updateMember` now refuses the `displayName` half of the
+      patch when `identity_sub IS NOT NULL` (`MEMBER_IN_USE`, same code
+      `removeMember` already uses) — `upiVpa` still goes through
+      unconditionally, and a caller patching both at once no longer has
+      the `upiVpa` half silently dropped by the early return. Added
+      `isClaimed: boolean` to the wire `Member` (`worker/src/lib/types.ts`
+      `toMember`, always present — not an optional-when-set field like
+      `upiVpa`/`avatarKey`) and mirrored it on the Swift `Member`
+      (non-optional, no default — every construction site now says so
+      explicitly). `GroupSettingsView.memberRow`'s tap-to-rename `Button`
+      is now a no-op and hides the pencil icon when `member.isClaimed`;
+      swipe-to-Merge/Report stay available regardless. New worker test:
+      "PATCH refuses to rename a claimed member → 409 MEMBER_IN_USE, but
+      still allows their UPI VPA." Doing the `isClaimed` field now (R1's
+      step 5) means R1 later reuses it rather than re-touching `Member`.
+      Touched ~40 test call sites/fixtures across both Swift targets and
+      `test-fixtures/balances/*.json` (shared with the worker's own
+      parity tests) to add the new required field — `make check` green
+      (kit 365 · worker 315 · full iOS build + XCTest).
+- [ ] **R5. Merge duplicate members — findability, not existence.**
+      `~2-3k`. The feature shipped 2026-09-13 (see "Merge duplicate
+      members" above) and works; it's a swipe-left action on a member
+      row in Group Settings, which is exactly the kind of gesture the
+      UI audit already flagged as unreliable for the adjacent "…" menu
+      ([5] above — still unconfirmed on a real device). Add a visible,
+      non-swipe entry point: a "Merge…" row in each member's own
+      long-press context menu, or a small icon button next to the
+      pencil, so it doesn't depend on a hidden gesture nobody's told
+      about.
+- [ ] **R6. Profile/cover photo cropping is silent and automatic —
+      no user control.** `~20-30k`. Confirmed in `ProfileImage.swift`/
+      `CoverImage.swift`: every upload gets a hardcoded centre-crop
+      (square for profile, 16:9 for cover) with no preview and no way
+      to reposition or zoom before it's applied — if the interesting
+      part of the photo isn't centred, there's no recourse. Add an
+      interactive crop step between picking and uploading (drag to
+      reposition, pinch to zoom, fixed aspect matching the target) —
+      either a small custom `UIViewRepresentable` around
+      `UIScrollView`+`UIImageView` (no extra dependency) or a thin SPM
+      cropper if one fits the existing zero-third-party-UI-dependency
+      posture. Applies to both profile and group cover; receipts
+      (`ReceiptImage.swift`) stay auto-resize-only, they're not a
+      user-facing crop case.
+- [ ] **R7. Tapping a member's profile picture doesn't show it larger.**
+      `~3-5k`. `MemberProfileView` renders a static 56pt `MemberAvatar`
+      with no tap handler at all. Add a tap → `fullScreenCover` showing
+      the full-resolution image (fetched via the existing
+      `presignMediaView` path, not just the small cached thumbnail) on
+      a plain dark background, dismiss on tap. Cheapest item in this
+      batch.
+- [ ] **R8. Tapping an activity row jumps straight into editing —
+      there's no read-only details view.** `~15-20k`. Confirmed: no
+      `ActivityDetailView` exists anywhere in the codebase;
+      `GroupHomeView`'s `ActivityRow.onTapGesture` calls `edit(item)`
+      directly, for both expenses and settlements. A mis-tap starts an
+      edit session on someone's expense with no warning. Add an
+      `ActivityDetailView` (amount, splits/payers, category, date,
+      comments for an expense; from/to/amount/date for a settlement) as
+      the tap destination, with an explicit "Edit" button/toolbar item
+      that opens the existing `AddExpenseView`/`EditSettlementView`
+      sheets — matches the pattern this codebase already uses elsewhere
+      (view first, edit is a deliberate second step).
+- [ ] **R9. No "Share Balances" image card for the plain balance view.**
+      `~8-12k`. `SettleUpView` and `InsightsView` each already render a
+      shareable PNG via `RecapCard`/`ImageRenderer` (`shareCard` +
+      `ShareLink`) — proven pattern, twice over. There's nothing
+      equivalent for the group's current balance state (the
+      Home/bubble-view numbers) independent of Settle Up's *suggested
+      payments* framing. Add a third `RecapCard` variant — "who owes
+      what right now" — reachable from Group Home's "…" menu, reusing
+      the same render/share plumbing.
+- [ ] **R10. Share cards always include everything — no selection.**
+      `~10-15k`, layered on R9. Both the existing Settle Up share card
+      and the new balances card (R9) currently render every suggested
+      payment / every balance unconditionally — no way to share just
+      one or two lines (e.g. "just what Priya owes," not the whole
+      group's business). Add a selection step before rendering:
+      checkboxes on each line in a lightweight picker sheet, filtering
+      what `RecapCard` receives. One shared component, since both
+      screens feed `RecapCard` the same shape of row list already.
+- [ ] **R11. No partial settlement.** `~10-15k`. `SettleUpView`'s "Mark
+      as Paid" always records the full suggested `settlement.amountMinor`
+      — confirmed no editable amount field anywhere in that flow. Real
+      gap: half of real-world settling is "I paid them ₹500 of the
+      ₹1,200 for now." Add an editable amount field on the confirm step
+      (default = full suggested amount, editable down), call the
+      existing `addSettlement` with whatever amount was entered — the
+      balance math already handles partial settlements correctly today
+      (it's just simple subtraction), this is purely a missing input
+      field, not new balance logic.
+- [ ] **R12. "Paid by" should be one multi-select list, not a picker plus
+      a mode-toggle button.** `~15-20k`. Confirmed in `AddExpenseView`:
+      single-payer uses `MemberPickerView` (select-one), and a separate
+      "Add Payer" button (`Label("Add Payer", …)`) switches into a
+      different multi-payer entry UI entirely. Collapse into one
+      multi-select member list with checkmarks — selecting exactly one
+      behaves like today's single-payer case, selecting more reveals
+      the existing per-payer amount split UI `isMultiPayer` already
+      drives. Removes the separate toggle button; the transition from
+      1 to 2+ selections becomes the only signal needed. `payerId` /
+      `enteredPayers` state already model both cases — this is a UI
+      merge, not new state.
+- [ ] **R13. Add "View Insights" as a 3rd swipeable page on Group
+      Home, not a menu item.** `~8-12k`. This reopens D12, explicitly
+      decided the other way 4 days ago ("leave it in the menu... not
+      worth the screen real estate without real demand") — the owner
+      is now the demand. `GroupHomeView`'s hero `TabView` currently
+      has exactly 2 pages (`BalanceHeroView`, `BalanceBubbleView`,
+      `heroTabViewHeight`-scaled). Add `InsightsView` (already exists,
+      already takes `expenses`/`members`/`groupName`/`groupEmoji` with
+      no extra fetch, per the "Insights: a way back to a specific
+      group" item above) as a 3rd page in the same `TabView`. Worth
+      deciding explicitly whether the "…" menu's "View Insights" entry
+      is then redundant and should be dropped, or kept as a second
+      route to the same place.
+- [ ] **R14. Add a manual "Record a Settlement" option, independent of
+      Settle Up's suggestions.** `~10-15k` — cheaper than it looks.
+      The backend endpoint already exists and needs no changes:
+      `ClanTabClient.addSettlement(groupId:_:accessToken:)` →
+      `POST .../settlements`, today only called from `SettleUpView`'s
+      "Mark as Paid" against a server-computed suggestion. There's no
+      screen that lets someone freely pick from/to/amount/currency and
+      call it directly — exactly the case the owner describes ("paying
+      another member some amount, not the whole, and asked you to add
+      it"). Add a small create-mode counterpart to `EditSettlementView`
+      (same fields: from, to, amount, currency, date) reachable from
+      Group Home's "+"/"…" alongside Add Expense, calling the existing
+      `addSettlement`. No new backend work.
+- [ ] **R15. CloudKit backup — no visible status or manual trigger
+      anywhere.** `~5-8k` for visibility; more if a manual trigger is
+      wanted. The tier-2 backup (`CloudKitGroupBackup`,
+      `App/ClanTab/CloudKitBackup.swift`) is real and already
+      shipped — fire-and-forget on every `GroupViewModel.updateCaches`,
+      by design (see "CloudKit backup, tier 2" above, done 2026-09-08).
+      But it's invisible: no Settings row, no "last backed up" or
+      status indicator, nothing — the only backup UI that exists at all
+      is `BackupNudgeCard`'s CSV export nudge (tier 1). Add a Settings
+      row ("iCloud Backup: last synced 2h ago" / "Not signed into
+      iCloud" for the failure path, which today swallows every error
+      silently) so the feature is legible; a manual "Back Up Now" button
+      is optional on top, since the automatic cadence
+      (`CloudBackupSchedule.shouldBackUp`) already covers the real need
+      — the request here reads more like "prove it's working," which a
+      status line answers without needing a button at all.
+- [ ] **R16. Add a "My Spending" entry point on the Home page too.**
+      `~3-5k`. Cheapest structural item in this batch. Confirmed:
+      `MySpendingView` is currently reachable only via one row in
+      Settings' Account section; `GroupsListView` (the Home tab) has no
+      shortcut to it at all. Add a toolbar icon or a header row on
+      Home, same screen, no new logic — just a second navigation path
+      to something that already exists.
+
+**Sequencing note, not asked for but worth saying:** R4 is the one item
+here I'd actually argue for pulling into the current submission cycle
+rather than v1.1 — it's a real, live per-group abuse vector today, and
+the fix is a few lines server-side plus removing an affordance
+client-side, not a design project. Everything else in this batch is
+genuine v1.1-shaped polish/feature work — none of it is a bug in the
+"broken today" sense the way R4 is.
+
+
 ### Parked — not dropped, revisit deliberately
 
 - Receipt / bill reading (OCR) — needs on-device Vision work or a paid

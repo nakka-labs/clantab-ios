@@ -179,7 +179,7 @@ private struct GroupStateTransport: ClanTabTransport {
         let body = """
         {
           "group": {"name": "Goa Trip", "currency": "INR", "createdAt": "2026-01-15T10:00:00Z", "joinCode": "K7M9P2"},
-          "members": [{"id": "m1", "displayName": "Alice"}, {"id": "m2", "displayName": "Bob"}],
+          "members": [{"id": "m1", "displayName": "Alice", "isClaimed": false}, {"id": "m2", "displayName": "Bob", "isClaimed": false}],
           "expenses": [],
           "settlements": [],
           "balances": [

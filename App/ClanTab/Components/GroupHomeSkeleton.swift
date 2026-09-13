@@ -14,7 +14,7 @@ enum GroupHomeSkeleton {
     static func memberRows(count: Int = 3) -> some View {
         ForEach(0..<count, id: \.self) { index in
             MemberBalanceRow(
-                member: Member(id: "skeleton-\(index)", displayName: "Loading Name"),
+                member: Member(id: "skeleton-\(index)", displayName: "Loading Name", isClaimed: false),
                 balances: [Balance(memberId: "skeleton-\(index)", currency: "INR", netMinor: 100_000)]
             )
         }

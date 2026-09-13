@@ -326,7 +326,7 @@ final class AuthViewModelTests: XCTestCase {
         let vm = makeVM(
             store: InMemorySessionStore(session(expiresIn: 20 * day)),
             transport: RoutingTransport(responses: [
-                "/claim": (200, #"{"member":{"id":"m1","displayName":"Priya"}}"#),
+                "/claim": (200, #"{"member":{"id":"m1","displayName":"Priya","isClaimed":false}}"#),
                 "/api/auth/groups": (200, #"{"groups":[{"groupId":"g1","memberId":"m1","displayName":"Priya"}]}"#),
             ]),
             knownGroups: knownGroups
@@ -348,7 +348,7 @@ final class AuthViewModelTests: XCTestCase {
         let vm = makeVM(
             store: InMemorySessionStore(session(expiresIn: 20 * day)),
             transport: RoutingTransport(responses: [
-                "/claim": (200, #"{"member":{"id":"m1","displayName":"Priya"}}"#),
+                "/claim": (200, #"{"member":{"id":"m1","displayName":"Priya","isClaimed":false}}"#),
                 // No "/api/auth/groups" entry — RoutingTransport 404s it, which
                 // refreshGroups() treats as transient and ignores.
             ])

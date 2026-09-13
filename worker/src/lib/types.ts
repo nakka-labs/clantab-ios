@@ -17,6 +17,12 @@ export interface Member {
    * fan-out. The client resolves it to a URL via `POST /api/media/presign`.
    * Absent for a guest, or a claimed member whose identity has no photo. */
   avatarKey?: string;
+  /** Whether this member is linked to a signed-in identity (`identity_sub
+   * IS NOT NULL`) — never the subject itself, just the boolean. Lets the
+   * client hide/refuse a rename affordance up front instead of only
+   * discovering it via a `MEMBER_IN_USE` error after the fact
+   * (`CHECKLIST.md` R4/R1). */
+  isClaimed: boolean;
 }
 
 // `percentage` and `itemized` are resolved labels, not a stored basis — the iOS

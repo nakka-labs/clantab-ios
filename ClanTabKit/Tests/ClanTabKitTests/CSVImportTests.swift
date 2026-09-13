@@ -158,8 +158,8 @@ struct CSVImportTests {
 
     @Test("Export.csv round-trips through CSVImport.parse")
     func testRoundTrip() throws {
-        let ana = Member(id: "a", displayName: "Ana")
-        let ben = Member(id: "b", displayName: "Ben")
+        let ana = Member(id: "a", displayName: "Ana", isClaimed: false)
+        let ben = Member(id: "b", displayName: "Ben", isClaimed: false)
         let expense = Expense(
             id: "e1", payerId: "a", amountMinor: 2500, currency: "EUR", description: "Taxi",
             date: Date(timeIntervalSince1970: 1_700_000_000), splitType: .exact,

@@ -25,13 +25,13 @@ struct RecurringTemplateTests {
 
     @Test("valid when the payer is still a current member")
     func testValidWhenPayerIsAMember() {
-        let members = [Member(id: "m1", displayName: "Ana"), Member(id: "m2", displayName: "Ben")]
+        let members = [Member(id: "m1", displayName: "Ana", isClaimed: false), Member(id: "m2", displayName: "Ben", isClaimed: false)]
         #expect(RecurringTemplateValidation.validity(of: template(payerId: "m1"), members: members) == .valid)
     }
 
     @Test("payerNoLongerAMember once the payer's been removed from the group")
     func testInvalidWhenPayerRemoved() {
-        let members = [Member(id: "m2", displayName: "Ben")]
+        let members = [Member(id: "m2", displayName: "Ben", isClaimed: false)]
         #expect(RecurringTemplateValidation.validity(of: template(payerId: "m1"), members: members) == .payerNoLongerAMember)
     }
 

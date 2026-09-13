@@ -4,9 +4,9 @@ import Testing
 
 @Suite("Insights")
 struct InsightsTests {
-    let ana = Member(id: "a", displayName: "Ana")
-    let ben = Member(id: "b", displayName: "Ben")
-    let cara = Member(id: "c", displayName: "Cara")
+    let ana = Member(id: "a", displayName: "Ana", isClaimed: false)
+    let ben = Member(id: "b", displayName: "Ben", isClaimed: false)
+    let cara = Member(id: "c", displayName: "Cara", isClaimed: false)
 
     private var utc: Calendar {
         var c = Calendar(identifier: .gregorian)

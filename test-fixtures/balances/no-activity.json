@@ -3,15 +3,18 @@
   "members": [
     {
       "id": "a",
-      "displayName": "Ana"
+      "displayName": "Ana",
+      "isClaimed": false
     },
     {
       "id": "b",
-      "displayName": "Ben"
+      "displayName": "Ben",
+      "isClaimed": false
     },
     {
       "id": "c",
-      "displayName": "Cal"
+      "displayName": "Cal",
+      "isClaimed": false
     }
   ],
   "expenses": [],

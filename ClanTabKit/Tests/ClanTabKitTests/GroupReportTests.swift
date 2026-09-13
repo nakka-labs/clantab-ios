@@ -4,8 +4,8 @@ import Testing
 
 @Suite("GroupReport")
 struct GroupReportTests {
-    let ana = Member(id: "a", displayName: "Ana")
-    let ben = Member(id: "b", displayName: "Ben")
+    let ana = Member(id: "a", displayName: "Ana", isClaimed: false)
+    let ben = Member(id: "b", displayName: "Ben", isClaimed: false)
 
     private func expense(
         amount: Int64, currency: String = "INR", date: Date = Date(timeIntervalSince1970: 1_000_000),

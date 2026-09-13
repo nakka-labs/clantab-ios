@@ -7,8 +7,8 @@ final class CloudKitBackupTests: XCTestCase {
     private let capturedAt = Date(timeIntervalSince1970: 1_700_000_000)
 
     private func makeSnapshot() -> CloudBackupSnapshot {
-        let alice = Member(id: "alice", displayName: "Alice")
-        let bob = Member(id: "bob", displayName: "Bob")
+        let alice = Member(id: "alice", displayName: "Alice", isClaimed: false)
+        let bob = Member(id: "bob", displayName: "Bob", isClaimed: false)
         let expense = Expense(
             id: "e1", payerId: "alice", amountMinor: 1000, currency: "USD",
             description: "Dinner", date: capturedAt, splitType: .equal,

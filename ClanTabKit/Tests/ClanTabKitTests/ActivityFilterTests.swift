@@ -4,9 +4,9 @@ import Testing
 
 @Suite("ActivityFilter")
 struct ActivityFilterTests {
-    let ana = Member(id: "a", displayName: "Ana")
-    let ben = Member(id: "b", displayName: "Ben")
-    let cara = Member(id: "c", displayName: "Cára") // diacritic on purpose
+    let ana = Member(id: "a", displayName: "Ana", isClaimed: false)
+    let ben = Member(id: "b", displayName: "Ben", isClaimed: false)
+    let cara = Member(id: "c", displayName: "Cára", isClaimed: false) // diacritic on purpose
 
     var members: [Member] { [ana, ben, cara] }
 

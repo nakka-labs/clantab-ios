@@ -4,9 +4,9 @@ import Testing
 
 @Suite("DefaultSplit")
 struct DefaultSplitTests {
-    private let ana = Member(id: "a", displayName: "Ana")
-    private let ben = Member(id: "b", displayName: "Ben")
-    private let cara = Member(id: "c", displayName: "Cara")
+    private let ana = Member(id: "a", displayName: "Ana", isClaimed: false)
+    private let ben = Member(id: "b", displayName: "Ben", isClaimed: false)
+    private let cara = Member(id: "c", displayName: "Cara", isClaimed: false)
 
     private func split(_ pairs: (String, Int)...) -> DefaultSplit {
         DefaultSplit(weights: pairs.map { DefaultSplitWeight(memberId: $0.0, weight: $0.1) })

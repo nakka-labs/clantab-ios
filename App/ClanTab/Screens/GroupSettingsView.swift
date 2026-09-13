@@ -651,6 +651,13 @@ struct GroupSettingsView: View {
     // `SettleUpView.upiNudgeSection`).
     private func memberRow(_ member: Member) -> some View {
         Button {
+            // A claimed member's name is theirs to set (Settings, or — once
+            // R1 lands — the identity-level name), not a plain group-
+            // settings rename; the server refuses this independently
+            // (`CHECKLIST.md` R4), this is just not offering an affordance
+            // we already know will be rejected, same principle as
+            // `isRemovable` below.
+            guard !member.isClaimed else { return }
             renameText = member.displayName
             renamingMember = member
         } label: {
@@ -658,7 +665,9 @@ struct GroupSettingsView: View {
                 MemberAvatar(member, size: 28)
                 Text(member.displayName).foregroundStyle(.primary)
                 Spacer()
-                Image(systemName: "pencil").font(.caption).foregroundStyle(.tertiary)
+                if !member.isClaimed {
+                    Image(systemName: "pencil").font(.caption).foregroundStyle(.tertiary)
+                }
             }
             .contentShape(Rectangle())
         }

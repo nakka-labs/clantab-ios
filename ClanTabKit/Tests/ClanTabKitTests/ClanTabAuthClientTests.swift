@@ -231,12 +231,12 @@ struct ClanTabAuthClientTests {
     func testClaimable() async throws {
         let transport = FakeTransport(
             statusCode: 200,
-            body: jsonData(["members": [["id": "m1", "displayName": "Priya"], ["id": "m2", "displayName": "Sam"]]])
+            body: jsonData(["members": [["id": "m1", "displayName": "Priya", "isClaimed": false], ["id": "m2", "displayName": "Sam", "isClaimed": false]]])
         )
         let client = ClanTabClient(baseURL: baseURL, transport: transport)
 
         let response = try await client.claimableMembers(groupId: "g1", token: "sess")
-        #expect(response.members == [Member(id: "m1", displayName: "Priya"), Member(id: "m2", displayName: "Sam")])
+        #expect(response.members == [Member(id: "m1", displayName: "Priya", isClaimed: false), Member(id: "m2", displayName: "Sam", isClaimed: false)])
 
         let request = await transport.lastRequest
         #expect(request?.url?.absoluteString == "https://clantab.example.com/api/groups/g1/claimable")
@@ -247,12 +247,12 @@ struct ClanTabAuthClientTests {
     func testClaim() async throws {
         let transport = FakeTransport(
             statusCode: 200,
-            body: jsonData(["member": ["id": "m1", "displayName": "Priya"]])
+            body: jsonData(["member": ["id": "m1", "displayName": "Priya", "isClaimed": false]])
         )
         let client = ClanTabClient(baseURL: baseURL, transport: transport)
 
         let response = try await client.claimMember(groupId: "g1", memberId: "m1", token: "sess")
-        #expect(response.member == Member(id: "m1", displayName: "Priya"))
+        #expect(response.member == Member(id: "m1", displayName: "Priya", isClaimed: false))
 
         let request = await transport.lastRequest
         #expect(request?.httpMethod == "POST")
