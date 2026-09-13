@@ -35,6 +35,11 @@ struct MemberProfileView: View {
     /// same pattern `KnownGroupsStore`'s Keychain-backed default uses.
     var remindHistory: RemindHistoryStoring = UserDefaultsRemindHistoryStore()
 
+    /// Tap-to-enlarge the header avatar (`CHECKLIST.md` R7) — reuses
+    /// `ReceiptViewer` as-is, it's already generic (`key`/`accessToken`/
+    /// `initialImage`, nothing receipt-specific).
+    @State private var showingAvatarViewer = false
+
     @State private var remindingEdge: SimplifiedSettlement?
     /// Edge key -> when a reminder was last sent, seeded from `remindHistory`
     /// on appear and kept in sync with it on every send — was a bare
@@ -95,7 +100,20 @@ struct MemberProfileView: View {
         List {
             Section {
                 HStack(spacing: 14) {
-                    MemberAvatar(member, size: 56)
+                    if let avatarKey = member.avatarKey {
+                        Button { showingAvatarViewer = true } label: {
+                            MemberAvatar(member, size: 56)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("View \(member.displayName)'s photo")
+                        .fullScreenCover(isPresented: $showingAvatarViewer) {
+                            ReceiptViewer(key: avatarKey, accessToken: accessToken)
+                        }
+                    } else {
+                        // No photo to enlarge — an initials-fallback circle
+                        // isn't worth a full-screen viewer.
+                        MemberAvatar(member, size: 56)
+                    }
                     Text(member.displayName)
                         .font(.title2.weight(.semibold))
                         .lineLimit(2)

@@ -3328,13 +3328,18 @@ explicitly before treating this as "all safely deferrable":
       posture. Applies to both profile and group cover; receipts
       (`ReceiptImage.swift`) stay auto-resize-only, they're not a
       user-facing crop case.
-- [ ] **R7. Tapping a member's profile picture doesn't show it larger.**
-      `~3-5k`. `MemberProfileView` renders a static 56pt `MemberAvatar`
-      with no tap handler at all. Add a tap → `fullScreenCover` showing
-      the full-resolution image (fetched via the existing
-      `presignMediaView` path, not just the small cached thumbnail) on
-      a plain dark background, dismiss on tap. Cheapest item in this
-      batch.
+- [x] **R7. Tapping a member's profile picture doesn't show it larger.**
+      Done 2026-09-13. `MemberProfileView`'s header `MemberAvatar` is now
+      a `Button` (only when `member.avatarKey != nil` — no point opening a
+      viewer for an initials-fallback circle) that presents a
+      `fullScreenCover` reusing `ReceiptViewer` as-is (it was already
+      generic — `key`/`accessToken`/`initialImage`, nothing receipt-
+      specific), so pinch-to-zoom/double-tap/dismiss all come for free.
+      Note: the "full-resolution" image is actually the same ≤512px
+      upload `ProfileImage.jpegData` already produces on upload — there's
+      no separate high-res copy stored server-side, so this fixes the
+      real complaint (no way to see it larger at all) without revealing
+      new detail. `make check`'s iOS build green.
 - [ ] **R8. Tapping an activity row jumps straight into editing —
       there's no read-only details view.** `~15-20k`. Confirmed: no
       `ActivityDetailView` exists anywhere in the codebase;
