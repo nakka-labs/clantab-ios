@@ -283,6 +283,16 @@
           assigned to the internal **"test-team"** group alongside builds
           1–9, "What to Test" set. Archive at
           `~/Library/Developer/Xcode/Archives/2026-09-13/`.
+      3c. [x] CLI: build `1.0 (11)` archived, exported, and uploaded
+          2026-09-13 — carries the full round-3 playtest batch (the round-3
+          section above, closed same day). Checked the live build number
+          via the ASC API first (`GET /v1/builds?filter[app]=6807057518
+          &sort=-uploadedDate&limit=1` — `10`, matched the repo), `make
+          bump-build` → `11`, same archive + `-exportArchive` flow as 3b.
+          `processingState VALID`. Archive at
+          `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-11
+          .xcarchive`. Owner testing this build in parallel with the
+          "Merge duplicate members" work below.
       4. Owner: run the pass on a real device — Sign in with Apple/Google,
          a push (CLI triggers it via an API expense-add), a recurring-
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
