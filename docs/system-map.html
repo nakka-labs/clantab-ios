@@ -1,0 +1,912 @@
+<title>ClanTab System Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --surface:#ffffff;
+    --surface-2:#edf0f4;
+    --border:#d6dbe3;
+    --ink:#1a2130;
+    --ink-dim:#5c6578;
+    --ink-faint:#8992a3;
+    --accent:#2456d1;
+    --accent-ink:#13306e;
+    --accent-soft:#e7edfc;
+    --tag-a-bg:#e6f3ef;
+    --tag-a-ink:#0f5c48;
+    --tag-b-bg:#f4ecfb;
+    --tag-b-ink:#5b2a8c;
+    --tag-c-bg:#fbeee0;
+    --tag-c-ink:#8a4b12;
+    --tag-d-bg:#fbe7e7;
+    --tag-d-ink:#9c2626;
+    --p0-bg:#fbe2e2; --p0-ink:#a01c1c; --p0-border:#f0b8b8;
+    --p1-bg:#fcecd4; --p1-ink:#8a5a0a; --p1-border:#f0d19a;
+    --p2-bg:#e7e9ee; --p2-ink:#495066; --p2-border:#d3d7e0;
+    --rec-bg:#e7f5ee; --rec-ink:#177046; --rec-border:#b7e3cb;
+    --code-bg:#eef1f6;
+    --shadow: 0 1px 2px rgba(20,30,60,.05), 0 8px 24px -12px rgba(20,30,60,.15);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12151c;
+      --surface:#181c25;
+      --surface-2:#1f2430;
+      --border:#2b3140;
+      --ink:#e7eaf1;
+      --ink-dim:#a2a9ba;
+      --ink-faint:#707894;
+      --accent:#6d92f5;
+      --accent-ink:#cddaff;
+      --accent-soft:#1f2c4d;
+      --tag-a-bg:#12332b;
+      --tag-a-ink:#7fd9bd;
+      --tag-b-bg:#2b1f3d;
+      --tag-b-ink:#cba6ef;
+      --tag-c-bg:#3a2a14;
+      --tag-c-ink:#e3a86c;
+      --tag-d-bg:#3a1e1e;
+      --tag-d-ink:#f0a3a3;
+      --p0-bg:#3a1e1e; --p0-ink:#f5a3a3; --p0-border:#5c2a2a;
+      --p1-bg:#3a2e14; --p1-ink:#f0c584; --p1-border:#5c4520;
+      --p2-bg:#232839; --p2-ink:#b0b6c8; --p2-border:#333a4d;
+      --rec-bg:#123324; --rec-ink:#7fd9ac; --rec-border:#1e4d38;
+      --code-bg:#1e2330;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px -12px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12151c;
+    --surface:#181c25;
+    --surface-2:#1f2430;
+    --border:#2b3140;
+    --ink:#e7eaf1;
+    --ink-dim:#a2a9ba;
+    --ink-faint:#707894;
+    --accent:#6d92f5;
+    --accent-ink:#cddaff;
+    --accent-soft:#1f2c4d;
+    --tag-a-bg:#12332b;
+    --tag-a-ink:#7fd9bd;
+    --tag-b-bg:#2b1f3d;
+    --tag-b-ink:#cba6ef;
+    --tag-c-bg:#3a2a14;
+    --tag-c-ink:#e3a86c;
+    --tag-d-bg:#3a1e1e;
+    --tag-d-ink:#f0a3a3;
+    --p0-bg:#3a1e1e; --p0-ink:#f5a3a3; --p0-border:#5c2a2a;
+    --p1-bg:#3a2e14; --p1-ink:#f0c584; --p1-border:#5c4520;
+    --p2-bg:#232839; --p2-ink:#b0b6c8; --p2-border:#333a4d;
+    --rec-bg:#123324; --rec-ink:#7fd9ac; --rec-border:#1e4d38;
+    --code-bg:#1e2330;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px -12px rgba(0,0,0,.5);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    padding:0 20px 64px;
+    line-height:1.5;
+  }
+  .wrap{max-width:980px;margin:0 auto;}
+
+  code, .mono{font-family:"IBM Plex Mono", ui-monospace, monospace;}
+
+  header{padding:40px 0 28px; border-bottom:1px solid var(--border);}
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent); font-weight:600; margin:0 0 10px;
+  }
+  h1{
+    font-size:clamp(28px,4vw,38px); margin:0 0 10px; font-weight:700;
+    letter-spacing:-.01em; text-wrap:balance;
+  }
+  .lede{color:var(--ink-dim); max-width:62ch; margin:0 0 20px; font-size:15.5px;}
+
+  .howto{
+    display:flex; gap:14px; flex-wrap:wrap; align-items:center;
+    background:var(--surface-2); border:1px solid var(--border);
+    border-radius:10px; padding:14px 16px; font-size:13.5px; color:var(--ink-dim);
+  }
+  .howto b{color:var(--ink); font-weight:600;}
+  .tag{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:"IBM Plex Mono", monospace; font-size:12px; font-weight:600;
+    padding:3px 9px; border-radius:6px; white-space:nowrap;
+  }
+  .tag.a{background:var(--tag-a-bg); color:var(--tag-a-ink);}
+  .tag.b{background:var(--tag-b-bg); color:var(--tag-b-ink);}
+  .tag.c{background:var(--tag-c-bg); color:var(--tag-c-ink);}
+  .tag.d{background:var(--tag-d-bg); color:var(--tag-d-ink);}
+
+  /* Defect tickets */
+  .ticket{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    box-shadow:var(--shadow); padding:20px 22px; margin-bottom:16px;
+  }
+  .ticket-head{
+    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:4px;
+  }
+  .ticket-head h3{font-size:17px; margin:0; font-weight:700; letter-spacing:-.005em;}
+  .prio{
+    font-family:"IBM Plex Mono", monospace; font-size:11px; font-weight:700;
+    letter-spacing:.03em; padding:2px 8px; border-radius:5px; border:1px solid;
+    white-space:nowrap;
+  }
+  .prio.p0{background:var(--p0-bg); color:var(--p0-ink); border-color:var(--p0-border);}
+  .prio.p1{background:var(--p1-bg); color:var(--p1-ink); border-color:var(--p1-border);}
+  .prio.p2{background:var(--p2-bg); color:var(--p2-ink); border-color:var(--p2-border);}
+  .est{
+    font-family:"IBM Plex Mono", monospace; font-size:11.5px; color:var(--ink-faint);
+    margin-left:auto;
+  }
+  .field{margin-top:12px;}
+  .field-label{
+    font-family:"IBM Plex Mono", monospace; font-size:10.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-faint); font-weight:600; margin-bottom:5px;
+  }
+  .field p{margin:0; font-size:14px; color:var(--ink-dim); line-height:1.55;}
+  .field .evidence{font-size:13px; font-family:"IBM Plex Mono",monospace; color:var(--ink-faint); background:var(--code-bg); padding:8px 10px; border-radius:8px; line-height:1.6;}
+  .options{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .option{
+    border:1px solid var(--border); border-radius:9px; padding:9px 12px; font-size:13.5px;
+    color:var(--ink-dim); background:var(--surface-2);
+  }
+  .option b{color:var(--ink); font-weight:600;}
+  .option.rec{
+    border-color:var(--rec-border); background:var(--rec-bg); color:var(--ink);
+  }
+  .rec-flag{
+    display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:700;
+    letter-spacing:.05em; color:var(--rec-ink); border:1px solid var(--rec-border);
+    background:var(--surface); padding:1px 6px; border-radius:5px; margin-right:7px; vertical-align:2px;
+  }
+  .steps{margin:0; padding-left:20px; font-size:13.5px; color:var(--ink-dim); line-height:1.7;}
+  .steps li::marker{font-family:"IBM Plex Mono",monospace; color:var(--ink-faint);}
+  .goal-line{
+    font-size:14.5px; color:var(--ink); font-weight:500; line-height:1.5;
+    background:var(--accent-soft); border-left:3px solid var(--accent);
+    padding:9px 12px; border-radius:0 8px 8px 0; margin-top:10px;
+  }
+
+  /* Screen purpose audit */
+  .intent-line{
+    font-size:14px; color:var(--ink-dim); font-style:italic; line-height:1.5;
+    border-left:3px solid var(--border); padding:2px 12px; margin-top:10px;
+  }
+  .intent-line::before{content:"“"; font-style:normal;}
+  .intent-line::after{content:"”"; font-style:normal;}
+  .actual-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+  .actual-list li{
+    font-size:13.5px; color:var(--ink-dim); line-height:1.55; padding-left:16px; position:relative;
+  }
+  .actual-list li::before{content:"—"; position:absolute; left:0; color:var(--ink-faint);}
+  .actual-list li b{color:var(--ink); font-weight:600;}
+  .verdict{
+    font-family:"IBM Plex Mono", monospace; font-size:11px; font-weight:700;
+    letter-spacing:.03em; padding:2px 8px; border-radius:5px; border:1px solid; white-space:nowrap;
+  }
+  .verdict.match{background:var(--rec-bg); color:var(--rec-ink); border-color:var(--rec-border);}
+  .verdict.overlap{background:var(--p1-bg); color:var(--p1-ink); border-color:var(--p1-border);}
+  .verdict.decide{background:var(--p0-bg); color:var(--p0-ink); border-color:var(--p0-border);}
+
+  section{margin-top:44px;}
+  h2{
+    font-size:20px; font-weight:700; margin:0 0 4px; letter-spacing:-.005em;
+    display:flex; align-items:center; gap:10px;
+  }
+  .section-sub{color:var(--ink-faint); font-size:13.5px; margin:0 0 18px;}
+
+  .panel{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; box-shadow:var(--shadow);
+    padding:22px; overflow-x:auto;
+  }
+  .panel pre.mermaid{margin:0; display:flex; justify-content:center;}
+
+  table{width:100%; border-collapse:collapse; font-size:14px;}
+  caption{text-align:left; caption-side:top; font-size:0; height:0;}
+  thead th{
+    text-align:left; font-family:"IBM Plex Mono", monospace; font-size:11.5px;
+    letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint);
+    font-weight:600; padding:0 12px 10px; border-bottom:1px solid var(--border);
+  }
+  tbody td{
+    padding:11px 12px; border-bottom:1px solid var(--border); vertical-align:top;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-2);}
+  .id-cell{white-space:nowrap;}
+  .id-pill{
+    font-family:"IBM Plex Mono", monospace; font-weight:700; font-size:13px;
+    color:var(--accent-ink); background:var(--accent-soft);
+    padding:3px 8px; border-radius:6px;
+  }
+  .name-cell{font-weight:600; white-space:nowrap;}
+  .desc-cell{color:var(--ink-dim);}
+  .loc-cell{
+    font-family:"IBM Plex Mono", monospace; font-size:12px; color:var(--ink-faint);
+    white-space:nowrap;
+  }
+
+  .table-scroll{overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:var(--shadow);}
+  .table-scroll table{min-width:640px;}
+
+  footer{
+    margin-top:56px; padding-top:20px; border-top:1px solid var(--border);
+    color:var(--ink-faint); font-size:12.5px;
+  }
+
+  @media (max-width:560px){
+    header{padding-top:28px;}
+    section{margin-top:32px;}
+    .panel{padding:14px;}
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Reference diagram · ClanTab</p>
+    <h1>System Map</h1>
+    <p class="lede">Every box below has a permanent ID. Point at one instead of describing it — <span class="mono">"tighten B5"</span> or <span class="mono">"A7 owns too much"</span> is unambiguous; a paragraph pointing at a screenshot isn't. IDs are stable across revisions of this page.</p>
+    <div class="howto">
+      <span><b>Legend</b></span>
+      <span class="tag a">A1–A12</span> <span>system components (where code runs)</span>
+      <span class="tag b">B1–B11</span> <span>data entities (what's stored)</span>
+      <span class="tag c">C1–C18</span> <span>screens &amp; flow steps (what the user does)</span>
+      <span class="tag d">D1–D14</span> <span>defects — findings + brainstormed fix, ready to hand to a CLI session</span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="tag a">A</span> Architecture</h2>
+    <p class="section-sub">iOS app → shared package → Cloudflare Worker → per-entity Durable Objects. Solid arrows are synchronous calls; dashed are best-effort/async.</p>
+    <div class="panel">
+<pre class="mermaid">
+flowchart TB
+  subgraph L1[" iOS App target "]
+    direction LR
+    A1["A1 · Screens &amp; Components<br/><span style='font-size:11px'>SwiftUI views — GroupHomeView, AddExpenseView, InsightsHubView…</span>"]
+    A2["A2 · ViewModels<br/><span style='font-size:11px'>AuthViewModel, GroupViewModel</span>"]
+  end
+
+  subgraph L2[" ClanTabKit — shared Swift package "]
+    direction LR
+    A3["A3 · Models &amp; Logic<br/><span style='font-size:11px'>Group/Expense/Settlement, Balances, Simplify, Validation…</span>"]
+    A4["A4 · ClanTabClient<br/><span style='font-size:11px'>network layer — 43 API calls</span>"]
+    A5["A5 · Local Stores<br/><span style='font-size:11px'>Keychain/UserDefaults — session, known groups, coach marks…</span>"]
+  end
+
+  subgraph L3[" Cloudflare Worker "]
+    A6["A6 · index.ts router<br/><span style='font-size:11px'>~35 REST routes under /api</span>"]
+  end
+
+  subgraph L4[" Durable Objects — one instance per entity "]
+    direction LR
+    A7["A7 · GroupDO<br/><span style='font-size:11px'>1 per group — members, expenses,<br/>settlements, comments (source of truth)</span>"]
+    A8["A8 · UserDO<br/><span style='font-size:11px'>1 per user — identity, group index,<br/>devices, friends</span>"]
+    A9["A9 · ReportsDO<br/><span style='font-size:11px'>moderation reports</span>"]
+  end
+
+  subgraph L5[" External services "]
+    direction LR
+    A10["A10 · R2 + KV<br/><span style='font-size:11px'>photo/receipt storage, join-code lookup</span>"]
+    A11["A11 · APNs<br/><span style='font-size:11px'>push notifications</span>"]
+    A12(["A12 · CloudKit<br/><span style='font-size:11px'>per-device backup, write-only, tier-2</span>"])
+  end
+
+  A1 --> A2
+  A2 --> A3
+  A2 --> A4
+  A4 -->|"HTTPS /api/*"| A6
+  A6 --> A7
+  A6 --> A8
+  A6 --> A9
+  A7 --> A10
+  A6 -.->|"on group activity"| A11
+  A2 -.->|"snapshot on change"| A12
+  A5 -.- A2
+</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag b">B</span> Domain model</h2>
+    <p class="section-sub">Everything a group actually stores. <span class="mono">B11 Balance</span> is never persisted — it's recomputed from expenses + settlements on every read.</p>
+    <div class="panel">
+<pre class="mermaid">
+flowchart TB
+  B1["<b>B1 · Group</b><br/>id · joinCode · name<br/>currency · createdAt"]
+  B2["<b>B2 · Member</b><br/>id · displayName<br/>upiVpa? · avatarKey?"]
+  B3["<b>B3 · Expense</b><br/>id · amountMinor · currency<br/>description · date · splitType<br/>category? · deletedAt?"]
+  B4["<b>B4 · ExpensePayment</b><br/>memberId · amountMinor<br/><span style='font-size:11px'>(who paid — many allowed)</span>"]
+  B5["<b>B5 · ExpenseSplit</b><br/>memberId · amountMinor<br/><span style='font-size:11px'>(who owes)</span>"]
+  B6["<b>B6 · LineItem</b><br/>id · name · amountMinor<br/>participantIds[]<br/><span style='font-size:11px'>(itemized split only)</span>"]
+  B7["<b>B7 · Settlement</b><br/>id · fromId · toId<br/>amountMinor · date · deletedAt?"]
+  B8["<b>B8 · Comment</b><br/>id · expenseId · authorMemberId<br/>text · createdAt"]
+  B9["<b>B9 · RecurringTemplate</b><br/>id · groupId · description<br/>amountMinor · payerId · cadence"]
+  B10["<b>B10 · DefaultSplit</b><br/>weights: DefaultSplitWeight[]"]
+  B11(["<b>B11 · Balance</b><br/><span style='font-size:11px'>derived, not stored</span><br/>memberId · currency · netMinor"])
+
+  B1 -->|"1 — many"| B2
+  B1 -->|"1 — many"| B3
+  B1 -->|"1 — many"| B7
+  B1 -->|"1 — many"| B9
+  B1 -->|"1 — 0..1"| B10
+  B3 -->|"1 — many"| B4
+  B3 -->|"1 — many"| B5
+  B3 -->|"1 — 0..many"| B6
+  B3 -->|"1 — many"| B8
+  B3 -.->|"feeds"| B11
+  B7 -.->|"feeds"| B11
+</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag c">C</span> User flow</h2>
+    <p class="section-sub">What a person actually does, screen to screen. Dashed arrows are "sheet dismisses, you're back where you started" — not a new place.</p>
+    <div class="panel">
+<pre class="mermaid">
+flowchart TB
+  C1{{"C1 · App Launch<br/><span style='font-size:11px'>onboarding? deep link? pinned group?</span>"}}
+  C2["C2 · Onboarding<br/><span style='font-size:11px'>first run only, shown once</span>"]
+
+  subgraph TABS[" Persistent 3-tab shell (was 4 — C17 Insights removed 2026-09-13) "]
+    direction LR
+    C3["C3 · Home / StartView<br/><span style='font-size:11px'>dashboard — your groups, sign-in</span>"]
+    C16["C16 · Friends tab<br/><span style='font-size:11px'>FriendsView → FriendDetailView</span>"]
+    C18["C18 · Settings tab<br/><span style='font-size:11px'>account, launch-screen pref, sign out</span>"]
+  end
+
+  subgraph HOMESTACK[" Home tab push stack "]
+    direction TB
+    C5["C5 · Create Group"]
+    C6["C6 · Join with Code"]
+    C7["C7 · Claim Member<br/><span style='font-size:11px'>pick who you are, or add yourself</span>"]
+    C8[["C8 · Group Home<br/><span style='font-size:11px'>the hub — activity feed, balances</span>"]]
+  end
+
+  subgraph GROUPACTIONS[" Sheets presented over Group Home "]
+    direction TB
+    C9["C9 · Add / Edit Expense"]
+    C10["C10 · Settle Up / Edit Settlement"]
+    C11["C11 · Group Insights"]
+    C12["C12 · Import CSV"]
+    C13["C13 · Group Settings<br/><span style='font-size:11px'>members, merge duplicates, report</span>"]
+    C14["C14 · Recently Deleted"]
+    C15["C15 · Recurring Reminders"]
+  end
+
+  C1 -->|"first run"| C2 --> C3
+  C1 -->|"returning"| C3
+  C1 -.->|"deep link / push tap"| C8
+
+  C3 -->|"new group"| C5 --> C8
+  C3 -->|"have a code"| C6 --> C7 --> C8
+  C3 -->|"tap a known group"| C8
+
+  C16 -->|"tap a friend's tab"| C8
+
+  %% C17 Insights tab removed 2026-09-13 — see the C17 ticket below and D6/D14
+
+  C8 --> C9 -.->|"save / cancel"| C8
+  C8 --> C10 -.->|"save / cancel"| C8
+  C8 --> C11
+  C8 --> C12 -.->|"import done"| C8
+  C8 --> C13
+  C8 --> C14 -.-> C8
+  C8 --> C15 -.-> C8
+</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag c">C</span> Screen purpose audit</h2>
+    <p class="section-sub">Your draft, next to what's actually built today — real content, pulled from the view code, not a guess. Uses the same C-IDs from the flow diagram above; no new prefix needed, these <i>are</i> those screens.</p>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="id-pill">C3</span><h3>Home</h3><span class="verdict match">MATCHES</span></div>
+      <div class="intent-line">List all groups with personal balance.</div>
+      <div class="field"><div class="field-label">Actually built today</div>
+        <ul class="actual-list">
+          <li>One-time <b>Welcome Back</b> card after a gap since last open — a balance summary</li>
+          <li><b>Cross-group total</b> header (owe/owed net), hidden while Welcome Back is already showing the same number</li>
+          <li><b>Groups list</b> — every active group, each row already carries its own balance line ("You owe ₹X" / "Settled up")</li>
+          <li><b>Archived groups</b>, collapsed by default</li>
+          <li><b>Create Group</b> / <b>Join with a Code</b> buttons</li>
+          <li>Pre-auth: branding hero, a read-only sample-group preview, sign in</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Verdict</div><p>This already <i>is</i> the screen you described. Nothing missing against your draft.</p></div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="id-pill">C16</span><h3>Friends</h3><span class="verdict match">MATCHES</span></div>
+      <div class="intent-line">List of friends and 1-1 balance and settle.</div>
+      <div class="field"><div class="field-label">Actually built today</div>
+        <ul class="actual-list">
+          <li>List of every co-member who's <b>signed in</b> (not "everyone you've ever added" — someone typed-in but never claimed doesn't show)</li>
+          <li>Each row: name + <b>net balance across every group you share</b> with them</li>
+          <li>Tap through → <b>Balance</b> (the net), <b>By Group</b> breakdown, a <b>Settle All</b> button (records a settlement in every group at once)</li>
+          <li>Bonus, beyond your draft: <b>Start/Open a Private Tab</b> — a 1:1 running ledger separate from any shared group</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Verdict</div><p>Matches, plus the private-tab feature your draft didn't mention but is already live.</p></div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="id-pill">C18</span><h3>Settings</h3><span class="verdict match">MATCHES</span></div>
+      <div class="intent-line">Settings.</div>
+      <div class="field"><div class="field-label">Actually built today</div>
+        <ul class="actual-list">
+          <li><b>Account</b> — sign in/out, profile photo</li>
+          <li><b>Danger Zone</b> — Delete Account</li>
+          <li><b>App</b> — appearance (light/dark), "Open at Launch" group picker, version, "Show Tips Again"</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Verdict</div><p>Your one-liner is accurate — it's exactly settings, nothing more, nothing missing.</p></div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="id-pill">C8</span><h3>Group Home</h3><span class="verdict overlap">MOSTLY MATCHES</span></div>
+      <div class="intent-line">User balance, graphs → insights (more data/graphs), complete expense and settlement logs.</div>
+      <div class="field"><div class="field-label">Actually built today</div>
+        <ul class="actual-list">
+          <li>Cover image, sync/backup nudges when relevant</li>
+          <li><b>Balance hero</b> — your own balance in this group, swipeable to a <b>balance-bubble</b> visual (who owes what, as circles)</li>
+          <li><b>Members</b> section — every member's balance, tap through to their profile</li>
+          <li><b>Activity</b> — the full expense + settlement log, searchable, filterable by category, swipe to edit/duplicate/delete</li>
+          <li>"…" menu → <b>Group Settings</b>, <b>View Insights</b> (this group's own graphs — C11), Import CSV, Recently Deleted, Recurring Reminders</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Verdict</div><p>Balance ✓, complete logs ✓. "Graphs" is one tap away via the "…" menu (C11), not inline on this screen the way your draft's arrow suggests — worth deciding if that's the actual intent or if graphs should surface more directly here.</p></div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="id-pill">C13</span><h3>Group Options</h3><span class="verdict overlap">MATCHES + MORE</span></div>
+      <div class="intent-line">Invite, name, picture, etc.</div>
+      <div class="field"><div class="field-label">Actually built today</div>
+        <ul class="actual-list">
+          <li><b>Group</b> — name, default currency, emoji</li>
+          <li><b>Join Code</b> — view/copy (the "invite," though the shareable link itself lives in Group Home's Share menu, not here)</li>
+          <li><b>Cover image</b>, <b>Default Split</b> config</li>
+          <li><b>Members</b> — rename, remove, <b>merge duplicates</b>; <b>Add Someone</b> (no-account placeholder member)</li>
+          <li><b>My UPI ID</b>, <b>Report a Problem</b></li>
+          <li><b>Danger Zone</b> — Regenerate Link, Archive, Leave Group</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Verdict</div><p>Your "etc." was doing a lot of work — this screen covers member management, payments, and moderation too, not just identity. Worth a look at whether it's grown into too many concerns for one "Options" screen.</p></div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="id-pill">C17</span><h3>Insights</h3><span class="verdict match">REMOVED 2026-09-13</span></div>
+      <div class="field"><div class="field-label">Outcome</div><p>Decided and done — the tab is gone (CHECKLIST.md "Remove the Insights tab", <b>not yet verified against a real build</b>, see the note there). Option A below was executed. The one open thread is <b>D14</b>: what happens to the surviving category-spend chart.</p></div>
+      <div class="intent-line">Dashboard of the user and his balances with each group — as of now it isn't doing anything and is better removed.</div>
+      <div class="field"><div class="field-label">Actually built today</div>
+        <ul class="actual-list">
+          <li><b>Cross-group total header</b> — the exact same component Home (C3) already renders</li>
+          <li>Currency picker (only if you use more than one)</li>
+          <li>"You spent" total + <b>By category</b> pie chart — the one genuinely new thing here</li>
+          <li><b>By group</b> — a list of per-group balances — the same information Home's own group rows already show</li>
+          <li>This is <b>D6</b>: the exact screen that shipped fully broken in build 13 and got an unverified fix in build 14</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">You're right, and here's the code proof</div><p>Your draft's intended purpose for this tab — "balances with each group" — is <i>already Home's job</i>, and the code confirms it: two of this screen's four sections are literally the same component or the same data Home already shows. The only content here that isn't a duplicate is the category-spend pie. You didn't just guess this was redundant — you designed its spec to match a screen that already exists.</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>A — remove the tab.</b> Move "spend by category across groups" into a single screen reachable from Settings (or a button on Home), not a permanent tab slot. This is a nice-to-have analytics view, not core to "who owes whom" — and it's currently the single most bug-prone screen in the app (D6), built same-day on a playtest hunch with no real usage signal behind it (this app has no telemetry, so "is anyone using this tab" is genuinely unknown). Removing it also frees a tab slot and deletes the fragile per-group fan-out fetch that caused D6 in the first place.</li>
+          <li class="option"><b>B — keep the tab, but make it actually different from Home.</b> Cut the duplicated total header and "by group" balance list entirely; keep only spend-by-category, and add an over-time trend chart (same shape C11 already does per-group, aggregated across all groups instead). Legitimate if you genuinely want personal analytics as a persistent surface, not just a one-off report.</li>
+          <li class="option"><b>C — leave it as-is.</b> Not recommended — right now it's ~70% duplicate content, sitting in the most fragile part of the app, with no demonstrated demand.</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">If you pick A — steps</div>
+        <ol class="steps">
+          <li>Remove the Insights tab from <code>MainTab</code> / <code>RootView</code>'s TabView (back to a 3-tab shell, or something else earns the slot).</li>
+          <li>Move the category-pie + "You spent" total into a single screen, reached from Settings ("My Spending") or a button on Home — same underlying data, no tab bar cost.</li>
+          <li>Delete the now-dead per-group fan-out fetch in <code>InsightsHubView.reload()</code> — this also retires D6 outright instead of fixing it.</li>
+          <li>Update the flow map (C section above) and this audit once the shape is decided.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="tag d">D</span> Defects &amp; fixes</h2>
+    <p class="section-sub">Each ticket below is written to be handed to a CLI session directly — goal first, then the options actually weighed and which one won, then concrete steps. <b style="color:var(--ink)">Read the goal line before the steps</b> — it's the thing to verify at the end, not just a to-do list to clear.</p>
+
+    <div class="panel" style="margin-bottom:22px;">
+<pre class="mermaid">
+flowchart LR
+  subgraph P0[" P0 — real bugs, fix before submit "]
+    direction TB
+    D1["D1 · CSV EU-locale<br/>amount corruption"]
+    D2["D2 · Overflow menu<br/>unreachable rows"]
+  end
+  subgraph P1[" P1 — cheap/moderate, do soon "]
+    direction TB
+    D7["D7 · print() instead<br/>of real logging"]
+    D9["D9 · UPI ID shown<br/>for wrong currency"]
+    D10["D10 · Remind has<br/>no cooldown"]
+    D14["D14 · category-spend<br/>chart: rebuild or delete"]
+  end
+  subgraph P2[" P2 — real debt / minor, not urgent — opportunistic only "]
+    direction TB
+    D3["D3 · type-checker<br/>ceiling (convention fix)"]
+    D5["D5 · AddExpenseView<br/>doing 5 jobs"]
+    D4["D4 · GroupDO<br/>god object"]
+    D8["D8 · index.ts<br/>46 inline handlers"]
+    D6["D6 · InsightsHubView<br/>tests — moot, view removed"]
+    D11["D11 · Invite split<br/>across 2 screens"]
+    D12["D12 · Graphs buried<br/>in overflow menu"]
+    D13["D13 · Group Options<br/>mixes 5 concerns"]
+  end
+  P0 ~~~ P1 ~~~ P2
+</pre>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D1</span><h3>CSV import silently corrupts EU-locale amounts</h3>
+        <span class="prio p0">P0 · data corruption</span><span class="est">~15–20k tokens</span>
+      </div>
+      <div class="goal-line">Goal: amount parsing must never silently produce a wrong number for a supported import — parse it right, or flag it for review. Never complete silently on a bad parse.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">ClanTabKit/Sources/ClanTabKit/Import/CSVImport.swift — amount parse unconditionally strips commas before parsing. "1234,56" (EU decimal comma) becomes 123456, not 1234.56. No warning fires.</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option"><b>A — full locale-sniffing.</b> Detect US vs EU formatting per file. Most "correct," but there's no real EU sample file to build it against — you'd be guessing at a spec, same mistake as building the pending-approval feature on spec instead of demand.</li>
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>B — narrow rule + sanity net.</b> Only treat a comma as a EU decimal when there's no period AND exactly 2 digits follow it; otherwise keep today's thousands-separator behavior. Pair with a plausibility check per row (flag anything wildly out of line with the rest of the file) as a safety net regardless of which path parsed it.</li>
+          <li class="option"><b>C — sanity net only, skip the rule change.</b> Cheaper, but leaves the actual EU case still silently wrong — only catches it if the bad value happens to look statistically out of place.</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Add a per-row plausibility check after computing <code>amountMinor</code> (compare against neighboring rows in the same column); on failure, surface the existing import-warning UI instead of importing silently.</li>
+          <li>Fix the comma rule per option B above.</li>
+          <li>Add tests: the existing Future.csv (US) fixture must still pass unchanged; add a hand-built EU-style fixture asserting the correct amountMinor.</li>
+          <li>Run <code>swift test --package-path ClanTabKit --filter CSVImport</code> yourself before calling this done — don't just claim "make check green."</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D2</span><h3>Group "…" menu — bottom rows may not be tappable</h3>
+        <span class="prio p0">P0 · blocks 2 features if real</span><span class="est">~8–12k tokens</span>
+      </div>
+      <div class="goal-line">Goal: every action a user can take from the group's "…" menu must be reliably reachable on a real device — remove the risk rather than spend time proving whether it's real.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">CHECKLIST.md open item — reproduced twice in simulator automation at correct coordinates, on "Recently Deleted" (C14) and "Recurring Reminders" (C15); other rows in the same 11-row Menu work fine. Not yet confirmed on a real finger.</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option"><b>A — wait for a real-device confirm.</b> Might be a simulator-automation artifact, not a real bug. Costs owner time either way, and even a "false alarm" result leaves an 11-row menu that's still cluttered.</li>
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>B — move the two rows out now.</b> Relocate "Recently Deleted" and "Recurring Reminders" into Group Settings (C13), which already hosts equivalent settings-shaped actions in a scrollable List, not a native Menu. Removes the risk whether or not it's real, without waiting on a device test.</li>
+          <li class="option"><b>C — shrink the whole menu.</b> Promote the most-used rows to always-visible buttons, push the rest into Group Settings. Bigger change than B for the same underlying fix.</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Remove "Recently Deleted" and "Recurring Reminders" from GroupHomeView's "…" Menu.</li>
+          <li>Add them as rows in GroupSettingsView, matching its existing row style.</li>
+          <li>Update the flow map above: <code>C8 → C13 → {C14, C15}</code> instead of <code>C8 → {C14, C15}</code> directly.</li>
+          <li>iOS build + <code>make check</code> green; manually confirm both screens open from their new home.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D6</span><h3>InsightsHubView — the screen that broke twice has zero tests</h3>
+        <span class="prio p2">P2 · moot unless D14 rebuilds it</span><span class="est">~12–18k tokens, if ever</span>
+      </div>
+      <div class="goal-line">Superseded 2026-09-13: the Insights tab was removed (C17), so this view no longer ships. Leaving the ticket below intact — it becomes relevant again only if D14 reuses this logic for a rebuilt "My Spending" screen. Don't spend tokens testing dead code in the meantime.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">No InsightsHubViewTests.swift exists. The build-13→14 fix commit itself says "not yet confirmed against the real device that either was the actual cause."</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option"><b>A — full XCUITest.</b> Drives the actual view end-to-end. Expensive and flaky for what is really a logic bug (a race + a dictionary trap), not a rendering bug.</li>
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>B — unit-test the two specific defects.</b> A duplicate-key case that must not crash, and a case proving re-aggregation fires when <code>auth.groups</code> resolves after the initial load. Test the defect, not the screen.</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>If the aggregation logic isn't testable outside a live view, extract it into a plain function/type in ClanTabKit first (likely belongs alongside PersonalInsights) — this extraction is itself worth doing on its own.</li>
+          <li>Add InsightsHubViewTests.swift (or extend PersonalInsightsTests): the duplicate-key case, and the "membership resolves late" case.</li>
+          <li><code>swift test</code> and <code>make check</code> green.</li>
+          <li>Still ask the owner to confirm on the next real-device pass that charts populate — the test proves these two known defects are gone, not that nothing else is wrong.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D7</span><h3>print() in production, no real logging</h3>
+        <span class="prio p1">P1 · cheap, ships blind</span><span class="est">~4–6k tokens</span>
+      </div>
+      <div class="goal-line">Goal: push-registration and CloudKit-backup failures should be inspectable on a real TestFlight build without Xcode attached.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">5 print() calls: AuthViewModel (device token registration), CloudKitBackup ×3, AppDelegate (push registration).</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option"><b>A — a remote logging/crash pipeline.</b> Overkill for a near-zero-cost, ad-free portfolio app; adds a dependency and a privacy-policy surface for what 5 print statements don't justify.</li>
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>B — os.Logger.</b> Free, built into iOS, visible via Console.app or a sysdiagnose from a real device with zero new dependencies or privacy implications.</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Add one <code>Logger(subsystem:category:)</code> per area already touched: auth, cloudkit, push.</li>
+          <li>Replace the 5 print() call sites with the matching Logger call (<code>.error</code> for failures, <code>.info</code> for the CloudKit success line).</li>
+          <li><code>make check</code> green — pure swap, no behavior change.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D3</span><h3>Type-checker ceiling: fix the habit, not each incident</h3>
+        <span class="prio p2">P2 · convention, not a code change</span><span class="est">&lt;1k tokens</span>
+      </div>
+      <div class="goal-line">Goal: stop hitting this per-incident — write down the rule that every past fix already followed, so it happens before the compiler forces it.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">6 documented workarounds, same root cause: SettleUpView, ImportCSVView, GroupSettingsView ×4, AddExpenseView.</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option"><b>A — a dedicated refactor pass across every flagged file, now.</b> Not worth it: this isn't really a defect, it's a known SwiftUI compiler trait, and every past fix was already the textbook-correct response. A dedicated pass right before submission is the same scope-creep pattern that shipped the Insights tab broken.</li>
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>B — write the rule down, apply opportunistically.</b> Extract to a subview/computed property once <code>body</code> passes ~80 lines or nests 3+ conditionals — as you write it, not after the compiler complains. Apply retroactively only where you're already touching a file for another reason (D5 does this for AddExpenseView).</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Add the rule to AGENTS.md, one paragraph.</li>
+          <li>No code changes beyond that. Revisit only if it keeps recurring after this is written down.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D5</span><h3>AddExpenseView: 1438 lines doing five jobs</h3>
+        <span class="prio p2">P2 · real debt, decent ROI if picked up</span><span class="est">~15–20k tokens</span>
+      </div>
+      <div class="goal-line">Goal: split the largest file in the app by responsibility — cheap enough to justify doing sooner than D4, and it directly serves D3's rule.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">Largest file in the app (C9 on the flow map); handles create, edit, duplicate, itemized splits, and recurring-template creation in one struct.</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>A — extract the two self-contained blocks.</b> Itemized-split editor and recurring-options section into their own files under Components/, matching the existing MoreSplitsSheet/AddMemberSheet pattern already used elsewhere.</li>
+          <li class="option"><b>B — split into AddExpenseView / EditExpenseView / DuplicateExpenseView.</b> Matches intent more precisely, but bigger and riskier — touches every call site for marginal extra gain over A.</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Extract the itemized line-items editor into Components/ItemizedSplitEditor.swift.</li>
+          <li>Extract the recurring-template section into Components/RecurringOptionsSection.swift.</li>
+          <li>AddExpenseView.body wires both in; no behavior change.</li>
+          <li>iOS build + <code>make check</code> green; manually exercise create / edit / duplicate / itemized / recurring once each.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D4</span><h3>GroupDO: one class, 34 methods, every group concern</h3>
+        <span class="prio p2">P2 · organize the code, not the data</span><span class="est">~30–40k tokens — not before submission</span>
+      </div>
+      <div class="goal-line">Goal: make the file navigable without touching where or how group data is actually stored — this is a readability fix, not an architecture change.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">worker/src/group-do.ts, 1357 lines — members, expenses, settlements, comments, trash, tokens, claim/merge, avatars, and balance computation all as methods on one class (A7 on the architecture map).</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option"><b>A — split into multiple Durable Objects per concern.</b> Real migration, real risk. A group's balance math needs expenses + settlements read together atomically — splitting them across DOs means cross-DO calls or duplicated data. Wrong shape for what a DO is for. Do not do this.</li>
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>B — keep one DO, split the file into modules.</b> members.ts / expenses.ts / settlements.ts / comments.ts that the class delegates to. Zero runtime or schema change, purely code organization.</li>
+          <li class="option"><b>C — do nothing.</b> 1357 lines in one class is long, not broken. A refactor risking a bug in a payments ledger for a readability win alone may not be worth it. Legitimate if the app stays this size.</li>
+        </ul>
+      </div>
+      <div class="field"><div class="field-label">Steps (when picked up — not now)</div>
+        <ol class="steps">
+          <li>Extract member/claim/merge methods into members.ts; same for expenses, settlements, comments.</li>
+          <li>No behavior change — worker tests passing unmodified is the acceptance bar. A refactor that changes a test result has a bug in it.</li>
+          <li>Do this opportunistically, the next time you're already deep in group-do.ts for another reason — not as its own dedicated pass, and not before the App Store submission.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D8</span><h3>index.ts: 1657 lines, 46 inline route handlers</h3>
+        <span class="prio p2">P2 · watch, don't act yet</span><span class="est">opportunistic, no dedicated budget</span>
+      </div>
+      <div class="goal-line">Goal: keep the route table navigable as more endpoints get added — not urgent today, flagged so it doesn't quietly become D4's problem before anyone decides to fix it.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">worker/src/index.ts (A6 on the architecture map) — still Ctrl+F-navigable at this size.</p></div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>Move a handler out every time you touch it.</b> Split into routes/*.ts by resource (groups, auth, media, admin) incrementally, index.ts keeps just the route-table wiring. No dedicated pass — this one pays for itself over time for free.</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="section-sub" style="margin-top:28px;">Below: new findings from the 2026-09-13 end-user flow audit (fresh pass, purely from a user's point of view) — logged straight into CHECKLIST.md, listed here too so they carry an ID.</p>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D9</span><h3>"My UPI ID" shown regardless of group currency</h3>
+        <span class="prio p1">P1 · confusing for non-Indian users</span><span class="est">~3–5k tokens</span>
+      </div>
+      <div class="goal-line">Goal: don't prompt for a UPI ID in a group where it can never be used.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">GroupSettingsView's "My UPI ID" section is gated only on myMember != nil — no currency check — while SettleUpView's UPI nudge and UPIPayLink.url correctly require currency == "INR" (UPI's only currency).</p></div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Gate the "My UPI ID" Section in GroupSettingsView on the group's currency == "INR", matching SettleUpView's existing rule.</li>
+          <li>iOS build + <code>make check</code> green.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D10</span><h3>"Remind" has no cooldown or history across visits</h3>
+        <span class="prio p1">P1 · real spam risk once used for real</span><span class="est">~6–10k tokens</span>
+      </div>
+      <div class="goal-line">Goal: don't let someone get reminded repeatedly just because the screen was reopened.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">MemberProfileView.remindSent is @State — resets every time the view closes and reopens. Only a session-only checkmark, no persisted "reminded 2h ago."</p></div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Persist last-reminded-at per edge locally (a small store, same shape as the app's existing nudge stores).</li>
+          <li>Show "Reminded 2h ago" instead of a session-only checkmark; consider disabling re-remind under some cooldown window.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D11</span><h3>"Invite" is split across two different screens</h3>
+        <span class="prio p2">P2 · minor, real friction</span><span class="est">~5–8k tokens</span>
+      </div>
+      <div class="goal-line">Goal: one obvious place to invite someone.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">The actual shareable invite link lives in Group Home's "…" → Share menu. Group Options (C13) — the screen named "invite, name, picture" in the owner's own mental model — only shows the bare join code to copy, no link.</p></div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Add a "Share Invite Link" row to GroupSettingsView's joinCodeSection, reusing the same ShareLink already built for Group Home.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D12</span><h3>Graphs are one tap inside an overflow menu</h3>
+        <span class="prio p2">P2 · minor, decide don't fix blindly</span><span class="est">~5k tokens, if pursued</span>
+      </div>
+      <div class="goal-line">Goal: decide whether "View Insights" (C11) deserves a more visible entry point on Group Home now that it's the app's only surviving graphs surface.</div>
+      <div class="field"><div class="field-label">Steps</div>
+        <ol class="steps">
+          <li>Owner call, not a default yes — a visible button costs Group Home screen real estate for a feature that's currently one tap away already.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D13</span><h3>Group Options mixes five concerns in one long Form</h3>
+        <span class="prio p2">P2 · minor, real but not urgent</span><span class="est">~10–15k tokens, if pursued</span>
+      </div>
+      <div class="goal-line">Goal: decide if identity / invite / money config / member admin / danger zone need visual separation beyond what Danger Zone already gets.</div>
+      <div class="field"><div class="field-label">Evidence</div><p class="evidence">GroupSettingsView (C13): Group (name/currency/emoji), Join Code, Cover Image, Default Split, Members, Add Someone, My UPI ID, Report a Problem, Danger Zone — all one Form.</p></div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head">
+        <span class="id-pill">D14</span><h3>Category-spend chart has no home after the Insights tab removal</h3>
+        <span class="prio p1">P1 · don't leave this open indefinitely</span><span class="est">~10–15k to rebuild, or ~3k to delete</span>
+      </div>
+      <div class="goal-line">Goal: decide the fate of the one genuinely non-duplicate thing the old Insights tab had — "You spent [total]" + by-category pie, aggregated across groups.</div>
+      <div class="field"><div class="field-label">Options weighed</div>
+        <ul class="options">
+          <li class="option rec"><span class="rec-flag">Recommended</span><b>Rebuild small.</b> A single "My Spending" screen reached from Settings or a Home button, reusing PersonalInsights/InsightsHubView's surviving logic (fix D6's two known defects first if reused).</li>
+          <li class="option"><b>Delete outright.</b> Legitimate if there's genuinely no appetite for personal analytics — remove InsightsHubView.swift, PersonalInsights.swift, and their tests instead of carrying dead code indefinitely.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Index</h2>
+    <p class="section-sub">The lookup table — every ID, what it is, and roughly where it lives in the repo.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th style="width:64px">ID</th><th>Component</th><th>What it is</th><th>Lives in</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="id-cell"><span class="id-pill">A1</span></td><td class="name-cell">Screens &amp; Components</td><td class="desc-cell">SwiftUI views the user actually taps through</td><td class="loc-cell">App/ClanTab/Screens, /Components</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A2</span></td><td class="name-cell">ViewModels</td><td class="desc-cell">Owns app/group state, talks to A4</td><td class="loc-cell">App/ClanTab/ViewModels</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A3</span></td><td class="name-cell">Models &amp; Logic</td><td class="desc-cell">Pure Swift: entities + balance/split math, shared by app &amp; tests</td><td class="loc-cell">ClanTabKit/Sources/…/Model, /Logic</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A4</span></td><td class="name-cell">ClanTabClient</td><td class="desc-cell">Every backend call the app can make (43 methods)</td><td class="loc-cell">ClanTabKit/Sources/…/Network</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A5</span></td><td class="name-cell">Local Stores</td><td class="desc-cell">On-device persistence — session, cached groups, nudges</td><td class="loc-cell">ClanTabKit/Sources/…/Storage</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A6</span></td><td class="name-cell">index.ts router</td><td class="desc-cell">Maps each REST route to a handler, before anything touches a DO</td><td class="loc-cell">worker/src/index.ts</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A7</span></td><td class="name-cell">GroupDO</td><td class="desc-cell">Source of truth for one group's ledger — members, expenses, settlements, comments</td><td class="loc-cell">worker/src/group-do.ts</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A8</span></td><td class="name-cell">UserDO</td><td class="desc-cell">One per signed-in user — identity, which groups they're in, devices, friends</td><td class="loc-cell">worker/src/user-do.ts</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A9</span></td><td class="name-cell">ReportsDO</td><td class="desc-cell">Content-moderation reports, admin-only read</td><td class="loc-cell">worker/src/reports-do.ts</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A10</span></td><td class="name-cell">R2 + KV</td><td class="desc-cell">Object storage for photos/receipts; KV for join-code lookup</td><td class="loc-cell">worker/src/lib/media.ts, join-codes.ts</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A11</span></td><td class="name-cell">APNs</td><td class="desc-cell">Push notification delivery, triggered by A6 on group activity</td><td class="loc-cell">worker/src/lib/apns.ts, notify.ts</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">A12</span></td><td class="name-cell">CloudKit</td><td class="desc-cell">Fire-and-forget backup snapshot; nothing ever reads it back</td><td class="loc-cell">App/ClanTab/CloudKitBackup.swift</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-scroll" style="margin-top:14px;">
+      <table>
+        <thead>
+          <tr><th style="width:64px">ID</th><th>Entity</th><th>What it is</th><th>Lives in</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="id-cell"><span class="id-pill">B1</span></td><td class="name-cell">Group</td><td class="desc-cell">A ledger — one join code, one currency, a list of members</td><td class="loc-cell">Model/Group.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B2</span></td><td class="name-cell">Member</td><td class="desc-cell">A person in a group — may or may not have an account</td><td class="loc-cell">Model/Member.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B3</span></td><td class="name-cell">Expense</td><td class="desc-cell">One payment event — who paid, how it's split, optional receipt/tax/tip</td><td class="loc-cell">Model/Expense.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B4</span></td><td class="name-cell">ExpensePayment</td><td class="desc-cell">One payer's share of covering B3 (multi-payer support)</td><td class="loc-cell">Model/Expense.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B5</span></td><td class="name-cell">ExpenseSplit</td><td class="desc-cell">One member's share of owing on B3</td><td class="loc-cell">Model/Expense.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B6</span></td><td class="name-cell">LineItem</td><td class="desc-cell">One itemized receipt line, with its own participant subset</td><td class="loc-cell">Model/LineItem.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B7</span></td><td class="name-cell">Settlement</td><td class="desc-cell">A direct payment between two members that clears balance</td><td class="loc-cell">Model/Settlement.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B8</span></td><td class="name-cell">Comment</td><td class="desc-cell">A note thread on one expense</td><td class="loc-cell">Model/Comment.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B9</span></td><td class="name-cell">RecurringTemplate</td><td class="desc-cell">A rule that auto-creates a B3 on a cadence</td><td class="loc-cell">Model/RecurringTemplate.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B10</span></td><td class="name-cell">DefaultSplit</td><td class="desc-cell">A group's default split weights, applied to new expenses</td><td class="loc-cell">Model/DefaultSplit.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">B11</span></td><td class="name-cell">Balance</td><td class="desc-cell">Net owed per member per currency — computed, never stored</td><td class="loc-cell">worker/src/lib/balances.ts</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-scroll" style="margin-top:14px;">
+      <table>
+        <thead>
+          <tr><th style="width:64px">ID</th><th>Screen / step</th><th>What happens here</th><th>Lives in</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="id-cell"><span class="id-pill">C1</span></td><td class="name-cell">App Launch</td><td class="desc-cell">Routing decision — onboarding, deep link, or pinned-group launch pref</td><td class="loc-cell">RootView.swift .task</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C2</span></td><td class="name-cell">Onboarding</td><td class="desc-cell">First-run walkthrough, shown once ever</td><td class="loc-cell">Screens/OnboardingView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C3</span></td><td class="name-cell">Home / StartView</td><td class="desc-cell">Dashboard — sign in, see your groups, jump into one</td><td class="loc-cell">Screens/StartView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C5</span></td><td class="name-cell">Create Group</td><td class="desc-cell">Name, currency, cover/emoji</td><td class="loc-cell">Screens/CreateGroupView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C6</span></td><td class="name-cell">Join with Code</td><td class="desc-cell">Type a 6-char code, resolves to a group</td><td class="loc-cell">Screens/JoinGroupView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C7</span></td><td class="name-cell">Claim Member</td><td class="desc-cell">No membership yet — pick who you are, or add yourself</td><td class="loc-cell">Screens/ClaimMemberView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C8</span></td><td class="name-cell">Group Home</td><td class="desc-cell">The hub — activity feed, balances, entry point to everything below</td><td class="loc-cell">Screens/GroupHomeView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C9</span></td><td class="name-cell">Add / Edit Expense</td><td class="desc-cell">Also reused for duplicate; splits, category, receipt</td><td class="loc-cell">Screens/AddExpenseView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C10</span></td><td class="name-cell">Settle Up / Edit Settlement</td><td class="desc-cell">Record or edit a direct payment between members</td><td class="loc-cell">Screens/SettleUpView.swift, EditSettlementView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C11</span></td><td class="name-cell">Group Insights</td><td class="desc-cell">This group's category/member breakdown</td><td class="loc-cell">Screens/InsightsView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C12</span></td><td class="name-cell">Import CSV</td><td class="desc-cell">Splitwise/Splid export → expenses, with dedup check</td><td class="loc-cell">Screens/ImportCSVView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C13</span></td><td class="name-cell">Group Settings</td><td class="desc-cell">Members, merge duplicates, rename group, report content, leave/delete</td><td class="loc-cell">Screens/GroupSettingsView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C14</span></td><td class="name-cell">Recently Deleted</td><td class="desc-cell">Restore a deleted expense or settlement</td><td class="loc-cell">Screens/RecentlyDeletedView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C15</span></td><td class="name-cell">Recurring Reminders</td><td class="desc-cell">Rules that auto-create an expense on a cadence (B9)</td><td class="loc-cell">Screens/RecurringRemindersView.swift</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C16</span></td><td class="name-cell">Friends tab</td><td class="desc-cell">Private 1:1 tabs and contacts across groups</td><td class="loc-cell">Screens/FriendsView.swift, FriendDetailView.swift</td></tr>
+          <tr style="opacity:.55;"><td class="id-cell"><span class="id-pill">C17</span></td><td class="name-cell">Insights tab — <i>removed 2026-09-13</i></td><td class="desc-cell">ID kept for history; see the C17 ticket + D14</td><td class="loc-cell">Screens/InsightsHubView.swift (now dead code)</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">C18</span></td><td class="name-cell">Settings tab</td><td class="desc-cell">Account, launch-screen pref, notifications, delete account</td><td class="loc-cell">Screens/SettingsView.swift</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-scroll" style="margin-top:14px;">
+      <table>
+        <thead>
+          <tr><th style="width:64px">ID</th><th style="width:70px">Priority</th><th>Defect</th><th>Goal</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="id-cell"><span class="id-pill">D1</span></td><td><span class="prio p0" style="font-size:10px;">P0</span></td><td class="name-cell">CSV EU-locale amount corruption</td><td class="desc-cell">Never silently import a wrong amount</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D2</span></td><td><span class="prio p0" style="font-size:10px;">P0</span></td><td class="name-cell">"…" menu rows may be unreachable</td><td class="desc-cell">Every menu action reliably tappable</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D3</span></td><td><span class="prio p2" style="font-size:10px;">P2</span></td><td class="name-cell">Type-checker ceiling recurs</td><td class="desc-cell">Write the extraction rule down once</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D4</span></td><td><span class="prio p2" style="font-size:10px;">P2</span></td><td class="name-cell">GroupDO god object</td><td class="desc-cell">Navigable file, same storage boundary</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D5</span></td><td><span class="prio p2" style="font-size:10px;">P2</span></td><td class="name-cell">AddExpenseView doing 5 jobs</td><td class="desc-cell">Split by responsibility, cheaply</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D6</span></td><td><span class="prio p2" style="font-size:10px;">P2</span></td><td class="name-cell">InsightsHubView untested — moot</td><td class="desc-cell">View removed; matters only if D14 rebuilds it</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D7</span></td><td><span class="prio p1" style="font-size:10px;">P1</span></td><td class="name-cell">print() instead of real logging</td><td class="desc-cell">Inspectable failures without Xcode</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D8</span></td><td><span class="prio p2" style="font-size:10px;">P2</span></td><td class="name-cell">index.ts 46 inline handlers</td><td class="desc-cell">Stay navigable as routes grow</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D9</span></td><td><span class="prio p1" style="font-size:10px;">P1</span></td><td class="name-cell">UPI ID shown for any currency</td><td class="desc-cell">Gate on group currency == INR</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D10</span></td><td><span class="prio p1" style="font-size:10px;">P1</span></td><td class="name-cell">Remind has no cooldown</td><td class="desc-cell">Persist last-reminded-at, show it</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D11</span></td><td><span class="prio p2" style="font-size:10px;">P2</span></td><td class="name-cell">Invite split across 2 screens</td><td class="desc-cell">One obvious place to invite</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D12</span></td><td><span class="prio p2" style="font-size:10px;">P2</span></td><td class="name-cell">Graphs buried in overflow menu</td><td class="desc-cell">Owner call — visible entry point?</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D13</span></td><td><span class="prio p2" style="font-size:10px;">P2</span></td><td class="name-cell">Group Options mixes 5 concerns</td><td class="desc-cell">Decide if it needs sectioning</td></tr>
+          <tr><td class="id-cell"><span class="id-pill">D14</span></td><td><span class="prio p1" style="font-size:10px;">P1</span></td><td class="name-cell">Category-spend chart has no home</td><td class="desc-cell">Rebuild small, or delete outright</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Generated from the repo as of the current HEAD. Structural only — feature flags, in-progress branches, and screen-level UI states aren't captured here. Say the ID to talk about any of it. Handing D-tickets to a CLI session: paste the goal line + steps directly, or point at the ID — both are meant to survive a fresh context with no memory of this page.
+  </footer>
+
+</div>
