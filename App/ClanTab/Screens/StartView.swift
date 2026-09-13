@@ -28,6 +28,9 @@ struct StartView: View {
     /// cue to stop passing `true` for the rest of this launch.
     var showWelcomeBack: Bool = false
     var onDismissWelcomeBack: () -> Void = {}
+    /// A second route to the same screen `SettingsView` already reaches
+    /// (`CHECKLIST.md` R16) — `MySpendingView` was Settings-only.
+    var onOpenMySpending: () -> Void = {}
 
     @State private var sheetError: String?
     @State private var showArchived = false
@@ -86,6 +89,7 @@ struct StartView: View {
                                 if !isShowingWelcomeBackTotals {
                                     DashboardTotalsHeader(groups: activeGroups)
                                 }
+                                mySpendingRow
                                 GroupsListView(groups: activeGroups, onOpenGroup: onOpenGroup, onRemoveGroup: onRemoveGroup)
                             }
                             if !archivedGroups.isEmpty { archivedSection }
@@ -159,6 +163,28 @@ struct StartView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 4)
+    }
+
+    /// A second, always-visible route to `MySpendingView` (`CHECKLIST.md`
+    /// R16) — Settings was the only way in before. Deliberately a plain
+    /// row, not a `ToolbarItem` — this screen already dropped its icon
+    /// toolbar in favor of the tab bar (see `body` below), and a card would
+    /// overstate a screen this small.
+    private var mySpendingRow: some View {
+        Button(action: onOpenMySpending) {
+            HStack {
+                Label("My Spending", systemImage: "chart.pie")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// The "welcome" hero, shown only before sign-in — once you're in, the

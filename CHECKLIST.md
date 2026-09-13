@@ -3434,13 +3434,17 @@ explicitly before treating this as "all safely deferrable":
       (`CloudBackupSchedule.shouldBackUp`) already covers the real need
       — the request here reads more like "prove it's working," which a
       status line answers without needing a button at all.
-- [ ] **R16. Add a "My Spending" entry point on the Home page too.**
-      `~3-5k`. Cheapest structural item in this batch. Confirmed:
-      `MySpendingView` is currently reachable only via one row in
-      Settings' Account section; `GroupsListView` (the Home tab) has no
-      shortcut to it at all. Add a toolbar icon or a header row on
-      Home, same screen, no new logic — just a second navigation path
-      to something that already exists.
+- [x] **R16. Add a "My Spending" entry point on the Home page too.**
+      Done 2026-09-13. Not a toolbar icon — `StartView` deliberately
+      dropped its icon toolbar for the tab bar (own comment in that file),
+      and `StartView` doesn't hold `client`/`knownGroups`/`auth` as
+      properties (it's callback-driven, unlike `SettingsView`), so a new
+      `AppRoute.mySpending` case + `onOpenMySpending: () -> Void` closure
+      (mirrors `onCreate`/`onJoinWithCode`) is how `RootView` threads the
+      dependencies through, same as every other `homeStack` push. A small
+      plain row (`Label("My Spending", systemImage: "chart.pie")` +
+      chevron) sits between the dashboard totals header and the groups
+      list. `make check` green (kit + worker + full iOS build/XCTest).
 
 **Sequencing note, not asked for but worth saying:** R4 is the one item
 here I'd actually argue for pulling into the current submission cycle

@@ -18,4 +18,8 @@ enum AppRoute: Hashable {
     /// group that predates the feature.
     case claimMember(groupId: String, accessToken: String?)
     case group(groupId: String)
+    /// A second entry point onto the same screen `SettingsView` already
+    /// reaches (`CHECKLIST.md` R16) — Home's dashboard-totals header pushes
+    /// here too now, so it isn't Settings-only.
+    case mySpending
 }

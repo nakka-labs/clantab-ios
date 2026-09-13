@@ -123,7 +123,8 @@ struct RootView: View {
                         knownGroupsRevision += 1
                     },
                     showWelcomeBack: showWelcomeBack,
-                    onDismissWelcomeBack: { showWelcomeBack = false }
+                    onDismissWelcomeBack: { showWelcomeBack = false },
+                    onOpenMySpending: { homeStack.append(.mySpending) }
                 )
                 .navigationDestination(for: AppRoute.self) { route in homeDestination(route) }
             }
@@ -354,6 +355,8 @@ struct RootView: View {
                 onLeaveGroup: { leaveGroup(groupId) },
                 onGroupUnavailable: { leaveGroup(groupId) }
             )
+        case .mySpending:
+            MySpendingView(client: client, knownGroups: knownGroups, auth: auth)
         }
     }
 
