@@ -3124,15 +3124,13 @@ now that the Insights tab is removed, see above.
       `make check` green end to end (kit + worker + iOS build/tests, run
       for real in this session -- not the "shell has no toolchain" caveat
       from the Insights-tab-removal item above).
-- [ ] **[D3, low] Recurring SwiftUI type-checker-ceiling workarounds --
-      write the house rule down.** <1k tokens. Hit and worked around 6
-      separate times (SettleUpView, ImportCSVView, GroupSettingsView
-      x4, AddExpenseView) -- same root cause every time, a `body` doing
-      too much inline. Not worth a dedicated refactor pass; add one
-      paragraph to AGENTS.md instead -- extract to a computed
-      property/subview once `body` passes ~80 lines or nests 3+
-      conditionals, before the compiler forces it. Apply retroactively
-      only when already touching a file for another reason.
+- [x] **[D3, low] Recurring SwiftUI type-checker-ceiling workarounds --
+      write the house rule down.** Done 2026-09-13. Added the house rule
+      to `AGENTS.md`'s "Conventions" section, naming all 6 prior sites
+      (SettleUpView, ImportCSVView, GroupSettingsView x4, AddExpenseView)
+      and the same threshold the ticket specified (~80 lines or 3+ nested
+      conditionals) -- extract before the compiler forces it, not a
+      dedicated refactor pass. Docs-only; no code changed.
 - [ ] **[D4, low, not before submission] GroupDO: one class, 34
       methods, every group concern.** ~30-40k tokens, opportunistic
       only. 1357 lines -- members, expenses, settlements, comments,

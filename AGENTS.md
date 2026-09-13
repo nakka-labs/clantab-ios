@@ -41,6 +41,14 @@ Open-source expense splitter for small groups. Native iOS application powered by
 - Swift 6 language standard, strict concurrency checking.
 - Commit format: `feat|fix|test|chore|docs(scope): description`
 - Every modification to `Balances.swift`/`Simplify.swift` (or their `worker/src/lib/` ports) must be accompanied by unit tests, and the two languages must agree on `test-fixtures/balances/`.
+- **Extract a `body` before the compiler forces you to.** SwiftUI's type-checker
+  has hit its complexity ceiling on this codebase's `body`s six separate times
+  already (`SettleUpView`, `ImportCSVView`, `GroupSettingsView` ×4,
+  `AddExpenseView`) — always the same root cause, one `body` doing too much
+  inline. Once a `body` passes ~80 lines or nests 3+ conditionals, pull the
+  chunk into a computed property or a subview *before* touching it again for
+  something else, rather than waiting for "cannot type-check this expression
+  in reasonable time" to force it under time pressure.
 
 ## Screenshots
 - **Never leave screenshots in the repo tree or a scratchpad.** Any screenshot
