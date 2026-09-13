@@ -3415,19 +3415,21 @@ explicitly before treating this as "all safely deferrable":
       deciding explicitly whether the "…" menu's "View Insights" entry
       is then redundant and should be dropped, or kept as a second
       route to the same place.
-- [ ] **R14. Add a manual "Record a Settlement" option, independent of
-      Settle Up's suggestions.** `~10-15k` — cheaper than it looks.
-      The backend endpoint already exists and needs no changes:
-      `ClanTabClient.addSettlement(groupId:_:accessToken:)` →
-      `POST .../settlements`, today only called from `SettleUpView`'s
-      "Mark as Paid" against a server-computed suggestion. There's no
-      screen that lets someone freely pick from/to/amount/currency and
-      call it directly — exactly the case the owner describes ("paying
-      another member some amount, not the whole, and asked you to add
-      it"). Add a small create-mode counterpart to `EditSettlementView`
-      (same fields: from, to, amount, currency, date) reachable from
-      Group Home's "+"/"…" alongside Add Expense, calling the existing
-      `addSettlement`. No new backend work.
+- [x] **R14. Add a manual "Record a Settlement" option, independent of
+      Settle Up's suggestions.** Done 2026-09-13, no backend work as
+      scoped — `addSettlement` unchanged. New `AddSettlementView`, a
+      create-mode sibling of `EditSettlementView` rather than a nullable-
+      `settlement` branch on it (their identity — title, what "Save"
+      means — differ enough to be confusing shoehorned into one type);
+      same field set, **no date** — deviates from the item's literal
+      "from, to, amount, currency, date" list, matching
+      `EditSettlementView`'s own existing omission instead (the wire
+      `AddSettlementRequest` has no `settledAt` field; the worker stamps
+      `Date.now()`, unchanged here). Reachable from `moreMenu`'s own new
+      `Section` (not the floating `+`, which stays Add-Expense-only —
+      the app's one-primary-action convention), gated on
+      `state.members.count >= 2` since a settlement needs two distinct
+      people. `make check` green (kit + worker + full iOS build/XCTest).
 - [x] **R15. CloudKit backup — no visible status or manual trigger
       anywhere.** Done 2026-09-13, visibility only (no manual trigger —
       per the item's own note, a status line answers "prove it's

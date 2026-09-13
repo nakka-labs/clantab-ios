@@ -30,6 +30,9 @@ struct GroupHomeView: View {
     @State private var mutationError: String?
     @State private var editingExpense: Expense?
     @State private var editingSettlement: Settlement?
+    /// "Record a Settlement" (`CHECKLIST.md` R14) — manual entry, independent
+    /// of Settle Up's suggestions.
+    @State private var isPresentingAddSettlement = false
     @State private var duplicatingExpense: Expense?
     @State private var pendingDelete: ActivityItem?
     @State private var isPresentingAddExpense = false
@@ -552,6 +555,24 @@ struct GroupHomeView: View {
             }
             .materialSheet()
         }
+        .sheet(isPresented: $isPresentingAddSettlement) {
+            NavigationStack {
+                AddSettlementView(
+                    groupId: viewModel.groupId,
+                    members: viewModel.state?.members ?? [],
+                    defaultCurrency: viewModel.lastUsedCurrency,
+                    client: client,
+                    accessToken: viewModel.accessToken,
+                    onSaved: {
+                        isPresentingAddSettlement = false
+                        mutationError = nil
+                        Task { await viewModel.refetch() }
+                    },
+                    onCancel: { isPresentingAddSettlement = false }
+                )
+            }
+            .materialSheet()
+        }
         .sheet(item: $duplicatingExpense) { expense in
             NavigationStack {
                 AddExpenseView(
@@ -786,6 +807,17 @@ struct GroupHomeView: View {
                 Section("Settings") {
                     Button("Group Settings", systemImage: "slider.horizontal.3") {
                         isPresentingGroupSettings = true
+                    }
+                }
+                // Independent of Settle Up's suggestions (`CHECKLIST.md`
+                // R14) — "I paid them some amount, not necessarily what the
+                // app suggests, and want it logged." Needs two distinct
+                // members to mean anything.
+                if state.members.count >= 2 {
+                    Section {
+                        Button("Record a Settlement", systemImage: "checkmark.circle") {
+                            isPresentingAddSettlement = true
+                        }
                     }
                 }
                 if !state.expenses.isEmpty || !state.settlements.isEmpty {
