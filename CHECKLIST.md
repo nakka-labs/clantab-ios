@@ -3304,16 +3304,16 @@ explicitly before treating this as "all safely deferrable":
       `test-fixtures/balances/*.json` (shared with the worker's own
       parity tests) to add the new required field — `make check` green
       (kit 365 · worker 315 · full iOS build + XCTest).
-- [ ] **R5. Merge duplicate members — findability, not existence.**
-      `~2-3k`. The feature shipped 2026-09-13 (see "Merge duplicate
-      members" above) and works; it's a swipe-left action on a member
-      row in Group Settings, which is exactly the kind of gesture the
-      UI audit already flagged as unreliable for the adjacent "…" menu
-      ([5] above — still unconfirmed on a real device). Add a visible,
-      non-swipe entry point: a "Merge…" row in each member's own
-      long-press context menu, or a small icon button next to the
-      pencil, so it doesn't depend on a hidden gesture nobody's told
-      about.
+- [x] **R5. Merge duplicate members — findability, not existence.**
+      Done 2026-09-13. Chose the icon-button option over a long-press
+      context menu — this row is already one `Button` (rename), and a
+      `.contextMenu` on top of a `Button` row isn't a pattern used
+      anywhere else in this codebase. Added a small `arrow.triangle.merge`
+      icon `Button` (`.buttonStyle(.borderless)`, same isolation
+      `joinCodeSection`'s copy button uses) next to the pencil, shown
+      whenever `state.members.count > 1` — same gate the swipe action
+      already used. The swipe action stays; this is a second route, not a
+      replacement. `make check`'s iOS build green.
 - [ ] **R6. Profile/cover photo cropping is silent and automatic —
       no user control.** `~20-30k`. Confirmed in `ProfileImage.swift`/
       `CoverImage.swift`: every upload gets a hardcoded centre-crop

@@ -665,6 +665,23 @@ struct GroupSettingsView: View {
                 MemberAvatar(member, size: 28)
                 Text(member.displayName).foregroundStyle(.primary)
                 Spacer()
+                // A visible route to Merge (`CHECKLIST.md` R5), next to the
+                // pencil — the swipe action below is the same gesture the
+                // UI audit already flagged as unreliable for the "…" menu
+                // ([5], unconfirmed on a real device), so this isn't the
+                // only way in. Its own `Button` (`.borderless`, same
+                // isolation `joinCodeSection`'s copy button uses) so it
+                // doesn't get swallowed by the row's own tap-to-rename
+                // `Button`.
+                if state.members.count > 1 {
+                    Button { mergingDuplicate = member } label: {
+                        Image(systemName: "arrow.triangle.merge")
+                            .font(.caption)
+                            .foregroundStyle(.purple)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Merge \(member.displayName) into another member")
+                }
                 if !member.isClaimed {
                     Image(systemName: "pencil").font(.caption).foregroundStyle(.tertiary)
                 }
