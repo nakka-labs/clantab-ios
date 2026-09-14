@@ -344,6 +344,27 @@
           ID/Remind/Invite fixes). Archive at
           `~/Library/Developer/Xcode/Archives/2026-09-13/ClanTab-1.0-15
           .xcarchive`.
+      3h. [x] CLI: build `1.0 (16)` archived, exported, and uploaded
+          2026-09-14 — carries the full R1-R16 owner feedback batch
+          (R1-R5, R7-R16; R6 deferred, see that item above), all 15
+          commits pushed to `origin/main` first. Checked the live build
+          number via the ASC API first (`15`, matched the repo, no
+          drift). `make bump-build` → `16`, same archive +
+          `-exportArchive` `destination: upload` flow as 3b–3g, same
+          Admin-role ASC API key (JWT minted by hand this time — no
+          existing script in the repo for it, and none committed after,
+          consistent with every prior build's throwaway approach).
+          `processingState VALID` within ~1 minute (confirmed via the
+          API), `usesNonExemptEncryption: false` auto-answered, already
+          assigned to the internal **test-team** group alongside builds
+          1–15. Set the "What to Test" note via `PATCH
+          /v1/betaBuildLocalizations/:id` (plain, tester-facing language
+          covering the batch's user-visible changes). Archive at
+          `~/Library/Developer/Xcode/Archives/2026-09-14/ClanTab-1.0-16
+          .xcarchive`. **Not included**: the R1 display-name backfill —
+          that's a separate `POST /api/admin/backfill-display-names` call
+          against the deployed worker, independent of this app build, not
+          yet run (see R1's own note above).
       4. Owner: run the pass on a real device — Sign in with Apple/Google,
          a push (CLI triggers it via an API expense-add), a recurring-
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
