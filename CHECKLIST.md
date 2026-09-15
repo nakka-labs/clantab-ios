@@ -3323,6 +3323,24 @@ explicitly before treating this as "all safely deferrable":
       through direct `GroupDO`/`UserDO` calls, bypassing the route's own
       auto-bootstrap, same as a pre-R1 claim would have.
       `make check` green (kit + worker + full iOS build/XCTest).
+
+      **Incident, 2026-09-15**: build 16 shipped without redeploying the
+      worker — the live backend was still the pre-batch code (last
+      deployed 2026-09-13T07:44, before this whole R1-R16 batch), so
+      every `Member` it returned was missing `isClaimed`, which the new
+      client (`Member.isClaimed`, no default) required to decode at all.
+      Every group-state fetch failed client-side with the generic
+      "Something went wrong talking to ClanTab" — the app was broken for
+      anyone on build 16 until the owner reported it. Fixed by running
+      `make worker-deploy` (2026-09-15) — purely additive on the wire, so
+      safe for any older client build still out there too. Verified live:
+      a fresh scratch group's `member` now carries `isClaimed`, and
+      `GET /api/auth/profile` (a new R1 route) is live and correctly
+      session-gated. **Lesson for next time**: a client build that adds a
+      required field to a decoded response type is a hard dependency on
+      the backend being deployed *first* — `make worker-deploy` belongs
+      in the same breath as any TestFlight upload whenever `worker/`
+      changed, not a separately-remembered step.
 - [x] **R2. Split-by control reads as two different UI patterns stitched
       together.** Done 2026-09-13, owner chose the `Menu`/dropdown option
       over making `MoreSplitsSheet` the sole entry point. Replaced the
