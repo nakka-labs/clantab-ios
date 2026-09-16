@@ -3587,6 +3587,51 @@ genuine v1.1-shaped polish/feature work — none of it is a bug in the
 "broken today" sense the way R4 is.
 
 
+### Real-device findings, build 16 — 2026-09-15
+
+Owner screenshots on build 16 (post R1-R16 batch). Both are the R13
+implementation shipping too literally, not new regressions.
+
+- [x] **[bug, moderate] Settled (zero-balance) members in the balance
+      bubble are indistinguishable grey dots.** Done 2026-09-16 —
+      by design, not new: `BalanceBubbleView.swift`'s doc comment says
+      "everyone-settled shrunk to a dot" and `CirclePack.layout` never
+      applies `minNonZeroRadius` to a zero-weight item, only `minRadius`
+      (11pt) — but the owner's screenshot showed exactly the failure
+      mode that design invites: 2+ settled members rendered as
+      identical unlabeled grey dots, so "who's settled" was answerable
+      but "which one is Priya" wasn't. Fix: the settled-dot fill is now
+      `color.opacity(0.18)` (the member's own `MemberColor.color(for:)`)
+      instead of the uniform `Color.secondary.opacity(0.22)`, so a
+      settled dot stays small and receded but keeps the same per-person
+      hue used everywhere else in the app (avatars, the owed/owed-to
+      bubbles). No tap-reveal added — shipping the color fix alone per
+      the original plan; revisit only if a real device shows color
+      isn't enough to identify someone at a glance. `make check` green.
+- [x] **[bug, moderate] Insights, as a 3rd swipeable Home page, renders
+      the full scrolling `InsightsView` inside the ~250pt hero
+      `TabView` instead of a summary + a way into the real page.**
+      Done 2026-09-16. This was R13 (`943ed56`) working as literally
+      coded, not as intended — the commit's own comment rationalized it
+      ("`InsightsView` renders its own `List`... scrolls happily inside
+      the fixed `heroTabViewHeight`"), but a real screenshot showed what
+      that actually looked like: pie chart, category breakdown, and
+      granularity picker all crammed into a phone-width strip a few
+      hundred points tall, independently scrolling inside an
+      already-swipeable carousel — two scroll gestures fighting each
+      other, everything too small to read. Fixed as planned: new
+      `InsightsPreviewCard.swift` (a "Total spent" figure + top category
+      + a "See Insights" button, computed from the same
+      `ClanTabKit.Insights` the real view uses) replaces the raw
+      `InsightsView(...)` at the 3rd `TabView` page in
+      `GroupHomeView.swift`; a new `@State private var showingInsights`
+      + `.sheet(isPresented: $showingInsights) { NavigationStack {
+      InsightsView(...) } }` on `GroupHomeView` presents the **full**
+      view when the button's tapped, same pattern R13 deleted when it
+      "dropped the menu entry." `InsightsView` itself needed no change.
+      `make check` green (iOS build + `ClanTabTests`).
+
+
 ### Parked — not dropped, revisit deliberately
 
 - Receipt / bill reading (OCR) — needs on-device Vision work or a paid

@@ -58,7 +58,7 @@ struct BalanceBubbleView: View {
 
         ZStack {
             Circle()
-                .fill(settled ? Color.secondary.opacity(0.22) : (owed ? color.opacity(0.26) : color))
+                .fill(settled ? color.opacity(0.18) : (owed ? color.opacity(0.26) : color))
                 .overlay {
                     if owed { Circle().strokeBorder(color, lineWidth: 2) }
                 }

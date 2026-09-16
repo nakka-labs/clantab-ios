@@ -57,6 +57,10 @@ struct GroupHomeView: View {
     @State private var isPresentingGroupSettings = false
     @State private var isPresentingRecentlyDeleted = false
     @State private var isPresentingRecurringReminders = false
+    /// The full `InsightsView`, presented as a sheet from the hero page's
+    /// compact preview card (`CHECKLIST.md`, build-16 real-device finding) —
+    /// the raw view no longer renders inline inside the swipeable hero.
+    @State private var showingInsights = false
     @State private var expenseAddedTrigger = 0
     @State private var settlementMarkedTrigger = 0
     @State private var filter = ActivityFilter()
@@ -233,10 +237,13 @@ struct GroupHomeView: View {
                 // (`CHECKLIST.md` R13, reopening D12) — independent of the
                 // bubble page's own gate, since Insights is worth showing
                 // any time there's spend history, even a settled-up or
-                // single-balance group. `InsightsView` renders its own
-                // `List` when non-empty, which scrolls happily inside the
-                // fixed `heroTabViewHeight` rather than needing a second
-                // wrapper.
+                // single-balance group. A compact preview card only, not
+                // the raw `InsightsView` (`CHECKLIST.md`, build-16
+                // real-device finding) — the full view's own `List` (pie
+                // chart, category breakdown, granularity picker) fought the
+                // hero `TabView`'s swipe gesture with its own scroll and had
+                // no real room inside the fixed `heroTabViewHeight`; "See
+                // Insights" opens it as a sheet instead.
                 let showsInsights = !(viewModel.state?.expenses.isEmpty ?? true)
                 if let state = viewModel.state, showsBubble || showsInsights {
                     TabView {
@@ -249,10 +256,9 @@ struct GroupHomeView: View {
                                 .padding(.vertical, 12)
                         }
                         if showsInsights {
-                            InsightsView(
-                                expenses: state.expenses, members: state.members,
-                                groupName: state.group.name, groupEmoji: state.group.emoji
-                            )
+                            InsightsPreviewCard(expenses: state.expenses) {
+                                showingInsights = true
+                            }
                         }
                     }
                     .frame(height: heroTabViewHeight)
@@ -734,6 +740,17 @@ struct GroupHomeView: View {
                 )
             }
             .materialSheet()
+        }
+        .sheet(isPresented: $showingInsights) {
+            if let state = viewModel.state {
+                NavigationStack {
+                    InsightsView(
+                        expenses: state.expenses, members: state.members,
+                        groupName: state.group.name, groupEmoji: state.group.emoji
+                    )
+                }
+                .materialSheet()
+            }
         }
         .sheet(isPresented: $isPresentingRecurringReminders) {
             NavigationStack {
