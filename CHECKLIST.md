@@ -388,27 +388,36 @@
          list including check 37 (the "…" menu's bottom rows, moved to
          `[x]` above). Clears the last item gating tag/submit.
       5. [x] Owner: tag the version. `git tag v1.0-17`.
-- [ ] **Submit for App Store review.** `Owner` — no CLI budget
-      1. Owner: submit only after every item above, every item under
-         "Design & UX polish" below, every item under "Friend playtest +
-         competitive gap-fill, round 2" below (accepted 2026-09-10 as a
-         small, bounded launch delay — see that section for why), every
-         item under "UX audit, build 9" below (added here 2026-09-12 —
-         that section didn't exist when this gate was first written;
-         **all 34 of its findings are now done as of 2026-09-12**,
-         including [29]'s pointer to "De-dupe guard on CSV import" in the
-         Feature backlog, which is also done), **and** every item under
-         "Friend playtest, round 3" below (added here 2026-09-13 — a new
-         real-device batch on build 10; the three large items in that
-         batch — merge duplicate members, universal display name, link
-         Apple/Google accounts — are deliberately *not* part of this
-         gate, see "Parked" below for why).
+- [x] **Submit for App Store review.** Submitted 2026-09-16, 2:56 PM —
+      submission ID `eb4b6230-b7b0-40c4-b04d-371bd5e0dfbd`, build `1.0
+      (17)` (tag `v1.0-17`). Two last-minute ASC blockers on "Add for
+      Review," both cleared same session: **Copyright** was empty — set
+      via the API (`PATCH /v1/appStoreVersions/:id`,
+      `attributes.copyright: "2026 Indra Nakka"`); **App Privacy** data-
+      collection practices had never been filled in on this app record —
+      confirmed (again) that the `appDataUsages` API surface doesn't
+      exist for this app, so the Owner filled it in by hand in the ASC
+      UI from the table already in `docs/appstore/metadata.md` (Name/
+      User ID/Device ID/Other Data Types, all linked/not-tracking/App
+      Functionality; email and everything else "No"; ATT "No"). Owner:
+      submit only after every item above, every item under
+      "Design & UX polish" below, every item under "Friend playtest +
+      competitive gap-fill, round 2" below (accepted 2026-09-10 as a
+      small, bounded launch delay — see that section for why), every
+      item under "UX audit, build 9" below (added here 2026-09-12 —
+      that section didn't exist when this gate was first written;
+      **all 34 of its findings are now done as of 2026-09-12**,
+      including [29]'s pointer to "De-dupe guard on CSV import" in the
+      Feature backlog, which is also done), **and** every item under
+      "Friend playtest, round 3" below (added here 2026-09-13 — a new
+      real-device batch on build 10; the three large items in that
+      batch — merge duplicate members, universal display name, link
+      Apple/Google accounts — are deliberately *not* part of this
+      gate, see "Parked" below for why).
       Pricing is done: Price = Free across all 175 territories, set via
       the ASC API 2026-09-10 (`POST /v1/appPriceSchedules`, base
       territory USA at the free price point); 0 IAP products / 0
-      subscription groups. So the remaining gates are the real-device
-      TestFlight pass (step 4 above), the rest of the UX audit batch,
-      tagging, and this submit decision.
+      subscription groups.
 
 ### Friend playtest + competitive gap-fill, round 2 — accepted 2026-09-10
 
