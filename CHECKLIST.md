@@ -237,7 +237,8 @@
       that `wrangler deploy --dry-run` bundles cleanly with it. The
       `worker-deploy.yml` workflow (tag `v*` / manual dispatch) can now
       deploy.
-- [ ] **TestFlight on-device end-to-end pass.** `~10k tokens` (CLI build
+- [x] **TestFlight on-device end-to-end pass.** Passed 2026-09-16 on
+      build `1.0 (17)`, tagged `v1.0-17`. `~10k tokens` (CLI build
       help) + `Owner` device time
       1. [x] Owner: CloudKit schema deployed to Production 2026-09-09
          (Dashboard → Deploy Schema Changes → Deploy to Production) — a
@@ -382,28 +383,11 @@
           /v1/betaBuildLocalizations/:id`. Archive at
           `~/Library/Developer/Xcode/Archives/2026-09-16/ClanTab-1.0-17
           .xcarchive`.
-      4. Owner: run the pass on a real device — Sign in with Apple/Google,
-         a push (CLI triggers it via an API expense-add), a recurring-
-         reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
-         the app, Report a Problem, Delete Account, and a `GroupBackup`
-         record in the CloudKit Dashboard's *Production* environment.
-         **Added 2026-09-11, once a build carrying the round-2 batch
-         ships:** the Friends screen with **two real signed-in
-         accounts** that share a group — confirm a friend who's settled
-         up still lists, "Start a Private Tab" from one side then
-         "Open" (not "Start") the same tab from the other with no
-         invite step, an expense added in it, and that it never appears
-         in either account's main groups list / dashboard totals. This
-         is the one class of check the CLI's live-smoke-test couldn't
-         cover (every new route needs a real Bearer session).
-         **Added 2026-09-13, once a build carrying the round-3 batch
-         ships:** Delete Account specifically re-checked for "signing
-         back in shows zero groups" (not just "signed out") — the exact
-         bug that batch fixed; an Edit on a settlement row actually
-         saves; a description like "Uber to airport" auto-picks a
-         category; the Group Home floating Add Expense button doesn't
-         collide with the undo banner after a delete.
-      5. Owner: tag the version once it passes.
+      4. [x] Owner: ran the pass on a real device against build 17 —
+         **passed 2026-09-16**, full `docs/appstore/testflight-pass.md`
+         list including check 37 (the "…" menu's bottom rows, moved to
+         `[x]` above). Clears the last item gating tag/submit.
+      5. [x] Owner: tag the version. `git tag v1.0-17`.
 - [ ] **Submit for App Store review.** `Owner` — no CLI budget
       1. Owner: submit only after every item above, every item under
          "Design & UX polish" below, every item under "Friend playtest +
@@ -2228,24 +2212,14 @@ screens *render correctly* at the sizes people actually use them at.
       live with exactly one claimed friend: the row is followed by the
       new footer, then genuine blank space that now reads as "that's
       everything," not as an unfinished screen. `make check` green.
-- [ ] **[5, moderate, unconfirmed] The group's "…" menu runs to 11 rows
-      across 4 sections — confirm every row is reachable on a real
-      device.** `~2k tokens` (CLI, investigation) — decided: simulator
-      automation couldn't reliably activate a row it had to scroll a
-      native `Menu` to reach (a tap at the row's own coordinates
-      dismissed the menu instead), which may be purely an automation
-      limitation rather than something a real finger or VoiceOver hits.
-      Confirm on a real device before deciding whether any row needs to
-      move (e.g. into Group Settings, which already holds equivalent
-      settings-shaped actions). Deeper-pass update 2026-09-12: reproduced
-      twice more, on two different rows ("Recently Deleted",
-      "Recurring Reminders"), each time at freshly re-queried,
-      confirmed-correct accessibility-tree coordinates — while other
-      rows in the same menu ("Filter Activity") activated fine at their
-      own coordinates. That pattern (works near the top, fails further
-      down the same menu) looks less like a one-off automation fluke and
-      more like something worth an actual finger test before relying on
-      simulator results alone either way.
+- [x] **[5, moderate] The group's "…" menu runs to 11 rows across 4
+      sections — confirm every row is reachable on a real device.**
+      Confirmed 2026-09-16 on build 17's real-device TestFlight pass
+      (`docs/appstore/testflight-pass.md` check 37) — "Recently Deleted"
+      and "Recurring Reminders" both open normally with one tap on a
+      real finger. The earlier repeated failures (2026-09-12) were a
+      simulator-automation limitation, not a real defect; no row needs
+      to move.
 - [x] **[6, minor] Full-width, left-aligned capsule buttons read as
       list rows wearing a button's clothes.** Done 2026-09-12 —
       "Split the cost between payers" and "More Split Types (Shares,
