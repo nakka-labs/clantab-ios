@@ -22,9 +22,27 @@ cost). **Price set to Free** via the ASC API on 2026-09-10:
 `POST /v1/appPriceSchedules` with `baseTerritory = USA` at the free
 price point — USA base + all 174 automatic territories now `0.0`,
 effective immediately. Verified 0 IAP products and 0 subscription
-groups exist. Remaining is just the `Owner` decision to submit
-(`CHECKLIST.md` "Submit for App Store review"), gated on the TestFlight
-pass.
+groups exist.
+
+**Refreshed 2026-09-16** (build 17, real-device TestFlight pass complete,
+`v1.0-17` tagged): the 4 screenshots and the description were both
+badly stale — captured/written 2026-09-02/09-09, before the round-2/
+round-3 batches and the R1-R16 owner-feedback batch (Friends + private
+1:1 tabs, multiple payers, split by shares, itemized tax/tip, comments,
+recurring reminders, CSV import, the current hero-card/bubble-view/
+Insights-preview-card Group Home layout). Guideline 2.3.3 requires
+screenshots to reflect the actual app — the old ones showed a UI that
+no longer exists (a flat "Spending Insights" row, a bare bar chart, only
+3 split types). Retaken against a live local `wrangler dev` backend +
+Simulator run seeded with a realistic multi-currency, multi-category
+"Lisbon Trip" demo group (same iPhone 17 Pro Max / 1320×2868 / 9:41
+status bar recipe as before) and re-uploaded to the same
+`APP_IPHONE_67` set, same order and file names. Description rewritten
+to mention what shipped since (split types, multiple payers, Friends/
+private tabs, comments/reminders/CSV import) while keeping the original
+voice/section structure; promotional text untouched (still accurate).
+Remaining is just the `Owner` decision to submit (`CHECKLIST.md`
+"Submit for App Store review").
 
 **ASC API access** (for a future session): key `58887ALLXT` (Team key
 "clantab-upload", App Manager) at `~/.appstoreconnect/private_keys/`;
@@ -64,6 +82,12 @@ under 1.2 are already met either way.
 code, and split trip and flatmate expenses down to the last paisa.`
 
 ## Description (≤ 4000 chars)
+
+Rewritten 2026-09-16 (see the note at the top of this file) to cover what's
+shipped since the original 2026-09-09 draft — split types beyond equal/exact,
+multiple payers, Friends/private tabs, comments/reminders/CSV import — while
+keeping the original section structure and voice.
+
 ```
 ClanTab splits shared expenses for small groups — trips, flatmates, friend
 circles — without the friction.
@@ -78,20 +102,30 @@ ClanTab collapses everyone's tangled IOUs into the minimum number of
 "pay this person that much" transactions, so you settle up with one or two
 transfers instead of six.
 
+SPLIT HOW YOU WANT
+Equal splits, exact amounts, percentages, uneven shares (2:1:1), or itemized
+receipts with tax and tip divided proportionally. Multiple people can pay one
+expense together. The remainder from an uneven split is always assigned
+deterministically, so the totals match.
+
 EXACT TO THE PAISA
 Every amount is tracked in whole cents/paise — no floating-point rounding, no
 lost or gained money across the ledger, ever.
 
-SPLIT HOW YOU WANT
-Equal splits or exact amounts per person. The remainder from an uneven split is
-always assigned deterministically, so the totals match.
+FRIENDS ACROSS GROUPS
+See your net balance with anyone you share a group with, and start a private
+1:1 tab with them for money that has nothing to do with any group.
 
 TRUST-BASED, NOT A PAYMENT APP
 Marking a debt "paid" just records that you settled it outside the app. ClanTab
 never touches your money and never asks for card or bank details.
 
+STAY ON THE SAME PAGE
+Comment on any expense, set up recurring reminders for regular bills, and
+import an existing Splitwise or Settle Up CSV to bring your history with you.
+
 YOUR DATA, EXPORTABLE
-Export any group to CSV or JSON at any time from the share menu.
+Export any group to CSV, JSON, or a PDF report at any time from the share menu.
 
 NO ADS. NO TRACKING.
 There are no analytics or advertising SDKs in the app.
@@ -208,11 +242,17 @@ analytics or advertising SDKs. No in-app purchases.
 ```
 
 ## Screenshots
-✅ Uploaded to App Store Connect 2026-09-09 (`APP_IPHONE_67` set, order 1–4,
-all `COMPLETE`, no warnings). Source: `docs/appstore/screenshots/`
-(2026-09-02). Four 1320 × 2868 frames
-(iPhone 6.9" — the one required iPhone size), PNG without alpha, status bar at
-9:41: Group Home, Insights, Add Expense, Settle Up. Captured on an iPhone 17 Pro
-Max Simulator with a "Lisbon Trip" demo group. Upload as-is to the iPhone
-screenshot slot in App Store Connect; App Store Connect scales for other iPhone
-sizes.
+✅ Retaken and re-uploaded to App Store Connect 2026-09-16 (`APP_IPHONE_67`
+set, same 4 asset ids' slots replaced, order 1–4, all `COMPLETE`, no errors),
+replacing the 2026-09-02 set that had gone stale against build 17's actual UI
+(see the note at the top of this file). Source: `docs/appstore/screenshots/`.
+Four 1320 × 2868 frames (iPhone 6.9" — the one required iPhone size), PNG
+without alpha, status bar at 9:41: Group Home (current hero card + swipeable
+bubble/Insights-preview `TabView`), Insights (the sheet, showing the category
+pie chart), Add Expense (the split-type menu showing Items/Shares alongside
+Equally/Exact/Percentage), Settle Up (both EUR and USD suggested payments).
+Captured on an iPhone 17 Pro Max Simulator against a local `wrangler dev`
+backend, seeded via the API with a "Lisbon Trip" demo group (Sam/Priya/Alex/
+Jordan) exercising shares, itemized tax/tip, and multiple payers across two
+currencies. Upload as-is to the iPhone screenshot slot in App Store Connect;
+App Store Connect scales for other iPhone sizes.
