@@ -365,6 +365,23 @@
           that's a separate `POST /api/admin/backfill-display-names` call
           against the deployed worker, independent of this app build, not
           yet run (see R1's own note above).
+      3i. [x] CLI: build `1.0 (17)` archived, exported, and uploaded
+          2026-09-16 — carries the two build-16 real-device findings fix
+          (commit `60272b5`, pushed to `origin/main` first): the
+          balance-bubble settled-dot color fix and the Insights
+          hero-page preview-card/sheet rework (both in "Real-device
+          findings, build 16" above). Checked the live build number via
+          the ASC API first (`16`, matched the repo, no drift). `make
+          bump-build` → `17`, same archive + `-exportArchive
+          destination: upload` flow as 3b–3h, same Admin-role ASC API
+          key. `processingState VALID` within ~2 minutes (confirmed via
+          the API). Internal test groups auto-receive every new build
+          (the `betaGroups` relationship only allows CREATE/DELETE, not
+          GET, on this endpoint — that 403 is normal, not a sign the
+          build is unassigned). Set the "What to Test" note via `PATCH
+          /v1/betaBuildLocalizations/:id`. Archive at
+          `~/Library/Developer/Xcode/Archives/2026-09-16/ClanTab-1.0-17
+          .xcarchive`.
       4. Owner: run the pass on a real device — Sign in with Apple/Google,
          a push (CLI triggers it via an API expense-add), a recurring-
          reminder delivery, a shared `clantab.nakka.dev/g/…` link opening
